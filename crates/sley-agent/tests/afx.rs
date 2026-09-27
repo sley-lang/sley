@@ -1441,7 +1441,9 @@ fn bounds_are_refused_never_truncated() {
             {"name": "entry", "ops": ops, "term": ["return", "x0"]}]),
         ),
         "AGENT_X_LIMIT",
-        &["/fns/0: the expanded function has 4200 operations, more than the bound of 4096"],
+        &[
+            "/fns/0: the expanded function has at least 4200 operations, more than the bound of 4096",
+        ],
     );
 }
 
@@ -1458,7 +1460,9 @@ fn the_generated_block_bound_is_refused() {
             {"name": "entry", "ops": exits, "term": ["ok", "a"]}]),
         ),
         "AGENT_X_LIMIT",
-        &["/fns/0: the expanded function has 1031 generated blocks, more than the bound of 1024"],
+        &[
+            "/fns/0: the expanded function has at least 1030 generated blocks, more than the bound of 1024",
+        ],
     );
 }
 
@@ -2266,5 +2270,102 @@ fn a_pointer_inside_a_problem_detail_is_mapped_too() {
     assert_eq!(
         detail,
         "/test_tables/0/cases/1/args/0: expected an integer [expanded /tests/1/args/0]"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Review regression: expansion time
+// ---------------------------------------------------------------------------
+
+/// A chain of `n` blocks listed opposite to dominance order, each using the
+/// value of the block before it by plain name (reproducer W2-A7).
+fn reverse_chain(n: usize) -> Value {
+    let blocks: Vec<Value> = (0..n)
+        .map(|i| {
+            let ops = if i == n - 1 {
+                json!([[format!("v{i}"), "eq", "a", "a"]])
+            } else {
+                let previous = format!("v{}", i + 1);
+                json!([[format!("v{i}"), "eq", previous, previous]])
+            };
+            let term = if i == 0 {
+                json!(["return", "v0"])
+            } else {
+                json!(["br", format!("b{}", i - 1)])
+            };
+            json!({"name": format!("b{i}"), "ops": ops, "term": term})
+        })
+        .collect();
+    json!({"af1": 1, "afx": 1, "fns": [{"fn": "h", "params": [["a", "i64"]], "returns": "bool",
+        "entry": format!("b{}", n - 1), "blocks": blocks}]})
+}
+
+#[test]
+fn expansion_time_stays_near_linear() {
+    let temp = workspace("scale");
+    let head = Workspace::at(&temp.path).head().unwrap();
+    let names = names_of(&temp.path, head.program());
+    for n in [250, 1000, 4000] {
+        let frame = reverse_chain(n);
+        let started = std::time::Instant::now();
+        let expansion = sley_agent::afx::expand(head.program(), &names, &frame).unwrap();
+        let elapsed = started.elapsed();
+        assert!(
+            expansion.obligations.is_empty(),
+            "{:?}",
+            expansion.obligations
+        );
+        assert_eq!(
+            expansion.frame["fns"][0]["blocks"][0]["ops"][0],
+            json!(["v0", "eq", "b1.v1", "b1.v1"])
+        );
+        eprintln!("reverse chain of {n} blocks: {elapsed:?}");
+        assert!(elapsed.as_millis() < 1000, "{n} blocks took {elapsed:?}");
+    }
+    // One block of 1,000 checked operations that each read a block
+    // parameter: 1,000 pieces, the parameter threaded through all of them.
+    let ops: Vec<Value> = (0..1000)
+        .map(|i| {
+            let previous = if i == 0 {
+                "p".to_owned()
+            } else {
+                format!("x{}", i - 1)
+            };
+            json!([format!("x{i}"), "add?", previous, "p"])
+        })
+        .collect();
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "w", "params": [["a", "i64"]],
+        "returns": "Result<i64,ArithmeticError>", "blocks": [
+          {"name": "entry", "term": ["br", "work", "a"]},
+          {"name": "work", "params": [["p", "i64"]], "ops": ops, "term": ["ok", "x999"]}]}]});
+    let started = std::time::Instant::now();
+    let expansion = sley_agent::afx::expand(head.program(), &names, &frame).unwrap();
+    let elapsed = started.elapsed();
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    eprintln!("1,000 checked operations in one block: {elapsed:?}");
+    assert!(elapsed.as_millis() < 1000, "took {elapsed:?}");
+    // A bound is refused before the expensive passes.
+    let ops: Vec<Value> = (0..5000)
+        .map(|i| json!([format!("x{i}"), "eq", "a", "a"]))
+        .collect();
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "w", "params": [["a", "i64"]], "returns": "bool",
+        "blocks": [{"name": "entry", "ops": ops, "term": ["return", "x0"]}]}]});
+    let started = std::time::Instant::now();
+    let expansion = sley_agent::afx::expand(head.program(), &names, &frame).unwrap();
+    assert!(started.elapsed().as_millis() < 1000);
+    assert_eq!(
+        expansion.obligations[0].symbol,
+        sley_agent::AgentErrorCode::XLimit
+    );
+    assert!(
+        expansion.obligations[0]
+            .decision
+            .starts_with("the expanded function has at least 5000 operations"),
+        "{:?}",
+        expansion.obligations
     );
 }

@@ -1718,7 +1718,10 @@ impl Expander<'_, '_> {
                     .map(str::to_owned)
             })
             .unwrap_or_default();
-        fx.run();
+        if !fx.run() {
+            self.absorb(fx);
+            return Some(Value::Object(object.clone()));
+        }
         let mut out_blocks = Vec::new();
         for slot in &slots {
             match slot {
@@ -1861,7 +1864,10 @@ impl Expander<'_, '_> {
             })
             .or_else(|| patched.keys().find(|key| !patched[*key].is_null()).cloned())
             .unwrap_or_default();
-        fx.run();
+        if !fx.run() {
+            self.absorb(fx);
+            return Some(Value::Object(object.clone()));
+        }
         let mut out_blocks = Map::new();
         for (key, spec) in &patched {
             if spec.is_null() || raw_keys.contains(key) {
@@ -2178,6 +2184,12 @@ struct FnExp<'c, 'a> {
     value_taken: BTreeSet<String>,
     block_taken: BTreeSet<String>,
     cfg: Option<Cfg>,
+    /// Authored block positions by name.
+    block_at: BTreeMap<String, usize>,
+    /// The authored blocks defining each name.
+    def_index: BTreeMap<String, Vec<usize>>,
+    /// The kept live blocks defining each name.
+    kept_index: BTreeMap<String, Vec<usize>>,
     /// A block or terminator the expander does not understand is passed to
     /// the compiler as written; the control-flow graph is then incomplete,
     /// so X4 defers to the compiler's own diagnostics instead of guessing.
@@ -2220,6 +2232,9 @@ impl<'c, 'a> FnExp<'c, 'a> {
             value_taken: BTreeSet::new(),
             block_taken: BTreeSet::new(),
             cfg: None,
+            block_at: BTreeMap::new(),
+            def_index: BTreeMap::new(),
+            kept_index: BTreeMap::new(),
             degraded: false,
             obligations: Vec::new(),
             entries: Vec::new(),
@@ -2233,8 +2248,13 @@ impl<'c, 'a> FnExp<'c, 'a> {
         self.obligations.push(Obligation::new(symbol, at, decision));
     }
 
-    fn run(&mut self) {
+    /// Expands the function; `false` when a size bound refused it before
+    /// any expensive pass (nothing is emitted then).
+    fn run(&mut self) -> bool {
         self.declare();
+        if !self.within_bounds() {
+            return false;
+        }
         self.infer_types();
         self.block_defs = vec![BTreeMap::new(); self.blocks.len()];
         self.block_pieces = vec![Vec::new(); self.blocks.len()];
@@ -2243,6 +2263,66 @@ impl<'c, 'a> FnExp<'c, 'a> {
         }
         self.cfg = Some(self.dominators());
         self.thread();
+        true
+    }
+
+    /// The operations and generated blocks the expansion will make, counted
+    /// on the authored blocks, against the bounds (checked again, exactly,
+    /// after emission).
+    fn within_bounds(&mut self) -> bool {
+        fn node(node: &Node, ops: &mut usize, generated: &mut usize) {
+            *ops += 1;
+            *generated += usize::from(node.check.is_some());
+            for arg in &node.args {
+                operand(&arg.operand, ops, generated);
+            }
+        }
+        fn operand(operand: &Operand, ops: &mut usize, generated: &mut usize) {
+            match operand {
+                Operand::Nested(inner) => node(inner, ops, generated),
+                Operand::Literal { .. } => *ops += 1,
+                Operand::Name(_) | Operand::Raw(_) => {}
+            }
+        }
+        let (mut ops, mut generated) = (0, 0);
+        for block in &self.blocks {
+            for stmt in &block.stmts {
+                match stmt {
+                    Stmt::Op(op) => node(op, &mut ops, &mut generated),
+                    Stmt::Exit(exit) => {
+                        generated += 1;
+                        operand(&exit.cond.operand, &mut ops, &mut generated);
+                        if let Some(payload) = &exit.payload {
+                            operand(&payload.operand, &mut ops, &mut generated);
+                        }
+                    }
+                    Stmt::Raw { .. } => ops += 1,
+                }
+            }
+        }
+        let pointer = self.fn_pointer.clone();
+        let mut within = true;
+        if ops > MAX_EXPANDED_OPS_PER_FUNCTION {
+            self.oblige(
+                AgentErrorCode::XLimit,
+                &pointer,
+                format!(
+                    "the expanded function has at least {ops} operations, more than the bound of {MAX_EXPANDED_OPS_PER_FUNCTION}: split it into several functions"
+                ),
+            );
+            within = false;
+        }
+        if generated > MAX_GENERATED_BLOCKS_PER_FUNCTION {
+            self.oblige(
+                AgentErrorCode::XLimit,
+                &pointer,
+                format!(
+                    "the expanded function has at least {generated} generated blocks, more than the bound of {MAX_GENERATED_BLOCKS_PER_FUNCTION}: split it into several functions"
+                ),
+            );
+            within = false;
+        }
+        within
     }
 
     /// Authored names: the `__` reservation, duplicates, and the tables the
@@ -2302,6 +2382,17 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
             self.defs.push(defs);
         }
+        for (b, block) in self.blocks.iter().enumerate() {
+            self.block_at.entry(block.name.clone()).or_insert(b);
+            for name in self.defs[b].keys() {
+                self.def_index.entry(name.clone()).or_default().push(b);
+            }
+        }
+        for (k, kept) in self.kept.iter().enumerate() {
+            for (name, _) in kept.params.iter().chain(&kept.ops) {
+                self.kept_index.entry(name.clone()).or_default().push(k);
+            }
+        }
         for (pointer, name) in problems {
             self.oblige(
                 AgentErrorCode::FrameInvalid,
@@ -2323,7 +2414,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
     // --- typing -----------------------------------------------------------
 
     fn block_index(&self, name: &str) -> Option<usize> {
-        self.blocks.iter().position(|block| block.name == name)
+        self.block_at.get(name).copied()
     }
 
     /// The type of a value reference for typing (definition order and
@@ -2351,15 +2442,15 @@ impl<'c, 'a> FnExp<'c, 'a> {
             return ty.clone();
         }
         let mut found = Vec::new();
-        for (d, defs) in self.defs.iter().enumerate() {
+        for &d in self.def_index.get(base).map_or(&[][..], Vec::as_slice) {
             if d != b
-                && let Some(def) = defs.get(base)
+                && let Some(def) = self.defs[d].get(base)
             {
                 found.push(def.ty.clone());
             }
         }
-        for kept in &self.kept {
-            if let Some((_, ty)) = kept.value(base) {
+        for &k in self.kept_index.get(base).map_or(&[][..], Vec::as_slice) {
+            if let Some((_, ty)) = self.kept[k].value(base) {
                 found.push(ty);
             }
         }
@@ -2370,31 +2461,67 @@ impl<'c, 'a> FnExp<'c, 'a> {
         }
     }
 
+    /// Result types of the authored operations, by a worklist: an operation
+    /// is typed again only when a name it reads has just been typed, so
+    /// each is typed at most once and the work follows the references.
     fn infer_types(&mut self) {
-        let named: usize = self.blocks.iter().map(|block| block.stmts.len()).sum();
-        for _ in 0..=named {
-            let mut changed = false;
-            for b in 0..self.blocks.len() {
-                for s in 0..self.blocks[b].stmts.len() {
-                    let Stmt::Op(node) = &self.blocks[b].stmts[s] else {
-                        continue;
-                    };
-                    let Some(name) = node.name.clone() else {
-                        continue;
-                    };
-                    if self.defs[b].get(&name).is_some_and(|def| def.ty.is_some()) {
-                        continue;
+        fn reads(node: &Node, out: &mut Vec<String>) {
+            for arg in &node.args {
+                match &arg.operand {
+                    Operand::Name(text) => {
+                        let (base, _) = split_suffix(text);
+                        out.push(base.rsplit('.').next().unwrap_or(base).to_owned());
                     }
-                    if let Some(ty) = self.node_types(b, node, None).value
-                        && let Some(def) = self.defs[b].get_mut(&name)
-                    {
-                        def.ty = Some(ty);
-                        changed = true;
-                    }
+                    Operand::Nested(inner) => reads(inner, out),
+                    Operand::Literal { .. } | Operand::Raw(_) => {}
                 }
             }
-            if !changed {
-                break;
+        }
+        let mut users: BTreeMap<String, Vec<(usize, usize)>> = BTreeMap::new();
+        let mut queue = std::collections::VecDeque::new();
+        let mut queued = BTreeSet::new();
+        for (b, block) in self.blocks.iter().enumerate() {
+            for (s, stmt) in block.stmts.iter().enumerate() {
+                let Stmt::Op(node) = stmt else { continue };
+                let mut names = Vec::new();
+                reads(node, &mut names);
+                for name in names {
+                    users.entry(name).or_default().push((b, s));
+                }
+                queue.push_back((b, s));
+                queued.insert((b, s));
+            }
+        }
+        while let Some((b, s)) = queue.pop_front() {
+            queued.remove(&(b, s));
+            let Stmt::Op(node) = &self.blocks[b].stmts[s] else {
+                continue;
+            };
+            let Some(name) = node.name.clone() else {
+                continue;
+            };
+            if self.defs[b].get(&name).is_some_and(|def| def.ty.is_some()) {
+                continue;
+            }
+            let Some(ty) = self.node_types(b, node, None).value else {
+                continue;
+            };
+            if let Some(def) = self.defs[b].get_mut(&name) {
+                def.ty = Some(ty);
+            }
+            for &user in users.get(&name).map_or(&[][..], Vec::as_slice) {
+                let typed = match &self.blocks[user.0].stmts[user.1] {
+                    Stmt::Op(Node {
+                        name: Some(user_name),
+                        ..
+                    }) => self.defs[user.0]
+                        .get(user_name)
+                        .is_some_and(|def| def.ty.is_some()),
+                    _ => true,
+                };
+                if !typed && queued.insert(user) {
+                    queue.push_back(user);
+                }
             }
         }
     }
