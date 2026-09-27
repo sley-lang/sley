@@ -1,0 +1,118 @@
+//! The events ledger: one JSON line per workbench command, appended to
+//! `.sley/events.jsonl`, for attributing authoring effort (input and output
+//! sizes, whole-frame rewrites, delta sizes, authoring feature use, test
+//! provenance, refusals, draft completion).
+//!
+//! A line carries counts, handles and symbols only: no clock, no names, no
+//! frame or program content. Appending is best effort; it never fails or
+//! changes the command.
+
+use std::fs::{self, OpenOptions};
+use std::io::Write as _;
+use std::path::PathBuf;
+
+use serde_json::{Map, Value, json};
+
+use crate::workspace::{REPO_DIR, STATE_DIR};
+
+/// The ledger file in the workbench state directory.
+pub const EVENTS_FILE: &str = "events.jsonl";
+
+/// Most authoring counters one line carries.
+const MAX_STATS: usize = 32;
+/// Longest symbol a line carries.
+const MAX_SYMBOL: usize = 64;
+
+/// The counters one command reports, filled while it runs.
+#[derive(Clone, Debug, Default)]
+pub struct Event {
+    workspace: Option<PathBuf>,
+    fields: Map<String, Value>,
+}
+
+impl Event {
+    /// Records the workspace the command used (the ledger's home).
+    pub fn at(&mut self, dir: PathBuf) {
+        self.workspace = Some(dir);
+    }
+
+    /// Sets one counter.
+    pub fn set(&mut self, key: &str, value: impl Into<Value>) {
+        self.fields.insert(key.to_owned(), value.into());
+    }
+
+    /// The ledger line: a fixed key set, with defaults for the counters the
+    /// command did not report. Unknown keys never reach the line.
+    #[must_use]
+    pub fn line(&self, seq: u64, command: &str, output_bytes: usize) -> Value {
+        let field = |key: &str, default: Value| self.fields.get(key).cloned().unwrap_or(default);
+        let stats: Map<String, Value> = self
+            .fields
+            .get("afx")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+            .filter(|(_, value)| value.is_number() || value.is_boolean())
+            .take(MAX_STATS)
+            .map(|(key, value)| (key.chars().take(MAX_SYMBOL).collect(), value.clone()))
+            .collect();
+        let refusal = self
+            .fields
+            .get("refusal")
+            .and_then(Value::as_str)
+            .map(|symbol| symbol.chars().take(MAX_SYMBOL).collect::<String>());
+        let tests = self
+            .fields
+            .get("tests")
+            .filter(|value| value.is_object())
+            .map(|tests| {
+                json!({
+                    "provided": tests["provided"].as_u64().unwrap_or(0),
+                    "imported": tests["imported"].as_u64().unwrap_or(0),
+                    "authored": tests["authored"].as_u64().unwrap_or(0),
+                })
+            });
+        json!({
+            "seq": seq,
+            "cmd": command.chars().take(MAX_SYMBOL).collect::<String>(),
+            "draft": field("draft", Value::Null),
+            "candidate": field("candidate", Value::Null),
+            "input_bytes": field("input_bytes", json!(0)),
+            "output_bytes": output_bytes,
+            "whole_frame": field("whole_frame", json!(false)),
+            "delta_targets": field("delta_targets", json!(0)),
+            "delta_bytes": field("delta_bytes", json!(0)),
+            "afx": stats,
+            "table_rows": field("table_rows", json!(0)),
+            "tests": tests,
+            "refusal": refusal,
+            "obligations": field("obligations", json!(0)),
+            "valid": field("valid", Value::Null),
+        })
+    }
+}
+
+/// Appends the command's line to its workspace's ledger. Commands that
+/// used no workspace (help, version) and directories that are not
+/// workspaces get no line; a failure to append is ignored.
+pub fn append(event: &Event, command: &str, output_bytes: usize) {
+    let Some(dir) = &event.workspace else {
+        return;
+    };
+    if !dir.join(REPO_DIR).is_dir() && !dir.join(STATE_DIR).is_dir() {
+        return;
+    }
+    let state = dir.join(STATE_DIR);
+    if fs::create_dir_all(&state).is_err() {
+        return;
+    }
+    let path = state.join(EVENTS_FILE);
+    let seq = fs::read(&path).map_or(0, |bytes| {
+        bytes.split(|byte| *byte == b'\n').count() as u64 - 1
+    }) + 1;
+    let mut text = event.line(seq, command, output_bytes).to_string();
+    text.push('\n');
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = file.write_all(text.as_bytes());
+    }
+}
