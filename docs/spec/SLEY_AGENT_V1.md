@@ -485,51 +485,75 @@ counts `ripple_intents`, `ripple_edits` and `ripple_holes`.
 
 Two intents are enabled:
 
-- `{"arity": f}` and `{"arity": f, "value": v}`. The frame restates the
-  parameters of the live function `f`. Every call of `f` in live code the
-  frame does not restate, and every TestCase of `f`, gets its arguments by
-  parameter name: a kept parameter (same name and type) keeps its argument,
-  a removed one drops it while its computation still runs, and a new one
-  takes `v`, a literal of its type, when exactly one parameter is new.
-  Anything else is `AGENT_RIPPLE_HOLE_UNFILLED` naming the site, the
-  parameter and its type; a parameter kept by name with another type is
-  never coerced. A call or test the frame itself writes is left as written
-  when it has the new argument count and rewritten when it has the old one.
-  The exported boundary is `AGENT_RIPPLE_EXPORTED_BOUNDARY`: `f` is the
-  function of an entry point, in a package's exports, a global's
-  initializer, or named by a contract or policy binding (code outside the
-  program's calls uses its parameters), or a live caller belongs to other
-  namespaces than `f`. Visibility alone is not the boundary. A use of `f`
-  as a value (`fnref`) is unresolved dispatch and a hole.
-- `{"guard": g, "arg": p, "in": [f, ...], "mode": m}`. `g` is a checker
-  `P -> Result<P,E>` (another shape is `AGENT_RIPPLE_GUARD_SHAPE`; no error
-  case is inferred for `Option`), defined in the same frame or live; each
-  `f` is a live function the frame does not restate, with parameter `p` of
-  type `P`. `"preserve"` (the default) replaces an inline check at its own
-  position when it is structurally the same as `g`'s body up to names: the
-  same pure operations on `p`, in the same order, ending a block, the same
-  error results, and one success continuation that reads nothing the check
-  defines. The checked value, the order of evaluation, the errors and the
-  continuation are then those of the original. A match is never inferred
-  from tests; anything else is `AGENT_RIPPLE_GUARD_ORDER`. `"entry"`
-  evaluates `g(p)` once when `f` starts, before its existing checks (which
-  can change error precedence), and routes every use of `p` that the `Ok`
-  payload dominates through it; a block the error route can also reach, or
-  an explicitly unreachable one, keeps `p`. The error is returned
-  unchanged when `f` returns `Result<_,E>`, or goes to the one block of `f`
-  that takes `(e: E)` (a block that only passes the error on counts as the
-  block it passes it to); with no such route, or more than one, it is a
-  hole. Entry never moves a check before an effect, never evaluates `g`
-  twice on `p`, never deletes an existing check, and is refused when `g`
-  calls `f`.
+- `{"arity": f}`, `{"arity": f, "value": v}`, optionally with
+  `"frame_calls": "old"|"new"`. The frame restates the parameters of the
+  live function `f`. Every call of `f` in live code the frame does not
+  restate, and every TestCase of `f`, gets its arguments by parameter name:
+  a kept parameter (same name and type) keeps its argument, a removed one
+  drops it while its computation still runs, and a new one takes `v`, a
+  literal of its type, when exactly one parameter is new. Anything else is
+  `AGENT_RIPPLE_HOLE_UNFILLED` naming the site, the parameter and its type;
+  a parameter kept by name with another type is never coerced. A call or
+  test the frame itself writes (including those carried from earlier
+  revisions of the draft, which the layered frame cannot tell apart) is
+  read by its argument count: kept as written when it has the new count,
+  rewritten by name when it has the old one. When the old and new counts
+  are equal (a reorder or a rename), the count does not tell, so each such
+  call or test is a hole unless the intent says `"frame_calls": "old"`
+  (rewrite them all by name; one with another count is then a hole) or
+  `"new"` (keep them all as written). The exported boundary is
+  `AGENT_RIPPLE_EXPORTED_BOUNDARY`: `f` is the function of an entry point,
+  a global's initializer, named by a contract or policy binding, or in a
+  package's exports, directly or through a namespace that holds it at any
+  depth (code outside the program's calls uses its parameters); or a call
+  ripple would rewrite belongs to a function in other namespaces than `f`,
+  whether that function is live or restated by the frame (a new function
+  joins the frame's namespace). Visibility alone is not the boundary. A
+  use of `f` as a value (`fnref`, or a constant or TestCase that holds a
+  reference to `f`) is unresolved dispatch and a hole.
+- `{"guard": g, "arg": p, "in": [f, ...], "mode": m}`, in entry mode
+  optionally with `"handler": b`. `g` is a checker `P -> Result<P,E>`
+  (another shape is `AGENT_RIPPLE_GUARD_SHAPE`; no error case is inferred
+  for `Option`), defined in the same frame or live; each `f` is a live
+  function the frame does not restate, with parameter `p` of type `P`. The
+  guard reads the program as the frame leaves it: `g`'s body, constants and
+  the call graph are those the frame defines (the frame's definitions
+  compiled over the program, with the edits of earlier intents), so a
+  frame that does not compile is refused as it stands. `"preserve"` (the
+  default) replaces an inline check at its own position when it is
+  structurally the same as `g`'s body up to names: the same pure operations
+  on `p`, in the same order, ending a block, with constants equal in the
+  candidate and the same functions called, the same error results, and one
+  success continuation that reads nothing the check defines. The checked
+  value, the order of evaluation, the errors and the continuation are then
+  those of the original. A match is never inferred from tests; anything
+  else is `AGENT_RIPPLE_GUARD_ORDER`. `"entry"` evaluates `g(p)` once when
+  `f` starts, before anything else `f` does. When `g` fails, `f` fails with
+  `g`'s error on every path: this changes not only which error wins when
+  several inputs are invalid, but also turns paths that returned early,
+  trapped, or failed another way before reaching a check of `p` into `g`'s
+  error. When `g` succeeds, `f` runs as before, and every use of `p` that
+  the `Ok` payload dominates reads it; a block the error route can also
+  reach, or an explicitly unreachable one, keeps `p`. The error is
+  returned unchanged when `f` returns `Result<_,E>`; otherwise it goes to
+  the block the author names with `"handler"`, which must take exactly one
+  `E`, and without one it is a hole. A block is never chosen as a route by
+  its parameter type alone. Entry is refused (`AGENT_RIPPLE_GUARD_ORDER`)
+  when `f` performs effects, when `g` calls `f` in the candidate's call
+  graph, and when `f` already evaluates `g`, on any value, directly or
+  through the functions it calls, since a second evaluation could not be
+  excluded; it never deletes an existing check.
 
 `effect`, `member`, `retype`, `move` and `prune` are not enabled in this
 build: they are refused with `AGENT_RIPPLE_INTENT_UNKNOWN`, as is any
 unknown intent. The bounds are 32 intents per frame, 256 call sites and
-tests per `arity`, and 64 functions per `guard` and blocks per checker;
-reaching one is `AGENT_RIPPLE_LIMIT`, never truncation. A function with
-type parameters or declared effects is never patched, since AF1 cannot
-restate either.
+tests per `arity`, 64 functions per `guard`, 64 blocks per checker (in
+either mode), and 1024 structural comparisons per function a preserve guard
+searches; reaching one is `AGENT_RIPPLE_LIMIT`, never truncation or a
+reported mismatch. A function with type parameters or declared effects is
+never patched, since AF1 cannot restate either. A frame refused before it
+compiles still records its expansion counts (the ripple counts among them)
+in the events ledger.
 
 ## 6. Opcodes
 

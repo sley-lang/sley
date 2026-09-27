@@ -148,8 +148,9 @@ brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
 
 ## Ripple
 
-    "ripple": [{"arity": "f"}, {"arity": "f", "value": 0},
-               {"guard": "g", "arg": "p", "in": ["f", ...], "mode": "preserve"}]
+    "ripple": [{"arity": "f"}, {"arity": "f", "value": 0, "frame_calls": "old"},
+               {"guard": "g", "arg": "p", "in": ["f", ...], "mode": "preserve"},
+               {"guard": "g", "arg": "p", "in": ["f", ...], "mode": "entry", "handler": "b"}]
 
 A ripple intent states a change once, and `try` derives the edits it
 implies into the frame. Intents apply in order, after the frame's own
@@ -162,23 +163,36 @@ cannot make is an `AGENT_RIPPLE_*` obligation that points into the intent.
 (in `fns`, or in a `patch` with `params`). Every call of `f` in live code
 and every TestCase of `f` get their arguments by parameter name: a kept
 parameter keeps its argument, a removed one drops it, and a new one takes
-`"value"` (a literal of its type) or is an obligation. A call the frame
-itself writes is left as written when it passes the new number of
-arguments. Ripple stops (`AGENT_RIPPLE_EXPORTED_BOUNDARY`) when `f` is an
-entry point, a package export, a global's initializer, or named by a
-contract or policy binding, and at a caller in another namespace. A use of
-`f` as a value (`fnref`) is an obligation.
+`"value"` (a literal of its type) or is an obligation. A call or test the
+frame itself writes (in this revision or an earlier one) is kept when it
+passes the new number of arguments and rewritten by name when it passes the
+old number; when both numbers are the same (a reorder or a rename), say how
+they are written: `"frame_calls": "old"` rewrites them by name, `"new"` keeps
+them, and without it each is an obligation. Ripple stops
+(`AGENT_RIPPLE_EXPORTED_BOUNDARY`) when `f` is an entry point, a package
+export (or in a namespace a package exports), a global's initializer, or
+named by a contract or policy binding, and at a call it would rewrite in
+another namespace, live or restated by the frame. A use of `f` as a value
+(`fnref`, or a constant or TestCase holding it) is an obligation.
 
 `{"guard": g, "arg": p, "in": [f, ...]}`: `g` is a checker `P -> Result<P,E>`,
 defined in the same frame or live. `"mode": "preserve"` (the default)
 replaces, in each live `f`, an inline check of parameter `p` that runs the
 same operations as `g` in the same order, at the end of a block, and fails
 with the same errors, by a call of `g` at that place; anything else is
-`AGENT_RIPPLE_GUARD_ORDER`. `"mode": "entry"` calls `g(p)` once when `f`
-starts, before its other checks, and every use of `p` after a success reads
-the checked value (a block the error also reaches keeps `p`). The error is
-returned unchanged when `f` returns `Result<_,E>`, or goes to the one block
-of `f` that takes `(e: E)`.
+`AGENT_RIPPLE_GUARD_ORDER`. Constants and functions are compared as the
+frame defines them. `"mode": "entry"` calls `g(p)` once when `f` starts,
+before anything else `f` does: when `g` fails, `f` fails with `g`'s error on
+every path, including paths that returned early, trapped or failed another
+way before reaching a check of `p`; when `g` succeeds, `f` runs as before
+and every use of `p` reads the checked value (a block the error also
+reaches keeps `p`). The error is returned unchanged when `f` returns
+`Result<_,E>`; otherwise name the block of `f` that takes `(e: E)` with
+`"handler"`, or it is an obligation. Entry is refused when `f` already
+evaluates `g` (on any value, directly or through the functions it calls),
+when `g` calls `f`, or when `f` performs effects. A checker has at most 64
+blocks, and preserve makes at most 1024 comparisons per function
+(`AGENT_RIPPLE_LIMIT`).
 
 `effect`, `member`, `retype`, `move` and `prune` are not enabled in this
 build (`AGENT_RIPPLE_INTENT_UNKNOWN`).
@@ -238,6 +252,7 @@ the same place (the price check still comes first):
     AGENT_RIPPLE_TARGET_KIND        not a live function the intent can change
     AGENT_RIPPLE_HOLE_UNFILLED      a value or route ripple cannot derive
     AGENT_RIPPLE_EXPORTED_BOUNDARY  a use outside the program's calls, or in another namespace
-    AGENT_RIPPLE_LIMIT              32 intents, 256 call sites and tests per intent, 64 guarded functions
+    AGENT_RIPPLE_LIMIT              32 intents, 256 call sites and tests per intent, 64 guarded
+                                    functions, 64 checker blocks, 1024 preserve comparisons
     AGENT_RIPPLE_GUARD_SHAPE        the checker is not P -> Result<P,E>
     AGENT_RIPPLE_GUARD_ORDER        no identical check to replace, or an order that cannot be kept

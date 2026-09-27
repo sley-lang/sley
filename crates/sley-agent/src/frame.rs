@@ -199,6 +199,21 @@ fn compile_extended(
     Ok(compiled)
 }
 
+/// The authoring statistics of an AF1-X frame's expansion, for the events
+/// ledger of a frame refused before its statistics were compiled; `None`
+/// for plain AF1 and for a frame that does not expand.
+#[must_use]
+pub fn expansion_stats(
+    program: &Program,
+    names: &Names,
+    frame_value: &Value,
+) -> Option<serde_json::Map<String, Value>> {
+    frame_value.get("afx")?;
+    crate::afx::expand(program, names, frame_value)
+        .ok()
+        .map(|expansion| expansion.stats.to_json())
+}
+
 #[derive(Clone, Copy, Debug)]
 struct TopEntry {
     id: EntityId,
