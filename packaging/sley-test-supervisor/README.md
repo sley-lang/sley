@@ -4,7 +4,8 @@ N3 source (crate `sley-test-runner`, CLI `__native-test-worker` entry,
 transient-unit renderer, enforcement math, worker envelope, readiness
 probes, and one-connection authenticated refusal service) is landed and
 tested. The service answers a valid request with
-`RUN_REFUSAL_EXECUTION_NOT_WIRED`; invalid peers receive no response. It has
+`RUN_REFUSAL_EXECUTION_NOT_WIRED`, an authenticated program mismatch with
+`RUN_REFUSAL_PROGRAM_INVALID`, and invalid ingress peers with no response. It has
 no production daemon entry, worker launch, or measurement signature. The
 steps below need root on each intended host and are explicitly **pending**,
 not waived:
@@ -20,8 +21,10 @@ encodes the exact plan, root, live object inventory, and selected native
 cross-boundary identity, limit, or ordered input-hash substitution. The pure
 owner derives a bounded worker request from the statically validated selected
 `TestCase` before launch, then constructs the complete outer request from that
-program and a host nonce. The refusal-only socket service rechecks the program
-and hash bindings after peer authentication. A pure `execute_portable_test` bridge now projects
+program and a host nonce. The transaction owner can now source a candidate run
+request from the validator's proposed root and complete object inventory. The
+refusal-only socket service rechecks the program and hash bindings after peer
+authentication. A pure `execute_portable_test` bridge now projects
 the bound objects, rechecks the selected native `TestCase`, executes the
 existing Sley VM, and compares VM-derived ordered input hashes. The pure
 `sley-tests` owner reserves the complete execution report before the VM runs
@@ -33,7 +36,7 @@ worker report and binds its plan, selected test, root, function, ordered input
 hashes, schema hashes, profile, and limits to the authenticated request. It
 checks data consistency only; the refusal-only service does not call it yet.
 The private worker now dispatches a valid portable program to the pure VM
-and writes a bounded canonical report. Owner-side portable artifact sourcing,
+and writes a bounded canonical report. Replay/diagnostic artifact sourcing,
 measured launch, and admission still need to be wired before either mode can
 execute through the service.
 

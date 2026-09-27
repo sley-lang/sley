@@ -38,6 +38,9 @@ use sley_id::{
     TransactionId, WorkspaceId,
 };
 use sley_policy::ValidatedCandidatePlan;
+use sley_scb1::{ScbError, ScbErrorCode};
+use sley_test_runner::{program::PortableTestProgram, protocol::RunRequest};
+use sley_tests::plan::SELECTION_MODE_CANDIDATE_AFFECTED;
 use sley_tests::{
     HistoricalTrustPolicyV1, NATIVE_WALL_CAP_MILLIS, NativeTestApprovalV1, NativeTestPlanV1,
     NativeTestReportV1, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
@@ -401,6 +404,48 @@ pub struct ExecutedNativeTest {
     /// Complete supervisor-configuration envelope the run was enforced
     /// under; the bundle embeds every referenced configuration.
     pub supervisor_config_stored: Vec<u8>,
+}
+
+/// Builds the selected candidate test's bounded supervisor request from the
+/// validator-owned proposed state and the protected native plan.
+///
+/// The complete source inventory and root come from validation. The only
+/// caller-provided run facts are the selected test identity, a wall budget no
+/// greater than its literal `TestCase` limit, and a fresh host attempt nonce.
+/// This prepares transport bytes; it does not launch or attest execution.
+///
+/// # Errors
+///
+/// Refuses any candidate/plan/root/scope mismatch, invalid selected Sley
+/// source, or an oversized/invalid supervisor request.
+pub fn build_candidate_supervisor_request(
+    plan: &NativeTestPlanV1,
+    validated: &ValidatedCandidatePlan,
+    test_entity: sley_id::EntityId,
+    wall_ms: u64,
+    nonce: [u8; 32],
+) -> Result<RunRequest, ScbError> {
+    let candidate = validated.candidate();
+    let record = &candidate.record;
+    if plan.selection_mode() != SELECTION_MODE_CANDIDATE_AFFECTED
+        || plan.candidate_id() != Some(candidate.candidate_id)
+        || plan.workspace() != record.workspace_id
+        || plan.semantic_epoch() != record.schema_epoch_id
+        || plan.parent_transaction() != record.base_transaction_id
+        || plan.parent_root() != record.base_root
+        || plan.proposed_root() != validated.candidate_root().root
+        || plan.policy_root() != record.policy_root_id
+        || plan.resource_policy().principal() != record.principal_id
+    {
+        return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+    }
+    let program = PortableTestProgram::build(
+        plan,
+        validated.candidate_root(),
+        validated.proposed_state().entities(),
+        test_entity,
+    )?;
+    RunRequest::from_portable_program(&program, wall_ms, nonce)
 }
 
 /// Test-execution dispatch: the qualified supervisor connection in

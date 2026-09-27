@@ -23965,15 +23965,67 @@ mod native_commit_tests {
         corrupt_signature: bool,
     }
 
+    fn assert_candidate_request(
+        plan: &NativeTestPlanV1,
+        validated: &ValidatedCandidatePlan,
+        entry: sley_tests::SelectedEntry,
+    ) {
+        let request = crate::native_commit::build_candidate_supervisor_request(
+            plan,
+            validated,
+            entry.test_entity,
+            entry.declared_limits.wall_timeout_millis,
+            [0xC3; 32],
+        )
+        .expect("validated candidate builds one bounded supervisor request");
+        assert_eq!(request.test_entity, entry.test_entity);
+        assert_eq!(
+            request.candidate_id,
+            Some(validated.candidate().candidate_id)
+        );
+        assert_eq!(
+            request
+                .verified_program()
+                .expect("bound portable program")
+                .root(),
+            validated.candidate_root()
+        );
+        assert_eq!(
+            crate::native_commit::build_candidate_supervisor_request(
+                plan,
+                validated,
+                EntityId::from_bytes([0xff; 32]),
+                entry.declared_limits.wall_timeout_millis,
+                [0xC3; 32],
+            )
+            .expect_err("unselected test must refuse")
+            .code(),
+            sley_scb1::ScbErrorCode::ContractUnknown
+        );
+        assert_eq!(
+            crate::native_commit::build_candidate_supervisor_request(
+                plan,
+                validated,
+                entry.test_entity,
+                entry.declared_limits.wall_timeout_millis + 1,
+                [0xC3; 32],
+            )
+            .expect_err("expanded wall budget must refuse")
+            .code(),
+            sley_scb1::ScbErrorCode::ResourceLimit
+        );
+    }
+
     impl NativeTestExecutor for RejectingExecutor {
         fn execute(
             &self,
             plan: &NativeTestPlanV1,
-            _validated: &ValidatedCandidatePlan,
+            validated: &ValidatedCandidatePlan,
         ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
             self.invocations.set(self.invocations.get() + 1);
             let mut out = Vec::with_capacity(plan.selected().len());
             for entry in plan.selected() {
+                assert_candidate_request(plan, validated, *entry);
                 let rejected = RejectedEvidence::from_parts(
                     REJECT_PHASE_EXECUTION,
                     29211,
