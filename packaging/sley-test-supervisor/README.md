@@ -17,7 +17,9 @@ expanded wall budget. This internal socket format has no installed daemon or
 external compatibility claim yet. A bounded portable program artifact now
 encodes the exact plan, root, live object inventory, and selected native
 `TestCase`; its strict parser and `RunRequest::verified_program` reject
-cross-boundary identity or limit substitution. The refusal-only service does
+cross-boundary identity, limit, or ordered input-hash substitution. The pure
+owner derives a bounded worker request from the statically validated selected
+`TestCase` before launch. The refusal-only service does
 not yet invoke that check. A pure `execute_portable_test` bridge now projects
 the bound objects, rechecks the selected native `TestCase`, executes the
 existing Sley VM, and compares VM-derived ordered input hashes. The pure
@@ -30,7 +32,7 @@ worker report and binds its plan, selected test, root, function, ordered input
 hashes, schema hashes, profile, and limits to the authenticated request. It
 checks data consistency only; the refusal-only service does not call it yet.
 The private worker now dispatches a valid portable program to the pure VM
-and writes a bounded canonical report. Owner-side artifact construction,
+and writes a bounded canonical report. Owner-side portable artifact sourcing,
 measured launch, and admission still need to be wired before either mode can
 execute through the service.
 

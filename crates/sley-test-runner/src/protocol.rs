@@ -250,6 +250,7 @@ impl RunRequest {
             || plan.policy_root() != self.policy_root
             || selected.declared_limits != self.declared_limits
             || plan.implementation_limits() != worker.implementation_limits
+            || program.derive_worker_request()?.input_hashes != worker.input_hashes
         {
             return Err(ScbError::new(ScbErrorCode::ContractUnknown));
         }

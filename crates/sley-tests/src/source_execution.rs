@@ -57,6 +57,8 @@ pub enum NativeTestSourceError {
     EvidenceLimitExceeded,
     /// The checked expected value could not be fingerprinted.
     ExpectedFingerprint(FingerprintError),
+    /// A selected input value could not be fingerprinted.
+    InputFingerprint(FingerprintError),
     /// Report construction failed after successful reservation.
     ReportBuild(ScbError),
 }
@@ -73,7 +75,9 @@ impl fmt::Display for NativeTestSourceError {
             Self::EvidenceLimitExceeded => {
                 formatter.write_str("NATIVE_TEST_EVIDENCE_LIMIT_EXCEEDED")
             }
-            Self::ExpectedFingerprint(error) => error.fmt(formatter),
+            Self::ExpectedFingerprint(error) | Self::InputFingerprint(error) => {
+                error.fmt(formatter)
+            }
             Self::ReportBuild(error) => error.fmt(formatter),
         }
     }
@@ -168,26 +172,28 @@ pub struct NativeTestSourceInput<'a> {
     pub input_hashes: &'a [[u8; 32]],
 }
 
-fn bound_source(source: &NativeTestSourceInput<'_>) -> bool {
-    let bindings = &source.root.record.entity_bindings;
-    if source.objects.len() != bindings.len() {
+fn bound_source(
+    root: &AcceptedStateRoot,
+    objects: &[EntityObject],
+    selected: SelectedEntry,
+) -> bool {
+    let bindings = &root.record.entity_bindings;
+    if objects.len() != bindings.len() {
         return false;
     }
-    for (object, (entity, object_id)) in source.objects.iter().zip(bindings) {
-        if object.schema_epoch_id() != source.root.record.schema_epoch_id
+    for (object, (entity, object_id)) in objects.iter().zip(bindings) {
+        if object.schema_epoch_id() != root.record.schema_epoch_id
             || object.record().entity_id != *entity
             || object.object_id() != *object_id
         {
             return false;
         }
     }
-    let selected = source.selected;
     let exact = |entity: EntityId| {
-        source
-            .objects
+        objects
             .binary_search_by_key(&entity, |object| object.record().entity_id)
             .ok()
-            .map(|index| source.objects[index].object_id())
+            .map(|index| objects[index].object_id())
     };
     exact(selected.test_entity) == Some(selected.test_object)
         && exact(selected.target_function) == Some(selected.target_object)
@@ -225,15 +231,16 @@ fn selected_sources(
     Ok((target, test))
 }
 
-fn execute_source_inner(
-    source: NativeTestSourceInput<'_>,
-) -> Result<(NativeExecutionOutcome, NativeExpected), NativeTestSourceError> {
-    if !bound_source(&source) {
+fn validated_source(
+    root: &AcceptedStateRoot,
+    objects: &[EntityObject],
+    selected: SelectedEntry,
+) -> Result<(SemanticInventory, TypeEnvironment), NativeTestSourceError> {
+    if !bound_source(root, objects, selected) {
         return Err(NativeTestSourceError::SourceMismatch);
     }
-    let selected = source.selected;
     let entities =
-        project_semantic_inventory(source.objects).map_err(NativeTestSourceError::Projection)?;
+        project_semantic_inventory(objects).map_err(NativeTestSourceError::Projection)?;
     let types = TypeEnvironment::new(entities.type_definitions.clone())
         .map_err(NativeTestSourceError::Type)?;
     let owned = function_units(&entities)?;
@@ -264,13 +271,54 @@ fn execute_source_inner(
     if !static_report.selected_tests.contains(&selected.test_entity) {
         return Err(NativeTestSourceError::SourceMismatch);
     }
-    let (target, test) = selected_sources(&entities, selected)?;
+    let (_, test) = selected_sources(&entities, selected)?;
     let limits = test.resource_limits;
     if test.target != selected.target_function
         || NativeDeclaredLimits::from(limits) != selected.declared_limits
     {
         return Err(NativeTestSourceError::SourceMismatch);
     }
+    Ok((entities, types))
+}
+
+/// Derives the selected test's ordered input hashes from its validated Sley source.
+///
+/// This pure owner check precedes worker-frame construction and supervisor
+/// launch. The worker still rechecks the source and VM-derived observation.
+///
+/// # Errors
+///
+/// Refuses invalid source, mismatched selection, unsupported values, or an
+/// execution report that cannot fit the reserved evidence bound.
+pub fn derive_native_test_input_hashes(
+    root: &AcceptedStateRoot,
+    objects: &[EntityObject],
+    selected: SelectedEntry,
+    implementation_limits: NativeImplementationLimits,
+) -> Result<Vec<[u8; 32]>, NativeTestSourceError> {
+    let (entities, _) = validated_source(root, objects, selected)?;
+    let (_, test) = selected_sources(&entities, selected)?;
+    reserve_execution_report(
+        test.inputs.len(),
+        selected.declared_limits,
+        implementation_limits,
+    )?;
+    test.inputs
+        .iter()
+        .map(|value| {
+            hash_validated_value(root.record.schema_epoch_id, value)
+                .map(|hash| *hash.as_bytes())
+                .map_err(NativeTestSourceError::InputFingerprint)
+        })
+        .collect()
+}
+
+fn execute_source_inner(
+    source: NativeTestSourceInput<'_>,
+) -> Result<(NativeExecutionOutcome, NativeExpected), NativeTestSourceError> {
+    let selected = source.selected;
+    let (entities, types) = validated_source(source.root, source.objects, selected)?;
+    let (target, test) = selected_sources(&entities, selected)?;
     let expected = match &test.expected {
         ExpectedOutcome::Value(value) => NativeExpected::Value(
             hash_validated_value(source.root.record.schema_epoch_id, value)

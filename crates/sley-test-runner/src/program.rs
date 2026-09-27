@@ -11,9 +11,11 @@ use sley_id::EntityId;
 use sley_mutate::{EntityObject, import_entity_object, value::EntityBodyValue};
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_list, encode_record, encode_uvar};
 use sley_state_root::{AcceptedStateRoot, StateRootError, conformance_registry, import_state_root};
-use sley_tests::{NativeTestPlanV1, SelectedEntry};
+use sley_tests::{
+    NativeTestPlanV1, SelectedEntry, source_execution::derive_native_test_input_hashes,
+};
 
-use crate::worker::MAX_WORKER_FRAME;
+use crate::worker::{MAX_WORKER_FRAME, WorkerRequest};
 
 /// Internal portable program artifact magic.
 pub const PROGRAM_MAGIC: &[u8; 8] = b"SLEYPRG1";
@@ -245,6 +247,32 @@ impl PortableTestProgram {
     #[must_use]
     pub const fn selected(&self) -> SelectedEntry {
         self.selected
+    }
+
+    /// Builds a bounded worker request from the selected Sley `TestCase`.
+    ///
+    /// Ordered input hashes are derived from the statically validated source,
+    /// never supplied by a caller. The resulting frame is checked for size.
+    ///
+    /// # Errors
+    ///
+    /// Refuses invalid source or a worker frame exceeding its fixed bound.
+    pub fn derive_worker_request(&self) -> Result<WorkerRequest, ScbError> {
+        let input_hashes = derive_native_test_input_hashes(
+            &self.root,
+            &self.objects,
+            self.selected,
+            self.plan.implementation_limits(),
+        )
+        .map_err(|_| mismatch())?;
+        let request = WorkerRequest {
+            program_bytes: self.stored.clone(),
+            input_hashes,
+            declared_limits: self.selected.declared_limits,
+            implementation_limits: self.plan.implementation_limits(),
+        };
+        request.encode_frame()?;
+        Ok(request)
     }
 }
 
@@ -563,14 +591,11 @@ mod tests {
         let (plan, root, objects, test) = fixture();
         let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
         let selected = program.selected();
-        let worker_frame = WorkerRequest {
-            program_bytes: program.stored_bytes().to_vec(),
-            input_hashes: Vec::new(),
-            declared_limits: selected.declared_limits,
-            implementation_limits: plan.implementation_limits(),
-        }
-        .encode_frame()
-        .expect("worker frame");
+        let worker_frame = program
+            .derive_worker_request()
+            .expect("owner-derived worker request")
+            .encode_frame()
+            .expect("worker frame");
         let mut request = RunRequest {
             workspace: plan.workspace(),
             principal: plan.resource_policy().principal(),
@@ -583,9 +608,20 @@ mod tests {
             declared_limits: selected.declared_limits,
             wall_ms: selected.declared_limits.wall_timeout_millis,
             nonce: [42; 32],
-            worker_frame,
+            worker_frame: worker_frame.clone(),
         };
         assert_eq!(request.verified_program().expect("bound"), program);
+        let mut substituted = WorkerRequest::decode_frame(&request.worker_frame).expect("worker");
+        substituted.input_hashes[0] = [99; 32];
+        request.worker_frame = substituted.encode_frame().expect("substituted worker");
+        assert_eq!(
+            request
+                .verified_program()
+                .expect_err("input substitution")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+        request.worker_frame = worker_frame;
         request.plan_id = sley_id::NativeTestPlanId::from_bytes([99; 32]);
         assert_eq!(
             request
@@ -611,12 +647,10 @@ mod tests {
         let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
         let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
             .expect("validated Boolean hash");
-        let mut worker = WorkerRequest {
-            program_bytes: program.stored_bytes().to_vec(),
-            input_hashes: vec![*hash.as_bytes()],
-            declared_limits: program.selected().declared_limits,
-            implementation_limits: plan.implementation_limits(),
-        };
+        let mut worker = program
+            .derive_worker_request()
+            .expect("owner-derived worker");
+        assert_eq!(worker.input_hashes, vec![*hash.as_bytes()]);
         let outcome = execute_portable_test(&program, &worker).expect("native VM run");
         assert_eq!(
             outcome.termination(),
@@ -640,6 +674,12 @@ mod tests {
             true,
         );
         let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
+        assert_eq!(
+            program
+                .derive_worker_request()
+                .expect_err("invalid static test must not reach the worker"),
+            ScbError::new(ScbErrorCode::ContractUnknown)
+        );
         let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
             .expect("validated Boolean hash");
         let worker = WorkerRequest {
@@ -713,12 +753,10 @@ mod tests {
                 PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
             let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
                 .expect("validated Boolean hash");
-            let worker = WorkerRequest {
-                program_bytes: program.stored_bytes().to_vec(),
-                input_hashes: vec![*hash.as_bytes()],
-                declared_limits: program.selected().declared_limits,
-                implementation_limits: plan.implementation_limits(),
-            };
+            let worker = program
+                .derive_worker_request()
+                .expect("owner-derived worker");
+            assert_eq!(worker.input_hashes, vec![*hash.as_bytes()]);
             let result = evaluate_portable_test(&program, &worker).expect("evaluation");
             assert_eq!(result.entry.comparison, comparison);
             assert_eq!(result.entry.test_entity, test);
