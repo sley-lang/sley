@@ -34,13 +34,60 @@
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
+use sley_mutate::value::EntityBodyValue;
 
 use crate::error::{AgentError, Result, frame};
+use crate::names::Names;
+use crate::workspace::Program;
 
 /// How an intent's `after` lists the tests without a name a follow-up
 /// states: a test without a name cannot be told from another, so this one
 /// entry stands for all of them.
 pub(crate) const UNNAMED_TESTS: &str = "(unnamed)";
+
+/// Removes deletions that a rebased frame's current head already reflects.
+/// A new entity with the same name remains live and keeps the deletion.
+pub fn without_applied_deletes(frame: &Value, program: &Program, names: &Names) -> Value {
+    let mut frame = frame.clone();
+    let Some(object) = frame.as_object_mut() else {
+        return frame;
+    };
+    if let Some(deletes) = object.get_mut("delete").and_then(Value::as_array_mut) {
+        deletes.retain(|name| {
+            name.as_str()
+                .is_none_or(|name| names.resolve(name).is_some())
+        });
+    }
+    if let Some(patches) = object.get_mut("patch").and_then(Value::as_array_mut) {
+        patches.retain_mut(|patch| {
+            let Some(target) = patch.get("fn").and_then(Value::as_str).map(str::to_owned) else {
+                return true;
+            };
+            let Some(function) = names.resolve(&target) else {
+                return true;
+            };
+            let Some(EntityBodyValue::Function(function_body)) = program.body(&function) else {
+                return true;
+            };
+            if let Some(blocks) = patch.get_mut("blocks").and_then(Value::as_object_mut) {
+                blocks.retain(|leaf, value| {
+                    if !value.is_null() {
+                        return true;
+                    }
+                    let block = names.resolve(&format!("{target}.{leaf}"));
+                    block.is_some_and(|block| function_body.blocks.contains(&block))
+                });
+                if blocks.is_empty()
+                    && let Some(patch) = patch.as_object_mut()
+                {
+                    patch.remove("blocks");
+                }
+            }
+            patch.as_object().is_none_or(|patch| patch.len() > 1)
+        });
+    }
+    frame
+}
 
 /// `delta` layered on `base`, both AF1 frames.
 ///

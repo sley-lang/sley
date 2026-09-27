@@ -35,7 +35,10 @@ Obligations point at pointers that exist in the revision's frame.
 `fill` needs the latest revision number (`AGENT_DRAFT_STALE` otherwise).
 When the accepted head has changed since the revision, `fill` and
 `try --on` refuse with `AGENT_DRAFT_HEAD_CHANGED` unless `--rebase` is
-given. `submit d1` submits only a Valid candidate of that revision
+given. A rebased frame skips a `delete` or `patch` block deletion when
+the new head already lacks that entity or block; this lets tests follow a
+committed deletion without repeating it. `submit d1` submits only a Valid
+candidate of that revision
 (`AGENT_DRAFT_INCOMPLETE` otherwise); an older revision is never used
 instead, but `submit d1@r2` names one explicitly. A bare `submit` takes
 the revision recorded last, over all drafts, and only when it is valid.

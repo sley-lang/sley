@@ -337,8 +337,10 @@ Compilation, in one pass:
 
 Malformed frames are refused with `AGENT_FRAME_INVALID` and a JSON pointer.
 One refusal lists every problem of every function, patch, edit and test in
-the frame: within a function, every operation that cannot resolve, then
-every terminator that cannot. The first line carries the first problem with
+the frame: in plain AF1, within a function, every operation that cannot
+resolve, then every terminator that cannot. In AF1-X, a malformed
+terminator is reported before an operation whose type depends on it; the
+operation is still listed with that dependency. The first line carries the first problem with
 its pointer and `(1 of N problems)`; each other problem follows on its own
 indented line with its own pointer. A misplaced name therefore costs one
 round rather than one round per use. A name found only in another block is
@@ -436,7 +438,9 @@ AF1):
 Expansion splits a block at each `?` and exit. The continuation takes the
 unwrapped value and the block parameters still in use; generated names use
 `__` (`x__r`, `<block>__<x>`, `<block>__if<i>`, `n__a<k>`, `__fail_<Case>`,
-`__err`, `__none`), which authored names may not contain. Checked
+`__err`, `__none`). Authored names in blocks that use the dialect and their
+function parameters may not contain `__`; plain blocks retain AF1's name
+rules. Checked
 arithmetic stays checked, failures leave at their written position, and
 nothing is reassociated, speculated, retried or duplicated. Depth 32,
 4,096 expanded operations and 1,024 generated blocks per function bound the
@@ -1024,6 +1028,12 @@ revision records `made_by: "rebase"` and `rebase: {"from_head",
 "to_head", "via"}`. Nothing is rebased implicitly, and a command refused
 for a changed head records nothing: the refusal says to send it again
 with `--rebase`.
+
+A rebased frame omits a `delete` entry or `patch` block deletion when the
+new head already lacks that entity or block. A same-named live entity or
+block keeps the deletion, and the rest of the frame is still compiled and
+judged on the new head. Thus a tests-only follow-up can follow a committed
+deletion without trying to delete it again.
 
 ### 12.6 Submission
 

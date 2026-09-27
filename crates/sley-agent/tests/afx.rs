@@ -617,6 +617,51 @@ fn every_construct_matches_its_explicit_equivalent() {
     }
 }
 
+#[test]
+fn a_checked_operand_of_a_cell_write_matches_explicit_control_flow() {
+    let temp = workspace("cell-order");
+    let dialect = json!({"af1": 1, "afx": 1, "fns": [{
+        "fn": "f", "params": [["x", "i64"], ["y", "i64"]],
+        "returns": "Result<i64,ArithmeticError>", "blocks": [{
+            "name": "entry", "ops": [
+                ["c", "cell", "x"],
+                ["s", "cell_set", "c", ["div?", "x", "y"]],
+                ["v", "cell_get", "c"]],
+            "term": ["ok", "v"]
+        }]
+    }]});
+    let explicit = json!({"af1": 1, "fns": [{
+        "fn": "f", "params": [["x", "i64"], ["y", "i64"]],
+        "returns": "Result<i64,ArithmeticError>", "blocks": [
+            {"name": "entry", "ops": [["c", "cell", "x"], ["q", "div", "x", "y"]],
+             "term": ["switch", "q", ["Ok", "write", "$"], ["Err", "fail", "$"]]},
+            {"name": "write", "params": [["t", "i64"]],
+             "ops": [["s", "cell_set", "entry.c", "t"],
+                     ["v", "cell_get", "entry.c"], ["o", "ok", "v"]],
+             "term": ["return", "o"]},
+            {"name": "fail", "params": [["e", "ArithmeticError"]],
+             "ops": [["r", "err", "e"]], "term": ["return", "r"]}
+        ]
+    }]});
+    let mut expanded = Runner::new(&temp.path, &dialect);
+    let mut reference = Runner::new(&temp.path, &explicit);
+    for (x, y) in [(9, 3), (-9, 3), (0, 3), (9, 0), (i64::MIN, -1)] {
+        let args = [json!(x), json!(y)];
+        assert_eq!(
+            expanded.call("f", &args),
+            reference.call("f", &args),
+            "{args:?}"
+        );
+    }
+    assert_eq!(expanded.call("f", &[json!(9), json!(3)]), json!({"Ok": 3}));
+    assert!(
+        expanded
+            .call("f", &[json!(9), json!(0)])
+            .get("Err")
+            .is_some()
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Generated expressions against a reference evaluator
 // ---------------------------------------------------------------------------

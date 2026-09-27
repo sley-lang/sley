@@ -111,6 +111,48 @@ fn identity_frame() -> Value {
 }
 
 #[test]
+fn a_rebase_keeps_tests_after_committed_entity_and_block_deletions() {
+    let temp = workspace("applied-deletions");
+    let base = json!({"af1": 1, "fns": [
+        {"fn": "f", "params": [["a", "i64"]], "returns": "i64",
+         "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+        {"fn": "g", "params": [["a", "i64"]], "returns": "i64",
+         "blocks": [{"name": "entry", "term": ["return", "a"]}]}
+    ]});
+    assert_eq!(run(&temp.path, &["try", &base.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let delete = json!({"af1": 1, "delete": ["g"]});
+    assert_eq!(run(&temp.path, &["try", &delete.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let test = json!({"af1": 1, "tests": [
+        {"name": "tf", "fn": "f", "args": [2], "expect": 2}]});
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &test.to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    assert_eq!(report["tests"][0]["pass"], true, "{report:#}");
+
+    let add_block = json!({"af1": 1, "patch": [{"fn": "f", "blocks": {
+        "entry": {"term": ["br", "x", "a"]},
+        "x": {"params": [["v", "i64"]], "term": ["return", "v"]}
+    }}]});
+    assert_eq!(run(&temp.path, &["try", &add_block.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let remove_block = json!({"af1": 1, "patch": [{"fn": "f", "blocks": {
+        "entry": {"term": ["return", "a"]}, "x": null
+    }}]});
+    assert_eq!(run(&temp.path, &["try", &remove_block.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d4", "--rebase", &test.to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    assert_eq!(report["tests"][0]["pass"], true, "{report:#}");
+}
+
+#[test]
 fn every_try_records_a_revision_bound_to_its_candidate() {
     let temp = workspace("records");
     let (status, text) = run(&temp.path, &["try", &clamp_frame().to_string()]);

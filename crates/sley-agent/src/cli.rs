@@ -800,6 +800,25 @@ fn head_check(
     Ok(Some(json!({"from_head": base, "to_head": now, "via": via})))
 }
 
+/// A rebased revision need not delete an entity or block that its new head
+/// already lacks. Leave every other part of the authored frame in place.
+fn rebase_frame(
+    frame: Value,
+    rebase: Option<&Value>,
+    workspace: &Workspace,
+    head: &Head,
+) -> Result<Value> {
+    if rebase.is_none() {
+        return Ok(frame);
+    }
+    let names = Names::build(head.program(), &name_map(workspace)?);
+    Ok(crate::layer::without_applied_deletes(
+        &frame,
+        head.program(),
+        &names,
+    ))
+}
+
 /// The frame and status of a revision to build on. A text revision, and a
 /// follow-up that was never layered, have no complete frame to build on.
 fn layer_base(drafts: &Drafts, handle: &str, revision: u64) -> Result<(Value, Value)> {
@@ -933,6 +952,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
                 parent: base,
                 latest: reference.revision.is_none(),
             };
+            let base_frame = rebase_frame(base_frame, rebase.as_ref(), &workspace, &head)?;
             let frame = Input::layered(&base_frame, parsed);
             let mut proposal = Proposal::new("try-on", input, frame, target, Origin::Draft);
             proposal.on = Some(spelled);
@@ -1042,7 +1062,7 @@ fn fill_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
         .map(str::to_owned);
     let frame = match &on {
         Some(on) => Input::layered(&base_frame(&workspace, on)?, Ok(applied)),
-        None => Input::Frame(applied),
+        None => Input::Frame(rebase_frame(applied, rebase.as_ref(), &workspace, &head)?),
     };
     let bytes = input.len();
     let target = Target::Next {
@@ -1214,6 +1234,7 @@ fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
             let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "import")
                 .map_err(|error| not_recorded(error, "import"))?;
             import_conflicts(&base_frame, &status, &tests, &spelled)?;
+            let base_frame = rebase_frame(base_frame, rebase.as_ref(), &workspace, &head)?;
             let frame = Input::layered(&base_frame, Ok(tests));
             let target = Target::Next {
                 handle,
