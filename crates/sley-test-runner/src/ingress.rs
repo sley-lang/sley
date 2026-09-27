@@ -160,8 +160,17 @@ mod tests {
 
     use super::*;
     use crate::config::{AllowedCaller, default_config};
+    use crate::worker::WorkerRequest;
 
     fn request() -> RunRequest {
+        let declared_limits = NativeDeclaredLimits {
+            fuel: 100,
+            memory_bytes: 4_096,
+            output_bytes: 64,
+            effect_count: 0,
+            call_depth: 8,
+            wall_timeout_millis: 1_000,
+        };
         RunRequest {
             workspace: WorkspaceId::from_bytes([1; 32]),
             principal: PrincipalId::from_bytes([2; 32]),
@@ -171,16 +180,18 @@ mod tests {
             test_entity: EntityId::from_bytes([6; 32]),
             target_function: EntityId::from_bytes([7; 32]),
             policy_root: PolicyRootId::from_bytes([8; 32]),
-            declared_limits: NativeDeclaredLimits {
-                fuel: 100,
-                memory_bytes: 4_096,
-                output_bytes: 64,
-                effect_count: 0,
-                call_depth: 8,
-                wall_timeout_millis: 1_000,
-            },
+            declared_limits,
             wall_ms: 1_000,
             nonce: [9; 32],
+            worker_frame: WorkerRequest {
+                program_bytes: vec![1, 2, 3],
+                input_hashes: vec![[10; 32]],
+                declared_limits,
+                implementation_limits:
+                    sley_vm::native_execution::NativeImplementationLimits::HARD_MAXIMA,
+            }
+            .encode_frame()
+            .expect("worker frame"),
         }
     }
 

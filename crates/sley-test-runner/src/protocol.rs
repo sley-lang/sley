@@ -7,13 +7,16 @@
 //! 8-byte magic followed by a 4-byte big-endian length and are refused past
 //! [`MAX_REQUEST_BYTES`](crate::config::MAX_REQUEST_BYTES).
 //! Field 4 is an optional candidate identity because explicit-root plans
-//! have no candidate. This internal format has not shipped with a daemon.
+//! have no candidate. Field 13 carries the exact bounded worker frame so
+//! the daemon can stage it read-only after authenticating the outer scope.
+//! This internal format has not shipped with a daemon.
 
 use sley_id::{CandidateId, EntityId, ObjectId, PolicyRootId, PrincipalId, WorkspaceId};
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_union, encode_uvar};
 use sley_vm::native_execution::NativeDeclaredLimits;
 
 use crate::config::MAX_REQUEST_BYTES;
+use crate::worker::WorkerRequest;
 
 /// IPC magic for the closed run protocol.
 pub const RUN_MAGIC: &[u8; 8] = b"SLEYRUN1";
@@ -23,7 +26,7 @@ pub const RUN_VERSION: u64 = 1;
 /// Daemon-owned closed run request. The worker executable, unit properties,
 /// and signing keys come from administrator configuration, never from these
 /// bytes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RunRequest {
     /// Workspace under test; must match the caller's authorized workspace.
     pub workspace: WorkspaceId,
@@ -48,6 +51,10 @@ pub struct RunRequest {
     pub wall_ms: u64,
     /// Host-random attempt nonce bound into the attestation.
     pub nonce: [u8; 32],
+    /// Exact bounded worker input frame. The daemon owns its read-only
+    /// staging and checks the embedded limits before any worker launch.
+    /// Program semantics remain the N5 owner and worker's responsibility.
+    pub worker_frame: Vec<u8>,
 }
 
 /// Daemon-owned run response status.
@@ -164,12 +171,31 @@ fn read_option_candidate(value: &[u8]) -> Result<Option<CandidateId>, ScbError> 
 }
 
 impl RunRequest {
+    /// Parses the embedded worker frame and checks its declared limits
+    /// against this authenticated outer request.
+    ///
+    /// # Errors
+    ///
+    /// Returns the worker-frame refusal or `SCB_CONTRACT_UNKNOWN` when its
+    /// limits differ; zero or expanded wall budgets refuse separately.
+    pub fn worker_request(&self) -> Result<WorkerRequest, ScbError> {
+        let worker = WorkerRequest::decode_frame(&self.worker_frame)?;
+        if worker.declared_limits != self.declared_limits {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        }
+        if self.wall_ms == 0 || self.wall_ms > self.declared_limits.wall_timeout_millis {
+            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+        }
+        Ok(worker)
+    }
+
     /// Encodes one length-delimited request frame for the socket.
     ///
     /// # Errors
     ///
     /// Returns `SCB_RESOURCE_LIMIT` when the frame exceeds the socket bound.
     pub fn encode_frame(&self) -> Result<Vec<u8>, ScbError> {
+        self.worker_request()?;
         let record = encode_record(&[
             (1, encode_uvar(RUN_VERSION)),
             (2, self.workspace.as_bytes().to_vec()),
@@ -183,6 +209,7 @@ impl RunRequest {
             (10, declared_record(self.declared_limits)?),
             (11, encode_uvar(self.wall_ms)),
             (12, self.nonce.to_vec()),
+            (13, self.worker_frame.clone()),
         ])?;
         let mut frame = RUN_MAGIC.to_vec();
         let len =
@@ -218,12 +245,12 @@ impl RunRequest {
         }
         let mut cursor = ScbValueCursor::new(&frame[12..])?;
         let count = cursor.read_record_field_count()?;
-        if count != 12 {
+        if count != 13 {
             return Err(ScbError::new(ScbErrorCode::FieldMissing));
         }
-        let mut tags = Vec::with_capacity(12);
-        let mut values = Vec::with_capacity(12);
-        for _ in 0..12 {
+        let mut tags = Vec::with_capacity(13);
+        let mut values = Vec::with_capacity(13);
+        for _ in 0..13 {
             tags.push(cursor.read_uvar(32)?);
             values.push(cursor.read_sized_payload()?.to_vec());
         }
@@ -236,7 +263,7 @@ impl RunRequest {
         if read_uvar(&values[0])? != RUN_VERSION {
             return Err(ScbError::new(ScbErrorCode::VersionUnsupported));
         }
-        Ok(Self {
+        let request = Self {
             workspace: WorkspaceId::from_bytes(read_id(&values[1])?),
             principal: PrincipalId::from_bytes(read_id(&values[2])?),
             candidate_id: read_option_candidate(&values[3])?,
@@ -248,7 +275,10 @@ impl RunRequest {
             declared_limits: parse_declared(&values[9])?,
             wall_ms: read_uvar(&values[10])?,
             nonce: read_nonce(&values[11])?,
-        })
+            worker_frame: values[12].clone(),
+        };
+        request.worker_request()?;
+        Ok(request)
     }
 }
 
@@ -336,6 +366,14 @@ mod tests {
     use super::*;
 
     fn request() -> RunRequest {
+        let declared_limits = NativeDeclaredLimits {
+            fuel: 100,
+            memory_bytes: 4_096,
+            output_bytes: 64,
+            effect_count: 0,
+            call_depth: 8,
+            wall_timeout_millis: 1_000,
+        };
         RunRequest {
             workspace: WorkspaceId::from_bytes([1; 32]),
             principal: PrincipalId::from_bytes([2; 32]),
@@ -345,16 +383,18 @@ mod tests {
             test_entity: EntityId::from_bytes([6; 32]),
             target_function: EntityId::from_bytes([7; 32]),
             policy_root: PolicyRootId::from_bytes([8; 32]),
-            declared_limits: NativeDeclaredLimits {
-                fuel: 100,
-                memory_bytes: 4_096,
-                output_bytes: 64,
-                effect_count: 0,
-                call_depth: 8,
-                wall_timeout_millis: 1_000,
-            },
+            declared_limits,
             wall_ms: 1_000,
             nonce: [9; 32],
+            worker_frame: WorkerRequest {
+                program_bytes: vec![1, 2, 3],
+                input_hashes: vec![[10; 32]],
+                declared_limits,
+                implementation_limits:
+                    sley_vm::native_execution::NativeImplementationLimits::HARD_MAXIMA,
+            }
+            .encode_frame()
+            .expect("worker frame"),
         }
     }
 
@@ -377,6 +417,58 @@ mod tests {
             explicit
         );
         assert_ne!(explicit_frame, frame);
+        let mut large = request();
+        let mut worker = large.worker_request().expect("embedded worker");
+        worker.program_bytes = vec![0x41; 70_000];
+        large.worker_frame = worker.encode_frame().expect("large worker frame");
+        let large_frame = large.encode_frame().expect("bounded large request");
+        assert!(large_frame.len() > 65_536);
+        assert_eq!(
+            RunRequest::decode_frame(&large_frame).expect("large request decodes"),
+            large
+        );
+    }
+
+    #[test]
+    fn embedded_worker_limits_and_outer_wall_must_agree() {
+        let valid = request();
+        let mut changed = valid.clone();
+        let mut worker = changed.worker_request().expect("embedded worker");
+        worker.declared_limits.fuel = 99;
+        changed.worker_frame = worker.encode_frame().expect("changed worker frame");
+        assert_eq!(
+            changed
+                .encode_frame()
+                .expect_err("mismatched limits")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+        let mut raw = valid.encode_frame().expect("outer frame");
+        assert_eq!(valid.worker_frame.len(), changed.worker_frame.len());
+        let offset = raw
+            .windows(valid.worker_frame.len())
+            .position(|part| part == valid.worker_frame)
+            .expect("embedded frame position");
+        raw[offset..offset + changed.worker_frame.len()].copy_from_slice(&changed.worker_frame);
+        assert_eq!(
+            RunRequest::decode_frame(&raw)
+                .expect_err("mismatched nested frame")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+        for wall_ms in [0, valid.declared_limits.wall_timeout_millis + 1] {
+            let changed = RunRequest {
+                wall_ms,
+                ..valid.clone()
+            };
+            assert_eq!(
+                changed
+                    .encode_frame()
+                    .expect_err("invalid wall budget")
+                    .code(),
+                ScbErrorCode::ResourceLimit
+            );
+        }
     }
 
     #[test]

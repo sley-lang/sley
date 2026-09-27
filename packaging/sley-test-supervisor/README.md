@@ -11,9 +11,12 @@ not waived:
 
 The closed runner request carries `candidate_id=Some` for candidate-affected
 runs and `None` for explicit-root diagnostics, matching the owner-derived plan
-modes. This internal socket format has no installed daemon or external
-compatibility claim yet. The selected program artifact and worker reply still
-need to be wired before either mode can execute.
+modes. It also carries one exact bounded worker frame; ingress checks its
+declared limits against the authenticated outer request and refuses a zero or
+expanded wall budget. This internal socket format has no installed daemon or
+external compatibility claim yet. The selected program artifact's canonical
+format, worker execution/reply, and measured launch still need to be wired
+before either mode can execute.
 
 1. Build the release binaries (`sley`, supervisor daemon once its event
    loop lands) and install the worker at the configured

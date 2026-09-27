@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use sley_id::{PrincipalId, WorkspaceId};
 
 use crate::enforce::DEFAULT_PAGE_SIZE;
+use crate::worker::MAX_WORKER_FRAME;
 
 /// Fixed transient-unit name prefix; restart reconciliation kills orphans
 /// with this prefix and never signs an orphan as a prior success.
@@ -19,8 +20,9 @@ pub const UNIT_PREFIX: &str = "sley-native-test-";
 /// Authenticated local supervisor socket filename under the service runtime
 /// directory.
 pub const SOCKET_NAME: &str = "supervisor.sock";
-/// Maximum accepted `RunNativeTest` request bytes on the socket.
-pub const MAX_REQUEST_BYTES: usize = 65_536;
+/// Maximum accepted `RunNativeTest` request bytes on the socket. The bound
+/// accommodates one complete worker frame plus the fixed outer bindings.
+pub const MAX_REQUEST_BYTES: usize = MAX_WORKER_FRAME + 4_096;
 /// Maximum daemon-owned worker output bytes per run.
 pub const MAX_WORKER_OUTPUT_BYTES: usize = 262_144;
 
