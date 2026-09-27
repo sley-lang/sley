@@ -112,8 +112,10 @@ fn artifact(dir: &Path, draft: &str, file: &str) -> Value {
         .join(handle)
         .join(format!("r{revision}"))
         .join(file);
-    serde_json::from_str(&fs::read_to_string(&path).unwrap_or_else(|_| panic!("{path:?}")))
-        .unwrap()
+    serde_json::from_str(
+        &fs::read_to_string(&path).unwrap_or_else(|_| panic!("{}", path.display())),
+    )
+    .unwrap()
 }
 
 fn names_of(dir: &Path, program: &Program) -> Names {
@@ -328,7 +330,13 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|change| format!("{} {}", change["kind"].as_str().unwrap(), change["name"].as_str().unwrap()))
+        .map(|change| {
+            format!(
+                "{} {}",
+                change["kind"].as_str().unwrap(),
+                change["name"].as_str().unwrap()
+            )
+        })
         .collect();
     for entity in ["fn f", "fn g", "fn h", "fn twice", "test t_f"] {
         assert!(changed.contains(&entity.to_owned()), "{changed:?}");
@@ -338,7 +346,10 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
     let expanded = artifact(&temp.path, draft, "expanded.json");
     assert_eq!(
         patched_calls(&expanded, "g"),
-        [("r".to_owned(), vec![json!("r__a1"), json!("x"), json!("r__a2")])]
+        [(
+            "r".to_owned(),
+            vec![json!("r__a1"), json!("x"), json!("r__a2")]
+        )]
     );
     assert_eq!(
         patched_calls(&expanded, "h"),
@@ -379,9 +390,15 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
             .all(|call| call["edit"] == "rewritten" && call["origin"] == "live"),
         "{intent:#}"
     );
-    assert_eq!(intent["tests"], json!([{"test": "t_f", "origin": "live", "edit": "rewritten"}]));
+    assert_eq!(
+        intent["tests"],
+        json!([{"test": "t_f", "origin": "live", "edit": "rewritten"}])
+    );
     assert_eq!(intent["boundary"]["references"], json!([]));
-    assert_eq!(inventory["changed"]["functions"], json!(["g", "h", "twice"]));
+    assert_eq!(
+        inventory["changed"]["functions"],
+        json!(["g", "h", "twice"])
+    );
     assert_eq!(inventory["changed"]["tests"], json!(["t_f"]));
     let status = artifact(&temp.path, draft, "status.json");
     assert_eq!(status["stats"]["ripple_intents"], 1);
@@ -421,12 +438,118 @@ fn removed_parameters_drop_their_argument_but_not_its_evaluation() {
     assert_eq!(inventory["intents"][0]["removed"], json!(["scale"]));
     // The dropped argument's division still runs first: its failure stays.
     let mut after = Machine::candidate(&temp.path, &frame);
-    assert_eq!(after.call("use_scaled", &[json!(3), json!(0)]), json!({"Err": "Zero"}));
-    assert_eq!(after.call("use_scaled", &[json!(3), json!(7)]), json!({"Ok": 3}));
+    assert_eq!(
+        after.call("use_scaled", &[json!(3), json!(0)]),
+        json!({"Err": "Zero"})
+    );
+    assert_eq!(
+        after.call("use_scaled", &[json!(3), json!(7)]),
+        json!({"Ok": 3})
+    );
     assert_eq!(
         after.call("use_scaled", &[json!(i64::MAX), json!(1)]),
         json!({"Ok": i64::MAX})
     );
+}
+
+#[test]
+fn a_rewritten_block_is_restated_exactly_but_for_the_call() {
+    let temp = workspace("fidelity");
+    let out = "(i64,u64,Option<i64>,bool,Option<i64>,Shape,Point,i64,bytes,bool,Option<i64>,i64,Option<i64>)";
+    commit(
+        &temp.path,
+        &json!({"af1": 1,
+          "types": [{"name": "Shape", "variant": ["Empty", ["Circle", "i64"]]}, {"name": "Point", "record": [["x", "i64"], ["y", "i64"]]}],
+          "consts": [{"name": "limit", "type": "i64", "value": 10}],
+          "fns": [
+            {"fn": "f", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+            {"fn": "wide", "params": [["s", "Shape"], ["p", "Point"], ["v", "Vec<i64>"], ["m", "Map<i64,i64>"], ["flag", "bool"]],
+             "returns": out,
+             "blocks": [
+              {"name": "entry", "ops": [
+                ["k", "const", "limit"], ["px", "field", "Point.x", "p"], ["q", "record", "Point", "px", "k"],
+                ["n", "vec_len", "v"], ["g0", "vec_get", "v", "n"], ["has", "map_has", "m", "k"], ["mg", "map_get", "m", "k"],
+                ["c", "variant", "Shape.Circle", "k"], ["t", "tuple", "k", "px"], ["t0", "tuple_get", 0, "t"],
+                ["h", "hash", "k"], ["nf", "not", "flag"], ["both", "and", "nf", "has"],
+                {"name": "nothing", "op": "none", "type": "Option<i64>"},
+                ["cell", "cell", "k"], ["cv", "cell_get", "cell"], ["vg", "variant_get", "Shape.Circle", "s"],
+                ["r", "call", "f", "cv"],
+                ["o", "tuple", "r", "n", "g0", "has", "mg", "c", "q", "t0", "h", "both", "nothing", "px", "vg"]],
+               "term": ["switch", "s", ["Empty", "done", "o"], ["Circle", "round", "$", "o"]]},
+              {"name": "done", "params": [["x", out]], "term": ["return", "x"]},
+              {"name": "round", "params": [["radius", "i64"], ["x", out]], "term": ["return", "x"]}]}]}),
+    );
+    let frame = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
+                       "ripple": [{"arity": "f", "value": 0}]});
+    // Only the call, its new constant operation and their block change in
+    // `wide`: every other operation is restated as it is, except that the
+    // operations after the new one move down one ordinal.
+    let head = Workspace::at(&temp.path).head().unwrap();
+    let names = names_of(&temp.path, head.program());
+    let compiled = sley_agent::frame::compile(
+        head.program(),
+        &names,
+        &sley_agent::candidate::Authority::of(&head)
+            .unwrap()
+            .ceilings,
+        &frame,
+        sley_id::CandidateNonce::from_bytes([3; 32]),
+        &mut || Ok([4; 32]),
+    )
+    .unwrap();
+    let count = |kind: u16, class: &str| {
+        compiled
+            .ops
+            .iter()
+            .filter(|op| op.kind == kind && format!("{:?}", op.payload).starts_with(class))
+            .count()
+    };
+    assert_eq!(
+        count(8, "ReplaceEntityVersion"),
+        2,
+        "the call and the operation after it"
+    );
+    for op in &compiled.ops {
+        let sley_mutate::MutationPayload::ReplaceEntityVersion(
+            sley_mutate::value::EntityBodyValue::Operation(new),
+        ) = &op.payload
+        else {
+            continue;
+        };
+        let Some(sley_mutate::value::EntityBodyValue::Operation(old)) =
+            head.program().body(&op.target)
+        else {
+            panic!("replaced a missing operation");
+        };
+        assert_eq!(new.ordinal, old.ordinal + 1);
+        if new.opcode != 112 {
+            let mut moved = old.clone();
+            moved.ordinal += 1;
+            assert_eq!(*new, moved, "only the ordinal moves");
+        }
+    }
+    assert_eq!(count(8, "CreateEntity"), 1, "one operation created");
+    assert_eq!(count(7, "ReplaceEntityVersion"), 1, "one block replaced");
+    assert_eq!(count(5, "ReplaceEntityVersion"), 1, "only f's signature");
+    assert_eq!(count(6, "CreateEntity"), 1, "f's new parameter");
+    assert_eq!(compiled.deleted, 0);
+    let rows = [
+        vec![
+            json!("Empty"),
+            json!({"x": 1, "y": 2}),
+            json!([4, 5]),
+            json!([[10, 3]]),
+            json!(true),
+        ],
+        vec![
+            json!({"Circle": 7}),
+            json!({"x": -1, "y": 0}),
+            json!([]),
+            json!([]),
+            json!(false),
+        ],
+    ];
+    same_behavior(&temp.path, &frame, "wide", &rows);
 }
 
 #[test]
@@ -449,7 +572,12 @@ fn a_missing_value_is_a_hole_at_each_site() {
         .iter()
         .map(|obligation| obligation["decision"].as_str().unwrap())
         .collect();
-    for site in ["`g.entry.r`", "`h.entry.r`", "`twice.left.r__r`", "TestCase `t_f`"] {
+    for site in [
+        "`g.entry.r`",
+        "`h.entry.r`",
+        "`twice.left.r__r`",
+        "TestCase `t_f`",
+    ] {
         assert!(
             decisions.iter().any(|decision| decision.starts_with(site)),
             "{site}: {decisions:#?}"
@@ -461,10 +589,22 @@ fn a_missing_value_is_a_hole_at_each_site() {
 fn the_value_must_be_a_literal_of_the_one_new_parameter() {
     let temp = arity_workspace("values");
     for (value, needle) in [
-        (json!("zero"), "/ripple/0/value: state the value of new parameter `c` (expected i64) as a literal"),
-        (json!(2.5), "/ripple/0/value: 2.5 is not a literal of new parameter `c`'s type (expected i64)"),
-        (json!({"type": "u8", "value": 3}), "/ripple/0/value: the value's type is \"u8\", but new parameter `c` of `f` is i64"),
-        (json!({"type": "i64", "value": "x"}), "/ripple/0/value: the value does not fit new parameter `c` (expected i64)"),
+        (
+            json!("zero"),
+            "/ripple/0/value: state the value of new parameter `c` (expected i64) as a literal",
+        ),
+        (
+            json!(2.5),
+            "/ripple/0/value: 2.5 is not a literal of new parameter `c`'s type (expected i64)",
+        ),
+        (
+            json!({"type": "u8", "value": 3}),
+            "/ripple/0/value: the value's type is \"u8\", but new parameter `c` of `f` is i64",
+        ),
+        (
+            json!({"type": "i64", "value": "x"}),
+            "/ripple/0/value: the value does not fit new parameter `c` (expected i64)",
+        ),
     ] {
         assert_refused(
             &temp.path,
@@ -512,6 +652,7 @@ fn the_value_must_be_a_literal_of_the_one_new_parameter() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn calls_the_frame_writes_are_read_against_the_new_parameters() {
     let temp = workspace("frame-calls");
     commit(
@@ -522,14 +663,20 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
           {"fn": "m", "params": [["x", "i64"]], "returns": "Result<i64,ArithmeticError>",
            "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]},
           {"fn": "n", "params": [["x", "i64"]], "returns": "Result<i64,ArithmeticError>",
-           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]}]}),
+           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]},
+          {"fn": "w", "params": [["x", "i64"], ["flag", "bool"]], "returns": "Result<i64,ArithmeticError>",
+           "blocks": [{"name": "entry", "term": ["cond", "flag", "kept", "restated"]},
+                      {"name": "kept", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]},
+                      {"name": "restated", "ops": [["r", "call", "f", 1]], "term": ["return", "r"]}]}]}),
     );
     let frame = json!({"af1": 1, "afx": 1,
       "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]],
                  "blocks": {"entry": {"term": ["return", ["add", "a", "b"]]}}},
                 // Restated with the old argument count: rewritten.
                 {"fn": "m", "blocks": {"entry": {"ops": [["one", "const", 1], ["r", "call", "f", "x"]],
-                                                 "term": ["return", "r"]}}}],
+                                                 "term": ["return", "r"]}}},
+                // One block restated with the old count, one kept live.
+                {"fn": "w", "blocks": {"restated": {"ops": [["r", "call", "f", 2]], "term": ["return", "r"]}}}],
       // Written for the new parameters: kept as written.
       "fns": [{"fn": "k", "params": [["x", "i64"]], "returns": "Result<i64,ArithmeticError>",
                "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", 5]], "term": ["return", "r"]}]}],
@@ -546,7 +693,10 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
     let m = &expanded["patch"][1]["blocks"]["entry"]["ops"];
     assert_eq!(m[1], json!(["r__a1", "const", {"type": "i64", "value": 0}]));
     assert_eq!(m[2], json!(["r", "call", "f", "x", "r__a1"]));
-    assert_eq!(expanded["fns"][0]["blocks"][0]["ops"][0], json!(["r__a1", "const", {"type": "i64", "value": 5}]));
+    assert_eq!(
+        expanded["fns"][0]["blocks"][0]["ops"][0],
+        json!(["r__a1", "const", {"type": "i64", "value": 5}])
+    );
     assert_eq!(expanded["tests"][0]["args"], json!([4, 0]));
     assert_eq!(expanded["tests"][1]["args"], json!([4, 1]));
     let map = artifact(&temp.path, draft, "sourcemap.json");
@@ -558,8 +708,14 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
             .find(|entry| entry["expanded"] == expanded)
             .cloned()
     };
-    assert_eq!(entry("/patch/1/blocks/entry/ops/1").unwrap()["authored"], "/ripple/0");
-    assert_eq!(entry("/patch/1/blocks/entry/ops/1").unwrap()["role"], "ripple");
+    assert_eq!(
+        entry("/patch/1/blocks/entry/ops/1").unwrap()["authored"],
+        "/ripple/0"
+    );
+    assert_eq!(
+        entry("/patch/1/blocks/entry/ops/1").unwrap()["role"],
+        "ripple"
+    );
     assert_eq!(map["names"]["m"]["r__a1"], "/ripple/0");
     let inventory = artifact(&temp.path, draft, "ripple.json");
     let calls = &inventory["intents"][0]["calls"];
@@ -569,18 +725,79 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
         .iter()
         .map(|call| {
             (
-                call["site"].as_str().or(call["test"].as_str()).unwrap().to_owned(),
+                call["site"]
+                    .as_str()
+                    .or(call["test"].as_str())
+                    .unwrap()
+                    .to_owned(),
                 call["origin"].as_str().unwrap().to_owned(),
                 call["edit"].as_str().unwrap().to_owned(),
             )
         })
         .collect();
-    assert!(edits.contains(&("/fns/0/blocks/0/ops/0 (k)".to_owned(), "frame".to_owned(), "as written".to_owned())), "{edits:?}");
-    assert!(edits.contains(&("/patch/1/blocks/entry/ops/1 (m)".to_owned(), "frame".to_owned(), "rewritten".to_owned())), "{edits:?}");
-    assert!(edits.contains(&("n.entry.r".to_owned(), "live".to_owned(), "rewritten".to_owned())), "{edits:?}");
-    assert!(edits.contains(&("t_old".to_owned(), "frame".to_owned(), "rewritten".to_owned())), "{edits:?}");
-    assert!(edits.contains(&("t_new".to_owned(), "frame".to_owned(), "as written".to_owned())), "{edits:?}");
+    assert!(
+        edits.contains(&(
+            "/fns/0/blocks/0/ops/0 (k)".to_owned(),
+            "frame".to_owned(),
+            "as written".to_owned()
+        )),
+        "{edits:?}"
+    );
+    assert!(
+        edits.contains(&(
+            "/patch/1/blocks/entry/ops/1 (m)".to_owned(),
+            "frame".to_owned(),
+            "rewritten".to_owned()
+        )),
+        "{edits:?}"
+    );
+    assert!(
+        edits.contains(&(
+            "n.entry.r".to_owned(),
+            "live".to_owned(),
+            "rewritten".to_owned()
+        )),
+        "{edits:?}"
+    );
+    assert!(
+        edits.contains(&(
+            "t_old".to_owned(),
+            "frame".to_owned(),
+            "rewritten".to_owned()
+        )),
+        "{edits:?}"
+    );
+    assert!(
+        edits.contains(&(
+            "t_new".to_owned(),
+            "frame".to_owned(),
+            "as written".to_owned()
+        )),
+        "{edits:?}"
+    );
+    // w's kept block joins the author's patch of w, restated with the call
+    // rewritten; the author's own block keeps its (rewritten) statement.
+    let w = &expanded["patch"][2];
+    assert_eq!(w["fn"], "w");
+    assert_eq!(
+        w["blocks"]["kept"]["ops"][1],
+        json!({"name": "r", "op": "call", "args": ["f", "x", "r__a1"], "type": "Result<i64,ArithmeticError>"})
+    );
+    assert_eq!(
+        w["blocks"]["restated"]["ops"][2],
+        json!(["r", "call", "f", "r__a0", "r__a1"])
+    );
+    assert!(
+        edits.contains(&(
+            "w.kept.r".to_owned(),
+            "live".to_owned(),
+            "rewritten".to_owned()
+        )),
+        "{edits:?}"
+    );
     let mut after = Machine::candidate(&temp.path, &frame);
+    assert_eq!(after.call("w", &[json!(4), json!(true)]), json!({"Ok": 4}));
+    assert_eq!(after.call("w", &[json!(4), json!(false)]), json!({"Ok": 2}));
     assert_eq!(after.call("m", &[json!(4)]), json!({"Ok": 4}));
     assert_eq!(after.call("n", &[json!(4)]), json!({"Ok": 4}));
     assert_eq!(after.call("k", &[json!(4)]), json!({"Ok": 9}));
@@ -610,7 +827,11 @@ fn overloaded_names_and_reordered_parameters_are_resolved_by_identity_and_name()
       "patch": [{"fn": "f", "params": [["flag", "bool"], ["a", "i64"]]}],
       "ripple": [{"arity": "f"}]});
     let report = valid(&temp.path, &frame);
-    let expanded = artifact(&temp.path, report["draft"].as_str().unwrap(), "expanded.json");
+    let expanded = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
     assert_eq!(
         patched_calls(&expanded, "g"),
         [
@@ -627,7 +848,9 @@ fn overloaded_names_and_reordered_parameters_are_resolved_by_identity_and_name()
                      "blocks": {"yes": {"params": [["v", "u8"]], "term": ["return", {"type": "i64", "value": 0}]}}}],
           "ripple": [{"arity": "f"}]}),
         "AGENT_RIPPLE_HOLE_UNFILLED",
-        &["/ripple/0: `g.entry.r` passes an argument of type i64 for parameter `a`, which `f` now takes as u8 (expected u8)"],
+        &[
+            "/ripple/0: `g.entry.r` passes an argument of type i64 for parameter `a`, which `f` now takes as u8 (expected u8)",
+        ],
     );
 }
 
@@ -646,7 +869,9 @@ fn a_function_value_is_unresolved_dispatch() {
         &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
                 "ripple": [{"arity": "f", "value": 0}]}),
         "AGENT_RIPPLE_HOLE_UNFILLED",
-        &["/ripple/0: `g.entry.fr` uses `f` as a function value (fnref): calls through it are unresolved dispatch"],
+        &[
+            "/ripple/0: `g.entry.fr` uses `f` as a function value (fnref): calls through it are unresolved dispatch",
+        ],
     );
 }
 
@@ -673,7 +898,9 @@ fn callers_in_another_namespace_are_an_exported_boundary() {
         &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
                 "ripple": [{"arity": "f", "value": 0}]}),
         "AGENT_RIPPLE_EXPORTED_BOUNDARY",
-        &["/ripple/0: `g.entry.r` calls `f` from namespace ns_b while `f` is in ns_a: ripple does not edit code across a namespace boundary"],
+        &[
+            "/ripple/0: `g.entry.r` calls `f` from namespace ns_b while `f` is in ns_a: ripple does not edit code across a namespace boundary",
+        ],
     );
     // The caller in f's own namespace is not a boundary.
     assert_eq!(obligations.len(), 1, "{obligations:#?}");
@@ -717,12 +944,19 @@ fn an_entry_point_is_an_exported_boundary() {
         &new_f(&json!([{"arity": "f", "value": 0}])),
     )
     .unwrap();
-    assert_eq!(expansion.obligations.len(), 1, "{:?}", expansion.obligations);
+    assert_eq!(
+        expansion.obligations.len(),
+        1,
+        "{:?}",
+        expansion.obligations
+    );
     let obligation = &expansion.obligations[0];
     assert_eq!(obligation.symbol.symbol(), "AGENT_RIPPLE_EXPORTED_BOUNDARY");
     assert_eq!(obligation.at, "/ripple/0/arity");
     assert!(
-        obligation.decision.starts_with("`f` is the entry point `serve`"),
+        obligation
+            .decision
+            .starts_with("`f` is the entry point `serve`"),
         "{}",
         obligation.decision
     );
@@ -747,7 +981,9 @@ fn bounds_are_refused_never_truncated() {
         "AGENT_RIPPLE_LIMIT",
         &["/ripple/0/in: 65 functions; a guard names at most 64"],
     );
-    let mut ops: Vec<Value> = (0..257).map(|n| json!([format!("r{n}"), "call", "f", "x"])).collect();
+    let mut ops: Vec<Value> = (0..257)
+        .map(|n| json!([format!("r{n}"), "call", "f", "x"]))
+        .collect();
     ops.push(json!(["z", "tuple", "r0", "r256"]));
     commit(
         &temp.path,
@@ -767,6 +1003,7 @@ fn bounds_are_refused_never_truncated() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn targets_of_the_wrong_kind_and_disabled_intents_are_refused() {
     let temp = arity_workspace("kinds");
     commit(
@@ -775,8 +1012,14 @@ fn targets_of_the_wrong_kind_and_disabled_intents_are_refused() {
                 "consts": [{"name": "limit", "type": "i64", "value": 3}]}),
     );
     for (target, needle) in [
-        ("Shape", "/ripple/0/arity: `Shape` is a TypeDef, not a function"),
-        ("limit", "/ripple/0/arity: `limit` is a Constant, not a function"),
+        (
+            "Shape",
+            "/ripple/0/arity: `Shape` is a TypeDef, not a function",
+        ),
+        (
+            "limit",
+            "/ripple/0/arity: `limit` is a Constant, not a function",
+        ),
         ("nothing", "/ripple/0/arity: no function named `nothing`"),
     ] {
         assert_refused(
@@ -808,12 +1051,20 @@ fn targets_of_the_wrong_kind_and_disabled_intents_are_refused() {
         json!({"move": "f", "to": "ns"}),
         json!({"prune": "f"}),
     ] {
-        let word = intent.as_object().unwrap().keys().find(|key| *key != "add" && *key != "to").unwrap().clone();
+        let word = intent
+            .as_object()
+            .unwrap()
+            .keys()
+            .find(|key| *key != "add" && *key != "to")
+            .unwrap()
+            .clone();
         assert_refused(
             &temp.path,
             &json!({"af1": 1, "afx": 1, "ripple": [intent]}),
             "AGENT_RIPPLE_INTENT_UNKNOWN",
-            &[&format!("/ripple/0: `{word}` is not enabled in this build; the enabled intents are arity and guard")],
+            &[&format!(
+                "/ripple/0: `{word}` is not enabled in this build; the enabled intents are arity and guard"
+            )],
         );
     }
     assert_refused(
@@ -864,7 +1115,9 @@ fn targets_of_the_wrong_kind_and_disabled_intents_are_refused() {
         &temp.path,
         &new_f(&json!([{"arity": "f", "value": 0}, {"arity": "f", "value": 1}])),
         "AGENT_RIPPLE_HOLE_UNFILLED",
-        &["/ripple/1/arity: the parameters of `f` are already propagated by the intent at /ripple/0"],
+        &[
+            "/ripple/1/arity: the parameters of `f` are already propagated by the intent at /ripple/0",
+        ],
     );
 }
 
@@ -889,13 +1142,23 @@ fn derivations_are_deterministic() {
     assert_eq!(a.obligations.len(), 6);
     // The same frame layered on its own draft derives the same edits.
     let report = valid(&temp.path, &frame);
-    let draft = report["draft"].as_str().unwrap().split('@').next().unwrap().to_owned();
+    let draft = report["draft"]
+        .as_str()
+        .unwrap()
+        .split('@')
+        .next()
+        .unwrap()
+        .to_owned();
     let more = json!({"af1": 1, "tests": [{"name": "t_h", "fn": "h", "args": [1, 3], "expect": {"Ok": 2}}]});
     let (status, layered) = run_json(&temp.path, &["try", "--on", &draft, &more.to_string()]);
     assert_eq!(status, 0, "{layered:#}");
     let revision = layered["draft"].as_str().unwrap();
     let expanded = artifact(&temp.path, revision, "expanded.json");
-    let original = artifact(&temp.path, report["draft"].as_str().unwrap(), "expanded.json");
+    let original = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
     assert_eq!(expanded["patch"], original["patch"]);
 }
 
@@ -918,7 +1181,10 @@ fn derived_edits_go_through_the_unchanged_kernel() {
     assert!(expansion.obligations.is_empty());
     let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
     assert_eq!(status, 2, "{text}");
-    assert!(text.starts_with("error AGENT_CANDIDATE_INVALID: SCB_FLOAT_NON_CANONICAL"), "{text}");
+    assert!(
+        text.starts_with("error AGENT_CANDIDATE_INVALID: SCB_FLOAT_NON_CANONICAL"),
+        "{text}"
+    );
     // A candidate carrying derived edits is judged whole: the kernel's own
     // refusal of the frame's change is reported with the derived collateral.
     let frame = json!({"af1": 1, "afx": 1,
@@ -1000,11 +1266,17 @@ fn guard_frame(checker: &Value, intent: &Value) -> Value {
 }
 
 fn quantities() -> Vec<Value> {
-    [i64::MIN, -1, 0, 1, 2, 7, i64::MAX].iter().map(|n| json!(n)).collect()
+    [i64::MIN, -1, 0, 1, 2, 7, i64::MAX]
+        .iter()
+        .map(|n| json!(n))
+        .collect()
 }
 
 fn prices() -> Vec<Value> {
-    [i64::MIN, -1, 0, 5, i64::MAX].iter().map(|n| json!(n)).collect()
+    [i64::MIN, -1, 0, 5, i64::MAX]
+        .iter()
+        .map(|n| json!(n))
+        .collect()
 }
 
 #[test]
@@ -1022,10 +1294,16 @@ fn preserve_replaces_the_identical_check_where_it_is() {
     assert_eq!(intent["mode"], "preserve");
     let functions = intent["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 4);
-    assert!(functions.iter().all(|f| f["edit"] == "replaced"), "{intent:#}");
+    assert!(
+        functions.iter().all(|f| f["edit"] == "replaced"),
+        "{intent:#}"
+    );
     // line_total's check stays after the price check; shipped has two.
     assert_eq!(functions[0]["checks"], json!(["line_total.entry__if0"]));
-    assert_eq!(functions[2]["checks"], json!(["shipped.fast", "shipped.slow"]));
+    assert_eq!(
+        functions[2]["checks"],
+        json!(["shipped.fast", "shipped.slow"])
+    );
     assert_eq!(functions[0]["deleted"], json!(["__fail_InvalidQuantity"]));
     let expanded = artifact(&temp.path, draft, "expanded.json");
     let line = expanded["patch"]
@@ -1042,22 +1320,53 @@ fn preserve_replaces_the_identical_check_where_it_is() {
     );
     assert_eq!(
         line["blocks"]["entry__if0"]["term"],
-        json!(["switch", "quantity__check_quantity", ["Ok", "entry__if1"], ["Err", "__err", "$"]])
+        json!([
+            "switch",
+            "quantity__check_quantity",
+            ["Ok", "entry__if1"],
+            ["Err", "__err", "$"]
+        ])
     );
     // Same results for every input, simultaneous invalid ones included:
     // the price error still wins in line_total, the early return and the
     // trapping call still come first.
-    same_behavior(&temp.path, &frame, "line_total", &grid(&[&quantities(), &prices()]));
-    same_behavior(&temp.path, &frame, "discounted", &grid(&[&quantities(), &prices(), &prices()]));
-    same_behavior(&temp.path, &frame, "shipped", &grid(&[&quantities(), &bools(), &bools()]));
-    same_behavior(&temp.path, &frame, "after_call", &grid(&[&[json!(0), json!(3)], &quantities()]));
+    same_behavior(
+        &temp.path,
+        &frame,
+        "line_total",
+        &grid(&[&quantities(), &prices()]),
+    );
+    same_behavior(
+        &temp.path,
+        &frame,
+        "discounted",
+        &grid(&[&quantities(), &prices(), &prices()]),
+    );
+    same_behavior(
+        &temp.path,
+        &frame,
+        "shipped",
+        &grid(&[&quantities(), &bools(), &bools()]),
+    );
+    same_behavior(
+        &temp.path,
+        &frame,
+        "after_call",
+        &grid(&[&[json!(0), json!(3)], &quantities()]),
+    );
     let mut after = Machine::candidate(&temp.path, &frame);
     assert_eq!(
         after.call("line_total", &[json!(0), json!(-1)]),
         json!({"Err": "InvalidPrice"})
     );
-    assert_eq!(after.call("shipped", &[json!(0), json!(true), json!(true)]), json!({"Ok": 0}));
-    assert_eq!(after.call("after_call", &[json!(0), json!(0)]), json!({"trap": 1}));
+    assert_eq!(
+        after.call("shipped", &[json!(0), json!(true), json!(true)]),
+        json!({"Ok": 0})
+    );
+    assert_eq!(
+        after.call("after_call", &[json!(0), json!(0)]),
+        json!({"trap": 1})
+    );
 }
 
 #[test]
@@ -1081,9 +1390,20 @@ fn preserve_matches_an_alpha_renamed_hand_written_check_of_a_live_checker() {
       "ripple": [{"guard": "check_quantity", "arg": "n", "in": ["unit_price"], "mode": "preserve"}]});
     let report = valid(&temp.path, &frame);
     let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
-    assert_eq!(inventory["intents"][0]["functions"][0]["checks"], json!(["unit_price.entry"]));
-    assert_eq!(inventory["intents"][0]["functions"][0]["deleted"], json!(["reject"]));
-    same_behavior(&temp.path, &frame, "unit_price", &grid(&[&prices(), &quantities()]));
+    assert_eq!(
+        inventory["intents"][0]["functions"][0]["checks"],
+        json!(["unit_price.entry"])
+    );
+    assert_eq!(
+        inventory["intents"][0]["functions"][0]["deleted"],
+        json!(["reject"])
+    );
+    same_behavior(
+        &temp.path,
+        &frame,
+        "unit_price",
+        &grid(&[&prices(), &quantities()]),
+    );
 }
 
 #[test]
@@ -1116,7 +1436,10 @@ fn preserve_refuses_what_it_cannot_prove() {
         &temp.path,
         &guard("le_check"),
         "AGENT_RIPPLE_GUARD_ORDER",
-        &["/ripple/0/in/0: no check in `le_check` is the same as `check_quantity` on `quantity`", "use \"mode\": \"entry\""],
+        &[
+            "/ripple/0/in/0: no check in `le_check` is the same as `check_quantity` on `quantity`",
+            "use \"mode\": \"entry\"",
+        ],
     );
     assert_refused(
         &temp.path,
@@ -1134,14 +1457,19 @@ fn preserve_refuses_what_it_cannot_prove() {
         &temp.path,
         &guard("reused"),
         "AGENT_RIPPLE_GUARD_ORDER",
-        &["/ripple/0/in/0: a check in `reused` has the shape of `check_quantity` on `quantity` but defines entry.low, which block `entry__if0` uses"],
+        &[
+            "/ripple/0/in/0: a check in `reused` has the shape of `check_quantity` on `quantity` but defines entry.low, which block `entry__if0` uses",
+        ],
     );
     // A checker that changes the value it checks is outside preserve.
     let normalizing = json!({"fn": "to_index", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
       "blocks": [{"name": "entry", "ops": [["!InvalidQuantity", "if", ["lt", "q", 1]]], "term": ["ok", ["sub?Overflow", "q", 1]]}]});
     assert_refused(
         &temp.path,
-        &guard_frame(&normalizing, &json!({"guard": "to_index", "arg": "quantity", "in": ["discounted"]})),
+        &guard_frame(
+            &normalizing,
+            &json!({"guard": "to_index", "arg": "quantity", "in": ["discounted"]}),
+        ),
         "AGENT_RIPPLE_GUARD_ORDER",
         &[
             "preserve replaces a check that is the same pure check as `to_index`'s body, but block `",
@@ -1155,7 +1483,10 @@ fn preserve_refuses_what_it_cannot_prove() {
                  {"name": "done", "term": ["ok", "q"]}]});
     assert_refused(
         &temp.path,
-        &guard_frame(&looping, &json!({"guard": "spin", "arg": "quantity", "in": ["discounted"]})),
+        &guard_frame(
+            &looping,
+            &json!({"guard": "spin", "arg": "quantity", "in": ["discounted"]}),
+        ),
         "AGENT_RIPPLE_GUARD_ORDER",
         &["its body loops"],
     );
@@ -1182,8 +1513,15 @@ fn entry_checks_first_and_routes_uses_through_the_payload() {
     let report = valid(&temp.path, &frame);
     let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
     let functions = inventory["intents"][0]["functions"].as_array().unwrap();
-    assert_eq!(functions[0], json!({"fn": "line_total", "edit": "entry", "uses": 2, "error": "__err"}));
-    let expanded = artifact(&temp.path, report["draft"].as_str().unwrap(), "expanded.json");
+    assert_eq!(
+        functions[0],
+        json!({"fn": "line_total", "edit": "entry", "uses": 2, "error": "__err"})
+    );
+    let expanded = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
     let line = expanded["patch"]
         .as_array()
         .unwrap()
@@ -1205,7 +1543,9 @@ fn entry_checks_first_and_routes_uses_through_the_payload() {
         if index < 1 {
             return err("InvalidQuantity");
         }
-        index.checked_mul(price).map_or_else(|| err("Overflow"), |total| json!({"Ok": total}))
+        index
+            .checked_mul(price)
+            .map_or_else(|| err("Overflow"), |total| json!({"Ok": total}))
     };
     let mut after = Machine::candidate(&temp.path, &frame);
     for quantity in [i64::MIN, -1, 0, 1, 2, 7, i64::MAX] {
@@ -1218,13 +1558,31 @@ fn entry_checks_first_and_routes_uses_through_the_payload() {
         }
     }
     // Early returns no longer come first: the check is at entry.
-    assert_eq!(after.call("shipped", &[json!(0), json!(true), json!(true)]), err("InvalidQuantity"));
-    assert_eq!(after.call("shipped", &[json!(3), json!(true), json!(true)]), json!({"Ok": 0}));
-    assert_eq!(after.call("shipped", &[json!(3), json!(false), json!(false)]), json!({"Ok": 2}));
+    assert_eq!(
+        after.call("shipped", &[json!(0), json!(true), json!(true)]),
+        err("InvalidQuantity")
+    );
+    assert_eq!(
+        after.call("shipped", &[json!(3), json!(true), json!(true)]),
+        json!({"Ok": 0})
+    );
+    assert_eq!(
+        after.call("shipped", &[json!(3), json!(false), json!(false)]),
+        json!({"Ok": 2})
+    );
     // A trapping call that ran first now runs after the check.
-    assert_eq!(after.call("after_call", &[json!(0), json!(0)]), err("InvalidQuantity"));
-    assert_eq!(after.call("after_call", &[json!(0), json!(3)]), json!({"trap": 1}));
-    assert_eq!(after.call("after_call", &[json!(4), json!(3)]), json!({"Ok": 6}));
+    assert_eq!(
+        after.call("after_call", &[json!(0), json!(0)]),
+        err("InvalidQuantity")
+    );
+    assert_eq!(
+        after.call("after_call", &[json!(0), json!(3)]),
+        json!({"trap": 1})
+    );
+    assert_eq!(
+        after.call("after_call", &[json!(4), json!(3)]),
+        json!({"Ok": 6})
+    );
 }
 
 #[test]
@@ -1256,21 +1614,31 @@ fn entry_errors_take_the_one_compatible_route_or_leave_a_hole() {
     let frame = guard("wrapped");
     valid(&temp.path, &frame);
     let mut after = Machine::candidate(&temp.path, &frame);
-    assert_eq!(after.call("wrapped", &[json!(0)]), json!({"Err": {"Order": "InvalidQuantity"}}));
-    assert_eq!(after.call("wrapped", &[json!(500)]), json!({"Err": {"Order": "Overflow"}}));
+    assert_eq!(
+        after.call("wrapped", &[json!(0)]),
+        json!({"Err": {"Order": "InvalidQuantity"}})
+    );
+    assert_eq!(
+        after.call("wrapped", &[json!(500)]),
+        json!({"Err": {"Order": "Overflow"}})
+    );
     assert_eq!(after.call("wrapped", &[json!(5)]), json!({"Ok": 5}));
     let obligations = assert_refused(
         &temp.path,
         &guard("unrelated"),
         "AGENT_RIPPLE_HOLE_UNFILLED",
-        &["/ripple/0/in/0: `check_quantity` fails with OrderError, and `unrelated` has no route for it"],
+        &[
+            "/ripple/0/in/0: `check_quantity` fails with OrderError, and `unrelated` has no route for it",
+        ],
     );
     assert_eq!(obligations[0]["expected"], "OrderError");
     assert_refused(
         &temp.path,
         &guard("two_routes"),
         "AGENT_RIPPLE_HOLE_UNFILLED",
-        &["`two_routes` has 2 candidate route for it: block `log`, returning it (Result<i64,OrderError>)"],
+        &[
+            "`two_routes` has 2 candidate route for it: block `log`, returning it (Result<i64,OrderError>)",
+        ],
     );
 }
 
@@ -1289,7 +1657,11 @@ fn entry_leaves_uses_it_does_not_dominate() {
         &json!({"guard": "to_index", "arg": "quantity", "in": ["kept"], "mode": "entry"}),
     );
     let report = valid(&temp.path, &frame);
-    let expanded = artifact(&temp.path, report["draft"].as_str().unwrap(), "expanded.json");
+    let expanded = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
     let patch = &expanded["patch"][0];
     // The reachable use reads the checked value; the unreachable block,
     // which entry does not dominate, keeps the parameter and is not restated.
@@ -1314,7 +1686,9 @@ fn a_guard_never_runs_twice_or_twice_over() {
         &temp.path,
         &json!({"af1": 1, "afx": 1, "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["checked"], "mode": "entry"}]}),
         "AGENT_RIPPLE_GUARD_ORDER",
-        &["/ripple/0/in/0: `checked` already calls `check_quantity` on `quantity` at `checked.entry.q__r`; evaluating it again at entry would run it twice"],
+        &[
+            "/ripple/0/in/0: `checked` already calls `check_quantity` on `quantity` at `checked.entry.q__r`; evaluating it again at entry would run it twice",
+        ],
     );
     assert_refused(
         &temp.path,
@@ -1350,10 +1724,20 @@ fn guards_compose_in_written_order() {
       {"guard": "check_price", "arg": "price", "in": ["line_total"]}]});
     let report = valid(&temp.path, &frame);
     let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
-    assert_eq!(inventory["intents"][0]["functions"][0]["checks"], json!(["line_total.entry__if0"]));
-    assert_eq!(inventory["intents"][1]["functions"][0]["checks"], json!(["line_total.entry"]));
+    assert_eq!(
+        inventory["intents"][0]["functions"][0]["checks"],
+        json!(["line_total.entry__if0"])
+    );
+    assert_eq!(
+        inventory["intents"][1]["functions"][0]["checks"],
+        json!(["line_total.entry"])
+    );
     // One patch of line_total carries both; the error exit is shared.
-    let expanded = artifact(&temp.path, report["draft"].as_str().unwrap(), "expanded.json");
+    let expanded = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
     let patches: Vec<&Value> = expanded["patch"]
         .as_array()
         .unwrap()
@@ -1361,7 +1745,12 @@ fn guards_compose_in_written_order() {
         .filter(|patch| patch["fn"] == "line_total")
         .collect();
     assert_eq!(patches.len(), 1);
-    same_behavior(&temp.path, &frame, "line_total", &grid(&[&quantities(), &prices()]));
+    same_behavior(
+        &temp.path,
+        &frame,
+        "line_total",
+        &grid(&[&quantities(), &prices()]),
+    );
 }
 
 #[test]
@@ -1369,7 +1758,10 @@ fn guard_shapes_and_targets_are_checked() {
     let temp = orders_workspace("shapes");
     let guard = |checker: Value, function: &str, arg: &str| {
         let name = checker["fn"].as_str().unwrap().to_owned();
-        guard_frame(&checker, &json!({"guard": name, "arg": arg, "in": [function]}))
+        guard_frame(
+            &checker,
+            &json!({"guard": name, "arg": arg, "in": [function]}),
+        )
     };
     let option = json!({"fn": "maybe", "params": [["q", "i64"]], "returns": "Option<i64>",
       "blocks": [{"name": "entry", "term": ["return", ["some", "q"]]}]});
@@ -1377,7 +1769,9 @@ fn guard_shapes_and_targets_are_checked() {
         &temp.path,
         &guard(option, "discounted", "quantity"),
         "AGENT_RIPPLE_GUARD_SHAPE",
-        &["/ripple/0/guard: `maybe` returns Option<i64>; a guard is P -> Result<P,E>, and no error case is inferred for None"],
+        &[
+            "/ripple/0/guard: `maybe` returns Option<i64>; a guard is P -> Result<P,E>, and no error case is inferred for None",
+        ],
     );
     let two = json!({"fn": "both", "params": [["q", "i64"], ["p", "i64"]], "returns": "Result<i64,OrderError>",
       "blocks": [{"name": "entry", "term": ["ok", "q"]}]});
@@ -1385,7 +1779,9 @@ fn guard_shapes_and_targets_are_checked() {
         &temp.path,
         &guard(two, "discounted", "quantity"),
         "AGENT_RIPPLE_GUARD_SHAPE",
-        &["/ripple/0/guard: `both` takes (i64, i64) and returns Result<i64,OrderError>; a guard is one parameter P -> Result<P,E>"],
+        &[
+            "/ripple/0/guard: `both` takes (i64, i64) and returns Result<i64,OrderError>; a guard is one parameter P -> Result<P,E>",
+        ],
     );
     let widening = json!({"fn": "widen", "params": [["q", "i64"]], "returns": "Result<(i64,i64),OrderError>",
       "blocks": [{"name": "entry", "term": ["ok", ["tuple", "q", "q"]]}]});
@@ -1393,7 +1789,9 @@ fn guard_shapes_and_targets_are_checked() {
         &temp.path,
         &guard(widening, "discounted", "quantity"),
         "AGENT_RIPPLE_GUARD_SHAPE",
-        &["`widen` returns Result<(i64,i64),OrderError> for a i64 parameter; a guard keeps the checked type"],
+        &[
+            "`widen` returns Result<(i64,i64),OrderError> for a i64 parameter; a guard keeps the checked type",
+        ],
     );
     let small = json!({"fn": "small", "params": [["q", "u8"]], "returns": "Result<u8,OrderError>",
       "blocks": [{"name": "entry", "term": ["ok", "q"]}]});
@@ -1401,7 +1799,9 @@ fn guard_shapes_and_targets_are_checked() {
         &temp.path,
         &guard(small, "discounted", "quantity"),
         "AGENT_RIPPLE_GUARD_SHAPE",
-        &["/ripple/0/in/0: `small` checks u8, but parameter `quantity` of `discounted` is i64 (expected u8)"],
+        &[
+            "/ripple/0/in/0: `small` checks u8, but parameter `quantity` of `discounted` is i64 (expected u8)",
+        ],
     );
     assert_refused(
         &temp.path,
@@ -1488,8 +1888,16 @@ fn effects_before_a_check_keep_entry_from_moving_it() {
         &json!({"guard": "check_quantity", "arg": "quantity", "in": ["after_call"], "mode": "entry"}),
     );
     let expansion = sley_agent::afx::expand(&program, &names, &frame).unwrap();
-    assert_eq!(expansion.obligations.len(), 1, "{:?}", expansion.obligations);
-    assert_eq!(expansion.obligations[0].symbol.symbol(), "AGENT_RIPPLE_GUARD_ORDER");
+    assert_eq!(
+        expansion.obligations.len(),
+        1,
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.obligations[0].symbol.symbol(),
+        "AGENT_RIPPLE_GUARD_ORDER"
+    );
     assert!(
         expansion.obligations[0]
             .decision
@@ -1497,11 +1905,40 @@ fn effects_before_a_check_keep_entry_from_moving_it() {
         "{}",
         expansion.obligations[0].decision
     );
-    // Preserve keeps the order, so it still applies there.
+    // Preserve would keep the order, but a patch cannot restate declared
+    // effects: the function is left alone, not silently changed.
     let preserve = guard_frame(
         &check_quantity(),
         &json!({"guard": "check_quantity", "arg": "quantity", "in": ["after_call"]}),
     );
     let expansion = sley_agent::afx::expand(&program, &names, &preserve).unwrap();
-    assert!(expansion.obligations.is_empty(), "{:?}", expansion.obligations);
+    assert_eq!(
+        expansion.obligations.len(),
+        1,
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.obligations[0].symbol.symbol(),
+        "AGENT_RIPPLE_TARGET_KIND"
+    );
+    assert_eq!(
+        expansion.obligations[0].decision,
+        "`after_call` declares effects, which a patch cannot restate: guard leaves it"
+    );
+    // So is a caller that `arity` would have to restate.
+    let arity = json!({"af1": 1, "afx": 1,
+      "patch": [{"fn": "boom", "params": [["a", "i64"], ["b", "i64"]]}],
+      "ripple": [{"arity": "boom", "value": 0}]});
+    let expansion = sley_agent::afx::expand(&program, &names, &arity).unwrap();
+    assert_eq!(
+        expansion.obligations.len(),
+        1,
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.obligations[0].decision,
+        "`after_call.entry.z` calls `boom`, but `after_call` declares effects, which a patch cannot restate: change the call yourself"
+    );
 }

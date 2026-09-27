@@ -1623,6 +1623,17 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 );
                 continue;
             }
+            if let Some(why) = self.funcs.get(&site.function).and_then(unpatchable) {
+                self.hole(
+                    AgentErrorCode::RippleHoleUnfilled,
+                    &at,
+                    format!(
+                        "{label} calls `{target}`, but `{}` {why}, which a patch cannot restate: change the call yourself",
+                        site.function
+                    ),
+                );
+                continue;
+            }
             let edit = if self.rewrite_live_call(&context, site, &label) {
                 changed_fns.insert(site.function.clone());
                 self.edits += 1;
@@ -2316,13 +2327,12 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 );
                 continue;
             };
-            if func.generic {
+            if func.generic || (func.effects && !entry) {
+                let why = unpatchable(func).unwrap_or_default();
                 self.hole(
                     AgentErrorCode::RippleTargetKind,
                     &fat,
-                    format!(
-                        "`{function}` has type parameters; a guard rewrites non-generic functions"
-                    ),
+                    format!("`{function}` {why}, which a patch cannot restate: guard leaves it"),
                 );
                 continue;
             }
@@ -3192,6 +3202,18 @@ fn calls_of(func: &Func, checker: &str, arg: &str) -> Vec<String> {
     out
 }
 
+/// Why a patch cannot restate a live function whole: AF1 states neither
+/// type parameters nor declared effects.
+fn unpatchable(func: &Func) -> Option<&'static str> {
+    if func.generic {
+        Some("has type parameters")
+    } else if func.effects {
+        Some("declares effects")
+    } else {
+        None
+    }
+}
+
 /// Whether a block takes exactly one parameter, of type `ty`.
 fn takes_one(block: &Blk, ty: &TypeExpr) -> bool {
     matches!(block.params.as_slice(), [(_, param)] if param == ty)
@@ -3213,7 +3235,9 @@ fn forwarded(func: &Func, leaf: &str, ty: &TypeExpr) -> String {
             Term::Br(edge)
                 if block.ops.is_empty()
                     && edge.args == [Arg::Val(Val::Block(current.clone(), param.clone()))]
-                    && func.block(&edge.target).is_some_and(|target| takes_one(target, ty)) =>
+                    && func
+                        .block(&edge.target)
+                        .is_some_and(|target| takes_one(target, ty)) =>
             {
                 edge.target.clone()
             }
@@ -3558,6 +3582,8 @@ impl Matcher<'_> {
             return false;
         }
         let start = fb.ops.len() - gb.ops.len();
+        // The anchor is never also one of the check's other blocks.
+        self.taken.insert(fb.leaf.clone());
         self.ops(gb, fb, start) && self.term(gb, fb)
     }
 
@@ -3678,6 +3704,12 @@ impl Matcher<'_> {
         let Some(cont) = self.cont.clone() else {
             return Err("never continues".to_owned());
         };
+        if self.taken.contains(&cont.target) {
+            return Err(format!(
+                "continues into block `{}`, which is part of the check",
+                cont.target
+            ));
+        }
         let anchor_block = self.f.block(anchor).ok_or_else(|| "vanished".to_owned())?;
         let start = anchor_block.ops.len() - self.g.block(&self.g.entry).map_or(0, |b| b.ops.len());
         // Values the replacement removes from the anchor.
@@ -3686,7 +3718,7 @@ impl Matcher<'_> {
             .map(|op| Val::Op(anchor.to_owned(), op.leaf.clone(), 0))
             .collect();
         // Mapped blocks that only the check reaches go with it.
-        let mut deletable: BTreeSet<String> = self.taken.clone();
+        let mut deletable: BTreeSet<String> = self.blocks.values().cloned().collect();
         loop {
             let before = deletable.len();
             let snapshot = deletable.clone();
