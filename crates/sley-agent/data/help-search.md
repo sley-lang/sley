@@ -35,9 +35,16 @@ A visible value is a function parameter, a result of a dominating block,
 or a parameter or earlier result of the same block. Each neighbor is an
 `edit` (one operation) or a `patch` (one block) written in the seed's
 dialect, so `try --on <seed>` layers it on the seed's frame. Search
-compiles, assembles and validates exactly that layered frame. A change no
-such frame can state is skipped and counted, before it can take a
-neighbor slot:
+compiles, assembles and validates exactly that layered frame. When a
+substitution removes the use that typed a value (`ok`, `err`, `none` or
+an empty `vec` returned, passed on a `br` or to a call), the neighbor
+gives that value's operation its `"type"` (object form), restating its
+block too when it is another one. When the seed has an `arity` intent
+with `"frame_calls"` and the neighbor states a function it reads, the
+neighbor restates the intent as the seed has it, so layering does not add
+the function to its `"after"` and the intent reads the neighbor as it
+reads the seed's own revision. A change no such frame can state is
+skipped and counted, before it can take a neighbor slot:
 
 - code the tool generated (AF1-X continuations, checked switches, shared
   exits), or any `__` name in a frame of the authoring dialect;
@@ -47,6 +54,15 @@ neighbor slot:
   intent refuses every frame that restates that function;
 - a permutation of two nested operations (it would reorder their
   evaluation), or a block change beside the seed's own `edit`;
+- a substitution inside a call an `arity` intent rewrites by name
+  (`"frame_calls": "old"`): its compiled arguments are not in the
+  author's order;
+- code restated from the program (a block as the head has it, or an
+  operation beside the seed's edits) that calls the target of an `arity`
+  intent with equal parameter counts, not yet in the head, unless its
+  `"frame_calls"` reads the call as written (`"old"` for a call as the
+  head has it, `"new"` for one the seed compiled): the intent could not
+  tell which parameters the call is written for;
 - a substitution that would drop a nested operation with a failure route
   (`op?`), a call, an effect, a contract check, an observation or a cell;
 - `not x -> x` where `x` is a nested operation without a name (it would
@@ -57,7 +73,8 @@ neighbor slot:
 A function the seed's `arity` intent rewrites without its frame stating it
 (a caller of the changed function) is searched as the head states it: each
 neighbor is a `patch` of one of its blocks, and the intent, layered in with
-the seed's frame, rewrites the calls in that patch again. The values an
+the seed's frame, rewrites the calls in that patch again (a patch holding
+a call restates an intent of equal counts, as above). The values an
 intent derives (its `value`) are not searched. The output says `derived:`.
 
 ## Ranking, bounds, output

@@ -1164,9 +1164,24 @@ block, written so that `try --on <seed>` layers it on the seed's frame.
 When the seed's frame states the function, the neighbor restates what the
 author wrote, in the frame's dialect; for an AF1-X frame the source map
 leads each operation back to its authored statement, nested operation or
-literal. Otherwise it restates the live function. A change no such frame
-can state is skipped and counted before it can take one of the neighbor
-slots:
+literal. Otherwise it restates the live function. When a substitution
+removes the use that typed a value (a returned value, a `br` argument or a
+call argument, from which the frame compiler infers the type of `ok`,
+`err`, `none` or an empty `vec`), the neighbor gives the authored
+statement of that value's operation its `"type"` (the object form, with
+the type the seed compiled); when that statement is in another block, the
+neighbor is a `patch` of both blocks.
+
+Layering records the functions a follow-up states in the `"after"` of each
+`arity` intent it does not restate (section 5.3). When the seed's frame has
+an `arity` intent with `"frame_calls"`, both parameter counts are equal,
+and the neighbor states a function the intent reads (one that calls the
+intent's target), the neighbor restates the intent exactly as the seed's
+frame states it: the intent then reads the neighbor as it reads the seed's
+own revision.
+
+A change no such frame can state is skipped and counted before it can take
+one of the neighbor slots:
 
 - a change to code the tool generated (AF1-X continuations, checked
   switches, shared exits), and any neighbor of an AF1-X seed whose frame
@@ -1179,6 +1194,17 @@ slots:
   layered on the seed can change it (the `next:` line says so);
 - a permutation of two nested operations (it would reorder their
   evaluation), and a block change beside the seed's own `edit`;
+- a substitution inside an authored call that an `arity` intent rewrites
+  by name (`"frame_calls": "old"` with equal counts, or two intents on
+  one target): the compiled arguments are not in the order the author
+  wrote them, so the change has no place in the authored call;
+- a change to code restated from the program (a block as the head states
+  it, or an operation beside the seed's edits) that calls the target of
+  an `arity` intent the head does not yet reflect, with equal parameter
+  counts, unless the intent's `"frame_calls"` reads that call as written
+  (`"old"` for a call as the head has it, `"new"` for one the seed
+  compiled) and its `"after"` does not list the function: the intent
+  could not tell which parameters the call is written for;
 - a substitution that would replace a nested operation carrying a failure
   route (`op?`), a call, an effect, a contract check, an observation or a
   cell operation, anywhere inside it, by a name;
@@ -1194,9 +1220,10 @@ rewrites) is searched as the head states it: the generators run over the
 head's function, every change is written as a `patch` of the block, and
 the neighbor is layered on the seed's authored frame with its intents, so
 the derivation runs again on the patch exactly as `try --on <seed>` runs
-it. A value an intent derives (the `value` of `arity`) is not a search
-target. The output marks such a search `derived` and says how neighbors
-are written.
+it (a patch holding a call of the target of an intent with equal counts
+restates the intent, as above). A value an intent derives (the `value` of
+`arity`) is not a search target. The output marks such a search `derived`
+and says how neighbors are written.
 
 Search then compiles exactly the layered frame, assembles the record and
 validates it with `validate_candidate_bytes` (the layered frame is
@@ -1270,6 +1297,9 @@ searches), repeated flags, unstateable and derived code skipped before the
 budget, nested failure routes kept, negations that would duplicate
 evaluation skipped, the wall limit's granularity, `TestCase` evidence,
 callers an `arity` intent rewrites searched and repaired through the
-intent, functions a `guard` intent rewrites skipped, the ledger counters
-and `input_bytes`, the `search` help example, and wrong opcode, constant,
-return value and switch edge repairs applied with `try --on`.
+intent, callers of an equal-count `arity` intent read as the seed reads
+them (and skipped when the intent cannot read them), substitutions that
+remove the use typing a value, functions a `guard` intent rewrites
+skipped, the ledger counters and `input_bytes`, the `search` help example,
+and wrong opcode, constant, return value and switch edge repairs applied
+with `try --on`.

@@ -2147,3 +2147,252 @@ fn a_neighbor_that_reverts_the_seed_to_the_head_is_skipped() {
     );
     assert!(text.contains(" 0 refused, "), "{text}");
 }
+
+/// `f(a, b)` and a caller `k` that calls it from its block `go`.
+fn reorder_base() -> Value {
+    json!({"af1": 1, "fns": [
+     {"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,ArithmeticError>",
+      "blocks": [{"name": "entry", "ops": [["r", "sub", "a", "b"]], "term": ["return", "r"]}]},
+     {"fn": "k", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,ArithmeticError>",
+      "blocks": [{"name": "entry", "ops": [["two", "const", 2], ["z", "mul", "x", "two"]],
+                  "term": ["switch", "z", ["Ok", "go", "$"], ["Err", "ovf", "$"]]},
+                 {"name": "go", "params": [["w", "i64"]], "ops": [["r", "call", "f", "w", "y"]], "term": ["return", "r"]},
+                 {"name": "ovf", "params": [["e", "ArithmeticError"]], "ops": [["o", "err", "e"]], "term": ["return", "o"]}]}]})
+}
+
+#[test]
+fn callers_of_an_equal_count_arity_intent_are_read_as_the_seed_reads_them() {
+    // A caller the intent derives: the neighbor restates `go` as the head
+    // has it, and "frame_calls": "old" rewrites that call again.
+    let temp = workspace("reorder-derived");
+    let c1 = seed(&temp.path, &reorder_base());
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    let intent = json!({"arity": "f", "frame_calls": "old"});
+    let reorder = json!({"af1": 1, "afx": 1,
+     "patch": [{"fn": "f", "params": [["b", "i64"], ["a", "i64"]]}],
+     "ripple": [intent],
+     "tests": [{"name": "tk", "fn": "k", "args": [5, 2], "expect": {"Ok": 8}}]});
+    let c2 = seed(&temp.path, &reorder);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "k1", "function": "k", "args": [5, 2], "expect": {"Ok": 8}},
+                {"name": "k2", "function": "k", "args": [1, 1], "expect": {"Ok": 1}}]),
+    );
+    let (_, report) = search(&temp.path, &["k", "--public", &public, "--from", &c2]);
+    assert_eq!(report["search"]["derived"], true, "{report:#}");
+    assert_eq!(report["counts"]["generated"], 19, "{report:#}");
+    assert_eq!(report["counts"]["evaluated"], 19, "{report:#}");
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert_eq!(report["counts"]["skipped"], 0, "{report:#}");
+    // Only a neighbor that restates the call restates the intent.
+    for neighbor in neighbors(&report) {
+        let restates = neighbor["at"].as_str().unwrap().starts_with("go");
+        assert_eq!(
+            neighbor["frame"].get("ripple"),
+            restates.then(|| json!([intent])).as_ref(),
+            "{neighbor:#}"
+        );
+    }
+    // f(x, y) as the head has it computes x - y: 5 - 2, not 2 - 5.
+    let call = find(&report, "operand substitution", "go.r", "operand 0: w -> x");
+    assert_eq!(call["status"], "evaluated", "{call:#}");
+    assert_eq!(call["public"]["outcomes"][0]["actual"], json!({"Ok": 3}));
+    let (status, text) = apply(&temp.path, Some(&c2), &call["frame"], &public);
+    assert!(text.contains(": Valid"), "{status} {text}");
+    assert!(text.contains("public: 0/2 passed"), "{text}");
+
+    // Read against the new parameters (or by count, which cannot tell):
+    // the call as the head has it cannot be restated, so the neighbors of
+    // `go` are skipped before they take a slot, never refused.
+    for intent in [
+        json!({"arity": "f", "frame_calls": "new"}),
+        json!({"arity": "f"}),
+    ] {
+        let temp = workspace("reorder-unread");
+        let c1 = seed(&temp.path, &reorder_base());
+        assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+        let c2 = seed(
+            &temp.path,
+            &json!({"af1": 1, "afx": 1,
+             "patch": [{"fn": "f", "params": [["b", "i64"], ["a", "i64"]]}], "ripple": [intent]}),
+        );
+        let public = cases(
+            &temp.path,
+            "cases.json",
+            &json!([{"name": "k1", "function": "k", "args": [5, 2], "expect": {"Ok": 8}}]),
+        );
+        let (_, report) = search(&temp.path, &["k", "--public", &public, "--from", &c2]);
+        assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+        assert_eq!(report["counts"]["generated"], 12, "{report:#}");
+        assert_eq!(report["counts"]["skipped_unstated"], 7, "{report:#}");
+        assert!(
+            neighbors(&report)
+                .iter()
+                .all(|n| !n["at"].as_str().unwrap().starts_with("go") && n.get("ripple").is_none()),
+            "{report:#}"
+        );
+    }
+}
+
+#[test]
+fn a_caller_the_seed_defines_is_read_as_its_own_revision_reads_it() {
+    // A caller the seed's frame defines: the neighbor restates the intent,
+    // so the author's call is read as in the seed's own revision.
+    let temp = workspace("reorder-defined");
+    let base = json!({"af1": 1, "types": [{"name": "E", "variant": ["Bad", "Over"]}],
+     "fns": [{"fn": "g", "params": [["p", "i64"], ["q", "i64"]], "returns": "Result<i64,E>",
+      "blocks": [{"name": "entry", "ops": [["zero", "const", 0], ["n", "lt", "p", "zero"]], "term": ["cond", "n", "bad", "sum"]},
+                 {"name": "bad", "ops": [["e", "variant", "E.Bad"], ["o", "err", "e"]], "term": ["return", "o"]},
+                 {"name": "sum", "ops": [["s", "add", "p", "q"]], "term": ["switch", "s", ["Ok", "done", "$"], ["Err", "ovf"]]},
+                 {"name": "done", "params": [["w", "i64"]], "ops": [["o", "ok", "w"]], "term": ["return", "o"]},
+                 {"name": "ovf", "ops": [["e", "variant", "E.Over"], ["o", "err", "e"]], "term": ["return", "o"]}]}]});
+    let c1 = seed(&temp.path, &base);
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    let intent = json!({"arity": "g", "frame_calls": "old"});
+    let c2 = seed(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1,
+         "patch": [{"fn": "g", "params": [["q", "i64"], ["p", "i64"]]}],
+         "fns": [{"fn": "m", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,E>",
+                  "blocks": [{"name": "entry", "ops": [["r", "call?", "g", "x", 5]], "term": ["ok", "r"]}]}],
+         "ripple": [intent]}),
+    );
+    let public = cases(
+        &temp.path,
+        "m.json",
+        &json!([{"name": "m1", "function": "m", "args": [1, 0], "expect": {"Ok": 6}},
+                {"name": "m2", "function": "m", "args": [-1, 0], "expect": {"Err": "Bad"}}]),
+    );
+    let (_, report) = search(&temp.path, &["m", "--public", &public, "--from", &c2]);
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert!(
+        report["counts"]["evaluated"].as_u64().unwrap() >= 4,
+        "{report:#}"
+    );
+    for neighbor in neighbors(&report) {
+        assert_eq!(neighbor["frame"]["ripple"], json!([intent]), "{neighbor:#}");
+    }
+    // g(x, 6) written for (p, q): p = -1 fails as Bad, as in the seed.
+    let nudge = find(&report, "constant nudge", "entry.r", "5 -> 6");
+    assert_eq!(nudge["status"], "evaluated", "{nudge:#}");
+    assert_eq!(nudge["public"]["outcomes"][0]["actual"], json!({"Ok": 7}));
+    assert_eq!(
+        nudge["public"]["outcomes"][1]["actual"],
+        json!({"Err": "Bad"})
+    );
+    // The compiled call is g(5, x): its arguments are not where the author
+    // wrote them, so no substitution is proposed inside it.
+    assert!(
+        !neighbors(&report)
+            .iter()
+            .any(|n| n["at"] == "entry.r" && n["generator"] == "operand substitution"),
+        "{report:#}"
+    );
+    assert!(
+        report["counts"]["skipped_unstated"].as_u64().unwrap() > 0,
+        "{report:#}"
+    );
+    let (status, text) = apply(&temp.path, Some(&c2), &nudge["frame"], &public);
+    assert!(text.contains(": Valid"), "{status} {text}");
+}
+
+#[test]
+fn a_substitution_that_removes_the_use_typing_a_value_restates_it_with_its_type() {
+    let temp = workspace("typed-definer");
+    let frame = json!({"af1": 1, "types": [{"name": "E", "variant": ["Bad"]}],
+     "fns": [{"fn": "g", "params": [["x", "i64"]], "returns": "Result<i64,E>",
+              "blocks": [{"name": "entry", "ops": [["o", "ok", "x"]], "term": ["return", "o"]}]},
+             {"fn": "f", "params": [["x", "i64"]], "returns": "Result<i64,E>", "blocks": [
+              {"name": "entry", "ops": [["c", "call", "g", "x"]], "term": ["switch", "c", ["Ok", "done", "$"], ["Err", "bad", "$"]]},
+              {"name": "done", "params": [["v", "i64"]], "ops": [["one", "const", 1], ["w", "add", "v", "one"]],
+               "term": ["switch", "w", ["Ok", "fin", "$"], ["Err", "ovf"]]},
+              {"name": "fin", "params": [["u", "i64"]], "ops": [["r", "ok", "u"]], "term": ["return", "r"]},
+              {"name": "ovf", "ops": [["e", "variant", "E.Bad"], ["r", "err", "e"]], "term": ["return", "r"]},
+              {"name": "bad", "params": [["e", "E"]], "ops": [["r", "err", "e"]], "term": ["return", "r"]}]}]});
+    let c1 = seed(&temp.path, &frame);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "p1", "function": "f", "args": [5], "expect": {"Ok": 5}},
+                {"name": "p2", "function": "f", "args": [0], "expect": {"Ok": 0}}]),
+    );
+    let (_, report) = search(&temp.path, &["f", "--public", &public, "--from", &c1]);
+    assert_eq!(report["counts"]["generated"], 16, "{report:#}");
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert_eq!(report["counts"]["evaluated"], 16, "{report:#}");
+    // `r` loses the return that typed it: it is restated with its type.
+    let fin = find(
+        &report,
+        "operand substitution",
+        "fin (term)",
+        "return r -> entry.c",
+    );
+    assert_eq!(
+        fin["frame"],
+        json!({"af1": 1, "patch": [{"fn": "f", "blocks": {"fin": {"params": [["u", "i64"]],
+            "ops": [{"name": "r", "op": "ok", "args": ["u"], "type": "Result<i64,E>"}],
+            "term": ["return", "entry.c"]}}}]})
+    );
+    assert_eq!(fin["size"], 1);
+    assert_eq!(fin["status"], "evaluated");
+    assert_eq!(
+        fin["public"]["outcomes"][0]["actual"],
+        json!({"Ok": 5}),
+        "{fin:#}"
+    );
+    let (status, text) = apply(&temp.path, Some(&c1), &fin["frame"], &public);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("public: 2/2 passed"), "{text}");
+    // A statement that keeps its typing use keeps its form.
+    let other = find(
+        &report,
+        "operand substitution",
+        "done.w",
+        "operand 0: v -> x",
+    );
+    assert_eq!(
+        other["frame"]["edit"][0]["with"],
+        json!(["add", "x", "one"]),
+        "{other:#}"
+    );
+
+    // The typed operation in another block, in the authoring dialect: that
+    // block is restated beside the changed one.
+    let temp = workspace("typed-definer-afx");
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Bad"]}],
+     "fns": [{"fn": "h", "params": [["x", "i64"]], "returns": "Result<i64,E>", "blocks": [
+      {"name": "entry", "ops": [["o", "ok", "x"], {"name": "p", "op": "ok", "args": [0], "type": "Result<i64,E>"},
+                                ["n", "lt", "x", 0]], "term": ["cond", "n", "neg", "pos"]},
+      {"name": "neg", "ops": [["e", "variant", "E.Bad"], ["r", "err", "e"]], "term": ["return", "r"]},
+      {"name": "pos", "term": ["return", "o"]}]}]});
+    let c1 = seed(&temp.path, &frame);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "h1", "function": "h", "args": [4], "expect": {"Ok": 0}}]),
+    );
+    let (_, report) = search(&temp.path, &["h", "--public", &public, "--from", &c1]);
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    let pos = find(
+        &report,
+        "operand substitution",
+        "pos (term)",
+        "return o -> p",
+    );
+    assert_eq!(pos["status"], "evaluated", "{pos:#}");
+    let blocks = &pos["frame"]["patch"][0]["blocks"];
+    assert_eq!(blocks["pos"]["term"], json!(["return", "p"]), "{pos:#}");
+    assert_eq!(
+        blocks["entry"]["ops"][0],
+        json!({"name": "o", "op": "ok", "args": ["x"], "type": "Result<i64,E>"}),
+        "{pos:#}"
+    );
+    assert_eq!(
+        blocks["entry"]["ops"][1],
+        frame["fns"][0]["blocks"][0]["ops"][1]
+    );
+    let (status, text) = apply(&temp.path, Some(&c1), &pos["frame"], &public);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("public: 1/1 passed"), "{text}");
+}

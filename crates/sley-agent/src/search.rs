@@ -90,6 +90,8 @@ const NON_COMMUTATIVE: [u32; 11] = [65, 67, 68, 70, 71, 81, 83, 98, 99, 100, 101
 const CONST: u32 = 1;
 /// `not`.
 const NOT: u32 = 102;
+/// `call`.
+const CALL: u32 = 112;
 
 /// One of the six neighbor generators, in generator order.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -321,6 +323,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
             .frame
             .as_ref()
             .is_some_and(|frame| frame.get("afx").and_then(Value::as_u64) == Some(1)),
+        intents: arity_intents(&seed, &head, &head_names, &function, &function_name),
     };
 
     // The seed's own results: the baseline, and each case's fuel for the
@@ -2159,6 +2162,160 @@ struct Writer<'a> {
     place: Place,
     stated: Option<Stated>,
     afx: bool,
+    /// The seed frame's `arity` intents.
+    intents: Vec<ArityIntent>,
+}
+
+/// An `arity` intent of the seed's frame, and how it reads the searched
+/// function.
+struct ArityIntent {
+    /// The intent as the seed's frame states it.
+    intent: Value,
+    target: EntityId,
+    params: Params,
+    /// `"frame_calls"`: `Some(true)` old, `Some(false)` new.
+    declared: Option<bool>,
+    /// The intent's `after`.
+    after: BTreeSet<String>,
+    /// The frame's only `arity` intent for the target.
+    unique: bool,
+    /// The searched function calls the target in the seed.
+    called: bool,
+    /// A test or test table of the frame has the searched function's name
+    /// (layering records names in `after`).
+    named: bool,
+}
+
+/// How the head's parameters of an `arity` target compare with the seed's.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Params {
+    /// Different counts: a call's count tells which list it is written for.
+    Counted,
+    /// Equal counts: a call's count does not tell.
+    Equal,
+    /// The head already has the seed's parameters.
+    Applied,
+}
+
+/// A function's parameters: names and types.
+fn parameters(program: &Program, names: &Names, id: &EntityId) -> Option<Vec<(String, TypeExpr)>> {
+    let Some(EntityBodyValue::Function(body)) = program.body(id) else {
+        return None;
+    };
+    body.parameters
+        .iter()
+        .map(|param| match program.body(param) {
+            Some(EntityBodyValue::Parameter(body)) => {
+                Some((names.leaf(param), body.value_type.clone()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The functions a function calls directly.
+fn callees(program: &Program, function: &EntityId) -> Vec<EntityId> {
+    let Some(EntityBodyValue::Function(body)) = program.body(function) else {
+        return Vec::new();
+    };
+    body.blocks
+        .iter()
+        .filter_map(|block| match program.body(block) {
+            Some(EntityBodyValue::Block(block)) => Some(block.operations.clone()),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|op| match program.body(&op) {
+            Some(EntityBodyValue::Operation(body)) if body.opcode == CALL => {
+                match &body.immediate {
+                    Immediate::Function(callee) => Some(callee.function),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The seed frame's `arity` intents, for the searched function.
+fn arity_intents(
+    seed: &Seed,
+    head: &Head,
+    head_names: &Names,
+    function: &EntityId,
+    function_name: &str,
+) -> Vec<ArityIntent> {
+    let Some(frame) = seed.frame.as_ref() else {
+        return Vec::new();
+    };
+    let intents = frame
+        .get("ripple")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let targets: Vec<Option<EntityId>> = intents
+        .iter()
+        .map(|intent| {
+            let name = intent
+                .get("arity")
+                .and_then(Value::as_str)
+                .filter(|_| intent.get("guard").is_none())?;
+            head_names
+                .resolve(name)
+                .or_else(|| seed.names.resolve(name))
+        })
+        .collect();
+    let calls = callees(&seed.program, function);
+    let named = ["tests", "test_tables"].iter().any(|key| {
+        frame
+            .get(*key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .any(|entry| entry.get("name").and_then(Value::as_str) == Some(function_name))
+    });
+    let mut out = Vec::new();
+    for (intent, target) in intents.iter().zip(&targets) {
+        let Some(target) = *target else { continue };
+        let (Some(old), Some(new)) = (
+            parameters(head.program(), head_names, &target),
+            parameters(&seed.program, &seed.names, &target),
+        ) else {
+            continue;
+        };
+        out.push(ArityIntent {
+            intent: intent.clone(),
+            target,
+            params: if old == new {
+                Params::Applied
+            } else if old.len() == new.len() {
+                Params::Equal
+            } else {
+                Params::Counted
+            },
+            declared: match intent.get("frame_calls").and_then(Value::as_str) {
+                Some("old") => Some(true),
+                Some("new") => Some(false),
+                _ => None,
+            },
+            after: intent
+                .get("after")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect(),
+            unique: targets
+                .iter()
+                .filter(|other| **other == Some(target))
+                .count()
+                == 1,
+            called: calls.contains(&target),
+            named,
+        });
+    }
+    out
 }
 
 /// The form of an operation statement.
@@ -2254,6 +2411,37 @@ impl Parts {
     fn operands<'v>(&self, item: &'v Value) -> Option<&'v [Value]> {
         self.list(item)?.get(self.first..)
     }
+}
+
+/// An operation statement a neighbor restates with its type.
+enum Typed {
+    /// None: the statement keeps its form.
+    None,
+    /// In the changed block.
+    Same,
+    /// In another block of the function: its name and the block restated.
+    Other(String, Value),
+}
+
+/// Gives an operation statement its result type: an array statement
+/// `["name", "op", args...]` becomes the object form with `"type"`; an
+/// object statement gains `"type"`. `None` when it already has one.
+fn with_type(item: &mut Value, ty: &str) -> Option<()> {
+    let typed = match item {
+        Value::Array(items) => {
+            let name = items.first()?.as_str()?;
+            let op = items.get(1)?.as_str()?;
+            json!({"name": name, "op": op, "args": items[2..].to_vec(), "type": ty})
+        }
+        Value::Object(object) if !object.contains_key("type") => {
+            let mut object = object.clone();
+            object.insert("type".to_owned(), Value::from(ty));
+            Value::Object(object)
+        }
+        _ => return None,
+    };
+    *item = typed;
+    Some(())
 }
 
 /// A value as items show it: a name plainly, anything else as JSON.
@@ -2387,21 +2575,128 @@ impl Writer<'_> {
             .stated
             .as_ref()
             .filter(|stated| stated.blocks.contains_key(&block.leaf));
-        let written = match (stated, self.place) {
-            (Some(stated), _) => self.write_stated(stated, change)?,
+        let (mut written, authored) = match (stated, self.place) {
+            (Some(_), _) if self.reordered(change) => return None,
+            (Some(stated), _) => (self.write_stated(stated, change)?, true),
             (None, Place::Defined | Place::Guarded) => return None,
             // An edit layers beside the seed's own edits of the function.
             (None, Place::Unstated { edits: true }) if change.op().is_some() => {
-                self.write_program(change)?
+                (self.write_program(change)?, false)
             }
             // Otherwise the program's statement of the block must be the
             // head's: code the seed derived (a ripple rewrite, an expansion)
             // has no frame of its own to restate.
-            (None, _) if self.live(change.block()) => self.write_program(change)?,
+            (None, _) if self.live(change.block()) => (self.write_program(change)?, false),
             (None, _) => return None,
         };
         // An AF1-X frame reserves `__` for generated names.
-        (!self.afx || !names_generated(&written.frame)).then_some(written)
+        if self.afx && names_generated(&written.frame) {
+            return None;
+        }
+        let calls = if authored {
+            Vec::new()
+        } else {
+            self.program_calls(change, written.frame.get("patch").is_some())
+        };
+        let intents = self.restated_intents(&calls)?;
+        if !intents.is_empty()
+            && let Some(frame) = written.frame.as_object_mut()
+        {
+            frame.insert("ripple".to_owned(), Value::Array(intents));
+        }
+        Some(written)
+    }
+
+    /// Whether a change substitutes an argument of an authored call that an
+    /// `arity` intent rewrites by name (`"frame_calls": "old"` with equal
+    /// counts): the compiled arguments are then not in the order the author
+    /// wrote them, so the change has no place in the authored call.
+    fn reordered(&self, change: &Change) -> bool {
+        let Change::Operand { block, op, .. } = change else {
+            return false;
+        };
+        let body = &self.model.blocks[*block].ops[*op].1;
+        let Immediate::Function(callee) = &body.immediate else {
+            return false;
+        };
+        body.opcode == CALL
+            && self.intents.iter().any(|intent| {
+                intent.target == callee.function
+                    && (!intent.unique
+                        || intent.params != Params::Counted
+                            && intent.declared == Some(true)
+                            && !intent.after.contains(&self.function))
+            })
+    }
+
+    /// The calls a neighbor restates from the program (the changed block,
+    /// or the edited operation): each callee, and whether the call is as
+    /// the head has it.
+    fn program_calls(&self, change: &Change, patch: bool) -> Vec<(EntityId, bool)> {
+        let block = &self.model.blocks[change.block()];
+        let ops: Vec<&(EntityId, OperationBody)> = match change.op() {
+            Some(op) if !patch => vec![&block.ops[op]],
+            _ => block.ops.iter().collect(),
+        };
+        ops.into_iter()
+            .filter_map(|(id, body)| match &body.immediate {
+                Immediate::Function(callee) if body.opcode == CALL => Some((
+                    callee.function,
+                    self.head.body(id).is_some()
+                        && self.head.body(id) == self.model.program.body(id),
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The seed's `arity` intents a neighbor restates as the seed's frame
+    /// states them, or `None` when an intent cannot read the neighbor as it
+    /// is written (the change is then skipped).
+    ///
+    /// Layering records the functions a follow-up states in the `after` of
+    /// every `arity` intent it does not restate, and a call there whose
+    /// argument count fits both parameter lists is an obligation. A neighbor
+    /// is not a follow-up the author wrote: restating the intent keeps its
+    /// `after` and `frame_calls`, so the intent reads the neighbor exactly as
+    /// it reads the seed's own revision. That is exact for what the author
+    /// wrote; a call the neighbor restates from the program is exact only
+    /// when `frame_calls` reads it as written: `"old"` for a call as the
+    /// head has it, `"new"` for one the seed compiled.
+    fn restated_intents(&self, calls: &[(EntityId, bool)]) -> Option<Vec<Value>> {
+        let authored = matches!(
+            self.place,
+            Place::Defined | Place::Patched | Place::Unstated { edits: true }
+        );
+        let mut out = Vec::new();
+        for intent in &self.intents {
+            let forms: Vec<bool> = calls
+                .iter()
+                .filter(|(callee, _)| *callee == intent.target)
+                .map(|(_, head)| *head)
+                .collect();
+            let restatable =
+                intent.params != Params::Counted && intent.unique && intent.declared.is_some();
+            if forms.is_empty() {
+                // No call written from the program: restating keeps the
+                // author's calls of the target read as in the seed.
+                if restatable && (intent.named || authored && intent.called) {
+                    out.push(intent.intent.clone());
+                }
+                continue;
+            }
+            // A count that differs tells the parameter list; an intent the
+            // head already reflects reads calls as the head has them.
+            if intent.params != Params::Equal {
+                continue;
+            }
+            let later = intent.after.contains(&self.function);
+            if !restatable || later || forms.iter().any(|head| intent.declared != Some(*head)) {
+                return None;
+            }
+            out.push(intent.intent.clone());
+        }
+        Some(out)
     }
 
     /// Whether a block, its parameters and its operations are the head's.
@@ -2414,10 +2709,11 @@ impl Writer<'_> {
     }
 
     /// The neighbor frame: `edit` when the change stays inside one named
-    /// operation of the authored block, else a `patch` restating the block.
-    fn frame_for(&self, site: &Site, block: Value) -> Value {
+    /// operation of the authored block, else a `patch` restating the block
+    /// (and the block of an operation `typed` restates).
+    fn frame_for(&self, site: &Site, block: Value, typed: Typed) -> Value {
         let mut entry = None;
-        if site.rest.len() >= 2 && site.rest[0] == "ops" {
+        if matches!(typed, Typed::None) && site.rest.len() >= 2 && site.rest[0] == "ops" {
             let item = at(&block, &site.rest[..2]);
             if let Some(name) = item.and_then(item_name) {
                 let with = match item {
@@ -2437,12 +2733,17 @@ impl Writer<'_> {
             }
         }
         let (key, entry) = entry.unwrap_or_else(|| {
-            let mut block = block;
-            if let Some(object) = block.as_object_mut() {
-                object.remove("name");
-            }
+            let unnamed = |mut block: Value| {
+                if let Some(object) = block.as_object_mut() {
+                    object.remove("name");
+                }
+                block
+            };
             let mut blocks = Map::new();
-            blocks.insert(site.name.clone(), block);
+            blocks.insert(site.name.clone(), unnamed(block));
+            if let Typed::Other(name, other) = typed {
+                blocks.insert(name, unnamed(other));
+            }
             ("patch", json!({"fn": self.function, "blocks": blocks}))
         });
         self.frame(key, entry)
@@ -2565,13 +2866,77 @@ impl Writer<'_> {
         if value == original {
             return None;
         }
+        let at = Self::site_label(&site, &value);
+        let typed = self.typed_definer(stated, change, &site, &mut value);
         Some(Written {
-            at: Self::site_label(&site, &value),
+            at,
             change: text,
             pointer: Some(pointer),
-            frame: self.frame_for(&site, value),
+            frame: self.frame_for(&site, value, typed),
             size: edit_size,
         })
+    }
+
+    /// A substitution can remove the use that typed a value: a returned
+    /// value, a `br` argument or a call argument is what the frame compiler
+    /// infers the type of `ok`, `err`, `none` or an empty `vec` from. The
+    /// authored statement of that value's operation then gets its type
+    /// (the object form), the type the seed compiled, so the neighbor
+    /// states the same operation without relying on the use it removed.
+    fn typed_definer(
+        &self,
+        stated: &Stated,
+        change: &Change,
+        site: &Site,
+        value: &mut Value,
+    ) -> Typed {
+        let model = self.model;
+        let block = &model.blocks[change.block()];
+        let removed = match (change, &block.term) {
+            (Change::Operand { op, slot, .. }, _) if block.ops[*op].1.opcode == CALL => {
+                block.ops[*op].1.operands.get(*slot).copied()
+            }
+            (Change::Returned { .. }, Terminator::Return(ret)) => Some(ret.value),
+            (Change::Argument { slot, .. }, Terminator::Branch(branch)) => {
+                branch.edge.arguments.get(*slot).copied()
+            }
+            _ => None,
+        };
+        let Some((at_block, at_op)) = removed.and_then(|removed| model.definer(&removed)) else {
+            return Typed::None;
+        };
+        let (id, body) = &model.blocks[at_block].ops[at_op];
+        let Some(ty) = body
+            .result_types
+            .first()
+            .filter(|_| !derivable(body.opcode, !body.operands.is_empty()))
+        else {
+            return Typed::None;
+        };
+        let ty = crate::types::render(ty, self.names());
+        // Only a named statement of the author's: a nested operation
+        // leaves with the operand that held it.
+        let owner = stated
+            .op(&model.blocks[at_block].leaf, &self.names().leaf(id))
+            .filter(|(_, kind)| *kind == Kind::Op)
+            .and_then(|(pointer, _)| stated.site(&pointer, &self.function))
+            .filter(|owner| owner.rest.len() == 2 && owner.rest[0] == "ops");
+        let Some(owner) = owner else {
+            return Typed::None;
+        };
+        if owner.block == site.block {
+            return match at_mut(value, &owner.rest).and_then(|item| with_type(item, &ty)) {
+                Some(()) => Typed::Same,
+                None => Typed::None,
+            };
+        }
+        let Some(mut other) = at(&stated.frame, &owner.block).cloned() else {
+            return Typed::None;
+        };
+        match at_mut(&mut other, &owner.rest).and_then(|item| with_type(item, &ty)) {
+            Some(()) => Typed::Other(owner.name, other),
+            None => Typed::None,
+        }
     }
 
     /// A terminator change on an authored block: `cond` targets or
