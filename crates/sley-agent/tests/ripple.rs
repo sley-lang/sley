@@ -646,15 +646,30 @@ fn the_value_must_be_a_literal_of_the_one_new_parameter() {
         "AGENT_RIPPLE_HOLE_UNFILLED",
         &["/ripple/0/value: `f` gains no parameter, so \"value\" fills nothing"],
     );
-    // Unchanged parameters, or none restated.
+    // Parameters the head already has: the intent is applied, nothing is
+    // derived (and "old" cannot be honoured); or none restated.
     let same = json!({"af1": 1, "afx": 1,
       "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
       "ripple": [{"arity": "f"}]});
+    let expansion = expand(&temp.path, &same);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let inventory = expansion.ripple.unwrap();
+    assert_eq!(inventory["intents"][0]["edit"], "already applied");
+    assert_eq!(inventory["edits"], 0);
+    assert_eq!(expansion.frame["patch"].as_array().unwrap().len(), 1);
+    let mut old = same.clone();
+    old["ripple"][0]["frame_calls"] = json!("old");
     assert_refused(
         &temp.path,
-        &same,
+        &old,
         "AGENT_RIPPLE_HOLE_UNFILLED",
-        &["/ripple/0/arity: the frame restates the parameters of `f` unchanged (a: i64, b: i64)"],
+        &[
+            "/ripple/0/frame_calls: `f` already has these parameters (a: i64, b: i64), so the old ones that \"frame_calls\": \"old\" refers to are gone",
+        ],
     );
     assert_refused(
         &temp.path,
@@ -1848,13 +1863,35 @@ fn a_guard_never_runs_twice_or_twice_over() {
           {"fn": "checked", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
            "blocks": [{"name": "entry", "ops": [["q", "call?", "check_quantity", "quantity"]], "term": ["ok", "q"]}]}]}),
     );
-    // It already evaluates the checker: entry would run it again.
-    assert_refused(
+    // It already starts with exactly what an entry guard derives: the
+    // guard is applied and derives nothing.
+    let expansion = expand(
         &temp.path,
         &json!({"af1": 1, "afx": 1, "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["checked"], "mode": "entry"}]}),
+    );
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.ripple.unwrap()["intents"][0]["functions"],
+        json!([{"fn": "checked", "edit": "already applied", "site": "checked.entry.q__r"}])
+    );
+    // It evaluates the checker in another shape: entry would run it again.
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "checked_late", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "ops": [["d", "add?Overflow", "quantity", 1], ["q", "call?", "check_quantity", "quantity"]],
+                       "term": ["ok", "q"]}]}]}),
+    );
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["checked_late"], "mode": "entry"}]}),
         "AGENT_RIPPLE_GUARD_ORDER",
         &[
-            "/ripple/0/in/0: `checked` already evaluates `check_quantity` at `checked.entry.q__r`; evaluating it again at entry could run it twice",
+            "/ripple/0/in/0: `checked_late` already evaluates `check_quantity` at `checked_late.entry__d.q__r`; evaluating it again at entry could run it twice",
         ],
     );
     assert_refused(
@@ -2835,5 +2872,204 @@ fn a_package_export_of_the_namespace_is_an_exported_boundary() {
             .starts_with("`f` is exported (in namespace `outer`) by the package `pkg`"),
         "{}",
         expansion.obligations[0].decision
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Follow-ups: committed intents, restated blocks and restated intents
+// ---------------------------------------------------------------------------
+
+/// The last line of the events ledger.
+fn last_event(dir: &Path) -> Value {
+    let text = fs::read_to_string(dir.join(".sley/events.jsonl")).unwrap();
+    serde_json::from_str(text.lines().last().unwrap()).unwrap()
+}
+
+#[test]
+fn a_tests_only_rebase_after_committing_an_intent_derives_nothing_again() {
+    // The recommended flow: commit the change first, then add its tests with
+    // `try --on dN --rebase`. The layered frame still carries the intent; the
+    // head already reflects it, so it is applied and derives nothing.
+    let temp = workspace("rebase-arity");
+    commit(&temp.path, &help_example(0));
+    let arity = help_example(1);
+    let (status, text) = run(&temp.path, &["try", &arity.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let (status, text) = run(&temp.path, &["commit"]);
+    assert_eq!(status, 0, "{text}");
+    let tests = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t_fee", "fn": "line_total",
+      "cases": [{"args": [2, 5, 1], "expect": {"Ok": 11}}, {"args": [0, 5, 1], "expect": {"Err": "InvalidQuantity"}}]}]});
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &tests.to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let revision = report["draft"].as_str().unwrap();
+    assert_eq!(revision, "d2@r2");
+    let inventory = artifact(&temp.path, revision, "ripple.json");
+    assert_eq!(
+        inventory["intents"][0]["edit"], "already applied",
+        "{inventory:#}"
+    );
+    assert_eq!(inventory["edits"], 0);
+    assert_eq!(
+        report["changed"],
+        json!([{"change": "created", "exported": false, "kind": "test", "name": "t_fee_0"},
+               {"change": "created", "exported": false, "kind": "test", "name": "t_fee_1"}])
+    );
+    let (status, text) = run(&temp.path, &["submit", "d2"]);
+    assert_eq!(status, 0, "{text}");
+    // An entry guard, the same way.
+    let temp = workspace("rebase-guard");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "SumError", "variant": ["Negative", "Overflow", "TooBig"]}],
+          "fns": [{"fn": "sum_to", "params": [["n", "i64"]], "returns": "Result<i64,SumError>", "blocks": [
+            {"name": "entry", "ops": [["!Negative", "if", ["lt", "n", 0]]], "term": ["br", "loop", 0, 1]},
+            {"name": "loop", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["more", "le", "i", "n"]], "term": ["cond", "more", "body", "done"]},
+            {"name": "body", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["next", "add?Overflow", "acc", "i"]],
+             "term": ["br", "loop", "next", ["add?Overflow", "i", 1]]},
+            {"name": "done", "params": [["acc", "i64"]], "term": ["ok", "acc"]}]}]}),
+    );
+    let guard = json!({"af1": 1, "afx": 1,
+      "fns": [{"fn": "cap", "params": [["n", "i64"]], "returns": "Result<i64,SumError>",
+               "blocks": [{"name": "entry", "ops": [["!TooBig", "if", ["gt", "n", 100]]], "term": ["ok", ["sub?Overflow", "n", 1]]}]}],
+      "ripple": [{"guard": "cap", "arg": "n", "in": ["sum_to"], "mode": "entry"}]});
+    let (status, text) = run(&temp.path, &["try", &guard.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let tests = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t_sum", "fn": "sum_to",
+      "cases": [{"args": [3], "expect": {"Ok": 3}}, {"args": [500], "expect": {"Err": "TooBig"}}]}]});
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &tests.to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
+    assert_eq!(
+        inventory["intents"][0]["functions"],
+        json!([{"fn": "sum_to", "edit": "already applied", "site": "sum_to.n__guard.n__r"}])
+    );
+    assert_eq!(last_event(&temp.path)["afx"]["ripple_edits"], 0);
+    // A committed preserve guard, too.
+    let temp = workspace("rebase-preserve");
+    commit(&temp.path, &help_example(0));
+    let (status, text) = run(&temp.path, &["try", &help_example(2).to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &tests_for_line_total()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
+    assert_eq!(
+        inventory["intents"][0]["functions"][0]["edit"],
+        "already applied"
+    );
+}
+
+/// The JSON examples of the help's ripple section: the live functions, the
+/// arity frame and the guard frame (without their test tables).
+fn help_example(index: usize) -> Value {
+    let examples: Vec<Value> = sley_agent::help::AFX
+        .split("```json\n")
+        .skip(1)
+        .map(|rest| serde_json::from_str(rest.split("```").next().unwrap()).unwrap())
+        .collect();
+    let live = examples
+        .iter()
+        .position(|example: &Value| example.get("test_tables").is_none())
+        .unwrap();
+    let mut frame = examples[live + index].clone();
+    if index > 0 {
+        frame.as_object_mut().unwrap().remove("test_tables");
+    }
+    frame
+}
+
+fn tests_for_line_total() -> String {
+    json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t_line", "fn": "line_total",
+      "cases": [{"args": [0, -1], "expect": {"Err": "InvalidPrice"}}, {"args": [2, 5], "expect": {"Ok": 10}}]}]})
+    .to_string()
+}
+
+#[test]
+fn restating_a_block_after_a_committed_guard_leaves_no_orphans() {
+    let temp = workspace("guard-restate");
+    commit(&temp.path, &help_example(0));
+    let (status, text) = run(&temp.path, &["try", &help_example(2).to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    // The guard left `entry__if0` switching on its call, `Ok -> entry__if1`
+    // without the payload. Restating `entry` replaces its pieces through
+    // that edge too.
+    let restate = json!({"af1": 1, "afx": 1, "patch": [{"fn": "line_total", "blocks": {"entry": {
+      "ops": [["!InvalidPrice", "if", ["lt", "price", 0]],
+              ["q", "call?", "check_quantity", "quantity"],
+              ["total", "mul?Overflow", "q", "price"]],
+      "term": ["ok", "total"]}}}],
+      "test_tables": [{"name": "t_restated", "fn": "line_total",
+        "cases": [{"args": [0, -1], "expect": {"Err": "InvalidPrice"}},
+                  {"args": [0, 5], "expect": {"Err": "InvalidQuantity"}},
+                  {"args": [2, 5], "expect": {"Ok": 10}}]}]});
+    let report = valid(&temp.path, &restate);
+    let expanded = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
+    let blocks = expanded["patch"][0]["blocks"].as_object().unwrap();
+    assert_eq!(blocks["entry__if1"], Value::Null, "{blocks:#?}");
+    assert!(
+        blocks.keys().all(|leaf| !leaf.ends_with("_2")),
+        "{blocks:#?}"
+    );
+}
+
+#[test]
+fn a_follow_up_intent_replaces_the_same_intent() {
+    let temp = workspace("relayer");
+    commit(&temp.path, &help_example(0));
+    let (status, text) = run(&temp.path, &["try", &help_example(1).to_string()]);
+    assert_eq!(status, 0, "{text}");
+    // Restating the intent with another value replaces it.
+    let (status, report) = run_json(
+        &temp.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "line_total", "value": 5}]})
+                .to_string(),
+        ],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let revision = report["draft"].as_str().unwrap();
+    let frame = artifact(&temp.path, revision, "frame.json");
+    assert_eq!(
+        frame["ripple"],
+        json!([{"arity": "line_total", "value": 5}])
+    );
+    let mut after = Machine::candidate(&temp.path, &frame);
+    assert_eq!(
+        after.call("order_total", &[json!(2), json!(5)]),
+        json!({"Ok": 15})
+    );
+    // A hole's hint says how to drop an intent.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "line_total", "value": "five"}]})
+                .to_string(),
+        ],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("to drop an intent instead, set \"/ripple\" to the intents to keep (a follow-up's intent replaces the same intent)"),
+        "{text}"
     );
 }

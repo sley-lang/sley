@@ -158,7 +158,13 @@ brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
 
 A ripple intent states a change once, and `try` derives the edits it
 implies into the frame. Intents apply in order, after the frame's own
-definitions, and the kernel judges the whole candidate as usual. See the
+definitions, and the kernel judges the whole candidate as usual. An intent
+the head already reflects (a committed revision derived it) is reported as
+`already applied` and derives nothing, so a follow-up such as tests on
+`try --on dN --rebase` needs no change to it. In `try --on`, a follow-up's
+intent replaces the draft's intent of the same kind and target (`arity` of
+the same function, `guard` with the same checker and `arg`); others are
+added after them. See the
 derived edits with `sley-agent draft <d> --expanded`; `ripple.json` in the
 draft lists the changed entities and the boundaries met. A decision ripple
 cannot make is an `AGENT_RIPPLE_*` obligation that points into the intent.

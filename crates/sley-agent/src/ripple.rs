@@ -1560,14 +1560,33 @@ impl<'c, 'a> Ripple<'c, 'a> {
             new.push((name, ty));
         }
         if new == old {
-            self.hole(
-                AgentErrorCode::RippleHoleUnfilled,
-                &format!("{at}/arity"),
-                format!(
-                    "the frame restates the parameters of `{target}` unchanged ({}): change them, or remove the intent",
-                    self.params_text(&old).join(", ")
-                ),
-            );
+            // The head already has these parameters (the intent was applied,
+            // for example by a committed revision this frame is layered on):
+            // nothing to propagate, and the frame's own calls and tests of
+            // `f` are read as written, as plain AF1 reads them. Only "old"
+            // cannot be honoured: the parameters it names are gone.
+            if declared == Some(true) {
+                self.hole(
+                    AgentErrorCode::RippleHoleUnfilled,
+                    &format!("{at}/frame_calls"),
+                    format!(
+                        "`{target}` already has these parameters ({}), so the old ones that \"frame_calls\": \"old\" refers to are gone: drop \"frame_calls\" (the frame's calls are then read as written), or drop the intent",
+                        self.params_text(&old).join(", ")
+                    ),
+                );
+                return;
+            }
+            self.records.push(json!({
+                "at": at,
+                "intent": "arity",
+                "target": target,
+                "edit": "already applied",
+                "old": self.params_text(&old),
+                "new": self.params_text(&new),
+                "calls": [],
+                "tests": [],
+                "changed": {"functions": [], "tests": []},
+            }));
             return;
         }
         let slots: Vec<Slot> = new
@@ -2626,8 +2645,10 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 self.guard_preserve(&view, &fat, function, arg, &checker)
             };
             if let Some(record) = record {
-                self.edits += 1;
-                changed.insert(function.clone());
+                if record["edit"] != "already applied" {
+                    self.edits += 1;
+                    changed.insert(function.clone());
+                }
                 results.push(record);
             }
         }
@@ -2964,6 +2985,9 @@ impl<'c, 'a> Ripple<'c, 'a> {
             return None;
         }
         if regions.is_empty() {
+            if let Some(site) = guarded_call(&f, &checker.name, arg, false, None) {
+                return Some(json!({"fn": function, "edit": "already applied", "site": site}));
+            }
             let already =
                 self.evaluates(view, &f, &checker.name)
                     .map_or_else(String::new, |site| {
@@ -3155,6 +3179,11 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 ),
             );
             return None;
+        }
+        // A function whose entry is already this guard's call (a committed
+        // revision derived it) needs nothing.
+        if let Some(site) = guarded_call(&f, &checker.name, arg, true, intent.handler) {
+            return Some(json!({"fn": function, "edit": "already applied", "site": site}));
         }
         // One evaluation of the checker per call: a function that already
         // evaluates it, on any value, directly or through another function,
@@ -3609,6 +3638,57 @@ fn visit_named(ty: &TypeExpr, visit: &mut dyn FnMut(&EntityId)) {
         }
         _ => {}
     }
+}
+
+/// Where `func` already has the shape a guard of `checker` on `arg`
+/// derives: a block whose last operation calls the checker on the parameter
+/// and which switches on that call, its `Err` case passing the error to the
+/// block that returns it (or to `handler`). For `entry` the block is the
+/// function's entry block holding that call alone, and `Ok` passes the
+/// checked value on; for `preserve`, `Ok` continues without it.
+fn guarded_call(
+    func: &Func,
+    checker: &str,
+    arg: &str,
+    entry: bool,
+    handler: Option<&str>,
+) -> Option<String> {
+    func.blocks.iter().find_map(|block| {
+        if entry && (block.leaf != func.entry || block.ops.len() != 1) {
+            return None;
+        }
+        let op = block.ops.last()?;
+        let calls = matches!(&op.imm, Imm::Function { name, .. } if name == checker)
+            && op.tag == 112
+            && op.args == [Val::Param(arg.to_owned())];
+        let Term::Switch(Val::Op(owner, name, 0), cases) = &block.term else {
+            return None;
+        };
+        let case = |key: BuiltinCase| {
+            cases
+                .iter()
+                .find(|(case, _)| *case == CaseKey::Builtin(key))
+                .map(|(_, edge)| edge)
+        };
+        let (ok, err) = (case(BuiltinCase::Ok)?, case(BuiltinCase::Err)?);
+        let ok_fits = if entry {
+            ok.args == [Arg::Payload]
+        } else {
+            !ok.args.contains(&Arg::Payload)
+        };
+        let err_fits = err.args == [Arg::Payload]
+            && func.block(&err.target).is_some_and(|target| match handler {
+                Some(handler) => target.leaf == handler,
+                None => target.params.len() == 1 && is_error_return(target, &target.params[0].0),
+            });
+        (calls
+            && *owner == block.leaf
+            && *name == op.leaf
+            && cases.len() == 2
+            && ok_fits
+            && err_fits)
+            .then(|| format!("{}.{}.{}", func.name, block.leaf, op.leaf))
+    })
 }
 
 /// Why a patch cannot restate a live function whole: AF1 states neither
