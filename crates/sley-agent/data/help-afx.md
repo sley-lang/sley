@@ -23,8 +23,11 @@ a variant payload or a record field; with none of these, state the type.
 Nested operations run left to right, depth first, before the operation
 that uses them. In `cond`/`switch` target arguments and in an exit's
 payload only names and literals may appear (they run on one path only).
-A trap is `["trap"]`, `["trap", code]` or `["trap", code, payload]`, its
-code a word (`unreachable`, ...): anything else is refused, never dropped.
+In a block that uses these forms, a trap is `["trap"]`, `["trap", code]`
+or `["trap", code, payload]`, its code a word (`unreachable`, ...):
+anything else is refused, never dropped. A plain block keeps plain AF1's
+reading, but an operation written anywhere in a trap is always refused
+rather than dropped.
 
 ## Checked operations
 
