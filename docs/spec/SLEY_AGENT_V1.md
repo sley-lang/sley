@@ -97,8 +97,9 @@ before submitting.
 A handle made from an AF1 frame keeps that frame in its metadata.
 `try --on <ref>` layers the new frame on the frame of `<ref>`, then compiles
 the result against the head like any other frame. The layered frame is
-written to `.sley/layered.json`, so refusal pointers refer to it. The
-layering rules:
+the revision's `frame.json` when `<ref>` is a draft (section 12), and is
+also written to `.sley/layered.json` when `<ref>` is a candidate handle;
+refusal pointers refer to that layered frame. The layering rules:
 - A `types`, `consts`, `fns` or named `tests` entry replaces the base entry
   of the same name; other entries are appended.
 - A `patch` of a function the base defines applies to that definition: a
@@ -378,7 +379,8 @@ create in the same list that carries `"key"`.
 A frame with `"afx": 1` is an AF1-X frame. The workbench expands it,
 client-side and deterministically, into an ordinary AF1 frame, which the
 AF1 compiler of section 5 compiles unchanged. A frame without `"afx"` is
-plain AF1 and refuses every form below exactly as before. `sley-agent help
+plain AF1 and refuses every form below exactly as before; a frame whose
+`afx` is not the number 1 is refused at `/afx`. `sley-agent help
 afx` is the normative reference text and `data/help-afx.md` its source.
 AF1-X adds, inside the blocks of `fns` and `patch` (`edit.with` stays plain
 AF1):
@@ -407,15 +409,22 @@ AF1):
    through `C` when `cond` is true. The terminators `["ok", v]`,
    `["fail", "Case"]`, `["fail", "Case", p]` and `["fail"]` (Option
    functions) return through shared exits.
-4. **Names (X4).** A plain name resolves to a value of its own block, a
-   function parameter, or the one operation result of that name in a block
-   that dominates the use (the expansion qualifies it). An edge that passes
-   fewer arguments than its target takes is completed, trailing parameter
-   by trailing parameter, with the value of the parameter's name visible at
-   the edge when its type fits; otherwise the author is asked
-   (`AGENT_X_SCOPE`). Explicit arguments are never changed, no value is
-   chosen by type alone, and an edge into a loop never passes the loop
-   block's own value.
+4. **Names (X4).** A plain name resolves to an earlier value of its own
+   block, else a function parameter, else the nearest definition of that
+   name among the blocks every path to the use passes through. When that
+   definition is an operation result and no other block redefines the name
+   on a path from it to the use, the expansion qualifies it; when it is
+   another block's parameter or checked value, or the name is redefined on
+   the way, the name is refused (`AGENT_X_SCOPE`) with the fix (declare a
+   parameter, or write `block.name`). An explicit `b.x` means block `b`'s
+   own `x`, exactly as in plain AF1. An edge that passes fewer arguments
+   than its target takes is completed, trailing parameter by trailing
+   parameter, with the value of the parameter's name visible at the edge
+   when its type fits; otherwise the author is asked (`AGENT_X_SCOPE`).
+   Two edges take no argument by name: an edge back into a loop (into a
+   block that dominates the edge's block), and a switch case whose value
+   carries a payload unless the author wrote `$`. Explicit arguments are
+   never changed and no value is chosen by type alone.
 
 Expansion splits a block at each `?` and exit. The continuation takes the
 unwrapped value and the block parameters still in use; generated names use
@@ -587,7 +596,8 @@ rather than the kernel's first.
 A phase 7 locator names a whole function. When the refused candidate was
 made from a frame, `try` and `explain` add an `authored:` line (`"authored"`
 in the JSON verdict, a list of `{"at", "what"}`): JSON pointers into that
-frame (for `try --on`, the layered frame in `.sley/layered.json`) of the
+frame (for `try --on`, the layered frame: the draft revision's
+`frame.json`, or `.sley/layered.json` for a candidate handle) of the
 blocks, operations, terminators, signatures (`params`, `returns`) and
 constant types the analysis ties to the kernel's symbol. Besides the
 structural checks, the analysis compares declared types exactly as the

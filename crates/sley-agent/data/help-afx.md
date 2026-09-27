@@ -36,7 +36,7 @@ it. A handler block's first parameter receives the payload (a handler
 without parameters drops it); its other parameters are derived. A bare `?`
 needs a Result function with the same error type, or an Option operation
 in an Option function. `?` works on any operation that gives a Result or an
-Option: checked arithmetic, `call`, `vec_get`, `map_get`, `map`.
+Option: checked arithmetic, `call`, `vec_get`, `vec_set`, `map_get`, `variant_get`.
 
 ## Exits and terminators
 
