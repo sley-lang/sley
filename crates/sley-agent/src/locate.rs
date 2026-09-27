@@ -8,9 +8,14 @@
 //! judgment. When nothing narrower is identifiable it says so and points at
 //! the whole function; it never guesses a single operation.
 //!
-//! Names a frame does not spell (blocks and values an authoring dialect
-//! generates) are looked up in an optional source-map names table,
-//! `{"names": {"<function>": {"<generated name>": "<authored pointer>"}}}`.
+//! For a frame an authoring dialect expanded, a site is first mapped
+//! through the source map's entries (`{"entries": [{"expanded",
+//! "authored", "role", "name"}]}`): a generated block's terminator maps to
+//! the authored terminator, checked operation or exit that produced it; an
+//! operation in a generated block to its authored operation; a shared exit
+//! to the whole function. Names a frame does not spell are otherwise looked
+//! up in the source map's names tables (`blocks`, `values`, then `names`:
+//! `{"<function>": {"<generated name>": "<authored pointer>"}}`).
 
 use serde_json::{Map, Value, json};
 use sley_id::EntityId;
@@ -134,7 +139,13 @@ pub fn authored(
     let mut out = Authored::default();
     for site in explain::sites(symbol, &function, program, names) {
         for (at, what) in index.site(site, program, names) {
-            out.push(at, what);
+            if what == FUNCTION_WIDE {
+                for (at, _) in index.entries(&names.leaf(&function)) {
+                    out.push(at, FUNCTION_WIDE.to_owned());
+                }
+            } else {
+                out.push(at, what);
+            }
         }
     }
     if !out.items.is_empty() {
@@ -174,6 +185,9 @@ impl FrameIndex<'_> {
             _ => None,
         };
         let one = |at: Option<String>, what: String| at.map(|at| (at, what)).into_iter().collect();
+        if let Some(found) = self.through_map(site, program, names) {
+            return found;
+        }
         match site {
             Site::Block(block) => {
                 let Some(function) = owner(&block) else {
@@ -182,7 +196,7 @@ impl FrameIndex<'_> {
                 let leaf = names.leaf(&block);
                 let at = self.block(&function, &leaf).map(|(at, _)| at);
                 one(
-                    at.or_else(|| self.generated(&function, &leaf)),
+                    at.or_else(|| self.generated(&function, &leaf, "blocks")),
                     names.name(&block),
                 )
             }
@@ -196,7 +210,7 @@ impl FrameIndex<'_> {
                     .filter(|(_, body)| body.get("term").is_some())
                     .map(|(at, _)| format!("{at}/term"));
                 one(
-                    at.or_else(|| self.generated(&function, &leaf)),
+                    at.or_else(|| self.generated(&function, &leaf, "blocks")),
                     format!("terminator of {}", names.name(&block)),
                 )
             }
@@ -210,7 +224,7 @@ impl FrameIndex<'_> {
                 let (block, leaf) = (names.leaf(&body.block), names.leaf(&operation));
                 one(
                     self.operation(&function, &block, &leaf)
-                        .or_else(|| self.generated(&function, &leaf)),
+                        .or_else(|| self.generated(&function, &leaf, "values")),
                     names.name(&operation),
                 )
             }
@@ -239,6 +253,67 @@ impl FrameIndex<'_> {
                     .collect()
             }
         }
+    }
+
+    /// A block, terminator or operation site in a frame an authoring
+    /// dialect expanded, through the source map's entries; `None` when the
+    /// site's block is not in them. A shared exit, or a construct the map
+    /// does not place, is disclosed as function-wide.
+    fn through_map(
+        &self,
+        site: Site,
+        program: &Program,
+        names: &Names,
+    ) -> Option<Vec<(String, String)>> {
+        let wide = || vec![(String::new(), FUNCTION_WIDE.to_owned())];
+        let (block, operation) = match site {
+            Site::Block(block) | Site::Terminator(block) => (block, None),
+            Site::Operation(operation) => match program.body(&operation) {
+                Some(EntityBodyValue::Operation(body)) => (body.block, Some(operation)),
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let Some(EntityBodyValue::Block(body)) = program.body(&block) else {
+            return None;
+        };
+        let mapped = self.mapped(&names.leaf(&body.function), &names.leaf(&block))?;
+        let name = names.name(&block);
+        Some(match (site, mapped.role.as_str()) {
+            (Site::Block(_), "block") => vec![(mapped.authored, name)],
+            // A continuation is the rest of an authored block.
+            (Site::Block(_), "continuation") => vec![(
+                mapped
+                    .authored
+                    .split("/ops/")
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned(),
+                format!("{name} (part of this block)"),
+            )],
+            (Site::Terminator(_), "block" | "continuation") => {
+                match self.mapped_at(&mapped.expanded, "/term", None) {
+                    Some((at, role)) if role == "term" => {
+                        vec![(at, format!("terminator of {name}"))]
+                    }
+                    Some((at, role)) if role == "switch" => {
+                        vec![(at, format!("the checked operation that ends {name}"))]
+                    }
+                    Some((at, role)) if role == "exit" => {
+                        vec![(at, format!("the exit that ends {name}"))]
+                    }
+                    _ => wide(),
+                }
+            }
+            (Site::Operation(_), "block" | "continuation") => {
+                let operation = operation?;
+                match self.mapped_at(&mapped.expanded, "/ops/", Some(&names.leaf(&operation))) {
+                    Some((at, role)) if role != "shared-exit" => vec![(at, names.name(&operation))],
+                    _ => wide(),
+                }
+            }
+            _ => wide(),
+        })
     }
 
     /// The entries of one top-level frame list, with their pointers.
@@ -320,15 +395,84 @@ impl FrameIndex<'_> {
             .map(|index| format!("{at}/ops/{index}"))
     }
 
-    /// The source-map pointer of a name the frame does not spell.
-    fn generated(&self, function: &str, name: &str) -> Option<String> {
-        self.sourcemap?
-            .get("names")?
-            .get(function)?
-            .get(name)?
-            .as_str()
-            .map(str::to_owned)
+    /// The source-map pointer of a name the frame does not spell: its
+    /// table of one kind (`blocks` or `values`), else the merged `names`.
+    fn generated(&self, function: &str, name: &str, kind: &str) -> Option<String> {
+        let map = self.sourcemap?;
+        [kind, "names"].into_iter().find_map(|table| {
+            map.get(table)?
+                .get(function)?
+                .get(name)?
+                .as_str()
+                .map(str::to_owned)
+        })
     }
+
+    /// The source-map entry of expanded block `block` of `function`: its
+    /// expanded pointer, authored pointer and role.
+    fn mapped(&self, function: &str, block: &str) -> Option<Mapped> {
+        let entries = self.sourcemap?.get("entries")?.as_array()?;
+        let prefixes: Vec<String> = self
+            .entries(function)
+            .into_iter()
+            .map(|(at, _)| format!("{at}/blocks/"))
+            .collect();
+        entries.iter().find_map(|entry| {
+            let expanded = entry.get("expanded")?.as_str()?;
+            let role = entry.get("role")?.as_str()?;
+            let in_function = prefixes.iter().any(|prefix| {
+                expanded
+                    .strip_prefix(prefix.as_str())
+                    .is_some_and(|rest| !rest.is_empty() && !rest.contains('/'))
+            });
+            (in_function
+                && entry.get("name")?.as_str()? == block
+                && matches!(role, "block" | "continuation" | "shared-exit"))
+            .then(|| Mapped {
+                expanded: expanded.to_owned(),
+                authored: entry
+                    .get("authored")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                role: role.to_owned(),
+            })
+        })
+    }
+
+    /// The authored pointer and role of an entry under expanded block
+    /// `block`: its terminator (`/term`), or its operation named `name`
+    /// (`/ops/`).
+    fn mapped_at(&self, block: &str, part: &str, name: Option<&str>) -> Option<(String, String)> {
+        let entries = self.sourcemap?.get("entries")?.as_array()?;
+        let wanted = format!("{block}{part}");
+        entries.iter().find_map(|entry| {
+            let expanded = entry.get("expanded")?.as_str()?;
+            let here = match name {
+                None => expanded == wanted,
+                Some(name) => {
+                    expanded
+                        .strip_prefix(wanted.as_str())
+                        .is_some_and(|rest| !rest.contains('/'))
+                        && entry.get("name")?.as_str()? == name
+                }
+            };
+            here.then(|| {
+                Some((
+                    entry.get("authored")?.as_str()?.to_owned(),
+                    entry.get("role")?.as_str()?.to_owned(),
+                ))
+            })
+            .flatten()
+        })
+    }
+}
+
+/// A generated or authored block in an expanded frame, per the source map.
+struct Mapped {
+    expanded: String,
+    authored: String,
+    role: String,
 }
 
 /// Escapes one JSON-pointer path segment (RFC 6901).

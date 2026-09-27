@@ -1130,7 +1130,7 @@ fn names_resolve_only_to_unique_available_values() {
         ),
         "AGENT_X_SCOPE",
         &[
-            "/fns/0/blocks/3/ops/0/2: several blocks define `t` (left, right), so a plain `t` is ambiguous in `done`",
+            "/fns/0/blocks/3/ops/0/2: `t` is defined in blocks left, right, none of which dominates this point of `done` (paths join here)",
         ],
     );
     // A definer that does not dominate.
@@ -1163,7 +1163,7 @@ fn names_resolve_only_to_unique_available_values() {
         &[
             "/fns/0/blocks/2/ops/0/2: `q` is a parameter of block `next`",
             "declare `q` as a parameter of `last`; its edge argument is derived",
-            "/fns/0/blocks/2/ops/0/3: `s` is a parameter of block `entry` (or the value a checked operation unwraps there)",
+            "/fns/0/blocks/2/ops/0/3: `s` is the value a checked operation of block `entry` unwraps, visible only in its own block",
         ],
     );
     // Use before definition in the same block.
@@ -1216,7 +1216,7 @@ fn names_resolve_only_to_unique_available_values() {
         ),
         "AGENT_X_SCOPE",
         &[
-            "/fns/0/blocks/1/term: the edge back to `spin` would pass `i` from `spin` itself (a loop edge)",
+            "/fns/0/blocks/1/term: block `spin` takes `i: i64`, and this edge goes back into `spin`, which it is inside of (a loop edge), and a loop edge never takes an omitted argument by name",
         ],
     );
     // An explicit `b.x` of another block's parameter.
@@ -1348,9 +1348,7 @@ fn explicit_edges_are_never_repaired() {
         &temp.path,
         &frame,
         "AGENT_FRAME_INVALID",
-        &[
-            "/fns/0/blocks/0/term: block `done` takes 1 argument(s) (v: i64); this edge passes 2 [expanded /fns/0/blocks/2/term]",
-        ],
+        &["/fns/0/blocks/0/term: block `done` takes 1 argument(s) (v: i64); this edge passes 2"],
     );
     // A wrongly typed explicit argument is not replaced by a fitting value.
     let frame = one_function(
@@ -1443,7 +1441,9 @@ fn bounds_are_refused_never_truncated() {
             {"name": "entry", "ops": ops, "term": ["return", "x0"]}]),
         ),
         "AGENT_X_LIMIT",
-        &["/fns/0: the expanded function has 4200 operations, more than the bound of 4096"],
+        &[
+            "/fns/0: the expanded function has at least 4200 operations, more than the bound of 4096",
+        ],
     );
 }
 
@@ -1460,7 +1460,9 @@ fn the_generated_block_bound_is_refused() {
             {"name": "entry", "ops": exits, "term": ["ok", "a"]}]),
         ),
         "AGENT_X_LIMIT",
-        &["/fns/0: the expanded function has 1031 generated blocks, more than the bound of 1024"],
+        &[
+            "/fns/0: the expanded function has at least 1030 generated blocks, more than the bound of 1024",
+        ],
     );
 }
 
@@ -1798,4 +1800,593 @@ fn an_undefined_operand_of_a_checked_operation_is_named() {
         .clone();
     assert_eq!(edge["expected"], "i64", "{edge}");
     assert_eq!(edge["available"], json!(["b: i64", "a: i64"]), "{edge}");
+}
+
+// ---------------------------------------------------------------------------
+// Review regressions: loops, payloads, explicit qualification
+// ---------------------------------------------------------------------------
+
+/// `sum_evens(n)`: the sum of the even numbers up to `n`; `skip` ends with
+/// `skip_term` (reproducer W2-A1).
+fn sum_evens(skip_params: &Value, skip_edge: &Value, skip_term: &Value) -> Value {
+    json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Overflow"]}],
+      "fns": [{"fn": "sum_evens", "params": [["n", "i64"]], "returns": "Result<i64,E>", "blocks": [
+        {"name": "entry", "ops": [["acc", "const", {"type": "i64", "value": 0}], ["i", "const", {"type": "i64", "value": 1}]],
+         "term": ["br", "loop"]},
+        {"name": "loop", "params": [["i", "i64"], ["acc", "i64"]], "ops": [["more", "le", "i", "n"]],
+         "term": ["cond", "more", ["body", "i", "acc"], ["done", "acc"]]},
+        {"name": "body", "params": [["k", "i64"], ["a", "i64"]], "ops": [["even", "eq", ["rem?Overflow", "k", 2], 0]],
+         "term": ["cond", "even", ["addit", "k", "a"], skip_edge]},
+        {"name": "addit", "params": [["j", "i64"], ["b", "i64"]], "ops": [["s", "add?Overflow", "b", "j"]],
+         "term": ["br", "loop", ["add?Overflow", "j", 1], "s"]},
+        {"name": "skip", "params": skip_params, "term": skip_term},
+        {"name": "done", "params": [["r", "i64"]], "term": ["ok", "r"]}]}]})
+}
+
+#[test]
+fn a_loop_edge_never_takes_a_shadowed_or_passed_through_value() {
+    let temp = workspace("loops");
+    let skip = json!(["skip", "k"]);
+    // W2-A1: the omitted `acc` must not become the pre-loop `entry.acc`.
+    assert_refused(
+        &temp.path,
+        &sum_evens(
+            &json!([["m", "i64"]]),
+            &skip,
+            &json!(["br", "loop", ["add?Overflow", "m", 1]]),
+        ),
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/4/term: block `loop` takes `acc: i64`, and this edge goes back into `loop`, which it is inside of (a loop edge), and a loop edge never takes an omitted argument by name: pass it explicitly",
+        ],
+    );
+    // Written by name, `acc` is shadowed by the loop's own parameter: the
+    // refusal names the exact alternatives instead of calling it ambiguous.
+    let (symbol, detail) = refused(
+        &temp.path,
+        &sum_evens(
+            &json!([["m", "i64"]]),
+            &skip,
+            &json!(["br", "loop", ["add?Overflow", "m", 1], "acc"]),
+        ),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert!(
+        detail.contains("/fns/0/blocks/4/term/3: `acc` here is shadowed: the nearest `acc` above `skip` is a parameter of block `loop`, visible only there; write `entry.acc` for the value `entry` defines, or declare `acc` as a parameter of `skip` and pass it on each edge"),
+        "{detail}"
+    );
+    assert!(!detail.contains("ambiguous"), "{detail}");
+    // Passing the loop's value on explicitly is the working program.
+    let fixed = sum_evens(
+        &json!([["m", "i64"], ["acc", "i64"]]),
+        &json!(["skip", "k", "a"]),
+        &json!(["br", "loop", ["add?Overflow", "m", 1], "acc"]),
+    );
+    let mut runner = Runner::new(&temp.path, &fixed);
+    for (n, sum) in [(1, 0), (2, 2), (3, 2), (5, 6), (6, 12)] {
+        assert_eq!(
+            runner.call("sum_evens", &[json!(n)]),
+            json!({"Ok": sum}),
+            "{n}"
+        );
+    }
+    // W2-A3: a body edge back to the loop header does not pass the body's
+    // own copy of the header's value (which would never advance).
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "SumError", "variant": ["Negative", "Overflow"]}],
+      "fns": [{"fn": "sum_to2", "params": [["n", "i64"]], "returns": "Result<i64,SumError>", "blocks": [
+        {"name": "entry", "ops": [["!Negative", "if", ["lt", "n", 0]]], "term": ["br", "loop", 0, 1]},
+        {"name": "loop", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["more", "le", "i", "n"]], "term": ["cond", "more", "body", "done"]},
+        {"name": "body", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["next", "add?Overflow", "acc", "i"]], "term": ["br", "loop", "next"]},
+        {"name": "done", "params": [["acc", "i64"]], "term": ["ok", "acc"]}]}]});
+    assert_refused(
+        &temp.path,
+        &frame,
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/2/term: block `loop` takes `i: i64`, and this edge goes back into `loop`, which it is inside of (a loop edge)",
+        ],
+    );
+}
+
+#[test]
+fn a_plain_name_means_the_nearest_dominating_definition() {
+    // `t` is defined by `entry` (which dominates `right`) and by `left`
+    // (which does not): at `right` the name is unambiguous.
+    let temp = workspace("nearest");
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "i64", "blocks": [
+        {"name": "entry", "ops": [["t", "lt", "a", "b"]], "term": ["cond", "t", "left", "right"]},
+        {"name": "left", "ops": [["t", "gt", "a", 0]], "term": ["cond", "t", ["out", "a"], ["out", "b"]]},
+        {"name": "right", "term": ["cond", "t", ["out", 1], ["out", 2]]},
+        {"name": "out", "params": [["v", "i64"]], "term": ["return", "v"]}]}]});
+    let expansion = expand(&temp.path, &frame);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.frame["fns"][0]["blocks"][2]["term"][1],
+        json!("entry.t")
+    );
+    let mut runner = Runner::new(&temp.path, &frame);
+    assert_eq!(runner.call("f", &[json!(5), json!(1)]), json!(2));
+    assert_eq!(runner.call("f", &[json!(3), json!(4)]), json!(3));
+    // When `left` redefines `t` on a path from `entry` to `join`, the plain
+    // name would silently mean `entry.t` on that path too: refused, with
+    // the exact alternatives.
+    let join = |uses: &str, params: Value, edge: &str| {
+        json!({"af1": 1, "afx": 1, "fns": [{"fn": "g", "params": [["a", "i64"], ["b", "i64"]], "returns": "bool", "blocks": [
+            {"name": "entry", "ops": [["t", "lt", "a", "b"]], "term": ["cond", "t", "left", edge]},
+            {"name": "left", "ops": [["t", "gt", "a", 0]], "term": ["br", "join"]},
+            {"name": "right", "term": ["br", "join"]},
+            {"name": "join", "params": params, "ops": [["u", "not", uses]], "term": ["return", "u"]}]}]})
+    };
+    let (symbol, detail) = refused(&temp.path, &join("t", json!([]), "right"));
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert!(
+        detail.starts_with("/fns/0/blocks/3/ops/0/2: `t` here would be the result of `entry`, but block `left` also defines `t` on a path from `entry` to here: write `entry.t` for the value of `entry`, or declare `t` as a parameter of `join` and pass it on each edge"),
+        "{detail}"
+    );
+    // The value of each path, as a parameter derived at each edge.
+    let mut runner = Runner::new(&temp.path, &join("t", json!([["t", "bool"]]), "right"));
+    assert_eq!(runner.call("g", &[json!(1), json!(5)]), json!(false));
+    assert_eq!(runner.call("g", &[json!(-1), json!(5)]), json!(true));
+    assert_eq!(runner.call("g", &[json!(5), json!(1)]), json!(true));
+}
+
+#[test]
+fn a_case_payload_is_never_replaced_by_a_value_found_by_name() {
+    // W2-A2: without `$` the Err or Some payload would be dropped unseen.
+    let temp = workspace("payload-cases");
+    let frame = |err_case: Value, some_case: Value| {
+        json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": [["Math", "ArithmeticError"]]}], "fns": [
+          {"fn": "ratio", "params": [["a", "i64"], ["b", "i64"], ["e", "ArithmeticError"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "term": ["switch", ["div", "a", "b"], ["Ok", "done", "$"], err_case]},
+            {"name": "done", "params": [["q", "i64"]], "term": ["ok", "q"]},
+            {"name": "bad", "params": [["e", "ArithmeticError"]], "term": ["fail", "Math", "e"]}]},
+          {"fn": "lookup", "params": [["m", "Map<i64,i64>"], ["k", "i64"], ["v", "i64"]], "returns": "i64", "blocks": [
+            {"name": "entry", "term": ["switch", ["map_get", "m", "k"], some_case, ["None", "done"]]},
+            {"name": "done", "params": [["v", "i64"]], "term": ["return", "v"]}]}]})
+    };
+    let (symbol, detail) = refused(
+        &temp.path,
+        &frame(json!(["Err", "bad"]), json!(["Some", "done"])),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    for needle in [
+        "/fns/0/blocks/0/term/3: case `Err` carries a payload (ArithmeticError) that this edge does not pass, and `bad` takes more arguments than the edge gives: pass the payload with \"$\" where `bad` takes it (e.g. [\"Err\", \"bad\", \"$\"]), or write every argument",
+        "/fns/1/blocks/0/term/2: case `Some` carries a payload (i64) that this edge does not pass",
+    ] {
+        assert!(detail.contains(needle), "{needle}\n{detail}");
+    }
+    // With `$` the payload is passed; the None case still derives `v`.
+    let mut runner = Runner::new(
+        &temp.path,
+        &frame(json!(["Err", "bad", "$"]), json!(["Some", "done", "$"])),
+    );
+    assert_eq!(
+        runner.call(
+            "ratio",
+            &[json!(1), json!(0), json!({"ArithmeticError": "Overflow"})]
+        ),
+        json!({"Err": {"Math": {"ArithmeticError": "DivideByZero"}}})
+    );
+    assert_eq!(
+        runner.call("lookup", &[json!([[1, 5]]), json!(1), json!(0)]),
+        json!(5)
+    );
+    assert_eq!(
+        runner.call("lookup", &[json!([[1, 5]]), json!(2), json!(9)]),
+        json!(9)
+    );
+}
+
+#[test]
+fn an_explicit_block_qualification_resolves_as_in_plain_af1() {
+    // W2-A4: `mid.lo` inside `mid`, where `mid` defines no `lo`, is refused
+    // as plain AF1 refuses it; it is never re-qualified to `entry.lo`.
+    let temp = workspace("self-qualified");
+    let blocks = json!([
+        {"name": "entry", "ops": [["lo", "lt", "a", "b"]], "term": ["cond", "lo", "left", "right"]},
+        {"name": "left", "ops": [["m", "add", "a", "a"]], "term": ["br", "mid"]},
+        {"name": "right", "term": ["br", "mid"]},
+        {"name": "mid", "term": ["br", "fin", "mid.lo"]},
+        {"name": "fin", "params": [["flag", "bool"]], "term": ["cond", "flag", ["out", "a"], ["out", "b"]]},
+        {"name": "out", "params": [["v", "i64"]], "term": ["return", "v"]}]);
+    let plain = json!({"af1": 1, "fns": [{"fn": "pick", "params": [["a", "i64"], ["b", "i64"]], "returns": "i64", "blocks": blocks}]});
+    let mut extended = plain.clone();
+    extended["afx"] = json!(1);
+    assert_eq!(
+        expand(&temp.path, &extended).frame["fns"][0]["blocks"][3]["term"],
+        json!(["br", "fin", "mid.lo"])
+    );
+    let (_, plain_detail) = refused(&temp.path, &plain);
+    let (symbol, detail) = refused(&temp.path, &extended);
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert_eq!(detail, plain_detail);
+    assert!(detail.contains("mid.lo` in scope"), "{detail}");
+}
+
+#[test]
+fn a_root_cause_is_reported_before_the_literals_it_leaves_untyped() {
+    let temp = workspace("root-causes");
+    // W2-V3: a misspelled name, not the literal it leaves without a type.
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Neg"]}],
+          "fns": [{"fn": "n10", "params": [["a", "i64"]], "returns": "Result<i64,E>",
+            "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "aa", 0]]], "term": ["ok", "a"]}]}]}),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert_eq!(
+        detail,
+        "/fns/0/blocks/0/ops/0/2/1: no value named `aa` in this function"
+    );
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "n9", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+            "blocks": [{"name": "entry", "ops": [["x", "add?", "a", "zz"]], "term": ["ok", "x"]}]}]}),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert!(
+        detail.starts_with("/fns/0/blocks/0/ops/0/3: no value named `zz` in this function"),
+        "{detail}"
+    );
+    assert!(!detail.contains("not known here"), "{detail}");
+    // A surplus edge argument: the arity, as for a named argument, not the
+    // type of a literal that has no parameter.
+    for (term, at) in [
+        (
+            json!(["cond", "c", ["t", "a", 5], ["t", "a"]]),
+            "/fns/0/blocks/0/term/2",
+        ),
+        (json!(["br", "t", "a", 5]), "/fns/0/blocks/0/term"),
+        (
+            json!(["switch", ["lt", "a", 0], ["true", "t", "a", 5]]),
+            "/fns/0/blocks/0/term/2",
+        ),
+    ] {
+        let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "ops": [["c", "lt", "a", "a"]], "term": term},
+                       {"name": "t", "params": [["x", "i64"]], "term": ["return", "x"]}]}]});
+        let (symbol, detail) = refused(&temp.path, &frame);
+        assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+        assert!(
+            detail.starts_with(&format!(
+                "{at}: block `t` takes 1 argument(s) (x: i64); this edge passes 2"
+            )),
+            "{term}: {detail}"
+        );
+        assert!(!detail.contains("literal"), "{term}: {detail}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Review regressions: patches recognize generated blocks by their shape
+// ---------------------------------------------------------------------------
+
+fn commit_frame(dir: &Path, frame: &Value) {
+    let (status, text) = run(dir, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let (status, text) = run(dir, &["commit"]);
+    assert_eq!(status, 0, "{text}");
+}
+
+fn patch_blocks(dir: &Path, patch: &Value) -> Value {
+    let expansion = expand(dir, patch);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    expansion.frame["patch"][0]["blocks"].clone()
+}
+
+#[test]
+fn restating_a_block_deletes_its_shortened_pieces() {
+    // W2-A5: a continuation whose name was shortened is still recognized.
+    let temp = workspace("shortened");
+    let long = "block_with_a_very_long_descriptive_name_for_the_checked_step";
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Overflow"]}],
+          "fns": [{"fn": "g", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "term": ["br", long]},
+            {"name": long, "ops": [["quotient", "div?Overflow", "a", "b"]], "term": ["ok", "quotient"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "g"]);
+    let old: Vec<String> = block_names(&view)
+        .into_iter()
+        .filter(|name| name.contains("__h"))
+        .collect();
+    assert_eq!(old.len(), 1, "{view}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "g", "blocks": {
+        long: {"ops": [["product", "mul?Overflow", "a", "b"]], "term": ["ok", "product"]}}}]});
+    let blocks = patch_blocks(&temp.path, &patch);
+    assert_eq!(blocks[&old[0]], Value::Null, "{blocks}");
+    let (status, text) = run(&temp.path, &["try", &patch.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let (_, value) = run(&temp.path, &["call", "g", "6", "7", "--on", "latest"]);
+    assert_eq!(value.trim(), "{\"Ok\":42}");
+}
+
+#[test]
+fn a_patch_never_rewrites_or_deletes_blocks_it_did_not_generate() {
+    // W2-A6: a plain AF1 block named like a shared exit, and one named like
+    // a piece, are the author's: kept as they are.
+    let temp = workspace("user-blocks");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "types": [{"name": "E", "variant": ["Zero", "Other"]}],
+          "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["neg", "lt", "a", "b"]], "term": ["cond", "neg", "k", "__fail_Zero"]},
+            {"name": "k", "ops": [["r", "ok", "a"]], "term": ["return", "r"]},
+            {"name": "__fail_Zero", "ops": [["v", "variant", "E.Other"], ["r", "err", "v"]], "term": ["return", "r"]}]},
+          {"fn": "h", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["zero", "const", 0], ["pos", "gt", "a", "zero"]], "term": ["cond", "pos", "k", "entry__pos"]},
+            {"name": "k", "ops": [["r", "ok", "a"]], "term": ["return", "r"]},
+            {"name": "entry__pos", "ops": [["v", "variant", "E.Other"], ["r", "err", "v"]], "term": ["return", "r"]}]}]}),
+    );
+    let (_, before) = run(&temp.path, &["call", "f", "5", "1"]);
+    assert_eq!(before.trim(), "{\"Err\":\"Other\"}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [
+        {"fn": "f", "blocks": {"k": {"ops": [["!Zero", "if", ["eq", "a", 0]]], "term": ["ok", "a"]}}},
+        {"fn": "h", "blocks": {"entry": {"ops": [["!Zero", "if", ["eq", "a", 0]], ["pos", "gt", "a", 0]],
+                                         "term": ["cond", "pos", "k", "entry__pos"]}}}]});
+    let expansion = expand(&temp.path, &patch);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let f_blocks = &expansion.frame["patch"][0]["blocks"];
+    assert!(f_blocks.get("__fail_Zero").is_none(), "{f_blocks}");
+    assert!(f_blocks["__fail_Zero_2"].is_object(), "{f_blocks}");
+    assert_eq!(
+        f_blocks["k"]["term"][2],
+        json!("__fail_Zero_2"),
+        "{f_blocks}"
+    );
+    let h_blocks = &expansion.frame["patch"][1]["blocks"];
+    assert!(h_blocks.get("entry__pos").is_none(), "{h_blocks}");
+    let (status, text) = run(&temp.path, &["try", &patch.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    for (function, args, want) in [
+        ("f", ["5", "1"], "{\"Err\":\"Other\"}"),
+        ("f", ["0", "1"], "{\"Err\":\"Zero\"}"),
+        ("f", ["1", "5"], "{\"Ok\":1}"),
+        ("h", ["-3", "0"], "{\"Err\":\"Other\"}"),
+        ("h", ["0", "0"], "{\"Err\":\"Zero\"}"),
+        ("h", ["4", "0"], "{\"Ok\":4}"),
+    ] {
+        let mut words = vec!["call", function, args[0]];
+        if function == "f" {
+            words.push(args[1]);
+        }
+        words.extend(["--on", "latest"]);
+        let (_, value) = run(&temp.path, &words);
+        assert_eq!(value.trim(), want, "{function}{args:?}");
+    }
+}
+
+#[test]
+fn a_suffixed_shared_exit_is_recognized_and_deleted_when_unused() {
+    // W2-P2: with a top-level `__err`, the exit is `__err_2`; a later patch
+    // that no longer needs it deletes it.
+    let temp = workspace("suffixed-exit");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "__err", "params": [], "returns": "i64", "blocks": [{"name": "entry", "ops": [["z", "const", 0]], "term": ["return", "z"]}]},
+          {"fn": "g", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>", "blocks": [
+            {"name": "entry", "ops": [["s", "add?", "a", 1]], "term": ["ok", "s"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "g"]);
+    assert!(block_names(&view).contains(&"__err_2".to_owned()), "{view}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "g", "blocks": {
+        "entry": {"ops": [["s", "add", "a", 1]], "term": ["return", "s"]}}}]});
+    let blocks = patch_blocks(&temp.path, &patch);
+    assert_eq!(blocks["__err_2"], Value::Null, "{blocks}");
+    assert_eq!(blocks["entry__s"], Value::Null, "{blocks}");
+    commit_frame(&temp.path, &patch);
+    let (_, view) = run(&temp.path, &["view", "g"]);
+    assert_eq!(block_names(&view), ["entry"], "{view}");
+}
+
+#[test]
+fn generated_block_and_value_names_have_separate_tables() {
+    // W2-P1: the exit condition value and the block after the exit share
+    // the name `entry__if0`; each table maps it to its own construct.
+    let temp = workspace("name-tables");
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Neg"]}],
+      "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 0]]], "term": ["ok", "a"]}]}]});
+    let map = expand(&temp.path, &frame).map.to_json();
+    assert_eq!(
+        map["values"]["f"]["entry__if0"],
+        json!("/fns/0/blocks/0/ops/0/2")
+    );
+    assert_eq!(
+        map["blocks"]["f"]["entry__if0"],
+        json!("/fns/0/blocks/0/ops/0")
+    );
+    assert_eq!(
+        map["blocks"]["f"]["__fail_Neg"],
+        json!("/fns/0/blocks/0/ops/0")
+    );
+    assert!(map["values"]["f"].get("__fail_Neg").is_none());
+}
+
+// ---------------------------------------------------------------------------
+// Review regressions: locators and diagnostics through the source map
+// ---------------------------------------------------------------------------
+
+fn authored_line(text: &str) -> String {
+    text.lines()
+        .find_map(|line| line.trim().strip_prefix("authored: "))
+        .unwrap_or_else(|| panic!("no authored line: {text}"))
+        .to_owned()
+}
+
+#[test]
+fn kernel_locators_in_generated_blocks_name_the_authored_construct() {
+    let temp = workspace("locators");
+    let neg = json!([{"name": "E", "variant": ["Neg"]}]);
+    // W2-V1a: a return in the piece after an exit is the authored return.
+    let frame = json!({"af1": 1, "afx": 1, "types": neg,
+      "fns": [{"fn": "flagx", "params": [["a", "i64"]], "returns": "Result<bool,E>",
+        "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 0]], ["s", "add", "a", "a"]], "term": ["return", "s"]}]}]});
+    let (status, text) = run(&temp.path, &["try", "--no-test", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert_eq!(
+        authored_line(&text),
+        "/fns/0/blocks/0/term (terminator of flagx.entry__if0), /fns/0/returns (result of flagx)"
+    );
+    // W2-V1b: the generated `cond` of an exit is the exit operation, not
+    // the block's authored terminator.
+    let frame = json!({"af1": 1, "afx": 1, "types": neg,
+      "fns": [{"fn": "domx", "params": [["a", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}], ["c0", "lt", "a", "z"]], "term": ["cond", "c0", "left", "right"]},
+                   {"name": "left", "ops": [["c", "gt", "a", "z"]], "term": ["br", "right"]},
+                   {"name": "right", "ops": [["!Neg", "if", "left.c"]], "term": ["ok", "a"]}]}]});
+    let (status, text) = run(&temp.path, &["try", "--no-test", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert_eq!(
+        authored_line(&text),
+        "/fns/0/blocks/2/ops/0 (the exit that ends domx.right)"
+    );
+    // W2-V2: a call in a continuation piece keeps its operation pointer.
+    let frame = json!({"af1": 1, "afx": 1, "types": neg,
+      "fns": [{"fn": "g", "params": [["x", "bool"]], "returns": "bool", "blocks": [{"name": "entry", "ops": [], "term": ["return", "x"]}]},
+              {"fn": "hx", "params": [["a", "i64"]], "returns": "Result<bool,E>",
+        "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 0]], ["r", "call", "g", "a"]], "term": ["ok", "r"]}]}]});
+    let (status, text) = run(&temp.path, &["try", "--no-test", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert_eq!(
+        authored_line(&text),
+        "/fns/1/blocks/0/ops/1 (hx.entry__if0.r), /fns/0/params (parameters of g)"
+    );
+}
+
+#[test]
+fn a_pointer_inside_a_problem_detail_is_mapped_too() {
+    // W2-V4: the detail's own (expanded) pointer is not left behind.
+    let temp = workspace("embedded-pointer");
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Neg"]}],
+          "fns": [{"fn": "p3", "params": [["a", "u8"]], "returns": "Result<u8,E>",
+            "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 1]], ["s", "add?Neg", "a", 300]], "term": ["ok", "s"]}]}]}),
+    );
+    assert_eq!(
+        detail,
+        "/fns/0/blocks/0/ops/1/3: 300 does not fit u8 [expanded /fns/0/blocks/1/ops/0]"
+    );
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "idt", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "term": ["return", "a"]}]}],
+          "test_tables": [{"name": "t_x", "fn": "idt", "cases": [{"args": [1], "expect": 1}, {"args": [true], "expect": 1}]}]}),
+    );
+    assert_eq!(
+        detail,
+        "/test_tables/0/cases/1/args/0: expected an integer [expanded /tests/1/args/0]"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Review regression: expansion time
+// ---------------------------------------------------------------------------
+
+/// A chain of `n` blocks listed opposite to dominance order, each using the
+/// value of the block before it by plain name (reproducer W2-A7).
+fn reverse_chain(n: usize) -> Value {
+    let blocks: Vec<Value> = (0..n)
+        .map(|i| {
+            let ops = if i == n - 1 {
+                json!([[format!("v{i}"), "eq", "a", "a"]])
+            } else {
+                let previous = format!("v{}", i + 1);
+                json!([[format!("v{i}"), "eq", previous, previous]])
+            };
+            let term = if i == 0 {
+                json!(["return", "v0"])
+            } else {
+                json!(["br", format!("b{}", i - 1)])
+            };
+            json!({"name": format!("b{i}"), "ops": ops, "term": term})
+        })
+        .collect();
+    json!({"af1": 1, "afx": 1, "fns": [{"fn": "h", "params": [["a", "i64"]], "returns": "bool",
+        "entry": format!("b{}", n - 1), "blocks": blocks}]})
+}
+
+#[test]
+fn expansion_time_stays_near_linear() {
+    let temp = workspace("scale");
+    let head = Workspace::at(&temp.path).head().unwrap();
+    let names = names_of(&temp.path, head.program());
+    for n in [250, 1000, 4000] {
+        let frame = reverse_chain(n);
+        let started = std::time::Instant::now();
+        let expansion = sley_agent::afx::expand(head.program(), &names, &frame).unwrap();
+        let elapsed = started.elapsed();
+        assert!(
+            expansion.obligations.is_empty(),
+            "{:?}",
+            expansion.obligations
+        );
+        assert_eq!(
+            expansion.frame["fns"][0]["blocks"][0]["ops"][0],
+            json!(["v0", "eq", "b1.v1", "b1.v1"])
+        );
+        eprintln!("reverse chain of {n} blocks: {elapsed:?}");
+        assert!(elapsed.as_millis() < 1000, "{n} blocks took {elapsed:?}");
+    }
+    // One block of 1,000 checked operations that each read a block
+    // parameter: 1,000 pieces, the parameter threaded through all of them.
+    let ops: Vec<Value> = (0..1000)
+        .map(|i| {
+            let previous = if i == 0 {
+                "p".to_owned()
+            } else {
+                format!("x{}", i - 1)
+            };
+            json!([format!("x{i}"), "add?", previous, "p"])
+        })
+        .collect();
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "w", "params": [["a", "i64"]],
+        "returns": "Result<i64,ArithmeticError>", "blocks": [
+          {"name": "entry", "term": ["br", "work", "a"]},
+          {"name": "work", "params": [["p", "i64"]], "ops": ops, "term": ["ok", "x999"]}]}]});
+    let started = std::time::Instant::now();
+    let expansion = sley_agent::afx::expand(head.program(), &names, &frame).unwrap();
+    let elapsed = started.elapsed();
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    eprintln!("1,000 checked operations in one block: {elapsed:?}");
+    assert!(elapsed.as_millis() < 1000, "took {elapsed:?}");
+    // A bound is refused before the expensive passes.
+    let ops: Vec<Value> = (0..5000)
+        .map(|i| json!([format!("x{i}"), "eq", "a", "a"]))
+        .collect();
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "w", "params": [["a", "i64"]], "returns": "bool",
+        "blocks": [{"name": "entry", "ops": ops, "term": ["return", "x0"]}]}]});
+    let started = std::time::Instant::now();
+    let expansion = sley_agent::afx::expand(head.program(), &names, &frame).unwrap();
+    assert!(started.elapsed().as_millis() < 1000);
+    assert_eq!(
+        expansion.obligations[0].symbol,
+        sley_agent::AgentErrorCode::XLimit
+    );
+    assert!(
+        expansion.obligations[0]
+            .decision
+            .starts_with("the expanded function has at least 5000 operations"),
+        "{:?}",
+        expansion.obligations
+    );
 }
