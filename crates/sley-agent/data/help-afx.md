@@ -50,11 +50,12 @@ Option: checked arithmetic, `call`, `vec_get`, `map_get`, `map`.
 
 A plain name is an earlier value of the same block, else a function
 parameter, else the nearest definition of that name among the blocks every
-path to this point passes through; when that is an operation result it is
+path to this point passes through; when that is an operation result, and
+no other block defines the name on a path from there to here, it is
 qualified for you. Parameters and checked values of other blocks are not
 visible: declare a parameter (and when one shadows an earlier result of the
-same name, write `block.name` to mean that result). `b.x` is block `b`'s
-own `x`, exactly as in plain AF1.
+same name, or another block redefines it on the way, write `block.name` to
+mean that result). `b.x` is block `b`'s own `x`, exactly as in plain AF1.
 
 When an edge passes fewer arguments than its target takes, each missing
 trailing argument is the value of the parameter's name visible at the edge,

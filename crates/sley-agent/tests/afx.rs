@@ -1911,6 +1911,27 @@ fn a_plain_name_means_the_nearest_dominating_definition() {
     let mut runner = Runner::new(&temp.path, &frame);
     assert_eq!(runner.call("f", &[json!(5), json!(1)]), json!(2));
     assert_eq!(runner.call("f", &[json!(3), json!(4)]), json!(3));
+    // When `left` redefines `t` on a path from `entry` to `join`, the plain
+    // name would silently mean `entry.t` on that path too: refused, with
+    // the exact alternatives.
+    let join = |uses: &str, params: Value, edge: &str| {
+        json!({"af1": 1, "afx": 1, "fns": [{"fn": "g", "params": [["a", "i64"], ["b", "i64"]], "returns": "bool", "blocks": [
+            {"name": "entry", "ops": [["t", "lt", "a", "b"]], "term": ["cond", "t", "left", edge]},
+            {"name": "left", "ops": [["t", "gt", "a", 0]], "term": ["br", "join"]},
+            {"name": "right", "term": ["br", "join"]},
+            {"name": "join", "params": params, "ops": [["u", "not", uses]], "term": ["return", "u"]}]}]})
+    };
+    let (symbol, detail) = refused(&temp.path, &join("t", json!([]), "right"));
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert!(
+        detail.starts_with("/fns/0/blocks/3/ops/0/2: `t` here would be the result of `entry`, but block `left` also defines `t` on a path from `entry` to here: write `entry.t` for the value of `entry`, or declare `t` as a parameter of `join` and pass it on each edge"),
+        "{detail}"
+    );
+    // The value of each path, as a parameter derived at each edge.
+    let mut runner = Runner::new(&temp.path, &join("t", json!([["t", "bool"]]), "right"));
+    assert_eq!(runner.call("g", &[json!(1), json!(5)]), json!(false));
+    assert_eq!(runner.call("g", &[json!(-1), json!(5)]), json!(true));
+    assert_eq!(runner.call("g", &[json!(5), json!(1)]), json!(true));
 }
 
 #[test]

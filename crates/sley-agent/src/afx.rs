@@ -1558,6 +1558,9 @@ struct Cfg {
     definers: BTreeMap<String, Vec<String>>,
     /// The name of each node.
     node_names: Vec<String>,
+    /// Successors and predecessors of each node.
+    succ: Vec<Vec<usize>>,
+    preds: Vec<Vec<usize>>,
 }
 
 /// What a plain name means at a point, by the nearest block above it on
@@ -1630,6 +1633,51 @@ impl Cfg {
 
     fn reachable(&self, node: usize) -> bool {
         self.idom.get(node).is_some_and(Option::is_some)
+    }
+
+    /// The nodes reachable from `start` along `edges` (`start` included).
+    fn reach(start: usize, edges: &[Vec<usize>]) -> Vec<bool> {
+        let mut seen = vec![false; edges.len()];
+        let mut stack = vec![start];
+        seen[start] = true;
+        while let Some(node) = stack.pop() {
+            for &next in &edges[node] {
+                if !seen[next] {
+                    seen[next] = true;
+                    stack.push(next);
+                }
+            }
+        }
+        seen
+    }
+
+    /// A block other than `owner` and `own` that also defines `name` on a
+    /// path from node `from` to node `to`: the name is rebound between the
+    /// definition and the use (a join or a loop).
+    fn rebound(
+        &self,
+        from: usize,
+        to: usize,
+        name: &str,
+        owner: &str,
+        own: &str,
+    ) -> Option<String> {
+        let others = self.definers.get(name)?;
+        if !others.iter().any(|other| other != owner && other != own) {
+            return None;
+        }
+        let forward = Self::reach(from, &self.succ);
+        let backward = Self::reach(to, &self.preds);
+        (0..self.succ.len()).find_map(|node| {
+            let block = self.owner[node].as_deref()?;
+            (node != from
+                && forward[node]
+                && backward[node]
+                && block != owner
+                && block != own
+                && self.values[node].contains_key(name))
+            .then(|| block.to_owned())
+        })
     }
 
     /// Whether `a` dominates `b` (bounded by the tree depth).
@@ -4277,6 +4325,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 values,
                 definers,
                 node_names,
+                succ,
+                preds: Vec::new(),
             };
         };
         // Reverse postorder by an explicit stack.
@@ -4301,6 +4351,12 @@ impl<'c, 'a> FnExp<'c, 'a> {
             rank[*node] = position;
         }
         let mut preds: Vec<Vec<usize>> = vec![Vec::new(); count];
+        let mut all_preds: Vec<Vec<usize>> = vec![Vec::new(); count];
+        for (node, targets) in succ.iter().enumerate() {
+            for target in targets {
+                all_preds[*target].push(node);
+            }
+        }
         for (node, targets) in succ.iter().enumerate() {
             if seen[node] {
                 for target in targets {
@@ -4348,6 +4404,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
             values,
             definers,
             node_names,
+            succ,
+            preds: all_preds,
         }
     }
 
@@ -4606,6 +4664,23 @@ impl<'c, 'a> FnExp<'c, 'a> {
             .unwrap_or_default();
         match nearest {
             Nearest::Op { owner, holder, ty } => {
+                let rebound = match (self.degraded, cfg.index.get(&holder), use_node) {
+                    (false, Some(&from), Some(to)) => cfg.rebound(from, to, name, &owner, here),
+                    _ => None,
+                };
+                if let Some(other) = rebound {
+                    fail(
+                        self,
+                        format!(
+                            "`{name}` here would be the result of `{owner}`, but block `{other}` also defines `{name}` on a path from `{owner}` to here: write `{holder}.{name}` for the value of `{owner}`, or declare `{name}` as a parameter of `{here}` and pass it on each edge"
+                        ),
+                    );
+                    return if derive.is_some() {
+                        Value::Null
+                    } else {
+                        fallback
+                    };
+                }
                 if mismatch(ty.as_ref()) && !self.degraded {
                     let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
                     fail(self, format!("the `{name}` of `{owner}` is {found}"));
