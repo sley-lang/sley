@@ -1391,10 +1391,24 @@ fn diagnostics_point_at_the_authored_frame() {
             "Result<i64,ArithmeticError>",
             &ab,
             &json!([
+            {"name": "entry", "ops": [["x", "add", "a", ["not", "a"]]], "term": ["return", "x"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/fns/0/blocks/0/ops/0/3: `not` takes bool operands; `a` is i64 [expanded /fns/0/blocks/0/ops/0]",
+        ],
+    );
+    // An unknown name is the root cause, named where it is written.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,ArithmeticError>",
+            &ab,
+            &json!([
             {"name": "entry", "ops": [["x", "add", "a", ["field", "Nope.x", "a"]]], "term": ["return", "x"]}]),
         ),
         "AGENT_FRAME_INVALID",
-        &["/fns/0/blocks/0/ops/0/3: no type `Nope` [expanded /fns/0/blocks/0/ops/0]"],
+        &["/fns/0/blocks/0/ops/0/3: no type `Nope`"],
     );
     // A problem in a checked operation names the authored operation.
     assert_refused(
@@ -2408,4 +2422,101 @@ fn expansion_time_stays_near_linear() {
         "{:?}",
         expansion.obligations
     );
+}
+
+// ---------------------------------------------------------------------------
+// Wave-3 regressions
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_unknown_type_callee_or_constant_is_the_reported_root_cause() {
+    // W3-A1: named as plain AF1 names it, with none of the obligations it
+    // would cause (an unknown failure route, "does not return a Result",
+    // an untyped literal).
+    let temp = workspace("unknown-entities");
+    let e = json!([{"name": "E", "variant": ["Ov", "Bad", ["Code", "i64"]]}]);
+    let f = |types: &Value, returns: &str, blocks: Value| {
+        json!({"af1": 1, "afx": 1, "types": types,
+               "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": returns, "blocks": blocks}]})
+    };
+    let simple = json!([{"name": "entry", "ops": [["!Ov", "if", ["lt", "a", 0]], ["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]);
+    for (frame, want) in [
+        (
+            f(&json!([]), "Result<i64,E>", simple.clone()),
+            "/fns/0/returns: unknown type `E`",
+        ),
+        (
+            f(
+                &json!([{"name": "MathError", "variant": ["Ov"]}]),
+                "Result<i64,MathErr>",
+                simple.clone(),
+            ),
+            "/fns/0/returns: unknown type `MathErr`",
+        ),
+        (
+            f(&e, "Result<Amount,E>", simple),
+            "/fns/0/returns: unknown type `Amount`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "term": ["br", "nx", 1]},
+                {"name": "nx", "params": [["q", "Amt"]], "ops": [["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/1/params/0: unknown type `Amt`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["x", "call?Bad", "gg", ["add?Ov", "a", 1]]], "term": ["ok", ["mul?Ov", "x", 2]]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: no Function named `gg`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["v", "variant", "Shape.Circle", 1], ["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: no type `Shape`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["v", "variant", "E.Nope"], ["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: type `E` has no member `Nope`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["k", "const", "LIMIT"], ["x", "add?Ov", "a", "k"]], "term": ["ok", ["mul?Ov", "x", 2]]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: no Constant named `LIMIT`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["x", "add?Ov", "a", {"type": "Int", "value": 1}]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/0/ops/0/3: unknown type `Int`",
+        ),
+        (
+            f(
+                &json!([{"name": "E", "variant": ["Ov", ["Code", "Amt"]]}]),
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["x", "add?Code", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/types/0/variant/1: unknown type `Amt`",
+        ),
+    ] {
+        let (symbol, detail) = refused(&temp.path, &frame);
+        assert_eq!(symbol, "AGENT_FRAME_INVALID", "{frame}: {detail}");
+        assert_eq!(detail, want, "{frame}");
+    }
 }
