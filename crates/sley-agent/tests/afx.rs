@@ -1064,14 +1064,15 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
             "name the operation in the target block",
         ],
     );
-    // `__` is reserved for generated names.
+    // `__` is reserved for generated names in blocks that use the
+    // dialect's forms (here a literal operand).
     assert_refused(
         &temp.path,
         &one_function(
-            "i64",
+            "Result<i64,ArithmeticError>",
             &json!([["a__b", "i64"]]),
             &json!([
-            {"name": "entry__x", "ops": [["y__z", "const", 1]], "term": ["return", "a__b"]}]),
+            {"name": "entry__x", "ops": [["y__z", "add", "a__b", 1]], "term": ["return", "y__z"]}]),
         ),
         "AGENT_FRAME_INVALID",
         &[
@@ -1080,6 +1081,19 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
             "/fns/0/blocks/0/ops/0: `y__z` contains `__`",
         ],
     );
+    // W3-D2: a plain block keeps the names AF1 allows, next to a block that
+    // uses the dialect.
+    let frame = one_function(
+        "Result<i64,ArithmeticError>",
+        &json!([["a", "i64"]]),
+        &json!([
+            {"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}], ["c", "lt", "a", "z"]], "term": ["cond", "c", "is__neg", "sum"]},
+            {"name": "is__neg", "ops": [["n__v", "neg", "a"]], "term": ["return", "n__v"]},
+            {"name": "sum", "term": ["ok", ["add?", "a", 1]]}]),
+    );
+    let mut runner = Runner::new(&temp.path, &frame);
+    assert_eq!(runner.call("f", &[json!(-2)]), json!({"Ok": 2}));
+    assert_eq!(runner.call("f", &[json!(2)]), json!({"Ok": 3}));
     // `edit.with` stays plain AF1; an unknown ripple intent is refused;
     // "afx" is 1.
     assert_refused(
@@ -1391,10 +1405,24 @@ fn diagnostics_point_at_the_authored_frame() {
             "Result<i64,ArithmeticError>",
             &ab,
             &json!([
+            {"name": "entry", "ops": [["x", "add", "a", ["not", "a"]]], "term": ["return", "x"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/fns/0/blocks/0/ops/0/3: `not` takes bool operands; `a` is i64 [expanded /fns/0/blocks/0/ops/0]",
+        ],
+    );
+    // An unknown name is the root cause, named where it is written.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,ArithmeticError>",
+            &ab,
+            &json!([
             {"name": "entry", "ops": [["x", "add", "a", ["field", "Nope.x", "a"]]], "term": ["return", "x"]}]),
         ),
         "AGENT_FRAME_INVALID",
-        &["/fns/0/blocks/0/ops/0/3: no type `Nope` [expanded /fns/0/blocks/0/ops/0]"],
+        &["/fns/0/blocks/0/ops/0/3: no type `Nope`"],
     );
     // A problem in a checked operation names the authored operation.
     assert_refused(
@@ -2407,5 +2435,263 @@ fn expansion_time_stays_near_linear() {
             .starts_with("the expanded function has at least 5000 operations"),
         "{:?}",
         expansion.obligations
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Wave-3 regressions
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_unknown_type_callee_or_constant_is_the_reported_root_cause() {
+    // W3-A1: named as plain AF1 names it, with none of the obligations it
+    // would cause (an unknown failure route, "does not return a Result",
+    // an untyped literal).
+    let temp = workspace("unknown-entities");
+    let e = json!([{"name": "E", "variant": ["Ov", "Bad", ["Code", "i64"]]}]);
+    let f = |types: &Value, returns: &str, blocks: Value| {
+        json!({"af1": 1, "afx": 1, "types": types,
+               "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": returns, "blocks": blocks}]})
+    };
+    let simple = json!([{"name": "entry", "ops": [["!Ov", "if", ["lt", "a", 0]], ["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]);
+    for (frame, want) in [
+        (
+            f(&json!([]), "Result<i64,E>", simple.clone()),
+            "/fns/0/returns: unknown type `E`",
+        ),
+        (
+            f(
+                &json!([{"name": "MathError", "variant": ["Ov"]}]),
+                "Result<i64,MathErr>",
+                simple.clone(),
+            ),
+            "/fns/0/returns: unknown type `MathErr`",
+        ),
+        (
+            f(&e, "Result<Amount,E>", simple),
+            "/fns/0/returns: unknown type `Amount`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "term": ["br", "nx", 1]},
+                {"name": "nx", "params": [["q", "Amt"]], "ops": [["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/1/params/0: unknown type `Amt`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["x", "call?Bad", "gg", ["add?Ov", "a", 1]]], "term": ["ok", ["mul?Ov", "x", 2]]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: no Function named `gg`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["v", "variant", "Shape.Circle", 1], ["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: no type `Shape`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["v", "variant", "E.Nope"], ["x", "add?Ov", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: type `E` has no member `Nope`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["k", "const", "LIMIT"], ["x", "add?Ov", "a", "k"]], "term": ["ok", ["mul?Ov", "x", 2]]}]),
+            ),
+            "/fns/0/blocks/0/ops/0: no Constant named `LIMIT`",
+        ),
+        (
+            f(
+                &e,
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["x", "add?Ov", "a", {"type": "Int", "value": 1}]], "term": ["ok", "x"]}]),
+            ),
+            "/fns/0/blocks/0/ops/0/3: unknown type `Int`",
+        ),
+        (
+            f(
+                &json!([{"name": "E", "variant": ["Ov", ["Code", "Amt"]]}]),
+                "Result<i64,E>",
+                json!([{"name": "entry", "ops": [["x", "add?Code", "a", 1]], "term": ["ok", "x"]}]),
+            ),
+            "/types/0/variant/1: unknown type `Amt`",
+        ),
+    ] {
+        let (symbol, detail) = refused(&temp.path, &frame);
+        assert_eq!(symbol, "AGENT_FRAME_INVALID", "{frame}: {detail}");
+        assert_eq!(detail, want, "{frame}");
+    }
+}
+
+#[test]
+fn a_trap_never_hides_content_or_relaxes_the_loop_edge_rule() {
+    let temp = workspace("strict-trap");
+    // W3-A2: an extra trap item used to put the function in a lenient mode
+    // that skipped the loop-edge rule (the W2-A3 loop that never advances).
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "SumError", "variant": ["Negative", "Overflow"]}],
+      "fns": [{"fn": "sum_to2", "params": [["n", "i64"]], "returns": "Result<i64,SumError>", "blocks": [
+        {"name": "entry", "ops": [["!Negative", "if", ["lt", "n", 0]]], "term": ["br", "loop", 0, 1]},
+        {"name": "loop", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["more", "le", "i", "n"]], "term": ["cond", "more", "body", "done"]},
+        {"name": "body", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["next", "add?Overflow", "acc", "i"]], "term": ["br", "loop", "next"]},
+        {"name": "done", "params": [["acc", "i64"]], "term": ["ok", "acc"]},
+        {"name": "never", "unreachable": true, "term": ["trap", "unreachable", "n", "ignored"]}]}]});
+    let (symbol, detail) = refused(&temp.path, &frame);
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert!(
+        detail.starts_with("/fns/0/blocks/4/term: `trap` takes [\"trap\"], [\"trap\", code] or [\"trap\", code, payload], not 4 items"),
+        "{detail}"
+    );
+    assert!(
+        detail.contains("[AGENT_X_SCOPE] /fns/0/blocks/2/term: block `loop` takes `i: i64`, and this edge goes back into `loop`"),
+        "{detail}"
+    );
+    // W3-DOC8: an operation where the code goes is refused, not dropped; a
+    // nested payload is lowered and kept.
+    let trap = |term: Value| {
+        json!({"af1": 1, "afx": 1, "fns": [{"fn": "tt", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "term": term}]}]})
+    };
+    assert_refused(
+        &temp.path,
+        &trap(json!(["trap", ["add", "a", 1]])),
+        "AGENT_FRAME_INVALID",
+        &["/fns/0/blocks/0/term/1: a trap code is a word"],
+    );
+    let expansion = expand(
+        &temp.path,
+        &trap(json!(["trap", "unreachable", ["add", "a", 1]])),
+    );
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let block = &expansion.frame["fns"][0]["blocks"][0];
+    assert_eq!(block["ops"][1][0], json!("entry__t0"), "{block}");
+    assert_eq!(
+        block["term"],
+        json!(["trap", "unreachable", "entry__t0"]),
+        "{block}"
+    );
+    // Plain AF1 keeps its behavior.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &json!({"af1": 1, "fns": [{"fn": "tp", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "term": ["trap", "unreachable", "a", "ignored"]}]}]})
+            .to_string(),
+        ],
+    );
+    assert_ne!(status, 2, "{text}");
+}
+
+#[test]
+fn a_dialect_follow_up_keeps_the_plain_names_of_its_base() {
+    // W3-D2: tests added as a table on top of a plain draft whose blocks
+    // are named `is__neg` and `not__neg`.
+    let temp = workspace("plain-base");
+    let plain = json!({"af1": 1, "fns": [{"fn": "neg", "params": [["a", "i64"]], "returns": "bool", "blocks": [
+        {"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}], ["c", "lt", "a", "z"]], "term": ["cond", "c", "is__neg", "not__neg"]},
+        {"name": "is__neg", "ops": [["t", "eq", "entry.z", "entry.z"]], "term": ["return", "t"]},
+        {"name": "not__neg", "ops": [["f", "ne", "entry.z", "entry.z"]], "term": ["return", "f"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &plain.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let follow_up = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t", "fn": "neg",
+        "cases": [{"args": [-1], "expect": true}, {"args": [1], "expect": false}]}]});
+    let (status, text) = run(&temp.path, &["try", "--on", "d1", &follow_up.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 2/2 passed"), "{text}");
+}
+
+#[test]
+fn an_edit_of_an_expanded_operation_names_where_it_lives() {
+    // W3-A3: after a commit, `b` lives in a generated block.
+    let temp = workspace("edit-expanded");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "ShapeError", "variant": ["BadSide", "Overflow"]}],
+          "fns": [{"fn": "area", "params": [["w", "i64"], ["h", "i64"]], "returns": "Result<i64,ShapeError>",
+            "blocks": [{"name": "entry", "ops": [["!BadSide", "if", ["lt", "w", 1]], ["a", "mul?Overflow", "w", "h"], ["b", "add?Overflow", "a", 1]],
+                        "term": ["ok", "b"]}]}]}),
+    );
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "edit": [{"fn": "area", "replace_op": "entry.b", "with": ["mul", "a", "h"]}]}),
+    );
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert!(
+        detail.starts_with("/edit/0: no operation `b` in `entry`; the authoring dialect's expansion holds it as `entry__a.b__r` (block `entry` was split into generated blocks): to change it, restate block `entry` with patch"),
+        "{detail}"
+    );
+    // A name that is nowhere keeps the plain refusal.
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "edit": [{"fn": "area", "replace_op": "entry.zz", "with": ["mul", "w", "h"]}]}),
+    );
+    assert_eq!(detail, "/edit/0: no operation `zz` in `entry`");
+}
+
+#[test]
+fn a_kernel_refusal_analyzes_its_function_once_and_names_its_frame() {
+    let temp = workspace("refusal-analysis");
+    // W3-RP1: the locator detail, the authored positions and the other
+    // findings share one analysis of the refused function.
+    let frame = json!({"af1": 1, "fns": [{"fn": "f", "params": [["a", "i64"], ["c", "bool"]], "returns": "bool", "blocks": [
+        {"name": "entry", "ops": [["x", "lt", "a", "a"]], "term": ["cond", "c", "l", "r"]},
+        {"name": "l", "ops": [["y", "not", "entry.x"]], "term": ["return", "y"]},
+        {"name": "r", "term": ["return", "l.y"]}]}]});
+    let before = sley_agent::explain::analyses_run();
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(text.contains("CFG_DOMINANCE"), "{text}");
+    assert!(
+        text.contains("  authored: /fns/0/blocks/2/term (terminator of f.r)\n"),
+        "{text}"
+    );
+    assert_eq!(sley_agent::explain::analyses_run() - before, 1, "{text}");
+    // W3-L1: for a layered revision the authored pointers name the frame
+    // they index, as a frame refusal's pointers do.
+    let base = json!({"af1": 1, "afx": 1, "fns": [{"fn": "g", "params": [["a", "i64"], ["c", "bool"]], "returns": "bool", "blocks": [
+        {"name": "entry", "ops": [["x", "lt", "a", 0]], "term": ["cond", "c", "l", "r"]},
+        {"name": "l", "ops": [["y", "not", "x"]], "term": ["return", "y"]},
+        {"name": "r", "term": ["return", "x"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &base.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let draft = text
+        .split_whitespace()
+        .skip_while(|word| *word != "draft")
+        .nth(1)
+        .unwrap()
+        .split('@')
+        .next()
+        .unwrap()
+        .to_owned();
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "g", "blocks": {"r": {"term": ["return", "l.y"]}}}]});
+    let (status, text) = run(&temp.path, &["try", "--on", &draft, &patch.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(
+        text.contains(&format!(
+            "  authored: /fns/0/blocks/2/term (terminator of g.r); pointers refer to .sley/drafts/{draft}/r2/frame.json\n"
+        )),
+        "{text}"
+    );
+    let (_, value) = run_json(&temp.path, &["explain", "latest"]);
+    assert_eq!(
+        value["verdict"]["authored_frame"],
+        json!(format!(".sley/drafts/{draft}/r2/frame.json")),
+        "{value}"
     );
 }

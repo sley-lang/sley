@@ -456,8 +456,19 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
         cx: &context,
         map: SourceMap::default(),
         stats: AfxStats::default(),
-        obligations: Vec::new(),
+        obligations: declared_types(object, &context),
     };
+    // An unknown type in a declaration is the root cause of whatever the
+    // functions using it would report: report it alone.
+    if !expander.obligations.is_empty() {
+        return Ok(Expansion {
+            frame: Value::Object(out),
+            map: expander.map,
+            stats: expander.stats,
+            obligations: expander.obligations,
+            ripple: None,
+        });
+    }
     for key in ["fns", "functions"] {
         if let Some(Value::Array(list)) = object.get(key) {
             let functions: Vec<Value> = list
@@ -1268,6 +1279,41 @@ impl Parser<'_> {
         }
     }
 
+    /// `["trap"]`, `["trap", code]` or `["trap", code, payload]`. Stricter
+    /// than plain AF1, which ignores what it cannot read here: nothing
+    /// written in a trap is dropped silently.
+    fn trap(&mut self, items: &[Value], pointer: &str) -> Term {
+        let refused = Term::Trap {
+            head: vec![items[0].clone()],
+            payload: None,
+        };
+        if items.len() > 3 {
+            self.oblige(
+                AgentErrorCode::FrameInvalid,
+                pointer,
+                format!(
+                    "`trap` takes [\"trap\"], [\"trap\", code] or [\"trap\", code, payload], not {} items",
+                    items.len()
+                ),
+            );
+            return refused;
+        }
+        if items.get(1).is_some_and(|code| !code.is_string()) {
+            self.oblige(
+                AgentErrorCode::FrameInvalid,
+                &format!("{pointer}/1"),
+                "a trap code is a word (unreachable, resource_exhausted, adapter_contract_violation or internal_invariant); a payload goes after it: [\"trap\", \"unreachable\", payload]",
+            );
+            return refused;
+        }
+        Term::Trap {
+            head: items[..items.len().min(2)].to_vec(),
+            payload: items
+                .get(2)
+                .map(|value| self.arg(value, format!("{pointer}/2"))),
+        }
+    }
+
     fn term(&mut self, value: &Value, pointer: &str) -> Term {
         let raw = || Term::Raw(value.clone());
         let Some(items) = value.as_array() else {
@@ -1358,10 +1404,7 @@ impl Parser<'_> {
                 }
                 Term::Switch { value, cases }
             }
-            "trap" if items.len() <= 3 => Term::Trap {
-                head: items[..items.len().min(2)].to_vec(),
-                payload: items.get(2).map(|value| self.arg(value, at(2))),
-            },
+            "trap" => self.trap(items, pointer),
             _ => raw(),
         }
     }
@@ -1799,6 +1842,7 @@ impl Expander<'_, '_> {
             .get("returns")
             .and_then(|ty| types::read(ty, self.cx, "").ok());
         let mut fx = FnExp::new(self.cx, name, pointer, false, params, result);
+        fx.signature = signature_types(object, pointer);
         let mut slots = Vec::new();
         {
             let mut parser = Parser {
@@ -1891,6 +1935,7 @@ impl Expander<'_, '_> {
             None => Some(function.result_type.clone()),
         };
         let mut fx = FnExp::new(self.cx, name, pointer, true, params, result);
+        fx.signature = signature_types(object, pointer);
         // Generated blocks are recognized by their exact generated shape
         // (a continuation reached only from the previous piece, a shared
         // exit's body) as well as their names; a live block the expander did
@@ -2043,6 +2088,88 @@ impl Expander<'_, '_> {
                 .extend(fx.value_names);
         }
         self.stats.add(&fx.stats);
+    }
+}
+
+/// Unknown types in the frame's own `types` (member types) and `consts`,
+/// as the compiler reports them.
+fn declared_types(frame: &Map<String, Value>, cx: &Context<'_>) -> Vec<Obligation> {
+    let mut out = Vec::new();
+    let mut check = |ty: &Value, at: String| {
+        if let Err(error) = types::read(ty, cx, &at) {
+            let detail = error.detail();
+            let (at, detail) = detail.split_once(": ").unwrap_or((&at, detail));
+            out.push(Obligation::new(AgentErrorCode::FrameInvalid, at, detail));
+        }
+    };
+    for (index, decl) in list(frame, "types").iter().enumerate() {
+        for key in ["variant", "record"] {
+            let Some(members) = decl.get(key).and_then(Value::as_array) else {
+                continue;
+            };
+            for (position, member) in members.iter().enumerate() {
+                if let Some(ty) = member
+                    .as_array()
+                    .filter(|pair| pair.len() == 2 && !pair[1].is_null())
+                    .map(|pair| &pair[1])
+                {
+                    check(ty, format!("/types/{index}/{key}/{position}"));
+                }
+            }
+        }
+    }
+    for (index, decl) in list(frame, "consts").iter().enumerate() {
+        if let Some(ty) = decl.get("type") {
+            check(ty, format!("/consts/{index}/type"));
+        }
+    }
+    out
+}
+
+/// The authored `params` and `returns` types of a function entry, with the
+/// pointers the compiler reads them at.
+fn signature_types(object: &Map<String, Value>, pointer: &str) -> Vec<(String, Value)> {
+    let mut out = Vec::new();
+    if let Some(Value::Array(params)) = object.get("params") {
+        for (index, param) in params.iter().enumerate() {
+            if let Some(ty) = param
+                .as_array()
+                .filter(|pair| pair.len() == 2)
+                .map(|pair| &pair[1])
+            {
+                out.push((format!("{pointer}/params/{index}"), ty.clone()));
+            }
+        }
+    }
+    if let Some(ty) = object.get("returns") {
+        out.push((format!("{pointer}/returns"), ty.clone()));
+    }
+    out
+}
+
+/// The value operands of a terminator, in written order.
+fn term_args(term: &Term) -> Vec<&Arg> {
+    fn target(target: &Target) -> Vec<&Arg> {
+        target.args.iter().collect()
+    }
+    match term {
+        Term::Return(arg) | Term::Ok(arg) => vec![arg],
+        Term::Br { target: edge, .. } => target(edge),
+        Term::Cond { cond, then, other } => {
+            let mut out = vec![cond];
+            out.extend(target(then));
+            out.extend(target(other));
+            out
+        }
+        Term::Switch { value, cases } => {
+            let mut out = vec![value];
+            for (_, edge) in cases {
+                out.extend(target(edge));
+            }
+            out
+        }
+        Term::Trap { payload, .. } | Term::Fail { payload, .. } => payload.iter().collect(),
+        Term::Raw(_) => Vec::new(),
     }
 }
 
@@ -2294,6 +2421,9 @@ struct FnExp<'c, 'a> {
     value_taken: BTreeSet<String>,
     block_taken: BTreeSet<String>,
     cfg: Option<Cfg>,
+    /// The authored signature types, with the pointers the compiler
+    /// reads them at.
+    signature: Vec<(String, Value)>,
     /// Authored block positions by name.
     block_at: BTreeMap<String, usize>,
     /// The authored blocks defining each name.
@@ -2342,6 +2472,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             value_taken: BTreeSet::new(),
             block_taken: BTreeSet::new(),
             cfg: None,
+            signature: Vec::new(),
             block_at: BTreeMap::new(),
             def_index: BTreeMap::new(),
             kept_index: BTreeMap::new(),
@@ -2362,7 +2493,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// any expensive pass (nothing is emitted then).
     fn run(&mut self) -> bool {
         self.declare();
-        if !self.within_bounds() {
+        if !self.within_bounds() || !self.names_resolve() {
             return false;
         }
         self.infer_types();
@@ -2374,6 +2505,137 @@ impl<'c, 'a> FnExp<'c, 'a> {
         self.cfg = Some(self.dominators());
         self.thread();
         true
+    }
+
+    /// Root causes first: every type, function, constant and member the
+    /// function's authored parts name must exist, reported as the compiler
+    /// reports it. When one does not, the obligations it would cause (an
+    /// untyped literal, an unknown failure route) are not reported at all.
+    fn names_resolve(&mut self) -> bool {
+        let before = self.obligations.len();
+        for (at, ty) in self.signature.clone() {
+            self.check_type(&ty, &at);
+        }
+        let blocks = std::mem::take(&mut self.blocks);
+        for block in &blocks {
+            for (index, (_, ty, raw)) in block.params.iter().enumerate() {
+                if ty.is_none() {
+                    self.check_type(raw, &format!("{}/params/{index}", block.pointer));
+                }
+            }
+            for stmt in &block.stmts {
+                match stmt {
+                    Stmt::Op(node) => self.check_node(node),
+                    Stmt::Exit(exit) => {
+                        self.check_operand(&exit.cond);
+                        if let Some(payload) = &exit.payload {
+                            self.check_operand(payload);
+                        }
+                    }
+                    Stmt::Raw { .. } => {}
+                }
+            }
+            for arg in term_args(&block.term) {
+                self.check_operand(arg);
+            }
+        }
+        self.blocks = blocks;
+        self.obligations.len() == before
+    }
+
+    fn check_type(&mut self, ty: &Value, at: &str) {
+        if let Err(error) = types::read(ty, self.cx, at) {
+            let detail = error.detail();
+            let (at, detail) = detail.split_once(": ").unwrap_or((at, detail));
+            self.oblige(AgentErrorCode::FrameInvalid, at, detail.to_owned());
+        }
+    }
+
+    fn check_operand(&mut self, arg: &Arg) {
+        match &arg.operand {
+            Operand::Literal {
+                typed: Some(ty), ..
+            } => self.check_type(ty, &arg.pointer),
+            Operand::Nested(node) => self.check_node(node),
+            _ => {}
+        }
+    }
+
+    /// The names one operation's immediate and type state, as the compiler
+    /// resolves them.
+    fn check_node(&mut self, node: &Node) {
+        if let Some(ty) = &node.ty {
+            self.check_type(ty, &format!("{}/type", node.pointer));
+        }
+        let at = node.pointer.clone();
+        let immediate = node.immediate.as_ref();
+        match (node.row.tag, immediate) {
+            (1, Some(Value::String(name))) => {
+                let known = self.cx.consts.contains_key(name)
+                    || (!self.cx.top.contains(name)
+                        && self.cx.names.resolve(name).is_some_and(|id| {
+                            matches!(
+                                self.cx.program.body(&id),
+                                Some(EntityBodyValue::Constant(_))
+                            )
+                        }));
+                if !known {
+                    self.oblige(
+                        AgentErrorCode::FrameInvalid,
+                        &at,
+                        format!("no Constant named `{name}`"),
+                    );
+                }
+            }
+            (1, Some(Value::Object(literal))) if literal.contains_key("value") => {
+                if let Some(ty) = literal.get("type") {
+                    self.check_type(ty, &at);
+                }
+            }
+            (112 | 194, Some(Value::String(name))) => {
+                if self.cx.signature(name).is_none() {
+                    self.oblige(
+                        AgentErrorCode::FrameInvalid,
+                        &at,
+                        format!("no Function named `{name}`"),
+                    );
+                }
+            }
+            (18, Some(Value::String(name))) => {
+                if self.cx.type_definition(name).is_none() {
+                    self.oblige(
+                        AgentErrorCode::FrameInvalid,
+                        &at,
+                        format!("no type `{name}`"),
+                    );
+                }
+            }
+            (19..=21, Some(Value::String(path))) => {
+                if let Some((ty, leaf)) = path.rsplit_once('.') {
+                    match self.cx.type_definition(ty) {
+                        None => {
+                            self.oblige(
+                                AgentErrorCode::FrameInvalid,
+                                &at,
+                                format!("no type `{ty}`"),
+                            );
+                        }
+                        Some(definition) if self.cx.member_type(&definition, leaf).is_none() => {
+                            self.oblige(
+                                AgentErrorCode::FrameInvalid,
+                                &at,
+                                format!("type `{ty}` has no member `{leaf}`"),
+                            );
+                        }
+                        Some(_) => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        for arg in &node.args {
+            self.check_operand(arg);
+        }
     }
 
     /// The operations and generated blocks the expansion will make, counted
@@ -2438,10 +2700,22 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// Authored names: the `__` reservation, duplicates, and the tables the
     /// typing and use-before-definition checks read.
     fn declare(&mut self) {
+        for (b, block) in self.blocks.iter().enumerate() {
+            self.block_at.entry(block.name.clone()).or_insert(b);
+        }
+        // `__` is reserved in the names of blocks that use the dialect's
+        // forms (and their function's parameters): a plain block, such as
+        // one restated from a plain base frame, keeps the names AF1 allows.
+        let dialect: Vec<bool> = self
+            .blocks
+            .iter()
+            .map(|block| self.uses_dialect(block))
+            .collect();
+        let any_dialect = dialect.iter().any(|uses| *uses);
         let reserved = |name: &str| name.contains("__");
         let mut problems = Vec::new();
         for (index, (name, _)) in self.params.iter().enumerate() {
-            if reserved(name) && !self.patch {
+            if reserved(name) && !self.patch && any_dialect {
                 problems.push((format!("{}/params/{index}", self.fn_pointer), name.clone()));
             }
         }
@@ -2449,8 +2723,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
             self.value_taken.insert(name.clone());
             self.block_taken.insert(name.clone());
         }
-        for block in &self.blocks {
-            if reserved(&block.name) {
+        for (b, block) in self.blocks.iter().enumerate() {
+            if dialect[b] && reserved(&block.name) {
                 problems.push((block.pointer.clone(), block.name.clone()));
             }
             // A block named twice is the compiler's to report.
@@ -2465,10 +2739,10 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
         }
         let mut duplicates = Vec::new();
-        for block in &self.blocks {
+        for (b, block) in self.blocks.iter().enumerate() {
             let mut defs: BTreeMap<String, ADef> = BTreeMap::new();
             for (index, (name, ty, _)) in block.params.iter().enumerate() {
-                if reserved(name) {
+                if dialect[b] && reserved(name) {
                     problems.push((format!("{}/params/{index}", block.pointer), name.clone()));
                 }
                 defs.insert(name.clone(), ADef { ty: ty.clone() });
@@ -2480,7 +2754,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     Stmt::Exit(_) => (None, String::new()),
                 };
                 let Some(name) = name else { continue };
-                if reserved(&name) {
+                if dialect[b] && reserved(&name) {
                     problems.push((pointer.clone(), name.clone()));
                 }
                 if defs.insert(name.clone(), ADef { ty: None }).is_some() {
@@ -2492,8 +2766,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
             self.defs.push(defs);
         }
-        for (b, block) in self.blocks.iter().enumerate() {
-            self.block_at.entry(block.name.clone()).or_insert(b);
+        for b in 0..self.blocks.len() {
             for name in self.defs[b].keys() {
                 self.def_index.entry(name.clone()).or_default().push(b);
             }
@@ -2519,6 +2792,45 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 format!("value `{name}` is defined twice in block `{block}`: rename one"),
             );
         }
+    }
+
+    /// Whether a block uses any of the dialect's forms: a checked
+    /// operation, an exit, a nested operation or literal operand, `ok` or
+    /// `fail`, or an edge that leaves trailing arguments to be derived.
+    fn uses_dialect(&self, block: &ABlock) -> bool {
+        fn node(node: &Node) -> bool {
+            node.check.is_some()
+                || node
+                    .args
+                    .iter()
+                    .any(|arg| matches!(arg.operand, Operand::Nested(_) | Operand::Literal { .. }))
+        }
+        let extended_arg =
+            |arg: &Arg| matches!(arg.operand, Operand::Nested(_) | Operand::Literal { .. });
+        let short = |target: &Target| {
+            let params = match self.block_at.get(&target.block) {
+                Some(&b) => self.blocks[b].params.len(),
+                None => self
+                    .kept
+                    .iter()
+                    .find(|kept| kept.leaf == target.block)
+                    .map_or(0, |kept| kept.params.len()),
+            };
+            target.args.len() < params
+        };
+        let stmts = block.stmts.iter().any(|stmt| match stmt {
+            Stmt::Op(op) => node(op),
+            Stmt::Exit(_) => true,
+            Stmt::Raw { .. } => false,
+        });
+        let term = match &block.term {
+            Term::Ok(_) | Term::Fail { .. } => true,
+            Term::Br { target, .. } => short(target),
+            Term::Cond { then, other, .. } => short(then) || short(other),
+            Term::Switch { cases, .. } => cases.iter().any(|(_, target)| short(target)),
+            Term::Return(_) | Term::Trap { .. } | Term::Raw(_) => false,
+        };
+        stmts || term || term_args(&block.term).into_iter().any(extended_arg)
     }
 
     // --- typing -----------------------------------------------------------
@@ -4662,7 +4974,13 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 .get(&derive.target)
                 .zip(use_node)
                 .is_some_and(|(target, node)| cfg.dominates(*target, node));
-            if back && !self.degraded {
+            // The loop-edge and type rules hold in every mode: a degraded
+            // expansion (a block or terminator the compiler refuses) passes
+            // nothing instead, and the compiler reports the refused part.
+            if back && self.degraded {
+                return Value::Null;
+            }
+            if back {
                 let target = &derive.target;
                 fail(
                     self,
@@ -4673,9 +4991,11 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 return Value::Null;
             }
             if let Some((local, ty)) = &derive.local {
-                if mismatch(ty.as_ref()) && !self.degraded {
-                    let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
-                    fail(self, format!("the `{name}` here is {found}"));
+                if mismatch(ty.as_ref()) {
+                    if !self.degraded {
+                        let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
+                        fail(self, format!("the `{name}` here is {found}"));
+                    }
                     return Value::Null;
                 }
                 self.stats.derived_args += 1;
@@ -4726,10 +5046,17 @@ impl<'c, 'a> FnExp<'c, 'a> {
             .unwrap_or_default();
         match nearest {
             Nearest::Op { owner, holder, ty } => {
-                let rebound = match (self.degraded, cfg.index.get(&holder), use_node) {
-                    (false, Some(&from), Some(to)) => cfg.rebound(from, to, name, &owner, here),
+                let rebound = match (cfg.index.get(&holder), use_node) {
+                    (Some(&from), Some(to)) => cfg.rebound(from, to, name, &owner, here),
                     _ => None,
                 };
+                if rebound.is_some() && self.degraded {
+                    return if derive.is_some() {
+                        Value::Null
+                    } else {
+                        fallback
+                    };
+                }
                 if let Some(other) = rebound {
                     fail(
                         self,
@@ -4743,9 +5070,11 @@ impl<'c, 'a> FnExp<'c, 'a> {
                         fallback
                     };
                 }
-                if mismatch(ty.as_ref()) && !self.degraded {
-                    let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
-                    fail(self, format!("the `{name}` of `{owner}` is {found}"));
+                if mismatch(ty.as_ref()) {
+                    if !self.degraded {
+                        let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
+                        fail(self, format!("the `{name}` of `{owner}` is {found}"));
+                    }
                     return Value::Null;
                 }
                 let role = if derive.is_some() {

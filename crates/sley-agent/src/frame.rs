@@ -2225,7 +2225,10 @@ impl Compiler<'_> {
             .ok_or_else(|| {
                 frame(
                     pointer,
-                    format!("no operation `{op_leaf}` in `{block_leaf}`"),
+                    format!(
+                        "no operation `{op_leaf}` in `{block_leaf}`{}",
+                        self.expanded_home(&body.blocks, block_leaf, op_leaf, function_name)
+                    ),
                 )
             })?;
         let replacement = match with {
@@ -2249,6 +2252,41 @@ impl Compiler<'_> {
             operation,
             replacement,
         ))
+    }
+
+    /// Where an authored operation of a block the authoring dialect split
+    /// now lives (a generated block `block__...` holding `op`, or `op__r`
+    /// for a checked operation), with the fix; empty when nowhere.
+    fn expanded_home(
+        &self,
+        blocks: &[EntityId],
+        block_leaf: &str,
+        op_leaf: &str,
+        function_name: &str,
+    ) -> String {
+        let piece_prefix = format!("{block_leaf}__");
+        let checked = format!("{op_leaf}__r");
+        for block in blocks {
+            let piece = self.names.leaf(block);
+            if !piece.starts_with(&piece_prefix) {
+                continue;
+            }
+            let Some(EntityBodyValue::Block(body)) = self.program.body(block) else {
+                continue;
+            };
+            let Some(found) = body
+                .operations
+                .iter()
+                .map(|op| self.names.leaf(op))
+                .find(|leaf| *leaf == op_leaf || *leaf == checked)
+            else {
+                continue;
+            };
+            return format!(
+                "; the authoring dialect's expansion holds it as `{piece}.{found}` (block `{block_leaf}` was split into generated blocks): to change it, restate block `{block_leaf}` with patch: {{\"af1\": 1, \"afx\": 1, \"patch\": [{{\"fn\": \"{function_name}\", \"blocks\": {{\"{block_leaf}\": {{...}}}}}}]}}"
+            );
+        }
+        String::new()
     }
 
     /// Applies every edit of the frame. Edits are grouped by function: each
