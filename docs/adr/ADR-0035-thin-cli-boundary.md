@@ -1,6 +1,6 @@
 # ADR-0035: the CLI as a transport endpoint with no semantics
 
-Status: proposed; the S20-430 contract is a draft at revision 10 with
+Status: proposed; the S20-430 contract is a draft at revision 11 with
 Council review pending; implemented at `crates/sley-cli` (2026-09-03)
 with endpoint tests over a trusted genesis repository and the mechanical
 rule audit in `make quick`. Revision 5 record (2026-09-08): command
@@ -26,6 +26,11 @@ Revision 10 record (2026-09-23): admits the shipped version 3 capable
 surface (`v3-capable`, `[1,2,3]`, `sley2-cli-v3`, `sley2-cli-report-v3`)
 and, as decision 8, the private native-test worker entry; re-pins SMP1
 revision 15 and bridge revision 12.
+Revision 11 record (2026-09-27): the bounded private worker entry can now
+write one canonical unmeasured `SLEYNEX1` report after pure VM execution.
+Malformed or unbound source still produces explicit worker refusals. The
+native execution owner contract revision 4 defines the channel; this CLI
+only forwards it. Revision 11's delta review is pending.
 
 Date: 2026-09-03; revision 5 record 2026-09-08; revision 6 record 2026-09-09; revision 7 and 8 records 2026-09-14; revision 9 and 10 records 2026-09-23
 
@@ -68,8 +73,9 @@ soon as a lane returns.
 8. **One bounded exception: the native-test worker entry (revision 10).**
    `sley __native-test-worker <input_path>` lets the native test
    supervisor run its worker from the installed binary. It is not a user
-   command or a protocol method; it writes raw refusal words and exits with
-   the worker's own statuses (1, 6, 7, 8), disjoint from decision 5. It is
+   command or a protocol method; it writes a raw native report on completion
+   (status 0) or refusal words with worker statuses (1, 6, 7, 8), disjoint
+   from decision 5's failure statuses. It is
    the only reason `sley-cli` depends on `sley-test-runner` (and so links
    `sley-vm`); the rule audit admits exactly one worker call and one
    command word. Moving the worker to its own binary would remove the

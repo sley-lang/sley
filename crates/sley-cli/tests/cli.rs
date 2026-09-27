@@ -2540,14 +2540,45 @@ fn frame_decode_keeps_partial_stdout_before_failure() {
     assert_eq!(converted["kind"], "request");
 }
 
+fn assert_real_binary_native_worker_reports(
+    scratch: &TempDir,
+    run_unit: &impl Fn(&std::path::Path) -> (i32, Vec<u8>, Vec<u8>),
+) {
+    use sley_test_runner::worker::{EXIT_SOURCE_INVALID, WorkerRequest};
+
+    let observed = scratch.child("observed.bin");
+    std::fs::write(
+        &observed,
+        include_bytes!("../../../conformance/native-worker/v1/observed-input.bin"),
+    )
+    .unwrap();
+    let (status, stdout, stderr) = run_unit(&observed);
+    assert_eq!(status, 0);
+    assert_eq!(
+        stdout,
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    assert!(stderr.is_empty());
+    let mut substituted = WorkerRequest::decode_frame(include_bytes!(
+        "../../../conformance/native-worker/v1/observed-input.bin"
+    ))
+    .unwrap();
+    substituted.input_hashes[0] = [99; 32];
+    let substituted_path = scratch.child("substituted.bin");
+    std::fs::write(&substituted_path, substituted.encode_frame().unwrap()).unwrap();
+    let (status, stdout, stderr) = run_unit(&substituted_path);
+    assert_eq!(status, EXIT_SOURCE_INVALID);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 2);
+    assert_eq!(&stdout[4..], b"NATIVE_WORKER_SOURCE_INVALID");
+    assert!(stderr.is_empty());
+}
+
 #[test]
 fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
     use sley_id::{PrincipalId, WorkspaceId};
     use sley_test_runner::config::{AllowedCaller, default_config};
     use sley_test_runner::unit::render_transient_unit;
-    use sley_test_runner::worker::{
-        EXIT_INPUT_UNREADABLE, EXIT_MALFORMED, EXIT_NOT_WIRED, WorkerRequest,
-    };
+    use sley_test_runner::worker::{EXIT_INPUT_UNREADABLE, EXIT_MALFORMED, WorkerRequest};
     use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
 
     let frame = WorkerRequest {
@@ -2599,12 +2630,12 @@ fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
             .unwrap();
         (output.status.code().unwrap(), output.stdout, output.stderr)
     };
-    // Well-formed envelope reaches the unwired dispatch refusal: raw
-    // refusal words on stdout, nothing on stderr, worker status 6.
+    assert_real_binary_native_worker_reports(&scratch, &run_unit);
+    // The envelope decodes, but its portable program is malformed.
     let (status, stdout, stderr) = run_unit(&input);
-    assert_eq!(status, EXIT_NOT_WIRED);
-    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 2);
-    assert_eq!(&stdout[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
+    assert_eq!(status, EXIT_MALFORMED);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 1);
+    assert_eq!(&stdout[4..], b"SCB_LENGTH_OVERFLOW");
     assert!(stderr.is_empty());
     // Malformed input: worker status 1 with the stable SCB string.
     let (status, stdout, stderr) = run_unit(&junk);

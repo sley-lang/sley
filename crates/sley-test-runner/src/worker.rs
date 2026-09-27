@@ -5,19 +5,14 @@
 //! the transient unit's (`<worker> __native-test-worker <input_path>`,
 //! [`crate::unit::render_transient_unit`]): it reads exactly one
 //! length-delimited [`WorkerRequest`] frame from `<input_path>` (the
-//! daemon-owned read-only regular-file input binding). Until N5 wires execution,
-//! it writes one refusal tag and ASCII detail to stdout (the daemon-owned
-//! bounded channel). The eventual successful reply format is still pending.
+//! daemon-owned read-only regular-file input binding). A completed execution
+//! writes one canonical `SLEYNEX1` report to stdout (the daemon-owned bounded
+//! channel); refusals write one tag and ASCII detail instead. The report is
+//! pure VM evidence only, not a host measurement or admission decision.
 //! Its exit statuses ([`EXIT_MALFORMED`],
-//! [`EXIT_NOT_WIRED`], [`EXIT_INPUT_UNREADABLE`], [`EXIT_OUTPUT_FAILED`])
+//! [`EXIT_SOURCE_INVALID`], [`EXIT_INPUT_UNREADABLE`], [`EXIT_OUTPUT_FAILED`])
 //! are disjoint from the CLI's own statuses 2 through 5, so the launcher
 //! can tell a worker refusal from a CLI usage or input failure.
-//!
-//! Execution dispatch lands with the N5 commit path. The portable program
-//! artifact now has a strict codec and outer-request consistency check. Until
-//! then [`dispatch`] strictly decodes and explicitly refuses with
-//! [`WorkerRefusal::ExecutionNotWired`]: a well-formed envelope never
-//! becomes a silent success.
 
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_uvar};
 use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits, profile_id};
@@ -26,14 +21,18 @@ use std::path::Component;
 
 use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
 
+use crate::{
+    config::MAX_WORKER_OUTPUT_BYTES, execution::report_portable_test, program::PortableTestProgram,
+};
+
 fn read_id(value: &[u8]) -> Result<[u8; 32], ScbError> {
     <[u8; 32]>::try_from(value).map_err(|_| ScbError::new(ScbErrorCode::LengthOverflow))
 }
 
 /// Exit status: malformed envelope (refusal tag 1).
 pub const EXIT_MALFORMED: i32 = 1;
-/// Exit status: well-formed envelope, execution not wired (refusal tag 2).
-pub const EXIT_NOT_WIRED: i32 = 6;
+/// Exit status: envelope decodes but its portable source is invalid (tag 2).
+pub const EXIT_SOURCE_INVALID: i32 = 6;
 /// Exit status: the input binding could not be opened (refusal tag 3).
 pub const EXIT_INPUT_UNREADABLE: i32 = 7;
 /// Exit status: the refusal words could not be written to the output.
@@ -50,7 +49,7 @@ pub const MAX_WORKER_FRAME: usize = 262_144;
 ///
 /// `program_bytes` is a portable artifact the worker will execute without
 /// repository access. The program codec and outer-request check are separate
-/// from the current refusal-only dispatch.
+/// from the pure worker dispatch and later measured admission.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkerRequest {
     /// Canonical portable program artifact bytes.
@@ -63,15 +62,14 @@ pub struct WorkerRequest {
     pub implementation_limits: NativeImplementationLimits,
 }
 
-/// Worker refusal with a stable machine tag. Refusals are the only
-/// observable outcome until N5 wires execution dispatch.
+/// Worker refusal with a stable machine tag.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkerRefusal {
     /// Malformed envelope or unknown version/profile, with the stable SCB
     /// registry string of the underlying refusal.
     Malformed(&'static str),
-    /// Envelope decodes but execution dispatch is not wired yet (N5).
-    ExecutionNotWired,
+    /// Envelope decodes but its bound program or source is invalid.
+    SourceInvalid,
     /// The input binding named by argv could not be opened.
     InputUnreadable,
 }
@@ -82,7 +80,7 @@ impl WorkerRefusal {
     pub const fn tag(self) -> u32 {
         match self {
             Self::Malformed(_) => 1,
-            Self::ExecutionNotWired => 2,
+            Self::SourceInvalid => 2,
             Self::InputUnreadable => 3,
         }
     }
@@ -92,7 +90,7 @@ impl core::fmt::Display for WorkerRefusal {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Malformed(_) => formatter.write_str("NATIVE_WORKER_MALFORMED_ENVELOPE"),
-            Self::ExecutionNotWired => formatter.write_str("NATIVE_WORKER_EXECUTION_NOT_WIRED"),
+            Self::SourceInvalid => formatter.write_str("NATIVE_WORKER_SOURCE_INVALID"),
             Self::InputUnreadable => formatter.write_str("NATIVE_WORKER_INPUT_UNREADABLE"),
         }
     }
@@ -307,18 +305,22 @@ fn parse_hash_list(value: &[u8]) -> Result<Vec<[u8; 32]>, ScbError> {
 
 /// Strictly decodes one worker frame and dispatches.
 ///
-/// Execution dispatch lands with N5; today every well-formed envelope
-/// refuses with [`WorkerRefusal::ExecutionNotWired`] so no silent success
-/// can ever escape the worker boundary.
+/// A valid portable program executes through the pure native test owner and
+/// returns one canonical bounded `SLEYNEX1` report. This never signs a
+/// measurement or admits a test.
 ///
 /// # Errors
 ///
-/// Returns `Malformed` for undecodable envelopes and `ExecutionNotWired`
-/// for every well-formed envelope until N5 wires dispatch.
+/// Returns `Malformed` for invalid codecs and `SourceInvalid` for a decoded
+/// envelope whose source or bound execution cannot be trusted.
 pub fn dispatch(frame: &[u8]) -> Result<Vec<u8>, WorkerRefusal> {
-    let _request = WorkerRequest::decode_frame(frame)
+    let request = WorkerRequest::decode_frame(frame)
         .map_err(|error| WorkerRefusal::Malformed(error.code().as_str()))?;
-    Err(WorkerRefusal::ExecutionNotWired)
+    let program = PortableTestProgram::parse(&request.program_bytes)
+        .map_err(|error| WorkerRefusal::Malformed(error.code().as_str()))?;
+    let report =
+        report_portable_test(&program, &request).map_err(|_| WorkerRefusal::SourceInvalid)?;
+    Ok(report.stored_bytes().to_vec())
 }
 
 /// Private worker entry over its input binding.
@@ -354,10 +356,10 @@ pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Wr
 
 /// Private worker entry over a byte stream.
 ///
-/// Reads exactly one length-delimited frame from `input`, dispatches, and
-/// writes the refusal to `output` as one big-endian `u32` refusal tag
-/// followed by the ASCII detail code. Returns the process exit code:
-/// always nonzero until N5 wires execution.
+/// Reads exactly one length-delimited frame from `input` and writes either a
+/// bounded canonical execution report or one big-endian refusal tag followed
+/// by its ASCII detail. Exit zero means complete worker output, not measured
+/// or admitted native test passage.
 pub fn run_stdio(input: &mut dyn std::io::Read, output: &mut dyn std::io::Write) -> i32 {
     let mut header = [0_u8; 12];
     if input.read_exact(&mut header).is_err() {
@@ -381,7 +383,13 @@ pub fn run_stdio(input: &mut dyn std::io::Read, output: &mut dyn std::io::Write)
     let mut frame = header.to_vec();
     frame.extend_from_slice(&body);
     match dispatch(&frame) {
-        Ok(_) => 0,
+        Ok(report) => {
+            if report.len() > MAX_WORKER_OUTPUT_BYTES || output.write_all(&report).is_err() {
+                EXIT_OUTPUT_FAILED
+            } else {
+                0
+            }
+        }
         Err(refusal) => write_refusal(output, refusal),
     }
 }
@@ -389,7 +397,7 @@ pub fn run_stdio(input: &mut dyn std::io::Read, output: &mut dyn std::io::Write)
 fn write_refusal(output: &mut dyn std::io::Write, refusal: WorkerRefusal) -> i32 {
     let detail = match refusal {
         WorkerRefusal::Malformed(code) => code,
-        WorkerRefusal::ExecutionNotWired => "NATIVE_WORKER_EXECUTION_NOT_WIRED",
+        WorkerRefusal::SourceInvalid => "NATIVE_WORKER_SOURCE_INVALID",
         WorkerRefusal::InputUnreadable => "NATIVE_WORKER_INPUT_UNREADABLE",
     };
     let mut bytes = refusal.tag().to_be_bytes().to_vec();
@@ -399,7 +407,7 @@ fn write_refusal(output: &mut dyn std::io::Write, refusal: WorkerRefusal) -> i32
     }
     match refusal {
         WorkerRefusal::Malformed(_) => EXIT_MALFORMED,
-        WorkerRefusal::ExecutionNotWired => EXIT_NOT_WIRED,
+        WorkerRefusal::SourceInvalid => EXIT_SOURCE_INVALID,
         WorkerRefusal::InputUnreadable => EXIT_INPUT_UNREADABLE,
     }
 }
@@ -425,16 +433,18 @@ mod tests {
     }
 
     #[test]
-    fn envelope_roundtrips_and_dispatch_refuses_explicitly() {
+    fn envelope_roundtrips_and_invalid_program_refuses_explicitly() {
         let frame = request().encode_frame().expect("encodes");
         assert_eq!(&frame[..8], WORKER_MAGIC);
         assert_eq!(
             WorkerRequest::decode_frame(&frame).expect("decodes"),
             request()
         );
-        // Well-formed but unwired: explicit refusal, never silent success.
-        assert_eq!(dispatch(&frame), Err(WorkerRefusal::ExecutionNotWired));
-        assert_eq!(WorkerRefusal::ExecutionNotWired.tag(), 2);
+        assert_eq!(
+            dispatch(&frame),
+            Err(WorkerRefusal::Malformed("SCB_LENGTH_OVERFLOW"))
+        );
+        assert_eq!(WorkerRefusal::SourceInvalid.tag(), 2);
     }
 
     #[test]
@@ -473,10 +483,9 @@ mod tests {
         let frame = request().encode_frame().expect("encodes");
         let mut input = std::io::Cursor::new(frame);
         let mut output = Vec::new();
-        // Well-formed envelope reaches the unwired dispatch refusal.
-        assert_eq!(run_stdio(&mut input, &mut output), EXIT_NOT_WIRED);
-        assert_eq!(u32::from_be_bytes(output[..4].try_into().unwrap()), 2);
-        assert_eq!(&output[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
+        assert_eq!(run_stdio(&mut input, &mut output), EXIT_MALFORMED);
+        assert_eq!(u32::from_be_bytes(output[..4].try_into().unwrap()), 1);
+        assert_eq!(&output[4..], b"SCB_LENGTH_OVERFLOW");
         let mut bad = std::io::Cursor::new(vec![0x00; 4]);
         let mut output = Vec::new();
         assert_eq!(run_stdio(&mut bad, &mut output), EXIT_MALFORMED);
@@ -498,9 +507,18 @@ mod tests {
     #[test]
     fn exit_statuses_are_disjoint_from_the_cli_statuses() {
         // The CLI's own statuses are 0 and 2 through 5 (SLEY_CLI_V1 section 4).
+        assert_eq!(
+            [
+                EXIT_MALFORMED,
+                EXIT_SOURCE_INVALID,
+                EXIT_INPUT_UNREADABLE,
+                EXIT_OUTPUT_FAILED
+            ],
+            [1, 6, 7, 8]
+        );
         for status in [
             EXIT_MALFORMED,
-            EXIT_NOT_WIRED,
+            EXIT_SOURCE_INVALID,
             EXIT_INPUT_UNREADABLE,
             EXIT_OUTPUT_FAILED,
         ] {
@@ -518,8 +536,8 @@ mod tests {
         let path = dir.join("input.bin");
         std::fs::write(&path, &frame).expect("write");
         let mut output = Vec::new();
-        assert_eq!(run_input_path(&path, &mut output), EXIT_NOT_WIRED);
-        assert_eq!(&output[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
+        assert_eq!(run_input_path(&path, &mut output), EXIT_MALFORMED);
+        assert_eq!(&output[4..], b"SCB_LENGTH_OVERFLOW");
         let mut output = Vec::new();
         assert_eq!(
             run_input_path(&dir.join("absent.bin"), &mut output),

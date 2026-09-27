@@ -1,6 +1,6 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 10 (2026-09-23); Council review
+Status: S20-430 contract draft, revision 11 (2026-09-27); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
@@ -22,12 +22,14 @@ section 8) answers the revision 9 round (REVISE x3 on 2b0f1c9): it admits
 the shipped version 3 capable surface (section 9) and the private
 native-test worker entry with its `sley-test-runner` edge (section 10),
 states the worker's argv and exit statuses, and re-pins SMP1 revision 15
-and bridge revision 12. Its new-delta review is pending. An errata note
+and bridge revision 12. Its new-delta review passed in all three lanes. An errata note
 to revision 10 (section 8, 2026-09-25, Sley 2.0.1) records two
 implementation fixes: a command-line word that is not valid Unicode is
 `CLI_USAGE_INVALID`, and the JSON text ceiling is judged before UTF-8
-decoding. It keeps revision 10 and every pin. The
-implementation is `crates/sley-cli`; implementation state is tracked in
+decoding. It keeps revision 10 and every pin. Revision 11 (2026-09-27)
+admits canonical native worker report output and a bounded source-invalid
+refusal under `NATIVE_TEST_EXECUTION_V1.md` revision 4. Its new-delta review
+is pending. The implementation is `crates/sley-cli`; implementation state is tracked in
 the machine summary.
 
 The CLI is a transport endpoint and nothing else, with one bounded
@@ -226,9 +228,10 @@ answered; a failed answer is not a CLI failure and never changes the exit
 status. A CLI failure is written to standard error as one JSON object
 (`{"code": integer, "symbol": string, "cause": string | null}`) and to the
 report when one was requested; nothing else is ever written to standard
-error. The private worker entry of section 10 is the one exception: its
-statuses (1, 6, 7, 8) are the worker's own, disjoint from this table, and
-it writes nothing to standard error.
+error. The private worker entry of section 10 is the one exception: complete
+output exits 0, while worker refusals use 1, 6, 7, or 8, disjoint from the
+CLI's failure statuses in this table. The worker writes nothing to standard
+error; a later stdout flush failure is the CLI's own status 4.
 
 ## 5. Rules audited mechanically
 
@@ -304,9 +307,11 @@ it writes nothing to standard error.
   rule under `v3-capable`.
 - Worker entry evidence: the transient unit argv rendered by
   `sley_test_runner::unit::render_transient_unit`, run against the real
-  `sley` binary, reaching the unwired refusal (status 6), a malformed
-  input (status 1), and an absent binding (status 7), with any other argv
-  shape a CLI usage failure (status 2).
+  `sley` binary, producing the exact canonical worker vector report (status
+  0), refusing an input-hash substitution (status 6), malformed input
+  (status 1), and an absent or symlinked binding (status 7), with any other
+  argv shape a CLI usage failure (status 2). Runner tests pin the exact
+  refusal values.
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan
   reviews with every report-grade finding closed.
 
@@ -484,6 +489,19 @@ closes the prior symlink substitution and FIFO stall without changing the
 worker's argv, refusal tag, or exit-status table. An input path that cannot
 meet the regular-file binding returns `NATIVE_WORKER_INPUT_UNREADABLE`.
 
+### Revision 11 (2026-09-27)
+
+- The private worker executes a strictly parsed portable native TestCase and
+  writes one canonical `SLEYNEX1` report on process exit 0. A VM refusal is
+  represented as Rejected evidence inside that report; a source mismatch
+  remains a refusal (status 6, tag 2, `NATIVE_WORKER_SOURCE_INVALID`).
+- The output channel and error precedence belong to Native Test Execution
+  revision 4, section 7.1. The CLI still only forwards the private entry to
+  `sley-test-runner`; the public commands, SMP1 and bridge pins, method table,
+  and ordinary CLI failure codes are unchanged.
+- Revision 10's three-lane PASS remains historical. Revision 11's delta
+  review is pending and the S20-430 status is implementation in progress.
+
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 
 The capable endpoint adopts `--protocol-profile v2-capable` for `hello`,
@@ -546,7 +564,7 @@ metadata is the additive contract `sley2-cli-v3` with `protocol_profile`
 table and the hello's `native_tests` feature key) are the bridge's
 (`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 12, section 11).
 
-## 10. Private native-test worker entry (revision 10)
+## 10. Private native-test worker entry (revision 11)
 
 `sley __native-test-worker <input_path>` exists so the native test
 supervisor (`crates/sley-test-runner`, `docs/spec/NATIVE_TEST_ADMISSION_V1.md`)
@@ -560,21 +578,25 @@ relative path, an extra word) is `CLI_USAGE_INVALID` under section 4.
 
 The worker opens the input path read-only without following symlinks or
 blocking on non-regular files; an absent, symlinked, or non-regular input
-binding is unreadable. It reads exactly one length-delimited
-`SLEYWRK1` request envelope, and answers on standard output with raw
-refusal words: one big-endian `u32` refusal tag followed by the ASCII
-detail code, with no newline and nothing on standard error. Its exit
-status passes through unwrapped:
+binding is unreadable. It reads exactly one length-delimited `SLEYWRK1`
+request envelope. The native execution owner contract (`NATIVE_TEST_EXECUTION_V1.md`
+revision 4, section 7.1) defines its output: on complete execution the worker
+writes one raw canonical `SLEYNEX1` report, including VM-owned rejected
+evidence, at most 262,144 bytes. The report is unmeasured and cannot admit a
+test. A refusal writes one big-endian `u32` tag followed by its ASCII detail
+code. Neither form adds a newline or worker stderr. Exit status passes through
+unwrapped:
 
 | Status | Tag | Detail | Meaning |
 |---:|---:|---|---|
-| 1 | 1 | the SCB registry string | malformed envelope |
-| 6 | 2 | `NATIVE_WORKER_EXECUTION_NOT_WIRED` | well-formed envelope; execution is not wired (N5) |
+| 0 | — | raw `SLEYNEX1` | complete canonical worker report, without host measurement |
+| 1 | 1 | the SCB registry string | malformed envelope or portable artifact |
+| 6 | 2 | `NATIVE_WORKER_SOURCE_INVALID` | decoded envelope but invalid bound source |
 | 7 | 3 | `NATIVE_WORKER_INPUT_UNREADABLE` | the input binding cannot be opened as a regular file |
-| 8 | — | — | the refusal words cannot be written |
+| 8 | — | — | report or refusal output could not be written |
 
-These statuses are disjoint from the section 4 statuses (0, 2, 3, 4, 5),
-so the launcher can tell a worker refusal from a CLI failure. A flush
+Worker refusal statuses are disjoint from the section 4 failure statuses
+(2, 3, 4, 5), so the launcher can tell a worker refusal from a CLI failure. A flush
 failure after the worker ran is `CLI_IO_FAILURE` (status 4). The entry
 links `sley-test-runner` (and through it `sley-vm`, `sley-scb1`,
 `sley-tests`, `sley-id`), the one exception to the section 5 dependency

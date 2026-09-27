@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Negative tests for the S20-430 current-delta-review record gate.
+"""Negative tests for the S20-430 contract and current-review gates.
 
 `check_cli_contract.py` already refuses a stale revision carried forward
 with PASS, a missing record, and a frozen status with PENDING judgments
@@ -98,6 +98,36 @@ class CompositionSentenceCases(unittest.TestCase):
         self.assertNotEqual(stale, self.SPEC)
         self.assertIn(f"composition-sentence:bridge-revision-{CHECKER.BRIDGE_REVISION - 1}",
                       CHECKER.composition_pin_problems(stale))
+
+
+class WorkerRevisionCases(unittest.TestCase):
+    SPEC = (ROOT / "docs/spec/SLEY_CLI_V1.md").read_text(encoding="utf-8")
+    ADR = (ROOT / "docs/adr/ADR-0035-thin-cli-boundary.md").read_text(encoding="utf-8")
+
+    def test_current_worker_revision_accepted(self) -> None:
+        self.assertEqual(CHECKER.revision_record_problems(self.SPEC, self.ADR), [])
+
+    def test_worker_report_row_removed_refused(self) -> None:
+        removed = self.SPEC.replace("| 0 | — | raw `SLEYNEX1` |", "", 1)
+        self.assertNotEqual(removed, self.SPEC)
+        self.assertIn(
+            "spec-flat-marker:| 0 | — | raw `SLEYNEX1` |",
+            CHECKER.revision_record_problems(removed, self.ADR),
+        )
+
+    def test_current_revision_record_removed_refused(self) -> None:
+        removed = self.SPEC.replace("### Revision 11 (2026-09-27)", "", 1)
+        self.assertNotEqual(removed, self.SPEC)
+        self.assertIn("spec-revision-record", CHECKER.revision_record_problems(removed, self.ADR))
+
+    def test_stale_adr_revision_refused(self) -> None:
+        stale = self.ADR.replace(
+            "the S20-430 contract is a draft at revision 11",
+            "the S20-430 contract is a draft at revision 10",
+            1,
+        )
+        self.assertNotEqual(stale, self.ADR)
+        self.assertIn("adr-current-revision", CHECKER.revision_record_problems(self.SPEC, stale))
 
 
 class ValidPinControl(unittest.TestCase):

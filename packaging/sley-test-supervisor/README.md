@@ -29,8 +29,10 @@ separate `RunRequest::verified_observed_worker_report` check parses a bounded
 worker report and binds its plan, selected test, root, function, ordered input
 hashes, schema hashes, profile, and limits to the authenticated request. It
 checks data consistency only; the refusal-only service does not call it yet.
-Owner-side artifact construction, worker dispatch/reply, and measured launch
-still need to be wired before either mode can execute through the service.
+The private worker now dispatches a valid portable program to the pure VM
+and writes a bounded canonical report. Owner-side artifact construction,
+measured launch, and admission still need to be wired before either mode can
+execute through the service.
 
 1. Build the release binaries (`sley`, supervisor daemon once its event
    loop lands) and install the worker at the configured

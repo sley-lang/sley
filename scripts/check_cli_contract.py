@@ -28,7 +28,7 @@ IMPLEMENTATION_STATUSES = (
     REVIEW_PENDING_STATUS,
     COMPLETE_STATUS,
 )
-SPEC_REVISION = 10
+SPEC_REVISION = 11
 SMP1_REVISION = 15
 BRIDGE_REVISION = 12
 
@@ -61,8 +61,8 @@ SPEC_MARKERS = (
     "no `--protocol-version` alias",
     "VERSION_MISMATCH",
 )
-# Revision 10 anchors, matched on whitespace-flattened text: the version 3
-# capable surface and the bounded worker entry as the code ships them.
+# Revision 11 anchors, matched on whitespace-flattened text: the version 3
+# capable surface and the bounded worker report/refusal entry as shipped.
 FLAT_SPEC_MARKERS = (
     "[--protocol-profile v2-capable|v3-capable]",
     "[--protocol-profile v2-capable|v3-capable --expected-version 1|2|3]",
@@ -73,11 +73,12 @@ FLAT_SPEC_MARKERS = (
     "the report is `sley2-cli-report-v3`",
     "`selected_protocol_version` `1 | 2 | 3 | null`",
     "the metadata is the additive contract `sley2-cli-v3`",
-    "## 10. Private native-test worker entry (revision 10)",
+    "## 10. Private native-test worker entry (revision 11)",
     "`sley __native-test-worker <input_path>`",
-    "| 6 | 2 | `NATIVE_WORKER_EXECUTION_NOT_WIRED` |",
+    "| 0 | — | raw `SLEYNEX1` |",
+    "| 6 | 2 | `NATIVE_WORKER_SOURCE_INVALID` |",
     "| 7 | 3 | `NATIVE_WORKER_INPUT_UNREADABLE` |",
-    "These statuses are disjoint from the section 4 statuses (0, 2, 3, 4, 5)",
+    "Worker refusal statuses are disjoint from the section 4 failure statuses",
     "`sley_test_runner::worker::run_input_path(`",
     "for the section 10 worker entry only, `sley-test-runner`",
 )
@@ -95,12 +96,13 @@ ADR_MARKERS = (
     "Revision 8 record (2026-09-14)",
     "Revision 9 record (2026-09-23)",
     "Revision 10 record (2026-09-23)",
+    "Revision 11 record (2026-09-27)",
     "8. **One bounded exception: the native-test worker entry (revision 10).**",
 )
 WORK_PACKAGE_MARKERS = (
     "`docs/spec/SLEY_CLI_V1.md`",
     "ADR-0035",
-    f"(revision {SPEC_REVISION}, 2026-09-23, ADR-0035: admits the version 3 capable surface and the native-test worker entry, re-pins SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}",
+    f"(revision {SPEC_REVISION}, 2026-09-27, ADR-0035: private native worker report output under native execution revision 4",
     "revision 8, 2026-09-14; revision-6 new-delta review PASS",
     "capable CLI runtime implemented under the phase-3 slice",
 )
@@ -199,7 +201,7 @@ def composition_pin_problems(spec: str) -> list[str]:
 
 
 def revision_record_problems(spec: str, adr: str) -> list[str]:
-    """Revision 10 text, the section 8 record, and the ADR's current line.
+    """Revision 11 text, the section 8 record, and the ADR's current line.
 
     The version 3 surface and the worker entry are anchored on flattened
     text, section 8 must carry a `### Revision N (` record for the current
@@ -264,8 +266,8 @@ def main() -> int:
         ),
         "bounded_exceptions": [
             "native_test_worker_entry (contract section 10): sley __native-test-worker "
-            "<input_path>, the sley-test-runner edge, raw refusal words on stdout, worker "
-            "statuses 1/6/7/8"
+            "<input_path>, the sley-test-runner edge, raw SLEYNEX1 report or refusal words "
+            "on stdout, worker completion 0 and refusals 1/6/7/8"
         ],
         "implementation_complete": status == COMPLETE_STATUS,
     }

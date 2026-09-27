@@ -1,9 +1,9 @@
 # Native Test Execution v1
 
-Status: N0 owner-contract proposal, revision 3 (2026-09-15). The architecture
-passed independent design review with zero open issues. This wire-contract
-proposal still requires review, vectors and implementation before accepting
-paths are enabled. No native TestCase execution or PASS is claimed here.
+Status: N0 owner-contract proposal, revision 4 (2026-09-27). Revision 3's
+architecture passed independent design review with zero open issues. Revision
+4 adds the private worker output channel below; its wire delta awaits review.
+Pure worker execution has no host measurement or native admission authority.
 
 ## 1. Ownership and preservation
 
@@ -375,6 +375,31 @@ No decoder fallback after magic/digest/profile failure. A registry reservation
 does not make an unsupported profile accepted.
 
 ## 7. Measured supervisor and authenticated telemetry
+
+### 7.1 Private worker output channel (revision 4)
+
+The fixed `sley __native-test-worker <input_path>` entry reads one exact
+`SLEYWRK1` frame from a daemon-owned regular file. It strictly parses the
+embedded portable `SLEYPRG1` program, checks the frame's declared and
+implementation limits against that program, and runs its selected `TestCase`
+through the pure test owner and VM. A complete worker result exits 0 and
+writes exactly one raw canonical `SLEYNEX1` stored report, at most 262,144
+bytes, with no prefix, newline, or stderr. Both Observed and VM-owned Rejected
+evidence are complete reports; Rejected cannot pass admission. A report
+proves canonical bytes, not that the host enforced memory or wall limits.
+
+Before report output, a malformed frame or portable artifact exits 1 with
+big-endian refusal tag 1 and the exact SCB registry symbol. A decoded frame
+whose program, envelope bindings, or source execution is invalid exits 6 with
+tag 2 and `NATIVE_WORKER_SOURCE_INVALID`. An absent, symlinked, or non-regular
+input binding exits 7 with tag 3 and `NATIVE_WORKER_INPUT_UNREADABLE`. A write
+failure exits 8; a later CLI stdout flush failure remains `CLI_IO_FAILURE`
+(exit 4). Refusal words contain no paths, arbitrary stderr, or source text.
+The daemon must bind a complete report to its authenticated request and
+measure the isolated worker independently before any owner admission.
+The checked-in `conformance/native-worker/v1` vector pins one complete
+observed report through the real `sley` binary; it is a transport/codec
+vector derived from the Rust VM owner, not an independent semantics oracle.
 
 Initial enforcer: root-owned `sley-test-supervisor.service`, authenticated local
 Unix socket, one systemd **system** transient service per test. No

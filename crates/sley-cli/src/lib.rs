@@ -272,9 +272,9 @@ pub enum Command {
     /// Not a user command and not a protocol method: the root supervisor
     /// spawns exactly the transient unit's argv
     /// (`__native-test-worker <input_path>`, an absolute path to the
-    /// daemon-owned read-only input binding). The worker's refusal words
-    /// go to stdout and its exit status (1, 6, 7, or 8; disjoint from
-    /// section 4) passes through unwrapped.
+    /// daemon-owned read-only input binding). The worker's report or refusal
+    /// goes to stdout and its exit status (0 for complete output, or the
+    /// worker refusals 1, 6, 7, and 8) passes through unwrapped.
     NativeTestWorker {
         /// The absolute input binding path from the unit argv.
         input: PathBuf,
@@ -479,8 +479,8 @@ pub fn run(
             return failure.code.exit_status();
         }
     };
-    // Private fixed worker IPC entry: raw refusal words on stdout and the
-    // worker exit code passes through unwrapped, never as a CLI JSON
+    // Private fixed worker IPC entry: raw report or refusal words on stdout
+    // and the worker exit code passes through unwrapped, never as a CLI JSON
     // failure. Every other command keeps the exact contract below.
     if let Command::NativeTestWorker { input } = &command {
         let status = sley_test_runner::worker::run_input_path(input, stdout);

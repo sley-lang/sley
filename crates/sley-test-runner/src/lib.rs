@@ -16,9 +16,9 @@
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
 //! [`outcome::Ed25519MeasurementSigner`] owns the concrete Ed25519 key, and
 //! privileged install/probe steps need the authenticated privilege handoff.
-//! Worker execution dispatch lands with the N5 commit path, which owns
-//! plans-to-inputs construction; until then the worker entry strictly
-//! decodes and explicitly refuses with [`worker::WorkerRefusal`].
+//! The private worker now executes a portable selected `TestCase` and emits a
+//! canonical pure report. Plan-to-inputs construction, measured launch, and
+//! admission still belong to N5; the socket service remains refusal-only.
 
 pub mod config;
 pub mod enforce;

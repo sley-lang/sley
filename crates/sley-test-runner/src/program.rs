@@ -254,7 +254,7 @@ mod tests {
     use crate::{
         execution::{evaluate_portable_test, execute_portable_test, report_portable_test},
         protocol::RunRequest,
-        worker::WorkerRequest,
+        worker::{EXIT_OUTPUT_FAILED, EXIT_SOURCE_INVALID, WorkerRequest, dispatch, run_stdio},
     };
     use sley_id::{
         CapabilitySummaryDigest, ObjectId, PolicyRootId, PrincipalId, TransactionId, WorkspaceId,
@@ -382,6 +382,23 @@ mod tests {
         Vec<EntityObject>,
         EntityId,
     ) {
+        fixture_with_limits(
+            observations,
+            expected_value,
+            NativeImplementationLimits::HARD_MAXIMA,
+        )
+    }
+
+    fn fixture_with_limits(
+        observations: Vec<ExpectedObservation>,
+        expected_value: bool,
+        implementation_limits: NativeImplementationLimits,
+    ) -> (
+        NativeTestPlanV1,
+        AcceptedStateRoot,
+        Vec<EntityObject>,
+        EntityId,
+    ) {
         let registry = conformance_registry().expect("root registry");
         let epoch = sley_state_root::conformance_epoch_id().expect("epoch");
         let workspace = WorkspaceId::from_bytes([1; 32]);
@@ -468,7 +485,7 @@ mod tests {
                 },
             }],
             changed: Vec::new(),
-            implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+            implementation_limits,
             static_selected_ids: Vec::new(),
             resource_policy: resource_policy(policy),
         })
@@ -637,6 +654,54 @@ mod tests {
         ));
     }
 
+    fn assert_worker_reply(frame: &[u8], report: &NativeExecutionReportV1, pin_vector: bool) {
+        if pin_vector {
+            assert_eq!(
+                frame,
+                include_bytes!("../../../conformance/native-worker/v1/observed-input.bin")
+            );
+            assert_eq!(
+                report.stored_bytes(),
+                include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+            );
+        }
+        assert_eq!(
+            dispatch(frame).expect("worker dispatch"),
+            report.stored_bytes()
+        );
+        let mut output = Vec::new();
+        assert_eq!(run_stdio(&mut std::io::Cursor::new(frame), &mut output), 0);
+        assert_eq!(output, report.stored_bytes());
+        if pin_vector {
+            struct BrokenOutput;
+            impl std::io::Write for BrokenOutput {
+                fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                    Err(std::io::ErrorKind::BrokenPipe.into())
+                }
+
+                fn flush(&mut self) -> std::io::Result<()> {
+                    Ok(())
+                }
+            }
+            assert_eq!(
+                run_stdio(&mut std::io::Cursor::new(frame), &mut BrokenOutput),
+                EXIT_OUTPUT_FAILED
+            );
+        }
+    }
+
+    fn assert_source_refusal(worker: &WorkerRequest) {
+        let mut output = Vec::new();
+        assert_eq!(
+            run_stdio(
+                &mut std::io::Cursor::new(worker.encode_frame().expect("substituted frame")),
+                &mut output
+            ),
+            EXIT_SOURCE_INVALID
+        );
+        assert_eq!(&output[4..], b"NATIVE_WORKER_SOURCE_INVALID");
+    }
+
     #[test]
     fn observed_report_and_expected_comparison_bind_the_selected_plan() {
         for (expected_value, comparison) in [
@@ -662,6 +727,8 @@ mod tests {
                 report_portable_test(&program, &worker).expect("pure report"),
                 result.execution_report
             );
+            let frame = worker.encode_frame().expect("worker frame");
+            assert_worker_reply(&frame, &result.execution_report, expected_value);
             assert_eq!(
                 NativeExecutionReportV1::parse(result.execution_report.stored_bytes())
                     .expect("canonical report"),
@@ -714,6 +781,7 @@ mod tests {
                     .expect_err("input hash substitution is not a VM rejection"),
                 crate::execution::PortableExecutionError::InputHashesMismatch
             );
+            assert_source_refusal(&substituted_worker);
             run.worker_frame = substituted_worker
                 .encode_frame()
                 .expect("substituted frame");
@@ -758,6 +826,35 @@ mod tests {
         };
         assert_eq!(rejection.phase(), REJECT_PHASE_EXECUTION);
         assert_eq!(rejection.numeric_code(), 27_002);
+        assert_eq!(rejection.symbol(), "VM_EXEC_RESOURCE_LIMIT");
+    }
+
+    #[test]
+    fn worker_returns_canonical_rejected_report_for_vm_refusal() {
+        let implementation_limits = NativeImplementationLimits {
+            max_report_bytes: 0,
+            ..NativeImplementationLimits::HARD_MAXIMA
+        };
+        let (plan, root, objects, test) =
+            fixture_with_limits(Vec::new(), true, implementation_limits);
+        let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
+        let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
+            .expect("validated Boolean hash");
+        let frame = WorkerRequest {
+            program_bytes: program.stored_bytes().to_vec(),
+            input_hashes: vec![*hash.as_bytes()],
+            declared_limits: program.selected().declared_limits,
+            implementation_limits,
+        }
+        .encode_frame()
+        .expect("worker frame");
+        let mut output = Vec::new();
+        assert_eq!(run_stdio(&mut std::io::Cursor::new(frame), &mut output), 0);
+        let report = NativeExecutionReportV1::parse(&output).expect("rejected report");
+        let NativeExecutionEvidence::Rejected(rejection) = report.evidence() else {
+            panic!("VM refusal must have rejected evidence");
+        };
+        assert_eq!(rejection.phase(), REJECT_PHASE_EXECUTION);
         assert_eq!(rejection.symbol(), "VM_EXEC_RESOURCE_LIMIT");
     }
 }
