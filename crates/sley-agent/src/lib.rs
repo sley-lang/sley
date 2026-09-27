@@ -22,7 +22,9 @@
 pub mod candidate;
 pub mod catalog;
 pub mod cli;
+pub mod draft;
 pub mod error;
+pub mod events;
 pub mod exec;
 pub mod explain;
 pub mod focus;

@@ -387,7 +387,7 @@ fn test_names_may_carry_hyphens_like_the_public_tests() {
     let temp = committed_program("hyphen", None);
     let frame = json!({"af1": 1, "tests": [
         {"fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}, "name": "bound-inside"}]});
-    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    let (status, text) = run(&temp.path, &["try", &frame.to_string(), "--verbose"]);
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("ok   bound-inside = Ok(5)"), "{text}");
     let (status, text) = run(&temp.path, &["view", "--after", "latest", "bound-inside"]);
@@ -622,7 +622,7 @@ fn full_redefinition_reuses_names_and_deletes_the_rest() {
     assert!(text.contains("tests: 0 ran"), "{text}");
     assert!(
         text.contains(
-            "next: add tests without restating the frame: sley-agent try --on c3 '{\"af1\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)"
+            "next: add tests without restating the frame: sley-agent try --on d3 '{\"af1\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)"
         ),
         "{text}"
     );
@@ -1495,7 +1495,7 @@ fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
     let (status, text) = run(&temp.path, &["try", &clamp_frame(true).to_string()]);
     assert_eq!(status, 0, "{text}");
     assert!(
-        text.contains("next: add tests without restating the frame: sley-agent try --on c1"),
+        text.contains("next: add tests without restating the frame: sley-agent try --on d1"),
         "{text}"
     );
     let tests = json!({"af1": 1, "tests": [
@@ -1506,7 +1506,7 @@ fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
     assert!(text.starts_with("c2: Valid"), "{text}");
     assert!(text.contains("FAIL t_above"), "{text}");
     assert!(
-        text.contains("next: fix only what failed on top of c2: sley-agent try --on c2"),
+        text.contains("next: fix only what failed on top of d2: sley-agent try --on d2"),
         "{text}"
     );
     // The fix names one operation of a function the base frame defines.

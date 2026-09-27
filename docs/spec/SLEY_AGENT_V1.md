@@ -53,6 +53,11 @@ sley-agent view --focus <name> [--after <ref>] [--x] [--ids] [--types] [--limits
 sley-agent find [text] [--kind fn|type|const|test|ns] [--after <ref>]
 sley-agent try <frame|ops> [--on <ref>] [--no-test] [--all-tests] [--public <cases.json>] [--raw]
 sley-agent submit [<ref>] [--untested]
+sley-agent try <frame|ops> --on <draft>[@r<N>] [--rebase] [--verbose]
+sley-agent fill <draft> <delta.json> --revision <N> [--rebase] [--no-test] [--all-tests] [--public <cases.json>] [--raw] [--verbose]
+sley-agent import <cases.json> [--on <draft>[@r<N>]] [--only <name,...>] [--rebase] [--no-test] [--all-tests] [--public <cases.json>] [--raw] [--verbose]
+sley-agent draft [<draft>[@r<N>]] [--obligations | --expanded | --input | --frame]
+sley-agent submit <draft>[@r<N>] [--untested]
 sley-agent status [--raw]
 sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats]
 sley-agent test [<ref>] [--public <cases.json>]
@@ -450,6 +455,10 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_EXECUTION_REFUSED` | the dev loop cannot execute the function or state |
 | `AGENT_SUBMISSION_REFUSED` | the candidate is not Valid, changes a function no TestCase in it targets (without `--untested`), or the transaction engine refused a commit |
 | `AGENT_IO_FAILED` | a workspace file could not be read or written |
+| `AGENT_DRAFT_STALE` | the revision a `fill` names is not the draft's latest revision |
+| `AGENT_DRAFT_HEAD_CHANGED` | the accepted head changed since the draft revision; build on the new head explicitly with `--rebase` |
+| `AGENT_DRAFT_INCOMPLETE` | the draft revision has no complete, Valid candidate for the request: a text revision cannot be layered on, and only a `valid` revision is submitted |
+| `AGENT_DELTA_INVALID` | a delta has another shape, or a target that is malformed, missing, given twice or overlapping another |
 
 ## 10. Execution (advisory)
 
@@ -500,3 +509,190 @@ with memory 1,000,000 over a ceiling of 1,000, `GRAPH_UNRESOLVED_REFERENCE`,
 and the phase-7 orphaned-block and dominance refusals) are regression tests
 that rebuild each scenario through AF1 or the raw path. Each test asserts
 the symbol and the locator the spec names.
+
+## 12. Drafts, delta repair and test import
+
+Drafts are advisory, local authoring state. They never enter a candidate,
+are never admission evidence, and change nothing the kernel judges.
+
+### 12.1 Draft revisions
+
+Every `try`, `fill` and `import` records one draft revision under
+`.sley/drafts/dN/`. A revision is identified by its draft handle, its
+revision number and its base head (the accepted transaction it was made
+on), and is spelled `d1@r3`; `d1` alone means the latest revision.
+`draft.json` names the latest revision and the base head of `r1`. Each
+revision directory `rN/` holds:
+
+| File | Content |
+|---|---|
+| `input.txt` | the exact input bytes (the frame, delta or case file given) |
+| `frame.json` | the complete authored frame of the revision (layered, or with the delta applied); absent when the input is not JSON |
+| other `*.json` | derived authoring artifacts of the compiled frame |
+| `status.json` | `revision`, `base_head`, `parent`, `made_by` (`try`, `try-on`, `fill`, `import` or `rebase`), `on`, `delta`, `whole_frame`, `state`, `candidate`, `candidate_sha256`, `verdict`, `obligations`, `tests`, `sources`, and `results` when tests ran |
+
+A revision's `state` is one of:
+
+- `text`: the input is not JSON. It is kept with the parser's line, column
+  and byte offset; no structure is guessed.
+- `incomplete`: the frame parsed but made no candidate (a frame refusal, or
+  the kernel could not build the record). No candidate handle is allocated.
+- `refused`: the kernel refused the candidate made from this revision.
+- `valid`: the candidate made from this revision is Valid.
+
+A `refused` or `valid` revision names its candidate handle and the SHA-256
+of that candidate's stored bytes, and the candidate's metadata names the
+revision. Candidate handles keep their meaning and stay monotonic.
+
+`try` of a frame starts a new draft (`dN@r1`). `try --on <draft>` layers
+the frame on the frame of the draft's latest revision, or of the revision
+`dN@rK` names, with the layering rules of section 2, and records the next
+revision of that draft; its `parent` is the revision layered on. A
+follow-up therefore states only what it adds or changes, and the tests of
+earlier revisions stay in the frame until they are replaced or removed.
+`try --on <handle>` keeps its section 2 meaning and starts a new draft. A
+text revision cannot be layered on (`AGENT_DRAFT_INCOMPLETE`, with the
+`fill` that replaces it whole).
+
+### 12.2 Trial output
+
+A frame refusal keeps exit status 2, its `error AGENT_*:` line and its
+problem lines. It then says where the pointers point (the frame file to
+edit in place, `.sley/layered.json`, or the revision's `frame.json`), and
+adds the draft line (`draft d1@r3: incomplete, 2 obligation(s)
+(AGENT_FRAME_INVALID 2); list: sley-agent draft d1 --obligations`) and a
+`next:` line with the `fill` that repairs it in place. Input that is not
+JSON gets the draft line with the parser location. In JSON the refusal
+object adds `draft`, `state`, `obligations` and `next`.
+
+The first line of a candidate's result ends with its draft revision
+(`c4: Valid (+3 created, 1 replaced, 0 deleted) draft d1@r2`). The result
+then lists:
+
+- `changed:` the functions, types, constants and TestCases the candidate
+  creates (`+`), replaces or changes a part of (`~`), or deletes (`-`), by
+  kind and name (`changed: fn ~bound +area; type +Shape; test +t1`);
+- `exported:` the exported functions that existed before the candidate and
+  are changed or deleted by it;
+- `tests: X/Y passed [authored A, imported I, provided P]` (counts that are
+  zero are left out) and one line per failing test; passing tests are
+  listed only with `--verbose`;
+- `tests: 0 ran` when no TestCase ran, as section 2 describes;
+- the `next:` step, which layers on the draft (`try --on d1`), repairs it
+  (`fill`) or submits it (`submit d1`).
+
+Unchanged program bodies are not reprinted. JSON output keeps every earlier
+key and adds `draft`, `state`, `changed`, `obligations` and `provenance`.
+
+### 12.3 Obligations
+
+An obligation is an unresolved problem of a revision: `{"id", "symbol",
+"at", "expected", "available", "decision", "kernel", "count"}`. The problem
+lines of a frame refusal become obligations; a line prefixed
+`[AGENT_...] ` carries that symbol, and every other line carries the
+refusal's symbol. `at` is the JSON pointer into the revision's
+`frame.json` (`""` for the whole frame, `null` when the problem names no
+pointer). `expected` and `available` are set only when the problem states
+an expected type or shape or the values available, and are `null`
+otherwise. Problems with the same symbol and decision form one obligation
+with their `count`; `also_at` lists the pointers after the first. A kernel
+refusal is one obligation whose `kernel` holds the kernel's symbol, phase
+and locator unchanged. Obligations report what the author must decide;
+they complete nothing.
+
+`draft` lists the drafts: the latest revision of each, its state, its
+candidate, and its open obligations. `draft <draft>` prints a revision's
+state, origin, test counts and at most 8 obligation lines, then
+`N more: sley-agent draft <draft> --obligations`. `--obligations` prints
+every obligation and pointer, `--input` the exact input, `--frame` the
+frame, and `--expanded` the derived artifacts. With `--json`, `draft
+<draft>` prints `status.json` with `draft` and `latest` added.
+
+### 12.4 Delta repair
+
+`fill <draft> <delta> --revision <N>` repairs the latest revision of a
+draft. The delta (a file, `-`, or inline JSON) is the closed object
+`{"set": [{"at": "<pointer>", "value": <replacement>}, ...]}` with exactly
+these keys. Each `at` is an RFC 6901 pointer that exists in the revision's
+`frame.json`, and `value` is the complete subtree that replaces it. `""`
+replaces the whole frame and is recorded as `whole_frame`. Every target
+resolves against revision `N`, and the replacements apply together. An
+array grows or shrinks only by replacing the array. No target is ever
+chosen by similarity.
+
+`fill` is refused, and writes no revision and no candidate, when:
+
+- `N` is not the latest revision (`AGENT_DRAFT_STALE`);
+- the delta has another shape or an empty `set`, or a pointer is
+  malformed, does not exist, is given twice, or contains another pointer
+  of the delta (`AGENT_DELTA_INVALID`);
+- the revision is a text revision and a target is not `""`
+  (`AGENT_DELTA_INVALID`).
+
+A successful `fill` records revision `N+1` (`made_by: "fill"`, with its
+targets and size under `delta`) and runs it exactly as `try` runs a frame.
+
+### 12.5 Head changes
+
+A revision records the accepted head it was made on. When the head has
+changed since, `fill`, `try --on <draft>` and `import --on <draft>` refuse
+with `AGENT_DRAFT_HEAD_CHANGED` unless `--rebase` is given. A rebased
+revision records `made_by: "rebase"` and `rebase: {"from_head",
+"to_head", "via"}`. Nothing is rebased implicitly.
+
+### 12.6 Submission
+
+`submit <draft>` submits the candidate of the draft's latest revision, and
+`submit <draft>@r<N>` that of revision `N`. The revision must be `valid`,
+and the stored bytes of its candidate must match the recorded SHA-256;
+otherwise the submission is refused with `AGENT_DRAFT_INCOMPLETE`, which
+names the revision's state. The candidate of an earlier revision is never
+used in place of a later one. The candidate then takes the unchanged
+submit path, including the refusal of an untested function change.
+`submit <handle>` is unchanged.
+
+### 12.7 Test import and provenance
+
+`import <cases.json> [--on <draft>] [--only a,b]` reads public cases
+(`[{"name", "function", "args", "expect"}]`; a case without a name is
+`case<i>`) and records a revision whose frame adds them as AF1 `tests`
+named by their cases: layered on the draft with `--on`, or as a new draft.
+`--only` selects cases by name. A case without `expect` is refused with
+`AGENT_INPUT_INVALID`: expected values come from the case file, never from
+running a candidate. `status.json` records the file's SHA-256 and case
+count (`import`) and, per imported test, its case, the file's SHA-256 and
+a digest of the test entry (`sources`). The frame carries no provenance.
+
+Tests are counted by origin (`tests` in `status.json`, `provenance` in
+trial JSON):
+
+- `provided`: the TestCases live at the base head that the candidate
+  keeps;
+- `imported`: frame tests whose entry is unchanged since their import;
+- `authored`: the other frame tests, plus the rows of `test_tables` when
+  the frame has them.
+
+An imported test that the author restates counts as authored from then on.
+Imported tests never satisfy a requirement to author a test.
+
+### 12.8 Events ledger
+
+Every command that uses a workspace appends one JSON line to
+`.sley/events.jsonl`, with exactly these keys: `seq`, `cmd`, `draft`,
+`candidate`, `input_bytes` (the frame, delta or case file read, otherwise
+the command line), `output_bytes` (what the command printed),
+`whole_frame`, `delta_targets`, `delta_bytes`, `afx` (the authoring
+feature counters of the compiled frame), `table_rows`, `tests` (the
+provenance counts), `refusal` (the workbench or kernel symbol),
+`obligations` and `valid`. A line holds counts, handles and symbols only:
+no clock, no names and no program content. A failure to append never
+fails the command, and `help` and `version` append nothing.
+
+`crates/sley-agent/tests/drafts.rs` executes the contract of this section:
+stale revisions, changed heads and explicit rebases, missing, repeated and
+overlapping delta targets, recorded whole-frame replacement, text drafts
+repaired whole, monotonic candidate handles bound by digest, tests
+inherited across one-operation corrections, name collisions across
+revisions, the refusal to submit after a newer incomplete revision, import
+provenance and digests, grouped and bounded obligations, and ledger lines
+without content.
