@@ -2,10 +2,10 @@
 //!
 //! The worker is a distinct dynamic-UID process with no repository,
 //! supervisor socket, issuer keys, or signing keys. Its argv is exactly
-//! the transient unit's (`<worker> __native-test-worker <input_path>`,
+//! the transient unit's (`<worker> __native-test-worker --credential`,
 //! [`crate::unit::render_transient_unit`]): it reads exactly one
-//! length-delimited [`WorkerRequest`] frame from `<input_path>` (the
-//! daemon-owned read-only regular-file input binding). A completed execution
+//! length-delimited [`WorkerRequest`] frame from a private systemd credential
+//! copied from the daemon-owned staged input. A completed execution
 //! writes one canonical `SLEYNEX1` report to stdout (the daemon-owned bounded
 //! channel); refusals write one tag and ASCII detail instead. The report is
 //! pure VM evidence only, not a host measurement or admission decision.
@@ -44,6 +44,8 @@ pub const WORKER_MAGIC: &[u8; 8] = b"SLEYWRK1";
 pub const WORKER_VERSION: u64 = 1;
 /// Maximum worker request frame bytes, including envelope and digest.
 pub const MAX_WORKER_FRAME: usize = 262_144;
+/// Fixed systemd credential name for the private worker request.
+pub const WORKER_INPUT_CREDENTIAL: &str = "sley-input";
 
 /// Closed worker request: opaque program artifact plus enforced ceilings.
 ///
@@ -70,7 +72,7 @@ pub enum WorkerRefusal {
     Malformed(&'static str),
     /// Envelope decodes but its bound program or source is invalid.
     SourceInvalid,
-    /// The input binding named by argv could not be opened.
+    /// The fixed service credential or direct diagnostic input could not be opened.
     InputUnreadable,
 }
 
@@ -352,6 +354,21 @@ pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Wr
         Ok(metadata) if metadata.is_file() => run_stdio(&mut file, output),
         _ => write_refusal(output, WorkerRefusal::InputUnreadable),
     }
+}
+
+/// Reads the fixed service credential installed by systemd for the worker.
+///
+/// The environment supplies only the service-owned credential directory;
+/// the credential name is fixed here. The path uses the same symlink-free,
+/// regular-file check as the direct path entry used by tests.
+pub fn run_credential_input(output: &mut dyn std::io::Write) -> i32 {
+    let Some(directory) = std::env::var_os("CREDENTIALS_DIRECTORY") else {
+        return write_refusal(output, WorkerRefusal::InputUnreadable);
+    };
+    run_input_path(
+        &std::path::PathBuf::from(directory).join(WORKER_INPUT_CREDENTIAL),
+        output,
+    )
 }
 
 /// Private worker entry over a byte stream.

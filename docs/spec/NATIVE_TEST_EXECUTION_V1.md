@@ -378,10 +378,12 @@ does not make an unsupported profile accepted.
 
 ### 7.1 Private worker output channel (revision 4)
 
-The fixed `sley __native-test-worker <input_path>` entry reads one exact
-`SLEYWRK1` frame from a daemon-owned regular file. It strictly parses the
-embedded portable `SLEYPRG1` program, checks the frame's declared and
-implementation limits against that program, and runs its selected `TestCase`
+The production `sley __native-test-worker --credential` entry reads one exact
+`SLEYWRK1` frame from the manager-installed `sley-input` credential copied
+from a daemon-owned regular file. The direct absolute-path worker entry remains
+for local vectors and diagnostics; the transient unit never uses it. The worker
+strictly parses the embedded portable `SLEYPRG1` program, checks the frame's
+declared and implementation limits against that program, and runs its selected `TestCase`
 through the pure test owner and VM. A complete worker result exits 0 and
 writes exactly one raw canonical `SLEYNEX1` stored report, at most 262,144
 bytes, with no prefix, newline, or stderr. Both Observed and VM-owned Rejected
@@ -448,6 +450,15 @@ must prove all properties installed; unknown/missing/extra properties refuse
 under this profile rather than relying on manager defaults. Services must bind
 to the supervisor unit lifetime; that ownership is launch_profile1, not a
 caller-chosen property. Configuration digest binds each run.
+
+For launch_profile1, the normalized `CapabilityBoundingSet=empty` value is
+installed using systemd's empty assignment, `CapabilityBoundingSet=`. The
+staged worker request stays root-owned mode 0600; the manager copies it via
+`LoadCredential=sley-input:<staged-path>` into the dynamic UID's private
+credential directory. The worker reads `$CREDENTIALS_DIRECTORY/sley-input`
+through a symlink-free regular-file open. The source path is never directly
+opened by the dynamic UID. `LoadCredential` source and credential name are
+fixed launch mapping, outside the normalized 16-property attestation.
 
 `MeasuredTestAttestationV1` (`SLEYMTA1`) exact record:
 

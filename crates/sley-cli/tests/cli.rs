@@ -2574,10 +2574,7 @@ fn assert_real_binary_native_worker_reports(
 }
 
 #[test]
-fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
-    use sley_id::{PrincipalId, WorkspaceId};
-    use sley_test_runner::config::{AllowedCaller, default_config};
-    use sley_test_runner::unit::render_transient_unit;
+fn native_test_worker_direct_path_entry_checks_the_real_binary() {
     use sley_test_runner::worker::{EXIT_INPUT_UNREADABLE, EXIT_MALFORMED, WorkerRequest};
     use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
 
@@ -2602,29 +2599,11 @@ fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
     let junk = scratch.child("junk.bin");
     std::fs::write(&junk, b"junk").unwrap();
     let worker = env!("CARGO_BIN_EXE_sley");
-    let config = default_config(
-        "/run/sley-test-supervisor",
-        worker,
-        [7; 32],
-        [8; 32],
-        vec![AllowedCaller {
-            uid: 1000,
-            workspace: WorkspaceId::from_bytes([11; 32]),
-            principal: PrincipalId::from_bytes([12; 32]),
-        }],
-        "/etc/sley-test-supervisor/measurement.key",
-        "/etc/sley-test-supervisor/trust",
-    )
-    .unwrap();
-    // The supervisor's own rendering is the argv contract: everything after
-    // the worker path is handed to the real binary unchanged.
+    // The direct path mode keeps local vector and symlink refusals testable.
     let run_unit = |input_path: &std::path::Path| {
-        let unit =
-            render_transient_unit(&config, "9f2c", input_path.to_str().unwrap(), 8192, 1_000)
-                .unwrap();
-        let at = unit.argv.iter().position(|word| word == worker).unwrap();
         let output = Command::new(worker)
-            .args(&unit.argv[at + 1..])
+            .arg("__native-test-worker")
+            .arg(input_path)
             .stdin(Stdio::null())
             .output()
             .unwrap();
@@ -2671,4 +2650,65 @@ fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
         let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
         assert_eq!(failure["code"], 43000);
     }
+}
+
+#[test]
+fn native_test_worker_credential_entry_runs_the_rendered_unit_argv() {
+    use sley_id::{PrincipalId, WorkspaceId};
+    use sley_test_runner::config::{AllowedCaller, default_config};
+    use sley_test_runner::unit::render_transient_unit;
+    use sley_test_runner::worker::{EXIT_INPUT_UNREADABLE, WORKER_INPUT_CREDENTIAL};
+
+    let scratch = TempDir::new("native-worker-credential");
+    let source = scratch.child("input.bin");
+    std::fs::write(
+        &source,
+        include_bytes!("../../../conformance/native-worker/v1/observed-input.bin"),
+    )
+    .unwrap();
+    let credentials = scratch.child("credentials");
+    std::fs::create_dir(&credentials).unwrap();
+    std::fs::copy(&source, credentials.join(WORKER_INPUT_CREDENTIAL)).unwrap();
+    let worker = env!("CARGO_BIN_EXE_sley");
+    let config = default_config(
+        "/run/sley-test-supervisor",
+        worker,
+        [7; 32],
+        [8; 32],
+        vec![AllowedCaller {
+            uid: 1000,
+            workspace: WorkspaceId::from_bytes([11; 32]),
+            principal: PrincipalId::from_bytes([12; 32]),
+        }],
+        "/etc/sley-test-supervisor/measurement.key",
+        "/etc/sley-test-supervisor/trust",
+    )
+    .unwrap();
+    let unit =
+        render_transient_unit(&config, "9f2c", source.to_str().unwrap(), 8192, 1_000).unwrap();
+    assert!(unit.argv.contains(&format!(
+        "--property=LoadCredential={WORKER_INPUT_CREDENTIAL}:{}",
+        source.display()
+    )));
+    let at = unit.argv.iter().position(|word| word == worker).unwrap();
+    let run = |credential_dir: Option<&std::path::Path>| {
+        let mut command = Command::new(worker);
+        command.args(&unit.argv[at + 1..]).stdin(Stdio::null());
+        if let Some(directory) = credential_dir {
+            command.env("CREDENTIALS_DIRECTORY", directory);
+        } else {
+            command.env_remove("CREDENTIALS_DIRECTORY");
+        }
+        command.output().unwrap()
+    };
+    let output = run(Some(&credentials));
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        output.stdout,
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    assert!(output.stderr.is_empty());
+    let output = run(None);
+    assert_eq!(output.status.code(), Some(EXIT_INPUT_UNREADABLE));
+    assert_eq!(&output.stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
 }

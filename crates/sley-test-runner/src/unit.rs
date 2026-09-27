@@ -10,17 +10,19 @@
 //! The two resource-instantiated properties use normalized values
 //! `MemoryMax=<page-floored>` and `RuntimeMaxUSec=<wall-plus-cleanup>`.
 //! Binary/input/output mapping is fixed `launch_profile1` and cannot be
-//! supplied by the caller: the worker binary and the daemon-owned input
-//! bind read-only, output goes to a daemon-owned bounded channel, and the
-//! unit binds to the supervisor service lifetime.
+//! supplied by the caller: systemd copies the daemon-owned, root-only input
+//! into a private service credential readable by the dynamic worker UID.
+//! Output goes to a daemon-owned bounded channel, and the unit binds to the
+//! supervisor service lifetime.
 
 use sley_scb1::{ScbError, ScbErrorCode};
 use sley_tests::supervisor::SUPERVISOR_CLEANUP_MILLIS;
 use sley_tests::{Caller, Property, SupervisorConfigParts, SupervisorConfigV1};
 
-use crate::config::{RunnerConfig, UNIT_PREFIX};
+use crate::config::{RunnerConfig, UNIT_PREFIX, valid_admin_path};
 use crate::enforce::{EnforceError, floor_page_cap, runtime_max_usec};
 use crate::protocol::RunRequest;
+use crate::worker::WORKER_INPUT_CREDENTIAL;
 
 /// Fixed launch-profile identity; the only mapping the daemon renders.
 pub const LAUNCH_PROFILE: u32 = 1;
@@ -47,6 +49,17 @@ pub const REQUIRED_PROPERTIES: [(&str, &str); 14] = [
     ("TasksMax", "1"),
     ("TimeoutStopUSec", "2000000"),
 ];
+
+fn manager_property_arg(name: &str, normalized_value: &str) -> String {
+    // SLEYNHC1 names the empty capability set as `empty`; systemd's unit
+    // syntax installs it with an empty right-hand side.
+    let value = if name == "CapabilityBoundingSet" {
+        ""
+    } else {
+        normalized_value
+    };
+    format!("--property={name}={value}")
+}
 
 /// Constructs the exact configuration the administrator and selected run
 /// require the system manager to install.
@@ -151,8 +164,7 @@ pub fn render_transient_unit(
     config.validate().map_err(|_| EnforceError::InvalidBudget)?;
     if unit_nonce_hex.is_empty()
         || !unit_nonce_hex.bytes().all(|byte| byte.is_ascii_hexdigit())
-        || worker_input_path.is_empty()
-        || !worker_input_path.starts_with('/')
+        || !valid_admin_path(worker_input_path)
     {
         return Err(EnforceError::InvalidBudget);
     }
@@ -166,22 +178,25 @@ pub fn render_transient_unit(
         "--pipe".to_owned(),
     ];
     for (name, value) in REQUIRED_PROPERTIES {
-        argv.push(format!("--property={name}={value}"));
+        argv.push(manager_property_arg(name, value));
     }
     argv.push(format!("--property=MemoryMax={installed_memory}"));
     argv.push(format!("--property=RuntimeMaxUSec={runtime_max}"));
-    // Fixed launch_profile1 mapping: read-only worker/input bindings, a
-    // private empty scratch directory, and lifetime binding to the
-    // supervisor service. None of these accept caller input.
+    // Fixed launch_profile1 mapping: the manager copies the root-only input
+    // into the dynamic worker's private credential directory. The worker
+    // path stays read-only; scratch and lifetime bindings are fixed.
     argv.push(format!(
-        "--property=BindReadOnlyPaths={} {}",
-        config.worker_path, worker_input_path
+        "--property=LoadCredential={WORKER_INPUT_CREDENTIAL}:{worker_input_path}"
+    ));
+    argv.push(format!(
+        "--property=BindReadOnlyPaths={}",
+        config.worker_path
     ));
     argv.push("--property=TemporaryFileSystem=/run/sley-scratch:ro".to_owned());
     argv.push("--property=BindsTo=sley-test-supervisor.service".to_owned());
     argv.push(config.worker_path.clone());
     argv.push("__native-test-worker".to_owned());
-    argv.push(worker_input_path.to_owned());
+    argv.push("--credential".to_owned());
     Ok(TransientUnit {
         unit_name,
         argv,
@@ -274,7 +289,7 @@ mod tests {
         for property in expected.properties() {
             assert!(
                 unit.argv
-                    .contains(&format!("--property={}={}", property.name, property.value))
+                    .contains(&manager_property_arg(&property.name, &property.value))
             );
         }
         assert_eq!(
@@ -312,7 +327,7 @@ mod tests {
             "--system",
             "--unit=sley-native-test-9f2c",
             "--pipe",
-            "--property=CapabilityBoundingSet=empty",
+            "--property=CapabilityBoundingSet=",
             "--property=DynamicUser=yes",
             "--property=KillMode=control-group",
             "--property=MemoryAccounting=yes",
@@ -328,12 +343,13 @@ mod tests {
             "--property=TimeoutStopUSec=2000000",
             "--property=MemoryMax=8192",
             "--property=RuntimeMaxUSec=3000000",
-            "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker /run/sley-test-supervisor/input/9f2c.bin",
+            "--property=LoadCredential=sley-input:/run/sley-test-supervisor/input/9f2c.bin",
+            "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker",
             "--property=TemporaryFileSystem=/run/sley-scratch:ro",
             "--property=BindsTo=sley-test-supervisor.service",
             "/usr/lib/sley/sley-native-test-worker",
             "__native-test-worker",
-            "/run/sley-test-supervisor/input/9f2c.bin",
+            "--credential",
         ];
         assert_eq!(unit.argv, expected);
         assert!(argv.contains("--property=MemorySwapMax=0"));
@@ -351,6 +367,12 @@ mod tests {
         assert_eq!(
             render_transient_unit(&config, "9f2c", "relative.bin", 8_192, 1_000)
                 .expect_err("input")
+                .tag(),
+            EnforceError::InvalidBudget.tag()
+        );
+        assert_eq!(
+            render_transient_unit(&config, "9f2c", "/run/input:bad.bin", 8_192, 1_000)
+                .expect_err("credential source property injection")
                 .tag(),
             EnforceError::InvalidBudget.tag()
         );

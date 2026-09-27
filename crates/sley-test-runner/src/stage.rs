@@ -286,7 +286,11 @@ mod tests {
         assert_eq!(metadata.uid(), uid);
         assert_eq!(metadata.permissions().mode() & 0o077, 0);
         let unit = staged.render_unit().expect("unit renderer");
-        assert_eq!(unit.argv.last().map(String::as_str), staged.path().to_str());
+        assert_eq!(unit.argv.last().map(String::as_str), Some("--credential"));
+        assert!(unit.argv.contains(&format!(
+            "--property=LoadCredential=sley-input:{}",
+            staged.path().display()
+        )));
         assert!(matches!(
             stage_worker_input_for_uid(&config, &request, uid),
             Err(StageError::PathCollision)

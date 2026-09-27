@@ -271,13 +271,14 @@ pub enum Command {
     ///
     /// Not a user command and not a protocol method: the root supervisor
     /// spawns exactly the transient unit's argv
-    /// (`__native-test-worker <input_path>`, an absolute path to the
-    /// daemon-owned read-only input binding). The worker's report or refusal
+    /// (`__native-test-worker --credential`, reading the manager-installed
+    /// service credential). The worker's report or refusal
     /// goes to stdout and its exit status (0 for complete output, or the
     /// worker refusals 1, 6, 7, and 8) passes through unwrapped.
     NativeTestWorker {
-        /// The absolute input binding path from the unit argv.
-        input: PathBuf,
+        /// A direct path is retained for local diagnostics and vectors;
+        /// the production transient unit uses the fixed credential mode.
+        input: Option<PathBuf>,
     },
 }
 
@@ -409,8 +410,11 @@ pub fn parse(args: &[String]) -> Result<Command> {
         }),
         "__native-test-worker" if rest.len() == 1 && rest[0].starts_with('/') => {
             Ok(Command::NativeTestWorker {
-                input: PathBuf::from(&rest[0]),
+                input: Some(PathBuf::from(&rest[0])),
             })
+        }
+        "__native-test-worker" if rest == ["--credential"] => {
+            Ok(Command::NativeTestWorker { input: None })
         }
         "hello" => {
             let mut json = false;
@@ -483,7 +487,10 @@ pub fn run(
     // and the worker exit code passes through unwrapped, never as a CLI JSON
     // failure. Every other command keeps the exact contract below.
     if let Command::NativeTestWorker { input } = &command {
-        let status = sley_test_runner::worker::run_input_path(input, stdout);
+        let status = match input {
+            Some(path) => sley_test_runner::worker::run_input_path(path, stdout),
+            None => sley_test_runner::worker::run_credential_input(stdout),
+        };
         if let Err(error) = stdout.flush() {
             let failure = stream_failure(error);
             let _ = writeln!(stderr, "{}", failure.value());
