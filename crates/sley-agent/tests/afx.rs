@@ -2191,3 +2191,80 @@ fn generated_block_and_value_names_have_separate_tables() {
     );
     assert!(map["values"]["f"].get("__fail_Neg").is_none());
 }
+
+// ---------------------------------------------------------------------------
+// Review regressions: locators and diagnostics through the source map
+// ---------------------------------------------------------------------------
+
+fn authored_line(text: &str) -> String {
+    text.lines()
+        .find_map(|line| line.trim().strip_prefix("authored: "))
+        .unwrap_or_else(|| panic!("no authored line: {text}"))
+        .to_owned()
+}
+
+#[test]
+fn kernel_locators_in_generated_blocks_name_the_authored_construct() {
+    let temp = workspace("locators");
+    let neg = json!([{"name": "E", "variant": ["Neg"]}]);
+    // W2-V1a: a return in the piece after an exit is the authored return.
+    let frame = json!({"af1": 1, "afx": 1, "types": neg,
+      "fns": [{"fn": "flagx", "params": [["a", "i64"]], "returns": "Result<bool,E>",
+        "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 0]], ["s", "add", "a", "a"]], "term": ["return", "s"]}]}]});
+    let (status, text) = run(&temp.path, &["try", "--no-test", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert_eq!(
+        authored_line(&text),
+        "/fns/0/blocks/0/term (terminator of flagx.entry__if0), /fns/0/returns (result of flagx)"
+    );
+    // W2-V1b: the generated `cond` of an exit is the exit operation, not
+    // the block's authored terminator.
+    let frame = json!({"af1": 1, "afx": 1, "types": neg,
+      "fns": [{"fn": "domx", "params": [["a", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}], ["c0", "lt", "a", "z"]], "term": ["cond", "c0", "left", "right"]},
+                   {"name": "left", "ops": [["c", "gt", "a", "z"]], "term": ["br", "right"]},
+                   {"name": "right", "ops": [["!Neg", "if", "left.c"]], "term": ["ok", "a"]}]}]});
+    let (status, text) = run(&temp.path, &["try", "--no-test", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert_eq!(
+        authored_line(&text),
+        "/fns/0/blocks/2/ops/0 (the exit that ends domx.right)"
+    );
+    // W2-V2: a call in a continuation piece keeps its operation pointer.
+    let frame = json!({"af1": 1, "afx": 1, "types": neg,
+      "fns": [{"fn": "g", "params": [["x", "bool"]], "returns": "bool", "blocks": [{"name": "entry", "ops": [], "term": ["return", "x"]}]},
+              {"fn": "hx", "params": [["a", "i64"]], "returns": "Result<bool,E>",
+        "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 0]], ["r", "call", "g", "a"]], "term": ["ok", "r"]}]}]});
+    let (status, text) = run(&temp.path, &["try", "--no-test", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert_eq!(
+        authored_line(&text),
+        "/fns/1/blocks/0/ops/1 (hx.entry__if0.r), /fns/0/params (parameters of g)"
+    );
+}
+
+#[test]
+fn a_pointer_inside_a_problem_detail_is_mapped_too() {
+    // W2-V4: the detail's own (expanded) pointer is not left behind.
+    let temp = workspace("embedded-pointer");
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Neg"]}],
+          "fns": [{"fn": "p3", "params": [["a", "u8"]], "returns": "Result<u8,E>",
+            "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 1]], ["s", "add?Neg", "a", 300]], "term": ["ok", "s"]}]}]}),
+    );
+    assert_eq!(
+        detail,
+        "/fns/0/blocks/0/ops/1/3: 300 does not fit u8 [expanded /fns/0/blocks/1/ops/0]"
+    );
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "idt", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "term": ["return", "a"]}]}],
+          "test_tables": [{"name": "t_x", "fn": "idt", "cases": [{"args": [1], "expect": 1}, {"args": [true], "expect": 1}]}]}),
+    );
+    assert_eq!(
+        detail,
+        "/test_tables/0/cases/1/args/0: expected an integer [expanded /tests/1/args/0]"
+    );
+}

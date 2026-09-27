@@ -217,11 +217,25 @@ impl SourceMap {
         let Some((pointer, detail)) = rest.split_once(": ") else {
             return line.to_owned();
         };
-        match self.authored(pointer) {
-            Some(authored) if authored != pointer => {
-                format!("{prefix}{authored}: {detail} [expanded {pointer}]")
+        let lead = self.authored(pointer).unwrap_or_else(|| pointer.to_owned());
+        // A detail that starts with its own locator (a value read at a
+        // nested position) names an expanded pointer too: map it, and drop
+        // it when it only repeats the leading one.
+        let detail = match detail.split_once(": ") {
+            Some((inner, text)) if inner.starts_with('/') && !inner.contains(' ') => {
+                let inner = self.authored(inner).unwrap_or_else(|| inner.to_owned());
+                if inner == lead || lead.starts_with(&format!("{inner}/")) {
+                    text.to_owned()
+                } else {
+                    format!("{inner}: {text}")
+                }
             }
-            _ => line.to_owned(),
+            _ => detail.to_owned(),
+        };
+        if lead == pointer {
+            format!("{prefix}{pointer}: {detail}")
+        } else {
+            format!("{prefix}{lead}: {detail} [expanded {pointer}]")
         }
     }
 
