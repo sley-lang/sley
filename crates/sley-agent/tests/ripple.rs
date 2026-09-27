@@ -2252,7 +2252,7 @@ fn generated_checks_keep_their_behavior_and_entry_checks_first() {
 }
 
 // ---------------------------------------------------------------------------
-// Review regressions: the frame's own definitions, repeated evaluation,
+// Regressions: the frame's own definitions, repeated evaluation,
 // equal-count signatures, boundaries, bounds and the events ledger
 // ---------------------------------------------------------------------------
 
