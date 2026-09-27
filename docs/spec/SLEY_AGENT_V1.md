@@ -1,8 +1,12 @@
 # Sley Agent Workbench v1
 
-Status: Sley 2.0.2 contract, revision 1 (2026-09-25), implementing
-`SLEY-2.0.2-BR` Track A (BR-01 through BR-12). ADR-0051 records the
-boundary decisions. The implementation is `crates/sley-agent`, binary
+Status: revision 2 (2026-09-27). Revision 1 (2026-09-25) was the Sley
+2.0.2 contract implementing `SLEY-2.0.2-BR` Track A (BR-01 through BR-12).
+Revision 2 adds decision-only authoring: the AF1-X dialect and test tables
+(sections 5.1 and 5.2), drafts and delta repair (section 12), focused and
+AV1-X views (sections 4.1 and 4.2), the namespace opt-out, and authored
+locators. ADR-0051 records the boundary decisions and ADR-0053 the
+revision-2 decisions. The implementation is `crates/sley-agent`, binary
 `sley-agent`.
 
 The workbench is the interface Sley offers to the agents that author
@@ -65,7 +69,7 @@ sley-agent explain [<ref>]
 sley-agent init [<dir>] [--seed <64-hex>]
 sley-agent commit [<ref>]
 sley-agent export <file.pack>
-sley-agent help [guide|af1|types|tests|opcodes|refusals]
+sley-agent help [guide|af1|afx|drafts|types|tests|opcodes|refusals]
 ```
 
 A `<ref>` is a handle (`c3`), `latest`, a file holding stored candidate
@@ -366,6 +370,81 @@ The raw operation path accepts the 2.0.0 trial-tool JSON form for classes
 3 through 9 and 14. Identities may be 64 hex, local names, or `@key` for a
 create in the same list that carries `"key"`.
 
+### 5.1 AF1-X (`"afx": 1`)
+
+A frame with `"afx": 1` is an AF1-X frame. The workbench expands it,
+client-side and deterministically, into an ordinary AF1 frame, which the
+AF1 compiler of section 5 compiles unchanged. A frame without `"afx"` is
+plain AF1 and refuses every form below exactly as before. `sley-agent help
+afx` is the normative reference text and `data/help-afx.md` its source.
+AF1-X adds, inside the blocks of `fns` and `patch` (`edit.with` stays plain
+AF1):
+
+1. **Operands (X1).** After an operation's immediate, and in terminator
+   value positions, an operand may be a literal (`3`, `true`,
+   `{"type": "u8", "value": 3}`) or a nested operation
+   (`["add", "a", 1]`). Strings are always names. A bare literal takes its
+   type from its context (the other operand of a same-type operation, a
+   callee or target parameter, the function result, a variant payload or
+   record field); with none, the literal is refused, never defaulted.
+   Nested operations evaluate left to right, depth first, before the
+   operation that uses them. In `cond` and `switch` target arguments and in
+   an exit's payload only names and literals are allowed, so that nothing
+   runs on a path that is not taken.
+2. **Checked propagation (X2).** `["x", "op?C", ...]` names the Ok (or
+   Some) value of an operation that returns `Result` or `Option`. On
+   failure control goes to `C`: a case of the function's error variant
+   (built with `variant`, `err`, `return` in a shared exit), or a handler
+   block. A name that is both is refused (`AGENT_X_PROPAGATION`). A payload
+   moves only to a case or handler parameter of exactly its type; naming a
+   case or handler without a payload is the explicit choice to drop it.
+   Bare `op?` returns the failure unchanged when the function's error type
+   equals the operation's, or `None` from an Option function.
+3. **Exits (X3).** `["!C", "if", cond]` (optionally with a payload) leaves
+   through `C` when `cond` is true. The terminators `["ok", v]`,
+   `["fail", "Case"]`, `["fail", "Case", p]` and `["fail"]` (Option
+   functions) return through shared exits.
+4. **Names (X4).** A plain name resolves to a value of its own block, a
+   function parameter, or the one operation result of that name in a block
+   that dominates the use (the expansion qualifies it). An edge that passes
+   fewer arguments than its target takes is completed, trailing parameter
+   by trailing parameter, with the value of the parameter's name visible at
+   the edge when its type fits; otherwise the author is asked
+   (`AGENT_X_SCOPE`). Explicit arguments are never changed, no value is
+   chosen by type alone, and an edge into a loop never passes the loop
+   block's own value.
+
+Expansion splits a block at each `?` and exit. The continuation takes the
+unwrapped value and the block parameters still in use; generated names use
+`__` (`x__r`, `<block>__<x>`, `<block>__if<i>`, `n__a<k>`, `__fail_<Case>`,
+`__err`, `__none`), which authored names may not contain. Checked
+arithmetic stays checked, failures leave at their written position, and
+nothing is reassociated, speculated, retried or duplicated. Depth 32,
+4,096 expanded operations and 1,024 generated blocks per function bound the
+expansion (`AGENT_X_LIMIT`); a bound refuses, never truncates. In a
+`patch`, restating a block deletes the generated blocks of its previous
+expansion and shared exits no longer used.
+
+Every generated entity maps to the authored JSON pointer it came from.
+A problem found in the expanded frame is reported at the authored pointer,
+followed by `[expanded <pointer>]`. The expanded frame and the source map
+are kept with the draft revision (`sley-agent draft <d> --expanded`).
+`ripple` intents (typed graph transformations) are refused with
+`AGENT_RIPPLE_INTENT_UNKNOWN` unless this build enables them.
+
+### 5.2 Test tables
+
+`"test_tables"` (AF1-X frames) states a target function and defaults once,
+then one row per case:
+`{"name": "t_f", "fn": "f", "defaults": {"limits": {...}}, "cases":
+[{"args": [...], "expect": ..., "name": "optional", "limits": {...}}]}`.
+Each row lowers to one AF1 test named by its `name`, else `<table>_<i>`;
+row limits override the table defaults, and the rules of section 7 then
+apply unchanged. A malformed row, two rows with the same arguments, or a
+derived name that collides with another test is refused with
+`AGENT_TEST_TABLE_INVALID` at the row's pointer. `try --on` replaces a table
+by name.
+
 ## 6. Opcodes
 
 The mnemonic table maps every epoch-1 opcode one to one:
@@ -459,6 +538,11 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_DRAFT_HEAD_CHANGED` | the accepted head changed since the draft revision; build on the new head explicitly with `--rebase` |
 | `AGENT_DRAFT_INCOMPLETE` | the draft revision has no complete, Valid candidate for the request: a text revision cannot be layered on, and only a `valid` revision is submitted |
 | `AGENT_DELTA_INVALID` | a delta has another shape, or a target that is malformed, missing, given twice or overlapping another |
+| `AGENT_X_PROPAGATION` | an AF1-X `?` or exit has no single, type-correct failure route |
+| `AGENT_X_SCOPE` | an AF1-X name is ambiguous, not available where it is used, or an omitted edge argument cannot be derived |
+| `AGENT_X_LIMIT` | an AF1-X expansion bound (depth, operations, generated blocks) was reached |
+| `AGENT_TEST_TABLE_INVALID` | a test table or row is malformed, duplicated, or collides with another test |
+| `AGENT_RIPPLE_INTENT_UNKNOWN` | a `ripple` intent is unknown or not enabled in this build |
 
 ## 10. Execution (advisory)
 
@@ -503,6 +587,17 @@ every expansion command it prints, the JSON shapes, AV1-X on each sugared
 shape with its routes, the fallback to AV1 when a shape is not exact,
 identity with AV1 for programs without generated names, and the refusal of
 AV1-X as input.
+
+`crates/sley-agent/tests/afx.rs` executes the AF1-X items of section 5:
+each form against a hand-written plain AF1 equivalent on the same inputs
+(overflow, division by zero, simultaneous failures, payloads, calls,
+Option operations, shadowing, joins, loops), generated expression trees
+against a reference evaluator, determinism, source-map pointers, every
+refusal named in section 5.1, test tables, and the unchanged compilation of
+plain AF1 frames. `tests/drafts.rs` executes section 12, `tests/locators.rs`
+and `tests/namespace.rs` the authored locators and the namespace opt-out.
+The guide stays at or under 3,500 bytes, and its examples and commands and
+those of the `drafts` topic run in `tests/workbench.rs`.
 
 Four refusals agents meet in practice (`CANDIDATE_TEST_RESOURCE_LIMIT`
 with memory 1,000,000 over a ceiling of 1,000, `GRAPH_UNRESOLVED_REFERENCE`,

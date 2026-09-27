@@ -34,12 +34,6 @@ impl Drop for TempDir {
     }
 }
 
-/// The suite runs on the binary's allocator (ADR-0052).
-#[path = "../src/allocator.rs"]
-mod allocator;
-#[global_allocator]
-static ALLOCATOR: allocator::SizeClassCache = allocator::SizeClassCache;
-
 fn workspace(label: &str) -> TempDir {
     let temp = TempDir::new(label);
     genesis::init(&temp.path, Some([5; 32]), genesis::INIT_CEILINGS).unwrap();
