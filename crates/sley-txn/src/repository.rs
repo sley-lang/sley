@@ -55,8 +55,9 @@ use crate::native_commit::{
     AttemptRecord, AttemptState, AttemptStatus, ExecutedNativeTest, NativeAttemptId,
     NativeAttemptScope, NativeCommitError, NativeCommitInput, NativeCommitOutcome,
     NativeCommitOutput, NativeRejection, NativeVerifiedRevision, check_admission_profile_binding,
-    check_execution_coverage, check_native_wall_budget, commit_needs_executor, read_attempt_record,
-    verify_acceptance_statement, verify_measurement_attestation, write_attempt_record,
+    check_execution_coverage, check_native_wall_budget, commit_needs_executor, park_attempt_record,
+    read_attempt_record, verify_acceptance_statement, verify_measurement_attestation,
+    write_attempt_record,
 };
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
@@ -1508,35 +1509,29 @@ impl TransactionRepository {
         import_receipt_any(&bytes).map_err(CommitError::from)
     }
 
-    /// Maximum journal files reconciled per recovery pass.
-    const MAX_JOURNAL_RECONCILE_FILES: u64 = 4_096;
+    /// Maximum unresolved promotion claims reconciled per recovery pass.
+    const MAX_JOURNAL_RECONCILE_CLAIMS: u64 = 4_096;
 
     /// Reconciles attempt hints against verified receipt and head bytes.
     ///
     /// `PromotionStarted` claims whose receipt verifies and whose
     /// transaction the accepted head names become `Committed` records from
     /// verified history. Claims without a verifiable receipt become
-    /// `OutcomeUnknown`. Every other state is untouched, unreferenced
-    /// receipts are never visited, and a corrupt journal file fails closed.
+    /// `OutcomeUnknown`. Settled and retryable non-promoting records are
+    /// parked outside the scan while keeping their exact query/retry bytes.
+    /// Unreferenced receipts are never visited, and corrupt records fail closed.
     fn reconcile_attempt_journal(
         &self,
         accepted_transaction_id: Option<TransactionId>,
     ) -> Result<(), CommitError> {
         let directory = self.root.join(crate::native_commit::ATTEMPTS_DIR);
         let entries = match fs::read_dir(&directory) {
-            Ok(entries) => entries,
+            Ok(entries) => entries.collect::<io::Result<Vec<_>>>()?,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(error.into()),
         };
-        let mut files = 0_u64;
+        let mut claims = 0_u64;
         for entry in entries {
-            let entry = entry?;
-            files = files
-                .checked_add(1)
-                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
-            if files > Self::MAX_JOURNAL_RECONCILE_FILES {
-                return Err(txn_commit_error(TransactionErrorCode::ResourceLimit));
-            }
             let path = entry.path();
             let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
                 continue;
@@ -1551,8 +1546,19 @@ impl TransactionRepository {
                 return Err(CommitError::Native(NativeCommitError::JournalCorrupt));
             }
             match record.state {
-                AttemptState::PromotionStarted | AttemptState::Committed => {}
-                _ => continue,
+                AttemptState::PromotionStarted => {
+                    claims = claims
+                        .checked_add(1)
+                        .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                    if claims > Self::MAX_JOURNAL_RECONCILE_CLAIMS {
+                        return Err(txn_commit_error(TransactionErrorCode::ResourceLimit));
+                    }
+                }
+                AttemptState::Committed => {}
+                _ => {
+                    park_attempt_record(&self.root, attempt_id).map_err(CommitError::Io)?;
+                    continue;
+                }
             }
             let (Some(transaction_id), Some(receipt_id)) =
                 (record.transaction_id, record.receipt_id)
@@ -1573,6 +1579,8 @@ impl TransactionRepository {
             {
                 record.state = AttemptState::Committed;
                 write_attempt_record(&self.root, &record).map_err(CommitError::Io)?;
+            } else if record.state == AttemptState::Committed {
+                park_attempt_record(&self.root, attempt_id).map_err(CommitError::Io)?;
             }
         }
         Ok(())
@@ -23886,7 +23894,7 @@ mod native_commit_tests {
     use std::cell::Cell;
 
     use ed25519_dalek::{Signer as _, SigningKey};
-    use sley_id::NativeAdmissionProfileId;
+    use sley_id::{CandidateId, NativeAdmissionProfileId};
     use sley_mutate::value::{ParameterBody, TestCaseBody};
     use sley_policy::ValidatedCandidatePlan;
     use sley_ssmc::{
@@ -24302,6 +24310,60 @@ mod native_commit_tests {
 
     fn attempt(byte: u8) -> NativeAttemptId {
         NativeAttemptId([byte; 16])
+    }
+
+    #[test]
+    fn recovery_migrates_more_than_4096_settled_legacy_attempts() {
+        let fixture = Fixture::new("native-large-settled-journal");
+        let directory = fixture
+            .repository
+            .root()
+            .join(crate::native_commit::ATTEMPTS_DIR);
+        std::fs::create_dir_all(&directory).unwrap();
+        for ordinal in 0_u32..4_097 {
+            let mut bytes = [0_u8; 16];
+            bytes[..4].copy_from_slice(&ordinal.to_le_bytes());
+            let record = AttemptRecord {
+                attempt_id: NativeAttemptId(bytes),
+                workspace: fixed(1, WorkspaceId::from_bytes),
+                principal: fixed(2, PrincipalId::from_bytes),
+                candidate_id: fixed(3, CandidateId::from_bytes),
+                expected_parent: fixture.genesis_transaction_id,
+                state: AttemptState::AbortedBeforePromotion,
+                transaction_id: None,
+                receipt_id: None,
+            };
+            std::fs::write(
+                attempt_path(fixture.repository.root(), record.attempt_id),
+                record.encode(),
+            )
+            .unwrap();
+        }
+
+        fixture
+            .repository
+            .recover()
+            .expect("settled journal must not block recovery");
+        assert_eq!(
+            std::fs::read_dir(&directory)
+                .unwrap()
+                .filter_map(std::result::Result::ok)
+                .filter(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .ends_with(crate::native_commit::ATTEMPT_SUFFIX)
+                })
+                .count(),
+            0
+        );
+        assert!(matches!(
+            fixture
+                .repository
+                .native_attempt_status(NativeAttemptId([0; 16]))
+                .unwrap(),
+            AttemptStatus::AbortedBeforePromotion
+        ));
     }
 
     #[test]

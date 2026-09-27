@@ -2355,9 +2355,7 @@ fn dispatch_terminator(
                 })
             });
             let block = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            let selected = if carried_as_argument
-                || !register_is_block_local(block, block.instructions.len(), *value)
-            {
+            let selected = if carried_as_argument || !register_is_block_local(block, *value) {
                 read_register(runtime, *value)?.clone()
             } else {
                 take_register(runtime, *value)?
@@ -2415,9 +2413,7 @@ fn bind_edge(
             return Ok(Some(termination));
         }
         values.push(
-            if register_is_block_local(source, source.instructions.len(), *register)
-                && edge_use_count(edge, *register) == 1
-            {
+            if register_is_block_local(source, *register) && edge_use_count(edge, *register) == 1 {
                 take_register(runtime, *register)?
             } else {
                 read_register(runtime, *register)?.clone()
@@ -2451,9 +2447,7 @@ fn bind_switch_edge(
                     })
                     .count();
                 values.push(
-                    if register_is_block_local(source, source.instructions.len(), *register)
-                        && selected_uses == 1
-                    {
+                    if register_is_block_local(source, *register) && selected_uses == 1 {
                         take_register(runtime, *register)?
                     } else {
                         read_register(runtime, *register).cloned()?
@@ -2627,22 +2621,17 @@ fn register_is_dead_block_local(
     instruction_index: usize,
     register: Register,
 ) -> bool {
-    register_is_block_local(block, instruction_index, register)
+    register_is_block_local(block, register)
         && block.instructions[instruction_index + 1..]
             .iter()
             .all(|instruction| !instruction.operands.contains(&register))
         && terminator_use_count(&block.terminator, register) == 0
 }
 
-fn register_is_block_local(
-    block: &crate::BytecodeBlock,
-    instruction_index: usize,
-    register: Register,
-) -> bool {
+fn register_is_block_local(block: &crate::BytecodeBlock, register: Register) -> bool {
+    // Operation results remain visible in every block they dominate. Only
+    // block parameters are confined to this block and safe to move away.
     block.parameter_registers.contains(&register)
-        || block.instructions[..instruction_index]
-            .iter()
-            .any(|instruction| instruction.results.contains(&register))
 }
 
 fn write_register(
@@ -3376,6 +3365,68 @@ mod tests {
                 .unwrap()
                 .termination,
             ExecutionTermination::Cancelled
+        );
+    }
+
+    #[test]
+    fn dominated_operation_result_survives_edge_argument_move() {
+        let mut fixture = bool_fixture(Opcode::BoolNot);
+        fixture.operations[0].operands.pop();
+        let first_result = ValueRef::OperationResult(OperationResultRef {
+            operation: id(5),
+            result_index: 0,
+        });
+        let target = id(6);
+        let parameter = id(7);
+        let second_operation = id(8);
+        fixture.function.blocks.push(target);
+        fixture.parameters.push(Parameter {
+            entity_id: parameter,
+            owner: target,
+            role: ParameterRole::Block,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        });
+        fixture.blocks.push(Block {
+            entity_id: target,
+            function: fixture.function.entity_id,
+            parameters: vec![parameter],
+            operations: vec![second_operation],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: second_operation,
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
+        });
+        fixture.blocks[0].terminator = Terminator::Branch(BranchTerminator {
+            edge: TargetEdge {
+                target,
+                arguments: vec![first_result],
+            },
+        });
+        fixture.operations.push(Operation {
+            entity_id: second_operation,
+            block: target,
+            ordinal: 0,
+            opcode: Opcode::BoolAnd,
+            operands: vec![first_result, ValueRef::Parameter(parameter)],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        });
+
+        let outcome = execute_function(
+            fixture.input(),
+            ExecutionRequest {
+                inputs: vec![bool_value(false), bool_value(false)],
+                limits: limits(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            outcome.termination,
+            ExecutionTermination::Success(bool_value(true))
         );
     }
 
