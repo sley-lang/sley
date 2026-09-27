@@ -693,7 +693,8 @@ enum Origin {
     Inline,
     /// A frame file, best edited in place.
     File(String),
-    /// A frame layered on the frame of a candidate (`.sley/layered.json`).
+    /// A frame layered on the frame of a candidate (also written to
+    /// `.sley/layered.json`, which the next such `try` rewrites).
     Candidate(String),
     /// The draft revision's `frame.json`.
     Draft,
@@ -1084,6 +1085,43 @@ fn import_cases(
     Ok((entries, sources))
 }
 
+/// A case replaces a draft test of the same name only when that test is an
+/// earlier import unchanged since (or already equals the case): a test the
+/// author wrote, or changed after its import, is never replaced silently.
+fn import_conflicts(
+    base_frame: &Value,
+    status: &Value,
+    tests: &Value,
+    spelled: &str,
+) -> Result<()> {
+    let sources = status["sources"].as_array().map_or(&[][..], Vec::as_slice);
+    let current = base_frame["tests"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    let conflicts: Vec<String> = tests["tests"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|case| {
+            let name = case["name"].as_str()?;
+            let test = current
+                .iter()
+                .find(|test| test["name"].as_str() == Some(name))?;
+            (test != case && !draft::is_imported(test, sources)).then(|| format!("`{name}`"))
+        })
+        .collect();
+    if conflicts.is_empty() {
+        return Ok(());
+    }
+    Err(AgentError::new(
+        AgentErrorCode::InputInvalid,
+        format!(
+            "case(s) {} would replace the test(s) of the same name in {spelled}, which the author wrote or changed after an import; nothing was recorded: leave those cases out (--only the others), or rename the draft's test first",
+            conflicts.join(", ")
+        ),
+    ))
+}
+
 fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
     const USAGE: &str = "import <cases.json | -> [--on <draft>] [--only name,name] [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]";
     let words = words(args, &["--on", "--only", "--public"], &TRIAL_SWITCHES)?;
@@ -1125,6 +1163,7 @@ fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
                 .map_err(|error| not_recorded(error, "import"))?;
             let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "import")
                 .map_err(|error| not_recorded(error, "import"))?;
+            import_conflicts(&base_frame, &status, &tests, &spelled)?;
             let frame = Input::layered(&base_frame, Ok(tests));
             let target = Target::Next {
                 handle,
@@ -1196,10 +1235,10 @@ fn stage(
     Ok((compiled, imported, output))
 }
 
-/// The frame a candidate's authored pointers index when it was layered, by
-/// the draft revision that made it: `.sley/layered.json` for a frame
-/// layered on a candidate, the revision's `frame.json` for one layered on a
-/// draft, as `try` prints them; `None` for a frame tried as given.
+/// The frame a candidate's authored pointers index when it was layered: the
+/// `frame.json` of the draft revision that made it, which later commands
+/// never rewrite (`.sley/layered.json` is rewritten by the next `try --on
+/// <handle>`), as `try` prints it; `None` for a frame tried as given.
 fn layered_frame(workspace: &Workspace, meta: &Value) -> Option<String> {
     let made = meta["draft"].as_str().and_then(DraftRef::parse)?;
     let revision = made.revision?;
@@ -1207,21 +1246,18 @@ fn layered_frame(workspace: &Workspace, meta: &Value) -> Option<String> {
         .ok()?
         .status(&made.handle, revision)
         .ok()?;
-    match status["on"].as_str() {
-        Some(on) if candidate::is_handle(on) => Some(format!("{STATE_DIR}/layered.json")),
-        _ if matches!(
+    let layered = status["on"].as_str().is_some()
+        || matches!(
             status["made_by"].as_str(),
             Some("try-on" | "fill" | "import" | "rebase")
-        ) =>
-        {
-            Some(format!(
-                "{STATE_DIR}/{}/{}/r{revision}/frame.json",
-                draft::DRAFTS_DIR,
-                made.handle
-            ))
-        }
-        _ => None,
-    }
+        );
+    layered.then(|| {
+        format!(
+            "{STATE_DIR}/{}/{}/r{revision}/frame.json",
+            draft::DRAFTS_DIR,
+            made.handle
+        )
+    })
 }
 
 /// Appends where a frame refusal's pointers point, and how to fix it
@@ -1233,7 +1269,7 @@ fn pointer_hint(error: AgentError, origin: &Origin, frame_path: &str, draft: &st
             "fix: edit {path} in place at those pointers (no need to rewrite it) and run try again"
         ),
         Origin::Candidate(handle) => format!(
-            "pointers refer to .sley/layered.json (the frame of {handle} with yours on top); fix your frame and run try --on {handle} again"
+            "pointers refer to {frame_path} (the frame of {handle} with yours on top; sley-agent draft {draft} --frame prints it); fix your frame and run try --on {handle} again"
         ),
         Origin::Draft => {
             format!("pointers refer to {frame_path} (sley-agent draft {draft} --frame prints it)")
@@ -1340,19 +1376,56 @@ struct TableCheck {
     /// Live tests a table made in this draft's lineage and no longer has:
     /// `(table, test)`.
     stale: Vec<(String, String)>,
+    /// Tests a table made that another change has since replaced; they are
+    /// no longer the table's and stay as they are: `(table, test)`.
+    replaced: Vec<(String, String)>,
 }
 
-/// Whether `owned` (a lineage's `tables`) records `id` for `table`'s `test`.
-fn owns(owned: &Value, table: &str, test: &str, id: &EntityId) -> bool {
-    let id = crate::hex::encode(id.as_bytes());
-    owned[table][test]
-        .as_array()
-        .is_some_and(|ids| ids.iter().any(|known| known.as_str() == Some(id.as_str())))
+/// A live `TestCase` as a table ownership record names it: the entity and
+/// the exact object version (so a test another change replaced, which
+/// keeps its entity, is no longer the one the table made).
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TestVersion {
+    id: String,
+    object: String,
 }
 
-/// The draft and table whose latest revision records `id` as a table-made
-/// test.
-fn table_maker(drafts: &Drafts, id: &EntityId) -> Option<(String, String)> {
+impl TestVersion {
+    fn of(program: &Program, id: &EntityId) -> Option<Self> {
+        let object = program.object(id)?;
+        Some(Self {
+            id: crate::hex::encode(id.as_bytes()),
+            object: crate::hex::encode(object.object_id().as_bytes()),
+        })
+    }
+
+    fn to_json(&self) -> Value {
+        json!({"id": self.id, "object": self.object})
+    }
+}
+
+/// How a lineage's `tables` record relates to a live test: `Some(true)`
+/// when `table` made exactly this version of it, `Some(false)` when it made
+/// the entity but the live version is another change's, `None` otherwise.
+fn owns(owned: &Value, table: &str, test: &str, live: &TestVersion) -> Option<bool> {
+    let made = owned[table][test].as_array()?;
+    let mut entity = false;
+    for record in made {
+        // Records carry the entity and its object version; a bare entity
+        // (an older record) proves no version and owns nothing.
+        if record["id"].as_str() == Some(live.id.as_str()) {
+            if record["object"].as_str() == Some(live.object.as_str()) {
+                return Some(true);
+            }
+            entity = true;
+        }
+    }
+    entity.then_some(false)
+}
+
+/// The draft and table whose latest revision records exactly the live
+/// version of a test as table-made.
+fn table_maker(drafts: &Drafts, live: &TestVersion) -> Option<(String, String)> {
     for handle in drafts.handles().ok()? {
         let Ok(status) = drafts
             .latest(&handle)
@@ -1365,7 +1438,7 @@ fn table_maker(drafts: &Drafts, id: &EntityId) -> Option<(String, String)> {
                 .as_object()
                 .into_iter()
                 .flatten()
-                .any(|(test, _)| owns(&status["tables"], table, test, id));
+                .any(|(test, _)| owns(&status["tables"], table, test, live) == Some(true));
             if made {
                 return Some((handle, table.clone()));
             }
@@ -1404,29 +1477,39 @@ fn check_tables(
     };
     let deleted = listed("delete", None);
     let frame_tests = listed("tests", Some("name"));
-    let live_test = |name: &str| live_test(head, names, name);
+    let live_test = |name: &str| {
+        live_test(head, names, name)
+            .and_then(|id| Some((id, TestVersion::of(head.program(), &id)?)))
+    };
     for row in &rows {
         if deleted.contains(&row.name) {
             continue;
         }
-        let Some(id) = live_test(&row.name) else {
+        let Some((id, live)) = live_test(&row.name) else {
             continue;
         };
-        if owns(owned, &row.table, &row.name, &id) {
+        let owned_here = owns(owned, &row.table, &row.name, &live);
+        if owned_here == Some(true) {
             continue;
         }
         let target = match head.program().body(&id) {
             Some(sley_mutate::value::EntityBodyValue::TestCase(test)) => names.name(&test.target),
             _ => "?".to_owned(),
         };
-        let maker = table_maker(drafts, &id).map_or_else(String::new, |(draft, table)| {
+        let maker = table_maker(drafts, &live).map_or_else(String::new, |(draft, table)| {
             format!("; table `{table}` of {draft} made it: update it there with sley-agent try --on {draft} (with --rebase after a commit)")
         });
+        // The table made this entity, but another change has replaced it.
+        let since = if owned_here == Some(false) {
+            " as it is now (another change replaced the test the table made)"
+        } else {
+            ""
+        };
         check.problems.push(crate::afx::Obligation::new(
             AgentErrorCode::TestTableInvalid,
             &row.at,
             format!(
-                "the row's test `{name}` would replace the live TestCase `{name}` (a test of `{target}`), which table `{table}` did not make in this draft: give the row another \"name\", or delete `{name}` explicitly (\"delete\": [\"{name}\"]){maker}",
+                "the row's test `{name}` would replace the live TestCase `{name}` (a test of `{target}`), which table `{table}` did not make in this draft{since}: give the row another \"name\", or delete `{name}` explicitly (\"delete\": [\"{name}\"]){maker}",
                 name = row.name,
                 table = row.table
             ),
@@ -1440,10 +1523,12 @@ fn check_tables(
             if kept {
                 continue;
             }
-            if let Some(id) = live_test(test)
-                && owns(owned, table, test, &id)
-            {
-                check.stale.push((table.clone(), test.clone()));
+            if let Some((_, live)) = live_test(test) {
+                match owns(owned, table, test, &live) {
+                    Some(true) => check.stale.push((table.clone(), test.clone())),
+                    Some(false) => check.replaced.push((table.clone(), test.clone())),
+                    None => {}
+                }
             }
         }
     }
@@ -1451,7 +1536,8 @@ fn check_tables(
 }
 
 /// The table-made tests of a lineage after this revision: every row test
-/// the candidate holds is recorded under its table.
+/// the candidate holds is recorded under its table, by entity and object
+/// version.
 fn record_tables(
     inherited: &Value,
     frame_value: &Value,
@@ -1463,13 +1549,14 @@ fn record_tables(
         return Value::Object(owned);
     }
     for row in crate::tables::row_tests(frame_value).1 {
-        let Some(id) = names
+        let Some(made) = names
             .resolve(&row.name)
             .filter(|id| program.body(id).is_some_and(|body| body.kind_tag() == 14))
+            .and_then(|id| TestVersion::of(program, &id))
         else {
             continue;
         };
-        let id = json!(crate::hex::encode(id.as_bytes()));
+        let id = made.to_json();
         let tests = owned
             .entry(row.table)
             .or_insert_with(|| json!({}))
@@ -1942,6 +2029,11 @@ fn run_trial(
             "table `{table}` no longer has a row for its live test `{test}`: the test is deleted"
         ));
     }
+    for (table, test) in &tables.replaced {
+        notes.push(format!(
+            "table `{table}` made `{test}`, but another change has replaced it: it is no longer the table's and stays as it is"
+        ));
+    }
     let staged = match (
         stage(head, &authority, &names, &compile_frame, nonce),
         tables.problems.is_empty(),
@@ -2014,8 +2106,7 @@ fn run_trial(
     // frame refusal on the same path says.
     if let Some(authored) = verdict.authored.as_mut() {
         authored.frame = match &proposal.origin {
-            Origin::Candidate(_) => Some(format!("{STATE_DIR}/layered.json")),
-            Origin::Draft => Some(frame_path.clone()),
+            Origin::Candidate(_) | Origin::Draft => Some(frame_path.clone()),
             Origin::Inline | Origin::File(_) => None,
         };
     }

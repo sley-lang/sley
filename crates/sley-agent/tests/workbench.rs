@@ -1595,7 +1595,9 @@ fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
     let (status, text) = run(&temp.path, &["try", "--on", "c3", &broken.to_string()]);
     assert_eq!(status, 2, "{text}");
     assert!(
-        text.contains("pointers refer to .sley/layered.json (the frame of c3 with yours on top)"),
+        text.contains(
+            "pointers refer to .sley/drafts/d4/r1/frame.json (the frame of c3 with yours on top"
+        ),
         "{text}"
     );
     assert!(temp.path.join(".sley/layered.json").is_file());

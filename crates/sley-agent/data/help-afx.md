@@ -131,11 +131,11 @@ Each row becomes one AF1 test named by its `name`, else `<table>_<i>` (`i`
 from 0). Row limits override the table's defaults; the AF1 test rules then
 apply unchanged. `try --on` replaces a table by its name.
 
-A row may name a live test only when the same table made it in this draft
-(`try --on`, `fill`); then the row updates it. Otherwise it is refused:
-give the row a "name", or delete the live test explicitly
-("delete": ["t_0"]). Restating a table without a row it made deletes that
-row's live test.
+A row may name a live test only when the same table made it, as it is
+now, in this draft (`try --on`, `fill`); then the row updates it.
+Otherwise it is refused: give the row a "name", or delete the live test
+explicitly ("delete": ["t_0"]). Restating a table without a row it made
+deletes that row's live test.
 
 ## Generated names
 

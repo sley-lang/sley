@@ -99,9 +99,11 @@ before submitting.
 A handle made from an AF1 frame keeps that frame in its metadata.
 `try --on <ref>` layers the new frame on the frame of `<ref>`, then compiles
 the result against the head like any other frame. The layered frame is
-the revision's `frame.json` when `<ref>` is a draft (section 12), and is
-also written to `.sley/layered.json` when `<ref>` is a candidate handle;
-refusal pointers refer to that layered frame. The layering rules:
+the `frame.json` of the draft revision the `try` records (section 12);
+refusal pointers refer to it, and `explain` names the same file later.
+When `<ref>` is a candidate handle it is also written to
+`.sley/layered.json`, which the next such `try` rewrites. The layering
+rules:
 - A `types`, `consts`, `fns` or named `tests` entry replaces the base entry
   of the same name; other entries are appended.
 - A `patch` of a function the base defines applies to that definition: a
@@ -460,21 +462,26 @@ derived name that collides with another test is refused with
 by name.
 
 A row's test name (given or derived) may name a TestCase live at the head
-only when that very test (by identity) was made by the same table in the
-same draft lineage; the row then updates it. Otherwise the row is refused
+only when that very test, as it is now, was made by the same table in the
+same draft lineage: the same entity, at the object version the table made
+(a replacement by name keeps the entity, so a test that another change has
+replaced since is no longer the table's); the row then updates it. Otherwise the row is refused
 with `AGENT_TEST_TABLE_INVALID` at the row (at its `name` when given), and
 the refusal names the draft whose table made the test when one did. The
 author gives the row another `name`, deletes the live test explicitly
 (`"delete": ["t_0"]`, which makes a new test), or updates the table on the
 draft that made it (`try --on <draft>`, with `--rebase` after a commit).
-A draft lineage records, per table and test name, the TestCase identities
-its candidates made (`tables` in `status.json`); a lineage continues
+A draft lineage records, per table and test name, the TestCase entities
+and object versions its candidates made (`tables` in `status.json`,
+`{"id", "object"}` records); a lineage continues
 through `try --on`, `fill` and `import --on`, and through `try --on
 <handle>` to the draft that made the candidate. When a table is restated
 without a row it once made, the live test of that row is deleted in the
 same candidate (a `note:` says so), so no stale row survives beside the
-restated ones. A table removed from the frame altogether deletes nothing;
-its live tests are deleted only explicitly.
+restated ones. A test the table made that another change has replaced is
+never deleted this way: a `note:` says it stays as it is. A table removed
+from the frame altogether deletes nothing; its live tests are deleted only
+explicitly.
 
 ### 5.3 Ripple
 
@@ -638,8 +645,8 @@ rather than the kernel's first.
 A phase 7 locator names a whole function. When the refused candidate was
 made from a frame, `try` and `explain` add an `authored:` line (`"authored"`
 in the JSON verdict, a list of `{"at", "what"}`): JSON pointers into that
-frame (for `try --on`, the layered frame: the draft revision's
-`frame.json`, or `.sley/layered.json` for a candidate handle) of the
+frame (for `try --on`, the layered frame: the `frame.json` of the draft
+revision that made the candidate, for a draft or a candidate handle) of the
 blocks, operations, terminators, signatures (`params`, `returns`) and
 constant types the analysis ties to the kernel's symbol. Besides the
 structural checks, the analysis compares declared types exactly as the
@@ -830,7 +837,7 @@ the same way.
 
 A frame refusal keeps exit status 2, its `error AGENT_*:` line and its
 problem lines. It then says where the pointers point (the frame file to
-edit in place, `.sley/layered.json`, or the revision's `frame.json`), and
+edit in place, or the revision's `frame.json` for a layered frame), and
 adds the draft line (`draft d1@r3: incomplete, 2 obligation(s)
 (AGENT_FRAME_INVALID 2); list: sley-agent draft d1 --obligations`) and a
 `next:` line with the `fill` that repairs it in place, at the first
@@ -965,7 +972,12 @@ handle.
 (`[{"name", "function", "args", "expect"}]`; a case without a name is
 `case<i>`) and records a revision whose frame adds them as AF1 `tests`
 named by their cases: layered on the draft with `--on`, or as a new draft.
-`--only` selects cases by name. A case without `expect` is refused with
+`--only` selects cases by name. With `--on`, a case replaces a draft test
+of the same name only when that test is an earlier import unchanged since,
+or already equals the case; a test the author wrote, or changed after its
+import, is never replaced: the import is refused with
+`AGENT_INPUT_INVALID`, naming those cases, and records nothing (`--only`
+leaves them out). A case without `expect` is refused with
 `AGENT_INPUT_INVALID`: expected values come from the case file, never from
 running a candidate. `status.json` records the file's SHA-256 and case
 count (`import`) and, per imported test, its case, the file's SHA-256 and

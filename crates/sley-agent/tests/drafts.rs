@@ -1535,3 +1535,162 @@ fn a_follow_up_refused_before_layering_is_not_recorded() {
         "{text}"
     );
 }
+
+#[test]
+fn a_table_does_not_own_a_test_another_change_replaced() {
+    // Table `t` of d2 made t_0 and t_1; another draft replaced t_1 by name
+    // (now the only test of `big`); the entity survives the replacement.
+    let temp = neg_big_workspace("replaced-owner");
+    let two =
+        json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(1, false), (-2, true)])]});
+    assert_eq!(run(&temp.path, &["try", &two.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let other =
+        json!({"af1": 1, "tests": [{"name": "t_1", "fn": "big", "args": [500], "expect": true}]});
+    let (status, text) = run(&temp.path, &["try", &other.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let live = || view_text(&temp.path, &["t_1"]);
+    assert!(live().contains("test t_1: big(500) == true"));
+    // (a) Restating the table with row 1 changed would take the test back.
+    let changed =
+        json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(1, false), (-3, true)])]});
+    let (status, text) = run(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &changed.to_string()],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.starts_with("error AGENT_TEST_TABLE_INVALID: /test_tables/0/cases/1: the row's test `t_1` would replace the live TestCase `t_1` (a test of `big`), which table `t` did not make in this draft as it is now (another change replaced the test the table made)"),
+        "{text}"
+    );
+    // (b) Restating it without row 1 never deletes the replaced test.
+    let one = json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(1, false)])]});
+    let (status, text) = run(
+        &temp.path,
+        &["try", "--on", "d2@r1", "--rebase", &one.to_string()],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("the frame changes nothing"), "{text}");
+    let moved = json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(7, false)])]});
+    let (status, text) = run(
+        &temp.path,
+        &["try", "--on", "d2@r1", "--rebase", &moved.to_string()],
+    );
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains("note: table `t` made `t_1`, but another change has replaced it: it is no longer the table's and stays as it is"),
+        "{text}"
+    );
+    assert!(text.contains("changed: test ~t_0\n"), "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    assert!(live().contains("test t_1: big(500) == true"));
+}
+
+#[test]
+fn a_second_import_never_replaces_an_author_changed_test() {
+    let temp = neg_big_workspace("reimport");
+    let base = json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(3, false)])]});
+    assert_eq!(run(&temp.path, &["try", &base.to_string()]).0, 0);
+    let cases = temp.path.join("cases.json");
+    let write = |expect_p2: bool| {
+        fs::write(
+            &cases,
+            json!([{"name": "p1", "function": "neg", "args": [-1], "expect": true},
+                   {"name": "p2", "function": "neg", "args": [2], "expect": expect_p2}])
+            .to_string(),
+        )
+        .unwrap();
+    };
+    write(false);
+    let path = cases.to_str().unwrap().to_owned();
+    assert_eq!(run(&temp.path, &["import", &path, "--on", "d2"]).0, 0);
+    // An unchanged earlier import is updated by a changed case file.
+    write(true);
+    let (status, text) = run(&temp.path, &["import", &path, "--on", "d2"]);
+    assert_eq!(status, 1, "the file's new expectation fails: {text}");
+    write(false);
+    assert_eq!(run(&temp.path, &["import", &path, "--on", "d2"]).0, 0);
+    // The author changes p1; importing the file again would undo that.
+    let mine =
+        json!({"af1": 1, "tests": [{"name": "p1", "fn": "neg", "args": [-7], "expect": true}]});
+    assert_eq!(
+        run(&temp.path, &["try", "--on", "d2", &mine.to_string()]).0,
+        0
+    );
+    let before = revisions(&temp.path, "d2");
+    let (status, text) = run(&temp.path, &["import", &path, "--on", "d2"]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("error AGENT_INPUT_INVALID: case(s) `p1` would replace the test(s) of the same name in d2@r5, which the author wrote or changed after an import; nothing was recorded"),
+        "{text}"
+    );
+    assert_eq!(revisions(&temp.path, "d2"), before);
+    // The other cases still import, and provenance stays per test.
+    let (status, text) = run(&temp.path, &["import", &path, "--on", "d2", "--only", "p2"]);
+    assert_eq!(status, 0, "{text}");
+    let status = status_of(&temp.path, "d2");
+    assert_eq!(status["tests"]["imported"], 1, "{status}");
+    assert_eq!(status["tests"]["authored"], 2, "{status}");
+    let (_, frame) = run_json(&temp.path, &["draft", "d2", "--frame"]);
+    let p1 = frame["frame"]["tests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|test| test["name"] == "p1")
+        .unwrap()
+        .clone();
+    assert_eq!(p1["args"], json!([-7]));
+}
+
+#[test]
+fn explain_names_the_frame_a_layered_candidate_was_made_from() {
+    // A candidate made by `try --on <handle>`: its authored pointers index
+    // its draft revision's frame, which a later `try --on` never rewrites.
+    let temp = neg_big_workspace("explain-frame");
+    let g_and_h = |ty: &str| {
+        json!({"af1": 1, "fns": [
+            {"fn": "g", "params": [["x", ty]], "returns": ty,
+             "blocks": [{"name": "entry", "term": ["return", "x"]}]},
+            {"fn": "h", "params": [["a", "i64"]], "returns": "i64",
+             "blocks": [{"name": "entry", "ops": [["r", "call", "g", "a"]], "term": ["return", "r"]}]}]})
+    };
+    let (status, text) = run(
+        &temp.path,
+        &["try", "--no-test", &g_and_h("i64").to_string()],
+    );
+    assert_eq!(status, 0, "{text}");
+    let patch =
+        json!({"af1": 1, "patch": [{"fn": "g", "params": [["x", "bool"]], "returns": "bool"}]});
+    let (status, text) = run(
+        &temp.path,
+        &["try", "--no-test", "--on", "c2", &patch.to_string()],
+    );
+    assert_eq!(status, 1, "{text}");
+    let pointers = "pointers refer to .sley/drafts/d3/r1/frame.json";
+    assert!(text.contains(pointers), "{text}");
+    // Another follow-up on the same candidate rewrites .sley/layered.json.
+    let other = json!({"af1": 1, "fns": [{"fn": "k", "params": [], "returns": "bool",
+        "blocks": [{"name": "entry", "ops": [["t", "const", true]], "term": ["return", "t"]}]}]});
+    assert_eq!(
+        run(
+            &temp.path,
+            &["try", "--no-test", "--on", "c2", &other.to_string()]
+        )
+        .0,
+        0
+    );
+    let (status, explained) = run(&temp.path, &["explain", "c3"]);
+    assert_eq!(status, 1, "{explained}");
+    assert!(explained.contains(pointers), "{explained}");
+    assert!(!explained.contains("layered.json"), "{explained}");
+    let (_, value) = run_json(&temp.path, &["explain", "c3"]);
+    let frame: Value = serde_json::from_str(
+        &fs::read_to_string(temp.path.join(".sley/drafts/d3/r1/frame.json")).unwrap(),
+    )
+    .unwrap();
+    for entry in value["verdict"]["authored"].as_array().unwrap() {
+        let at = entry["at"].as_str().unwrap();
+        assert!(frame.pointer(at).is_some(), "{at}: {value}");
+    }
+}

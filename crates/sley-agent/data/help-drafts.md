@@ -19,6 +19,9 @@ repeat or contain each other; the replacements apply together or not at
 all. To insert into or delete from an array, replace the array. A frame
 that did not parse can only be replaced whole.
 
+`import --on d1` replaces a draft test of the same name only when it is an
+unchanged earlier import; it never replaces a test you wrote or changed.
+
 A follow-up that is not JSON, or that cannot be layered, is kept as the
 next revision; `fill` repairs it and layers it on its base again. A
 follow-up refused before layering (its base is a text or unlayered
