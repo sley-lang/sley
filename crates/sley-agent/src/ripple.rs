@@ -1075,6 +1075,9 @@ struct Fill {
 /// A checker function: its body and its `P -> Result<P,E>` shape.
 struct Checker {
     name: String,
+    /// The live identity, when the checker is a live function the frame
+    /// does not restate.
+    id: Option<EntityId>,
     func: Option<Func>,
     param: TypeExpr,
     error: TypeExpr,
@@ -1091,6 +1094,8 @@ struct Ripple<'c, 'a> {
     holes: Vec<Obligation>,
     edits: u64,
     records: Vec<Value>,
+    /// Arity targets derived so far, with their intent.
+    arities: BTreeMap<String, String>,
 }
 
 impl<'c, 'a> Ripple<'c, 'a> {
@@ -1106,6 +1111,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
             holes: Vec::new(),
             edits: 0,
             records: Vec::new(),
+            arities: BTreeMap::new(),
         }
     }
 
@@ -1372,6 +1378,15 @@ impl<'c, 'a> Ripple<'c, 'a> {
     #[allow(clippy::too_many_lines)]
     fn arity(&mut self, index: usize, target: &str, value: Option<&Value>) {
         let at = format!("/ripple/{index}");
+        if let Some(first) = self.arities.get(target) {
+            self.hole(
+                AgentErrorCode::RippleHoleUnfilled,
+                &format!("{at}/arity"),
+                format!("the parameters of `{target}` are already propagated by the intent at {first}: keep one intent per function"),
+            );
+            return;
+        }
+        self.arities.insert(target.to_owned(), at.clone());
         let (f_id, f_body) = match self.live_target(target) {
             Ok(found) => found,
             Err(why) => {
@@ -1510,7 +1525,11 @@ impl<'c, 'a> Ripple<'c, 'a> {
         });
         let mut frame_records = Vec::new();
         for call in ordered {
-            let site = format!("{} ({})", call.pointer, call.function);
+            let authored = self
+                .map
+                .authored(&call.pointer)
+                .unwrap_or_else(|| call.pointer.clone());
+            let site = format!("{authored} ({})", call.function);
             if call.fnref {
                 dispatch.push(Value::from(site.clone()));
                 self.hole(
@@ -2442,8 +2461,14 @@ impl<'c, 'a> Ripple<'c, 'a> {
             );
             return Ok(None);
         }
+        let id = if restated {
+            None
+        } else {
+            self.live_target(name).ok().map(|(id, _)| id)
+        };
         Ok(Some(Checker {
             name: name.to_owned(),
+            id,
             func,
             param,
             error,
@@ -2557,6 +2582,17 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 Err(why) => why_not.push(why),
             }
         }
+        if let Some(why) = why_not.first() {
+            self.hole(
+                AgentErrorCode::RippleGuardOrder,
+                at,
+                format!(
+                    "a check in `{function}` has the shape of `{}` on `{arg}` but {why}: preserve replaces it only when nothing else uses the check's values; write the call",
+                    checker.name
+                ),
+            );
+            return None;
+        }
         if regions.is_empty() {
             let calls = calls_of(&f, &checker.name, arg);
             let already = if calls.is_empty() {
@@ -2568,14 +2604,11 @@ impl<'c, 'a> Ripple<'c, 'a> {
                     calls.join(", ")
                 )
             };
-            let detail = why_not
-                .first()
-                .map_or_else(String::new, |why| format!("; the closest check {why}"));
             self.hole(
                 AgentErrorCode::RippleGuardOrder,
                 at,
                 format!(
-                    "no check in `{function}` is the same as `{}` on `{arg}`{already}{detail}: preserve replaces a check only where the same operations run on `{arg}` in the same order at the end of a block, fail with the same errors and continue to one block; use \"mode\": \"entry\", or write the call",
+                    "no check in `{function}` is the same as `{}` on `{arg}`{already}: preserve replaces a check only where the same operations run on `{arg}` in the same order at the end of a block, fail with the same errors and continue to one block; use \"mode\": \"entry\", or write the call",
                     checker.name
                 ),
             );
@@ -2596,7 +2629,11 @@ impl<'c, 'a> Ripple<'c, 'a> {
         }
         for (i, a) in regions.iter().enumerate() {
             for b in &regions[i + 1..] {
-                if a.anchor == b.anchor || !a.blocks.is_disjoint(&b.blocks) {
+                if a.anchor == b.anchor
+                    || !a.blocks.is_disjoint(&b.blocks)
+                    || a.blocks.contains(&b.anchor)
+                    || b.blocks.contains(&a.anchor)
+                {
                     self.hole(
                         AgentErrorCode::RippleGuardOrder,
                         at,
@@ -2627,7 +2664,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 leaf: call.clone(),
                 tag: 112,
                 imm: Imm::Function {
-                    id: EntityId::from_bytes([0; 32]),
+                    id: checker.id.unwrap_or_else(|| EntityId::from_bytes([0; 32])),
                     name: checker.name.clone(),
                     generic: false,
                 },
@@ -2761,20 +2798,23 @@ impl<'c, 'a> Ripple<'c, 'a> {
             return None;
         }
         // Where the checker's error goes: one compatible route, or a hole.
+        // A block that only passes its error on to another such block is
+        // the same route as that block.
         let error = &checker.error;
-        let mut handlers = Vec::new();
+        let mut handlers: Vec<String> = Vec::new();
         let mut returning = None;
         for block in &f.blocks {
-            let [(param, ty)] = block.params.as_slice() else {
-                continue;
-            };
-            if ty != error || block.unreachable {
+            if !takes_one(block, error) || block.unreachable {
                 continue;
             }
-            if is_error_return(block, param) {
-                returning.get_or_insert(block.leaf.clone());
-            } else {
-                handlers.push(block.leaf.clone());
+            let leaf = forwarded(&f, &block.leaf, error);
+            let Some(target) = f.block(&leaf) else {
+                continue;
+            };
+            if is_error_return(target, &target.params[0].0) {
+                returning.get_or_insert(leaf);
+            } else if !handlers.contains(&leaf) {
+                handlers.push(leaf);
             }
         }
         let declared =
@@ -2875,7 +2915,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 leaf: result.clone(),
                 tag: 112,
                 imm: Imm::Function {
-                    id: EntityId::from_bytes([0; 32]),
+                    id: checker.id.unwrap_or_else(|| EntityId::from_bytes([0; 32])),
                     name: checker.name.clone(),
                     generic: false,
                 },
@@ -3152,6 +3192,38 @@ fn calls_of(func: &Func, checker: &str, arg: &str) -> Vec<String> {
     out
 }
 
+/// Whether a block takes exactly one parameter, of type `ty`.
+fn takes_one(block: &Blk, ty: &TypeExpr) -> bool {
+    matches!(block.params.as_slice(), [(_, param)] if param == ty)
+}
+
+/// The block an error given to `leaf` ends up in: `leaf`, or the block it
+/// forwards its one parameter to unchanged (no operations, a plain branch),
+/// followed to the end.
+fn forwarded(func: &Func, leaf: &str, ty: &TypeExpr) -> String {
+    let mut current = leaf.to_owned();
+    for _ in 0..func.blocks.len() {
+        let Some(block) = func.block(&current) else {
+            break;
+        };
+        let [(param, _)] = block.params.as_slice() else {
+            break;
+        };
+        let next = match &block.term {
+            Term::Br(edge)
+                if block.ops.is_empty()
+                    && edge.args == [Arg::Val(Val::Block(current.clone(), param.clone()))]
+                    && func.block(&edge.target).is_some_and(|target| takes_one(target, ty)) =>
+            {
+                edge.target.clone()
+            }
+            _ => break,
+        };
+        current = next;
+    }
+    current
+}
+
 /// Whether a block is `(e: E) { r = err e; return r }`.
 fn is_error_return(block: &Blk, param: &str) -> bool {
     let [op] = block.ops.as_slice() else {
@@ -3319,6 +3391,30 @@ fn classify(
         };
         kinds.insert(block.leaf.clone(), kind);
     }
+    // A success block that takes its value as a parameter gets the checked
+    // parameter on every edge into it.
+    for block in &g.blocks {
+        if kinds.get(&block.leaf) != Some(&Kind::Success) {
+            continue;
+        }
+        let Some(Val::Block(_, name)) = block.ops[0].args.first() else {
+            continue;
+        };
+        let position = block.params.iter().position(|(param, _)| param == name);
+        for pred in &g.blocks {
+            for edge in pred.term.edges() {
+                if edge.target == block.leaf
+                    && position.and_then(|position| edge.args.get(position))
+                        != Some(&Arg::Val(Val::Param(q.to_owned())))
+                {
+                    return Err(format!(
+                        "block `{}` succeeds with a value other than its parameter",
+                        block.leaf
+                    ));
+                }
+            }
+        }
+    }
     acyclic(g, &g.entry, &mut Vec::new(), &mut BTreeSet::new())?;
     if !kinds.values().any(|kind| *kind == Kind::Success) {
         return Err("it never succeeds".to_owned());
@@ -3355,7 +3451,8 @@ struct Region {
     anchor: String,
     /// Where the check starts in the anchor block.
     start: usize,
-    /// Other blocks of the function the check maps to.
+    /// Other blocks of the function the check's branching blocks map to
+    /// (its error exits, which only return, may be shared).
     blocks: BTreeSet<String>,
     /// The success continuation.
     cont: Edge,
@@ -3638,10 +3735,16 @@ impl Matcher<'_> {
                 ));
             }
         }
+        let checks = self
+            .blocks
+            .iter()
+            .filter(|(g, _)| self.kinds.get(*g) == Some(&Kind::Check))
+            .map(|(_, f)| f.clone())
+            .collect();
         Ok(Region {
             anchor: anchor.to_owned(),
             start,
-            blocks: self.taken.clone(),
+            blocks: checks,
             cont,
         })
     }
