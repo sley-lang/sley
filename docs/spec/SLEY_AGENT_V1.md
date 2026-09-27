@@ -421,7 +421,8 @@ Two intents are enabled:
   that takes `(e: E)` (a block that only passes the error on counts as the
   block it passes it to); with no such route, or more than one, it is a
   hole. Entry never moves a check before an effect, never evaluates `g`
-  twice on `p` and never deletes an existing check.
+  twice on `p`, never deletes an existing check, and is refused when `g`
+  calls `f`.
 
 `effect`, `member`, `retype`, `move` and `prune` are not enabled in this
 build: they are refused with `AGENT_RIPPLE_INTENT_UNKNOWN`, as is any
