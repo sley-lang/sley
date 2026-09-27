@@ -71,4 +71,4 @@ again as the next revision. `draft d1` shows its state and open
 obligations; `draft d1 --expanded` shows the plain frame derived from yours.
 A kernel refusal prints the phase, symbol, `where:`, `authored:` and a
 hint. `submit` refuses a change no test covers (`--untested` overrides).
-More: `sley-agent help afx|af1|drafts|types|tests|opcodes|refusals`.
+More: `sley-agent help afx|af1|drafts|tests|search|types|opcodes|refusals`.

@@ -674,6 +674,18 @@ fn the_guide_is_small_and_every_example_runs() {
     assert!(text.contains("d1@r3"), "{text}");
     let (status, text) = run(&temp.path, &["submit", "d1"]);
     assert_eq!(status, 0, "{text}");
+    // Every help topic the guide names exists.
+    for line in guide.lines() {
+        if let Some(rest) = line.split("sley-agent help ").nth(1) {
+            let topics = rest.split('`').next().unwrap();
+            for topic in topics.split('|') {
+                assert!(
+                    sley_agent::help::topic(topic).is_some(),
+                    "the guide names an unknown help topic: {topic}"
+                );
+            }
+        }
+    }
     // Every command the guide shows names a real command.
     for line in guide.lines() {
         if let Some(command) = line.trim_start().strip_prefix("sley-agent ") {
