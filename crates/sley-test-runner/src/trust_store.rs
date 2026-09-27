@@ -13,9 +13,10 @@ use std::path::Path;
 
 use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
 use sley_scb1::ScbErrorCode;
-use sley_tests::HistoricalTrustPolicyV1;
+use sley_tests::{HistoricalTrustPolicyV1, ROLE_MEASUREMENT};
 
 use crate::config::RunnerConfig;
+use crate::outcome::{Ed25519MeasurementSigner, Signer, SignerError};
 
 /// Fixed root-provisioned current measurement manifest filename.
 pub const MEASUREMENT_MANIFEST_FILE: &str = "measurement.sleyntr1";
@@ -129,6 +130,93 @@ pub fn load_measurement_trust(
         return Err(TrustLoadError::Unprivileged);
     }
     load_for_owner(config, 0)
+}
+
+/// Provisioned authority loaded before accepting native test work.
+///
+/// The configuration, current trust manifest, and private signing key are
+/// held together so the service cannot use a different configuration after
+/// authenticating a peer or launching its unit.
+pub struct ProvisionedMeasurementAuthority {
+    config: RunnerConfig,
+    trust: HistoricalTrustPolicyV1,
+    signer: Ed25519MeasurementSigner,
+}
+
+/// Failure to establish the root service's measurement authority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuthorityLoadError {
+    /// The administrator's measurement manifest could not be trusted.
+    Trust(TrustLoadError),
+    /// The private measurement key could not be loaded.
+    Key(SignerError),
+    /// The manifest does not grant the loaded key the measurement role.
+    KeyNotGranted,
+}
+
+impl core::fmt::Display for AuthorityLoadError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str(match self {
+            Self::Trust(_) => "NATIVE_AUTHORITY_TRUST_UNAVAILABLE",
+            Self::Key(_) => "NATIVE_AUTHORITY_KEY_UNAVAILABLE",
+            Self::KeyNotGranted => "NATIVE_AUTHORITY_KEY_NOT_GRANTED",
+        })
+    }
+}
+
+impl std::error::Error for AuthorityLoadError {}
+
+impl ProvisionedMeasurementAuthority {
+    /// Loads the administrator's immutable service configuration, current
+    /// measurement trust, and root-only private key as one startup gate.
+    ///
+    /// # Errors
+    ///
+    /// Refuses unavailable or unsafe authority before accepting a worker.
+    pub fn load(config: RunnerConfig) -> Result<Self, AuthorityLoadError> {
+        let trust = load_measurement_trust(&config).map_err(AuthorityLoadError::Trust)?;
+        let signer =
+            Ed25519MeasurementSigner::from_key_file(Path::new(&config.measurement_key_path))
+                .map_err(AuthorityLoadError::Key)?;
+        let key_id = signer.public_key();
+        if !trust
+            .entries()
+            .iter()
+            .any(|entry| entry.key_id == key_id && entry.role == ROLE_MEASUREMENT)
+        {
+            return Err(AuthorityLoadError::KeyNotGranted);
+        }
+        Ok(Self {
+            config,
+            trust,
+            signer,
+        })
+    }
+
+    pub(crate) const fn config(&self) -> &RunnerConfig {
+        &self.config
+    }
+
+    pub(crate) const fn trust(&self) -> &HistoricalTrustPolicyV1 {
+        &self.trust
+    }
+
+    pub(crate) fn signer(&self) -> &dyn Signer {
+        &self.signer
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn for_test(
+        config: RunnerConfig,
+        trust: HistoricalTrustPolicyV1,
+        signer: Ed25519MeasurementSigner,
+    ) -> Self {
+        Self {
+            config,
+            trust,
+            signer,
+        }
+    }
 }
 
 #[cfg(test)]

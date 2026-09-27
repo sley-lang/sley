@@ -14,10 +14,10 @@
 //! one-connection service with prelaunch program checks, live cgroup telemetry,
 //! a bounded gated-worker report channel and ordered manager/cgroup gate phase,
 //! a signed-completion builder, a root-provisioned measurement trust loader,
-//! and readiness probes. The unit owner composes
-//! launch, gated execution, exit, and reap checks; the signed-completion
-//! builder requires its result and an authenticated request. The root service
-//! loop does not invoke either yet; privileged qualification remains open.
+//! and readiness probes. The root connection handler composes authentication,
+//! staging, owned launch, confirmed cleanup, and signing. The production
+//! listener, daemon entry, systemd installation, and privileged qualification
+//! remain open.
 //!
 //! It performs no policy selection, grants no commit authority, and holds no
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
@@ -27,8 +27,9 @@
 //! a portable selected `TestCase` and emitting one canonical pure report.
 //! The owner derives bounded worker input hashes and
 //! supervisor request bindings from the validated selected `TestCase`; the
-//! socket service rechecks both before its explicit refusal. Measured launch
-//! and native admission still belong to N5; the service remains refusal-only.
+//! root socket handler rechecks both before staging. The older one-shot
+//! handler remains an explicit refusal path; native admission still requires
+//! privileged qualification and transaction-owner verification.
 
 pub mod attest;
 pub mod channel;
