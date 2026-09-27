@@ -13,8 +13,9 @@
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, live cgroup telemetry,
 //! a bounded gated-worker report channel and ordered manager/cgroup gate phase,
-//! and readiness probes. The root service loop and privileged transient-unit
-//! execution are not wired yet.
+//! and readiness probes. The unit owner composes launch, gated execution,
+//! exit, and reap checks, but the root service loop does not invoke it yet;
+//! privileged qualification remains open.
 //!
 //! It performs no policy selection, grants no commit authority, and holds no
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
@@ -35,6 +36,7 @@ pub mod execution;
 pub mod ingress;
 pub mod manager;
 pub mod outcome;
+pub mod owner;
 pub mod phase;
 pub mod probe;
 pub mod program;

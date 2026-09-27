@@ -10,7 +10,7 @@
 use std::io::{Read, Write};
 use std::os::fd::AsFd;
 use std::os::unix::net::UnixStream;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sley_tests::NativeExecutionReportV1;
 
@@ -133,8 +133,17 @@ pub fn run_system_unit_phase<Output: AsFd + Read, Control: Write>(
     }
     check_deadline(deadline)?;
     check_peer_connected(peer).map_err(PhaseError::Channel)?;
-    let installed =
-        verify_system_unit(unit, config, worker_input_path).map_err(PhaseError::Manager)?;
+    let installed = loop {
+        check_deadline(deadline)?;
+        check_peer_connected(peer).map_err(PhaseError::Channel)?;
+        match verify_system_unit(unit, config, worker_input_path) {
+            Ok(installed) => break installed,
+            Err(ManagerError::Unavailable | ManagerError::NotReady) => {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => return Err(PhaseError::Manager(error)),
+        }
+    };
     check_deadline(deadline)?;
     let telemetry = LiveCgroupTelemetry::open_system_unit(
         &unit.unit_name,

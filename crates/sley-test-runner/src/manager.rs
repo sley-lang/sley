@@ -26,6 +26,8 @@ const MAX_BUS_REPLY_BYTES: usize = 131_072;
 pub enum ManagerError {
     /// The manager or typed D-Bus response could not be read.
     Unavailable,
+    /// The transient service exists but has not exposed its worker PID yet.
+    NotReady,
     /// A required typed property was missing, malformed, or different.
     PropertyMismatch,
 }
@@ -34,6 +36,7 @@ impl core::fmt::Display for ManagerError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
             Self::Unavailable => "NATIVE_MANAGER_UNAVAILABLE",
+            Self::NotReady => "NATIVE_MANAGER_NOT_READY",
             Self::PropertyMismatch => "NATIVE_MANAGER_PROPERTY_MISMATCH",
         })
     }
@@ -281,6 +284,15 @@ fn verify_snapshot(
     let service_name = format!("{}.service", unit.unit_name);
     check(unit_properties, "Id", "s", &json!(service_name))?;
     check(unit_properties, "Transient", "b", &json!(true))?;
+    let state = property(unit_properties, "ActiveState", "s")?
+        .as_str()
+        .ok_or(ManagerError::PropertyMismatch)?;
+    if state == "activating" {
+        return Err(ManagerError::NotReady);
+    }
+    if state != "active" {
+        return Err(ManagerError::PropertyMismatch);
+    }
     check(
         unit_properties,
         "BindsTo",
@@ -343,12 +355,22 @@ fn verify_snapshot(
     }
 
     let expected_group = format!("/system.slice/{service_name}");
-    check(service, "ControlGroup", "s", &json!(expected_group))?;
+    let actual_group = property(service, "ControlGroup", "s")?
+        .as_str()
+        .ok_or(ManagerError::PropertyMismatch)?;
+    if actual_group.is_empty() {
+        return Err(ManagerError::NotReady);
+    }
+    if actual_group != expected_group {
+        return Err(ManagerError::PropertyMismatch);
+    }
     let main_pid = property(service, "MainPID", "u")?
         .as_u64()
         .and_then(|value| u32::try_from(value).ok())
-        .filter(|value| *value != 0)
         .ok_or(ManagerError::PropertyMismatch)?;
+    if main_pid == 0 {
+        return Err(ManagerError::NotReady);
+    }
     Ok(InstalledWorker {
         control_group: expected_group,
         main_pid,
@@ -407,6 +429,7 @@ mod tests {
         let mut service = BTreeMap::new();
         insert(&mut unit_map, "Id", "s", json!(format!("{name}.service")));
         insert(&mut unit_map, "Transient", "b", json!(true));
+        insert(&mut unit_map, "ActiveState", "s", json!("active"));
         insert(
             &mut unit_map,
             "BindsTo",
@@ -519,6 +542,28 @@ mod tests {
         assert_eq!(
             verify_snapshot(&unit_map, &service, &unit, &config, input),
             Err(ManagerError::PropertyMismatch)
+        );
+    }
+
+    #[test]
+    fn waits_only_for_a_real_startup_state() {
+        let (mut unit_map, mut service, unit, config) = fixture();
+        let input = "/run/sley-test-supervisor/input/abc.bin";
+        insert(&mut unit_map, "ActiveState", "s", json!("activating"));
+        assert_eq!(
+            verify_snapshot(&unit_map, &service, &unit, &config, input),
+            Err(ManagerError::NotReady)
+        );
+        insert(&mut unit_map, "ActiveState", "s", json!("failed"));
+        assert_eq!(
+            verify_snapshot(&unit_map, &service, &unit, &config, input),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut unit_map, "ActiveState", "s", json!("active"));
+        insert(&mut service, "MainPID", "u", json!(0));
+        assert_eq!(
+            verify_snapshot(&unit_map, &service, &unit, &config, input),
+            Err(ManagerError::NotReady)
         );
     }
 
