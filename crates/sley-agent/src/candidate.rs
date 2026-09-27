@@ -310,21 +310,26 @@ impl Store {
         Ok(handles)
     }
 
-    /// Stores candidate bytes under the next handle.
+    /// Stores candidate bytes under the next free handle. The handle is
+    /// claimed by linking the complete bytes into place, so concurrent
+    /// commands never share a handle and never see a partial file.
     ///
     /// # Errors
     ///
     /// `AGENT_IO_FAILED` when the store cannot be written.
     pub fn save(&self, stored: &[u8], meta: &serde_json::Value) -> Result<String> {
-        let next = self.handles()?.last().copied().unwrap_or(0) + 1;
-        let handle = format!("c{next}");
-        let path = self.dir.join(format!("{handle}.hex"));
-        fs::write(&path, format!("{}\n", hex::encode(stored)))
-            .map_err(|error| io(&path, &error))?;
-        let meta_path = self.dir.join(format!("{handle}.json"));
+        let first = self.handles()?.last().copied().unwrap_or(0) + 1;
+        let content = format!("{}\n", hex::encode(stored));
+        let number = claim_file(
+            &self.dir,
+            first,
+            |number| format!("c{number}.hex"),
+            content.as_bytes(),
+        )?;
+        let handle = format!("c{number}");
         let mut text = serde_json::to_string_pretty(meta).unwrap_or_default();
         text.push('\n');
-        fs::write(&meta_path, text).map_err(|error| io(&meta_path, &error))?;
+        replace_file(&self.dir.join(format!("{handle}.json")), text.as_bytes())?;
         Ok(handle)
     }
 
@@ -399,4 +404,59 @@ pub fn is_handle(reference: &str) -> bool {
     reference.len() > 1
         && reference.starts_with('c')
         && reference[1..].chars().all(|c| c.is_ascii_digit())
+}
+
+/// A scratch file name no other command uses: `.<label>-<pid>-<random>`.
+fn scratch_name(label: &str) -> Result<String> {
+    let random = random32()?;
+    Ok(format!(
+        ".{label}-{}-{}.partial",
+        std::process::id(),
+        hex::encode(&random[..8])
+    ))
+}
+
+/// Writes `content` to the first free numbered name at or after `first`
+/// and returns its number. The complete file is linked into place, which
+/// fails when the name exists, so each number is claimed exactly once even
+/// by concurrent commands.
+///
+/// # Errors
+///
+/// `AGENT_IO_FAILED` when the directory cannot be written.
+pub(crate) fn claim_file(
+    dir: &Path,
+    first: u64,
+    name: impl Fn(u64) -> String,
+    content: &[u8],
+) -> Result<u64> {
+    let scratch = dir.join(scratch_name("claim")?);
+    fs::write(&scratch, content).map_err(|error| io(&scratch, &error))?;
+    let mut number = first;
+    let claimed = loop {
+        let target = dir.join(name(number));
+        match fs::hard_link(&scratch, &target) {
+            Ok(()) => break Ok(number),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => number += 1,
+            Err(error) => break Err(io(&target, &error)),
+        }
+    };
+    let _ = fs::remove_file(&scratch);
+    claimed
+}
+
+/// Replaces a file whole: readers see the old or the new content, never a
+/// partial one.
+///
+/// # Errors
+///
+/// `AGENT_IO_FAILED` when the file cannot be written.
+pub(crate) fn replace_file(path: &Path, content: &[u8]) -> Result<()> {
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let scratch = dir.join(scratch_name("write")?);
+    fs::write(&scratch, content).map_err(|error| io(&scratch, &error))?;
+    fs::rename(&scratch, path).map_err(|error| {
+        let _ = fs::remove_file(&scratch);
+        io(path, &error)
+    })
 }

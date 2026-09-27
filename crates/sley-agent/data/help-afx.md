@@ -119,6 +119,12 @@ Each row becomes one AF1 test named by its `name`, else `<table>_<i>` (`i`
 from 0). Row limits override the table's defaults; the AF1 test rules then
 apply unchanged. `try --on` replaces a table by its name.
 
+A row may name a live test only when the same table made it in this draft
+(`try --on`, `fill`); then the row updates it. Otherwise it is refused:
+give the row a "name", or delete the live test explicitly
+("delete": ["t_0"]). Restating a table without a row it made deletes that
+row's live test.
+
 ## Generated names
 
     n__a<k>          operand k of operation n (nesting appends: n__a0__a1)
@@ -138,5 +144,6 @@ brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
     AGENT_X_PROPAGATION       no single, type-correct failure route for ? or !
     AGENT_X_SCOPE             a name is ambiguous, not available, or not passed
     AGENT_X_LIMIT             nesting (32), operations (4096) or generated blocks (1024)
-    AGENT_TEST_TABLE_INVALID  a malformed, duplicated or colliding table row
+    AGENT_TEST_TABLE_INVALID  a malformed, duplicated or colliding table row, or one
+                              naming a live test its table did not make
     AGENT_RIPPLE_INTENT_UNKNOWN  ripple is not enabled in this build

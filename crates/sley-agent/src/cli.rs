@@ -160,10 +160,21 @@ fn remember_names(workspace: &Workspace, names: &NameMap) -> Result<()> {
     if names.is_empty() {
         return Ok(());
     }
+    // Concurrent commands each merge into the map; a merge another command
+    // overwrote is merged again.
     let path = workspace.state_dir()?.join(NAMES_FILE);
-    let mut map = NameMap::read(&path)?;
-    map.extend(names);
-    map.write(&path)
+    for _ in 0..8 {
+        let mut map = NameMap::read(&path)?;
+        map.extend(names);
+        map.write(&path)?;
+        let written = NameMap::read(&path)?;
+        let mut merged = written.clone();
+        merged.extend(names);
+        if merged == written {
+            return Ok(());
+        }
+    }
+    Ok(())
 }
 
 fn dispatch(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
@@ -618,8 +629,45 @@ impl TrialOptions {
 enum Target {
     /// A new draft (`dN@r1`).
     New,
-    /// The next revision of `handle`, built on its revision `parent`.
-    Next { handle: String, parent: u64 },
+    /// The next revision of `handle`, built on its revision `parent`; with
+    /// `latest`, `parent` was the latest revision and the new revision must
+    /// directly follow it.
+    Next {
+        handle: String,
+        parent: u64,
+        latest: bool,
+    },
+}
+
+/// What a revision is made of.
+enum Input {
+    /// The complete frame (layered, when the revision builds on a base).
+    Frame(Value),
+    /// Input that is not JSON.
+    Text(TextFailure),
+    /// A parseable follow-up that could not be layered on its base.
+    Unlayered { follow_up: Value, error: AgentError },
+}
+
+impl Input {
+    fn of(parsed: std::result::Result<Value, TextFailure>) -> Self {
+        match parsed {
+            Ok(frame) => Self::Frame(frame),
+            Err(failure) => Self::Text(failure),
+        }
+    }
+
+    /// A follow-up layered on `base`; a follow-up that is not JSON or that
+    /// layering refuses is kept as it is.
+    fn layered(base: &Value, parsed: std::result::Result<Value, TextFailure>) -> Self {
+        match parsed {
+            Ok(follow_up) => match crate::layer::layer(base, &follow_up) {
+                Ok(frame) => Self::Frame(frame),
+                Err(error) => Self::Unlayered { follow_up, error },
+            },
+            Err(failure) => Self::Text(failure),
+        }
+    }
 }
 
 /// Where the pointers of a frame refusal point.
@@ -638,7 +686,7 @@ enum Origin {
 struct Proposal {
     made_by: &'static str,
     input: Vec<u8>,
-    frame: std::result::Result<Value, TextFailure>,
+    frame: Input,
     target: Target,
     origin: Origin,
     on: Option<String>,
@@ -646,6 +694,7 @@ struct Proposal {
     whole_frame: bool,
     rebase: Option<Value>,
     sources: Vec<Value>,
+    tables: Value,
     import: Option<Value>,
 }
 
@@ -653,7 +702,7 @@ impl Proposal {
     fn new(
         made_by: &'static str,
         input: Vec<u8>,
-        frame: std::result::Result<Value, TextFailure>,
+        frame: Input,
         target: Target,
         origin: Origin,
     ) -> Self {
@@ -668,14 +717,18 @@ impl Proposal {
             whole_frame: false,
             rebase: None,
             sources: Vec::new(),
+            tables: json!({}),
             import: None,
         }
     }
-}
 
-/// The imported-test sources a revision's status carries.
-fn sources_of(status: &Value) -> Vec<Value> {
-    status["sources"].as_array().cloned().unwrap_or_default()
+    /// Carries a lineage's imported-test sources and table-made tests.
+    fn inherit(&mut self, status: &Value) {
+        self.sources = status["sources"].as_array().cloned().unwrap_or_default();
+        if status["tables"].is_object() {
+            self.tables = status["tables"].clone();
+        }
+    }
 }
 
 /// Refuses to build on a revision made on another head unless the author
@@ -706,30 +759,51 @@ fn head_check(
     Ok(Some(json!({"from_head": base, "to_head": now, "via": via})))
 }
 
-/// The frame and status of a revision to build on; a text revision has no
-/// frame to build on.
+/// The frame and status of a revision to build on. A text revision, and a
+/// follow-up that was never layered, have no complete frame to build on.
 fn layer_base(drafts: &Drafts, handle: &str, revision: u64) -> Result<(Value, Value)> {
     let status = drafts.status(handle, revision)?;
-    if let Some(frame) = drafts.frame(handle, revision)? {
-        return Ok((frame, status));
+    let frame = drafts.frame(handle, revision)?;
+    let unlayered = status["unlayered"] == true;
+    if let (Some(frame), false) = (&frame, unlayered) {
+        return Ok((frame.clone(), status));
     }
-    let mut detail = format!(
-        "{} is a text draft (its input is not JSON), so nothing can be layered on it; fix the JSON: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": \"\", \"value\": <the frame>}}]}}",
-        draft::spell(handle, revision)
-    );
-    let parent = status["parent"]
-        .as_str()
-        .and_then(DraftRef::parse)
-        .and_then(|parent| parent.revision)
-        .filter(|parent| drafts.frame(handle, *parent).ok().flatten().is_some());
-    if let Some(parent) = parent {
-        let parent = draft::spell(handle, parent);
-        let _ = write!(
-            detail,
-            ", or layer on {parent} again: sley-agent try --on {parent} <frame>"
-        );
-    }
+    let spelled = draft::spell(handle, revision);
+    let repair = format!("sley-agent fill {handle} <delta.json> --revision {revision}");
+    let detail = match (status["on"].as_str().filter(|_| unlayered), frame) {
+        (Some(on), None) => format!(
+            "{spelled} holds a follow-up that is not JSON, so nothing can be layered on it; fix the JSON: {repair} with {{\"set\": [{{\"at\": \"\", \"value\": <the follow-up>}}]}} (it is layered on {on} again), or layer on {on} again: sley-agent try --on {on} <follow-up>"
+        ),
+        (Some(on), Some(_)) => format!(
+            "{spelled} holds a follow-up that could not be layered on {on}, so nothing can be layered on it; repair the follow-up: {repair} (it is layered on {on} again), or layer on {on} again: sley-agent try --on {on} <follow-up>"
+        ),
+        _ => format!(
+            "{spelled} is a text draft (its input is not JSON), so nothing can be layered on it; fix the JSON: {repair} with {{\"set\": [{{\"at\": \"\", \"value\": <the frame>}}]}}"
+        ),
+    };
     Err(AgentError::new(AgentErrorCode::DraftIncomplete, detail))
+}
+
+/// The frame a follow-up builds on: a draft revision's complete frame, or
+/// the frame a candidate was made from.
+fn base_frame(workspace: &Workspace, on: &str) -> Result<Value> {
+    if let Some(reference) = DraftRef::parse(on) {
+        let drafts = Drafts::open(workspace)?;
+        let (handle, revision) = drafts.resolve(&reference)?;
+        return layer_base(&drafts, &handle, revision).map(|(frame, _)| frame);
+    }
+    let store = Store::open(workspace)?;
+    let handle = store.resolve(Some(on))?;
+    store
+        .meta(&handle)
+        .and_then(|meta| meta.get("frame").cloned())
+        .filter(|frame| !frame.is_null())
+        .ok_or_else(|| {
+            AgentError::new(
+                AgentErrorCode::Usage,
+                format!("{handle} was not made from an AF1 frame, so try --on cannot build on it"),
+            )
+        })
 }
 
 fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
@@ -762,7 +836,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             } else {
                 Origin::Inline
             };
-            Proposal::new("try", input, parsed, Target::New, origin)
+            Proposal::new("try", input, Input::of(parsed), Target::New, origin)
         }
         // `--on d1`: the next revision of d1, this frame layered on the frame
         // of its latest (or named) revision.
@@ -773,18 +847,16 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             let spelled = draft::spell(&handle, base);
             let (base_frame, status) = layer_base(&drafts, &handle, base)?;
             let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "try-on")?;
-            let frame = match parsed {
-                Ok(value) => Ok(crate::layer::layer(&base_frame, &value)?),
-                Err(failure) => Err(failure),
-            };
             let target = Target::Next {
                 handle,
                 parent: base,
+                latest: reference.revision.is_none(),
             };
+            let frame = Input::layered(&base_frame, parsed);
             let mut proposal = Proposal::new("try-on", input, frame, target, Origin::Draft);
             proposal.on = Some(spelled);
             proposal.rebase = rebase;
-            proposal.sources = sources_of(&status);
+            proposal.inherit(&status);
             proposal
         }
         // `--on c1`: this frame goes on top of the frame c1 was made from, so
@@ -792,43 +864,30 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
         Some(reference) => {
             let store = Store::open(&workspace)?;
             let handle = store.resolve(Some(reference))?;
-            let meta = store.meta(&handle);
-            let base = meta
-                .as_ref()
-                .and_then(|meta| meta.get("frame").cloned())
-                .filter(|frame| !frame.is_null())
-                .ok_or_else(|| {
-                    AgentError::new(
-                        AgentErrorCode::Usage,
-                        format!("{handle} was not made from an AF1 frame, so try --on cannot build on it"),
-                    )
-                })?;
-            let frame = match parsed {
-                Ok(value) => {
-                    let layered = crate::layer::layer(&base, &value)?;
-                    let path = workspace.state_dir()?.join("layered.json");
-                    let mut text = serde_json::to_string_pretty(&layered).unwrap_or_default();
-                    text.push('\n');
-                    fs::write(&path, text).map_err(|error| io(&path, &error))?;
-                    Ok(layered)
-                }
-                Err(failure) => Err(failure),
-            };
-            // Imported tests keep their provenance through the candidate's draft.
-            let sources = meta
-                .as_ref()
+            let base = base_frame(&workspace, &handle)?;
+            let frame = Input::layered(&base, parsed);
+            if let Input::Frame(layered) = &frame {
+                let path = workspace.state_dir()?.join("layered.json");
+                let mut text = serde_json::to_string_pretty(layered).unwrap_or_default();
+                text.push('\n');
+                candidate::replace_file(&path, text.as_bytes())?;
+            }
+            let origin = Origin::Candidate(handle.clone());
+            let mut proposal = Proposal::new("try-on", input, frame, Target::New, origin);
+            // Imported tests and table-made tests keep their provenance
+            // through the candidate's draft.
+            let lineage = store
+                .meta(&handle)
                 .and_then(|meta| meta["draft"].as_str().and_then(DraftRef::parse))
                 .and_then(|reference| {
                     let drafts = Drafts::open(&workspace).ok()?;
                     let (handle, revision) = drafts.resolve(&reference).ok()?;
                     drafts.status(&handle, revision).ok()
-                })
-                .map(|status| sources_of(&status))
-                .unwrap_or_default();
-            let origin = Origin::Candidate(handle.clone());
-            let mut proposal = Proposal::new("try-on", input, frame, Target::New, origin);
+                });
+            if let Some(status) = lineage {
+                proposal.inherit(&status);
+            }
             proposal.on = Some(handle);
-            proposal.sources = sources;
             proposal
         }
     };
@@ -893,17 +952,29 @@ fn fill_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
     })?;
     let delta = draft::parse_delta(&delta_value)?;
     let base = drafts.frame(&handle, revision)?;
-    let frame = draft::apply_delta(base.as_ref(), &delta, &spelled)?;
+    let applied = draft::apply_delta(base.as_ref(), &delta, &spelled)?;
+    // A follow-up that was never layered (not JSON, or refused by its base)
+    // is layered on that base again once repaired.
+    let on = status["on"]
+        .as_str()
+        .filter(|_| status["unlayered"] == true)
+        .map(str::to_owned);
+    let frame = match &on {
+        Some(on) => Input::layered(&base_frame(&workspace, on)?, Ok(applied)),
+        None => Input::Frame(applied),
+    };
     let bytes = input.len();
     let target = Target::Next {
         handle,
         parent: revision,
+        latest: true,
     };
-    let mut proposal = Proposal::new("fill", input, Ok(frame), target, Origin::Draft);
+    let mut proposal = Proposal::new("fill", input, frame, target, Origin::Draft);
     proposal.delta = Some(json!({"targets": delta.targets(), "bytes": bytes}));
     proposal.whole_frame = delta.whole_frame();
     proposal.rebase = rebase;
-    proposal.sources = sources_of(&status);
+    proposal.on = on;
+    proposal.inherit(&status);
     run_trial(global, &workspace, &head, proposal, &options, out)
 }
 
@@ -1003,24 +1074,32 @@ fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
     let import = json!({"sha256": digest, "bytes": input.len(), "cases": entries.len()});
     let tests = json!({"af1": 1, "tests": entries});
     let mut proposal = match on {
-        None => Proposal::new("import", input, Ok(tests), Target::New, Origin::Draft),
+        None => Proposal::new(
+            "import",
+            input,
+            Input::Frame(tests),
+            Target::New,
+            Origin::Draft,
+        ),
         Some(reference) => {
             let drafts = Drafts::open(&workspace)?;
             let (handle, base) = drafts.resolve(&reference)?;
             let spelled = draft::spell(&handle, base);
             let (base_frame, status) = layer_base(&drafts, &handle, base)?;
             let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "import")?;
-            let frame = crate::layer::layer(&base_frame, &tests)?;
-            // A re-imported test replaces its earlier source.
-            let mut inherited = sources_of(&status);
-            inherited.retain(|old| !sources.iter().any(|new| new["test"] == old["test"]));
-            inherited.append(&mut sources);
-            sources = inherited;
+            let frame = Input::layered(&base_frame, Ok(tests));
             let target = Target::Next {
                 handle,
                 parent: base,
+                latest: reference.revision.is_none(),
             };
-            let mut proposal = Proposal::new("import", input, Ok(frame), target, Origin::Draft);
+            let mut proposal = Proposal::new("import", input, frame, target, Origin::Draft);
+            proposal.inherit(&status);
+            // A re-imported test replaces its earlier source.
+            let mut inherited = std::mem::take(&mut proposal.sources);
+            inherited.retain(|old| !sources.iter().any(|new| new["test"] == old["test"]));
+            inherited.append(&mut sources);
+            sources = inherited;
             proposal.on = Some(spelled);
             proposal.rebase = rebase;
             proposal
@@ -1134,14 +1213,282 @@ fn unfinished(
     Ok(EXIT_REFUSED)
 }
 
-/// `TestCases` live at the head; with `after`, only those it keeps.
-fn provided_tests(head: &Head, after: Option<&Program>) -> usize {
+/// `TestCases` live at the head; with `after`, only those it keeps and
+/// does not replace (a replaced test counts where its new entry comes from).
+fn provided_tests(head: &Head, after: Option<&Program>, replaced: &[EntityId]) -> usize {
     head.program()
         .objects()
         .iter()
         .filter(|object| object.record().body.kind_tag() == 14)
-        .filter(|object| after.is_none_or(|program| program.contains(&object.record().entity_id)))
+        .map(|object| object.record().entity_id)
+        .filter(|id| after.is_none_or(|program| program.contains(id)))
+        .filter(|id| !replaced.contains(id))
         .count()
+}
+
+/// One refusal holding the problems of two: `first`'s code and headline,
+/// then every other line, prefixed with its own symbol where it differs.
+fn merge_refusals(first: &AgentError, second: &AgentError) -> AgentError {
+    let code = first.code();
+    let mut lines = frame::problem_lines(first);
+    for line in frame::problem_lines(second) {
+        let line = if second.code() == code || line.starts_with('[') {
+            line
+        } else {
+            format!("[{}] {line}", second.code().symbol())
+        };
+        if !lines.contains(&line) {
+            lines.push(line);
+        }
+    }
+    let headline = lines.remove(0);
+    if lines.is_empty() {
+        return AgentError::new(code, headline);
+    }
+    AgentError::new(
+        code,
+        format!(
+            "{headline} (1 of {} problems)\n  {}",
+            lines.len() + 1,
+            lines.join("\n  ")
+        ),
+    )
+}
+
+/// What a frame's test tables do to the `TestCases` live at the head.
+#[derive(Debug, Default)]
+struct TableCheck {
+    /// Rows that would take over a live test their table did not make.
+    problems: Vec<crate::afx::Obligation>,
+    /// Live tests a table made in this draft's lineage and no longer has:
+    /// `(table, test)`.
+    stale: Vec<(String, String)>,
+}
+
+/// Whether `owned` (a lineage's `tables`) records `id` for `table`'s `test`.
+fn owns(owned: &Value, table: &str, test: &str, id: &EntityId) -> bool {
+    let id = crate::hex::encode(id.as_bytes());
+    owned[table][test]
+        .as_array()
+        .is_some_and(|ids| ids.iter().any(|known| known.as_str() == Some(id.as_str())))
+}
+
+/// The draft and table whose latest revision records `id` as a table-made
+/// test.
+fn table_maker(drafts: &Drafts, id: &EntityId) -> Option<(String, String)> {
+    for handle in drafts.handles().ok()? {
+        let Ok(status) = drafts
+            .latest(&handle)
+            .and_then(|latest| drafts.status(&handle, latest))
+        else {
+            continue;
+        };
+        for (table, tests) in status["tables"].as_object().into_iter().flatten() {
+            let made = tests
+                .as_object()
+                .into_iter()
+                .flatten()
+                .any(|(test, _)| owns(&status["tables"], table, test, id));
+            if made {
+                return Some((handle, table.clone()));
+            }
+        }
+    }
+    None
+}
+
+/// A table row may name a live `TestCase` only when this draft's lineage
+/// made that very test from the same table (then the row updates it), or
+/// when the frame deletes it explicitly. A table restated without a row it
+/// once made deletes the live test that row made.
+fn check_tables(
+    head: &Head,
+    names: &Names,
+    frame_value: &Value,
+    owned: &Value,
+    drafts: &Drafts,
+) -> TableCheck {
+    let mut check = TableCheck::default();
+    if frame_value.get("afx") != Some(&Value::from(1)) {
+        return check;
+    }
+    let (tables, rows) = crate::tables::row_tests(frame_value);
+    let listed = |key: &str, field: Option<&str>| -> Vec<String> {
+        frame_value[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|entry| match field {
+                Some(field) => entry.get(field).and_then(Value::as_str),
+                None => entry.as_str(),
+            })
+            .map(str::to_owned)
+            .collect()
+    };
+    let deleted = listed("delete", None);
+    let frame_tests = listed("tests", Some("name"));
+    let live_test = |name: &str| {
+        names.resolve(name).filter(|id| {
+            names.scope(id) == Scope::Top
+                && head
+                    .program()
+                    .body(id)
+                    .is_some_and(|body| body.kind_tag() == 14)
+        })
+    };
+    for row in &rows {
+        if deleted.contains(&row.name) {
+            continue;
+        }
+        let Some(id) = live_test(&row.name) else {
+            continue;
+        };
+        if owns(owned, &row.table, &row.name, &id) {
+            continue;
+        }
+        let target = match head.program().body(&id) {
+            Some(sley_mutate::value::EntityBodyValue::TestCase(test)) => names.name(&test.target),
+            _ => "?".to_owned(),
+        };
+        let maker = table_maker(drafts, &id).map_or_else(String::new, |(draft, table)| {
+            format!("; table `{table}` of {draft} made it: update it there with sley-agent try --on {draft} (with --rebase after a commit)")
+        });
+        check.problems.push(crate::afx::Obligation::new(
+            AgentErrorCode::TestTableInvalid,
+            &row.at,
+            format!(
+                "the row's test `{name}` would replace the live TestCase `{name}` (a test of `{target}`), which table `{table}` did not make in this draft: give the row another \"name\", or delete `{name}` explicitly (\"delete\": [\"{name}\"]){maker}",
+                name = row.name,
+                table = row.table
+            ),
+        ));
+    }
+    for table in &tables {
+        for (test, _) in owned[table.as_str()].as_object().into_iter().flatten() {
+            let kept = rows.iter().any(|row| &row.name == test)
+                || deleted.contains(test)
+                || frame_tests.contains(test);
+            if kept {
+                continue;
+            }
+            if let Some(id) = live_test(test)
+                && owns(owned, table, test, &id)
+            {
+                check.stale.push((table.clone(), test.clone()));
+            }
+        }
+    }
+    check
+}
+
+/// The table-made tests of a lineage after this revision: every row test
+/// the candidate holds is recorded under its table.
+fn record_tables(
+    inherited: &Value,
+    frame_value: &Value,
+    program: &Program,
+    names: &Names,
+) -> Value {
+    let mut owned = inherited.as_object().cloned().unwrap_or_default();
+    if frame_value.get("afx") != Some(&Value::from(1)) {
+        return Value::Object(owned);
+    }
+    for row in crate::tables::row_tests(frame_value).1 {
+        let Some(id) = names
+            .resolve(&row.name)
+            .filter(|id| program.body(id).is_some_and(|body| body.kind_tag() == 14))
+        else {
+            continue;
+        };
+        let id = json!(crate::hex::encode(id.as_bytes()));
+        let tests = owned
+            .entry(row.table)
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .map(|tests| tests.entry(row.name).or_insert_with(|| json!([])));
+        if let Some(Value::Array(ids)) = tests
+            && !ids.contains(&id)
+        {
+            ids.push(id);
+        }
+    }
+    Value::Object(owned)
+}
+
+/// The authored pointer of a kernel refusal about a `TestCase`: its entry
+/// in the frame (and the refused limit), through the source map for a test
+/// made from a table row.
+fn test_pointer(
+    output: &sley_policy::CandidateValidationOutput,
+    program: &Program,
+    names: &Names,
+    frame_value: &Value,
+    artifacts: &[(String, Value)],
+) -> Option<String> {
+    let locator = output.refusal_locator()?;
+    let subject = locator.subject?;
+    if program.body(&subject)?.kind_tag() != 14 {
+        return None;
+    }
+    let name = names.name(&subject);
+    let artifact = |file: &str| {
+        artifacts
+            .iter()
+            .find(|(name, _)| name == file)
+            .map(|(_, value)| value)
+    };
+    let expanded = artifact("expanded.json").unwrap_or(frame_value);
+    let index = expanded
+        .get("tests")?
+        .as_array()?
+        .iter()
+        .position(|test| test.get("name").and_then(Value::as_str) == Some(name.as_str()))?;
+    let mut pointer = format!("/tests/{index}");
+    if let Some(limit) = locator
+        .field
+        .and_then(|field| field.strip_prefix("resource_limits."))
+    {
+        let limit = format!("{pointer}/limits/{limit}");
+        if expanded.pointer(&limit).is_some() {
+            pointer = limit;
+        }
+    }
+    Some(
+        artifact("sourcemap.json")
+            .and_then(|map| draft::authored_pointer(map, &pointer))
+            .unwrap_or(pointer),
+    )
+}
+
+/// The `next:` repair of an incomplete revision: a fill at the first
+/// obligation's pointer, and when that pointer had to move to an existing
+/// ancestor, which one and why.
+fn repair_hint(
+    obligations: &[Value],
+    handle: &str,
+    revision: u64,
+    relayer: Option<&str>,
+) -> String {
+    let first = obligations.iter().find(|record| record["at"].is_string());
+    let at = first.and_then(|record| record["at"].as_str()).unwrap_or("");
+    let mut text = format!(
+        "next: repair in place: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": {}, \"value\": ...}}]}}",
+        json!(at)
+    );
+    if let Some(missing) = first.and_then(|record| record["missing"].as_str()) {
+        let whole = if at.is_empty() { "the frame" } else { at };
+        let _ = write!(
+            text,
+            " ({missing} does not exist: replace {whole} whole, with it included)"
+        );
+    }
+    if let Some(on) = relayer {
+        let _ = write!(
+            text,
+            "; the repaired follow-up is layered on {on} again (or: sley-agent try --on {on} <follow-up>)"
+        );
+    }
+    text
 }
 
 /// One top-level entity a candidate changes.
@@ -1220,7 +1567,7 @@ fn changes(
             }
         })
         .collect();
-    changes.sort_by(|a, b| (rank(a.kind), &a.name).cmp(&(rank(b.kind), &b.name)));
+    changes.sort_by(|a, b| (rank(a.kind), &a.name, a.mark).cmp(&(rank(b.kind), &b.name, b.mark)));
     changes
 }
 
@@ -1274,7 +1621,8 @@ fn changes_text(changes: &[Change]) -> String {
     text
 }
 
-/// ` [authored 2, imported 1, provided 3]` (non-zero counts only).
+/// ` [authored 2, imported 1, provided 3]` (non-zero counts only), and the
+/// live tests the candidate replaces: `; replaces provided t_1`.
 fn provenance_text(provenance: &Value) -> String {
     let parts: Vec<String> = ["authored", "imported", "provided"]
         .iter()
@@ -1283,10 +1631,23 @@ fn provenance_text(provenance: &Value) -> String {
             (count > 0).then(|| format!("{key} {count}"))
         })
         .collect();
-    if parts.is_empty() {
-        String::new()
+    let replaced: Vec<&str> = provenance["replaced"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    let mut text = parts.join(", ");
+    if !replaced.is_empty() {
+        if !text.is_empty() {
+            text.push_str("; ");
+        }
+        let _ = write!(text, "replaces provided {}", replaced.join(" "));
+    }
+    if text.is_empty() {
+        text
     } else {
-        format!(" [{}]", parts.join(", "))
+        format!(" [{text}]")
     }
 }
 
@@ -1303,25 +1664,43 @@ fn run_trial(
     out: &mut dyn Write,
 ) -> Result<i32> {
     let drafts = Drafts::open(workspace)?;
-    let (handle, revision, parent) = match &proposal.target {
-        Target::New => (drafts.allocate()?, 1, None),
-        Target::Next { handle, parent } => (
-            handle.clone(),
-            drafts.latest(handle)? + 1,
-            Some(draft::spell(handle, *parent)),
-        ),
+    let (mut claim, parent) = match &proposal.target {
+        Target::New => (drafts.claim_new()?, None),
+        Target::Next {
+            handle,
+            parent,
+            latest,
+        } => {
+            let claim = drafts.claim_next(handle)?;
+            if *latest && claim.number() != parent + 1 {
+                return Err(AgentError::new(
+                    AgentErrorCode::DraftStale,
+                    format!(
+                        "{handle} gained r{} while this command ran on r{parent}: read it (sley-agent draft {handle}) and run the command again",
+                        claim.number() - 1
+                    ),
+                ));
+            }
+            (claim, Some(draft::spell(handle, *parent)))
+        }
     };
+    let handle = claim.handle().to_owned();
+    let revision = claim.number();
     let reference = draft::spell(&handle, revision);
     let frame_path = format!(
         "{STATE_DIR}/{}/{handle}/r{revision}/frame.json",
         draft::DRAFTS_DIR
     );
+    // A follow-up kept as given (not JSON, or refused by its base) is
+    // layered on its base again when it is repaired.
+    let unlayered = proposal.on.is_some() && !matches!(proposal.frame, Input::Frame(_));
     let mut status = json!({
         "revision": revision,
         "base_head": crate::hex::encode(head.transaction_id().as_bytes()),
         "parent": parent,
         "made_by": if proposal.rebase.is_some() { "rebase" } else { proposal.made_by },
         "on": proposal.on,
+        "unlayered": unlayered,
         "delta": proposal.delta,
         "whole_frame": proposal.whole_frame,
         "state": State::Incomplete.as_str(),
@@ -1331,6 +1710,7 @@ fn run_trial(
         "obligations": [],
         "tests": null,
         "sources": proposal.sources,
+        "tables": proposal.tables,
     });
     if let Some(rebase) = &proposal.rebase {
         status["rebase"] = rebase.clone();
@@ -1348,9 +1728,10 @@ fn run_trial(
         );
         global.note("delta_bytes", proposal.input.len());
     }
+    let relayer = proposal.on.as_deref().filter(|_| unlayered);
     let frame_value = match proposal.frame {
-        Ok(value) => value,
-        Err(failure) => {
+        Input::Frame(value) => value,
+        Input::Text(failure) => {
             let message = failure
                 .detail
                 .rsplit_once(" at line ")
@@ -1365,8 +1746,8 @@ fn run_trial(
             status["text"] =
                 json!({"line": failure.line, "column": failure.column, "byte": failure.byte});
             status["obligations"] = json!(obligations);
-            drafts.write(
-                &handle,
+            drafts.record(
+                &mut claim,
                 &Revision {
                     input: &proposal.input,
                     frame: None,
@@ -1379,9 +1760,14 @@ fn run_trial(
                 "draft {reference}: text (not JSON at line {}, column {}, byte {}); the input is kept",
                 failure.line, failure.column, failure.byte
             );
-            let next = format!(
-                "next: fix the JSON and try again, or replace it whole: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": \"\", \"value\": <the frame>}}]}}"
-            );
+            let next = match relayer {
+                Some(on) => format!(
+                    "next: fix the JSON: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": \"\", \"value\": <the follow-up>}}]}}; the follow-up is layered on {on} again (or: sley-agent try --on {on} <follow-up>)"
+                ),
+                None => format!(
+                    "next: fix the JSON and try again, or replace it whole: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": \"\", \"value\": <the frame>}}]}}"
+                ),
+            };
             return unfinished(
                 global,
                 out,
@@ -1392,25 +1778,95 @@ fn run_trial(
                 [summary, next],
             );
         }
+        Input::Unlayered { follow_up, error } => {
+            let mut obligations = draft::obligations_of(&error);
+            draft::anchor(&mut obligations, Some(&follow_up));
+            status["obligations"] = json!(obligations);
+            drafts.record(
+                &mut claim,
+                &Revision {
+                    input: &proposal.input,
+                    frame: Some(&follow_up),
+                    artifacts: &[],
+                    status: &status,
+                },
+            )?;
+            let on = relayer.unwrap_or("its base");
+            let error = AgentError::new(
+                error.code(),
+                format!(
+                    "{}\n  pointers refer to {frame_path}, the follow-up as given: it is not yet layered on {on}",
+                    error.detail()
+                ),
+            );
+            let summary = format!(
+                "draft {reference}: incomplete, {} obligation(s) ({}); the follow-up is kept, not yet layered on {on}",
+                draft::obligation_count(&obligations),
+                draft::obligation_symbols(&obligations)
+            );
+            let next = repair_hint(&obligations, &handle, revision, relayer);
+            return unfinished(
+                global,
+                out,
+                &error,
+                &reference,
+                State::Incomplete,
+                &obligations,
+                [summary, next],
+            );
+        }
     };
     global.note("table_rows", draft::table_rows(&frame_value));
-    let sources = draft::live_sources(&frame_value, &proposal.sources);
+    let sources = draft::live_sources(
+        &frame_value,
+        &status["sources"].as_array().cloned().unwrap_or_default(),
+    );
     let (imported_tests, authored) = draft::frame_tests(&frame_value, &sources);
     status["sources"] = json!(sources);
     let authority = Authority::of(head)?;
     let mut map = name_map(workspace)?;
     let names = Names::build(head.program(), &map);
     let nonce = candidate::fresh_nonce()?;
-    let (compiled, imported, output) = match stage(head, &authority, &names, &frame_value, nonce) {
+    let tables = check_tables(head, &names, &frame_value, &proposal.tables, &drafts);
+    // A table restated without a row it made deletes that row's live test.
+    let mut compile_frame = frame_value.clone();
+    let mut notes: Vec<String> = Vec::new();
+    for (table, test) in &tables.stale {
+        if let Some(object) = compile_frame.as_object_mut() {
+            let deletes = object
+                .entry("delete")
+                .or_insert_with(|| Value::Array(Vec::new()));
+            if let Value::Array(deletes) = deletes {
+                deletes.push(json!(test));
+            }
+        }
+        notes.push(format!(
+            "table `{table}` no longer has a row for its live test `{test}`: the test is deleted"
+        ));
+    }
+    let staged = match (
+        stage(head, &authority, &names, &compile_frame, nonce),
+        tables.problems.is_empty(),
+    ) {
+        (Ok(staged), true) => Ok(staged),
+        (Ok(_), false) => Err(crate::afx::refusal(&tables.problems)),
+        (Err(error), true) => Err(error),
+        (Err(error), false) => Err(merge_refusals(
+            &crate::afx::refusal(&tables.problems),
+            &error,
+        )),
+    };
+    let (compiled, imported, output) = match staged {
         Ok(staged) => staged,
         Err(error) => {
-            let obligations = draft::obligations_of(&error);
-            let provenance = json!({"provided": provided_tests(head, None), "imported": imported_tests, "authored": authored});
+            let mut obligations = draft::obligations_of(&error);
+            draft::anchor(&mut obligations, Some(&frame_value));
+            let provenance = json!({"provided": provided_tests(head, None, &[]), "imported": imported_tests, "authored": authored});
             status["obligations"] = json!(obligations);
             status["tests"] = provenance.clone();
             global.note("tests", provenance);
-            drafts.write(
-                &handle,
+            drafts.record(
+                &mut claim,
                 &Revision {
                     input: &proposal.input,
                     frame: Some(&frame_value),
@@ -1418,8 +1874,7 @@ fn run_trial(
                     status: &status,
                 },
             )?;
-            let at = obligations.iter().find_map(|record| record["at"].as_str());
-            let error = if at.is_some() {
+            let error = if obligations.iter().any(|record| record["at"].is_string()) {
                 pointer_hint(error, &proposal.origin, &frame_path, &handle)
             } else {
                 error
@@ -1429,10 +1884,7 @@ fn run_trial(
                 draft::obligation_count(&obligations),
                 draft::obligation_symbols(&obligations)
             );
-            let next = format!(
-                "next: repair in place: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": {}, \"value\": ...}}]}}",
-                json!(at.unwrap_or(""))
-            );
+            let next = repair_hint(&obligations, &handle, revision, None);
             return unfinished(
                 global,
                 out,
@@ -1505,14 +1957,43 @@ fn run_trial(
         }
         Ok((tests, public))
     })();
-    let head_names = Names::build(head.program(), &map);
-    let changes = changes(head, &head_names, &program, &after_names, &imported.record);
-    let obligations = if verdict.valid {
+    let changes = changes(head, &names, &program, &after_names, &imported.record);
+    let mut obligations = if verdict.valid {
         Vec::new()
     } else {
-        vec![draft::kernel_obligation(&verdict)]
+        let at = test_pointer(
+            &output,
+            &program,
+            &after_names,
+            &frame_value,
+            &compiled.artifacts,
+        );
+        vec![draft::kernel_obligation(&verdict, at)]
     };
-    let provenance = json!({"provided": provided_tests(head, Some(&program)), "imported": imported_tests, "authored": authored});
+    draft::anchor(&mut obligations, Some(&frame_value));
+    // Live tests the candidate replaces count where their new entry comes
+    // from, never also as provided.
+    let replaced: Vec<EntityId> = imported
+        .record
+        .operations
+        .iter()
+        .filter(|operation| {
+            operation.target_kind == 14
+                && operation.class == sley_mutate::MutationClass::ReplaceEntityVersion
+                && head.program().contains(&operation.target_entity)
+        })
+        .map(|operation| operation.target_entity)
+        .collect();
+    let mut replaced_names: Vec<String> = replaced.iter().map(|id| names.name(id)).collect();
+    replaced_names.sort();
+    let mut provenance = json!({
+        "provided": provided_tests(head, Some(&program), &replaced),
+        "imported": imported_tests,
+        "authored": authored,
+    });
+    if !replaced_names.is_empty() {
+        provenance["replaced"] = json!(replaced_names);
+    }
     let state = if verdict.valid {
         State::Valid
     } else {
@@ -1525,6 +2006,7 @@ fn run_trial(
     status["obligations"] = json!(obligations);
     status["tests"] = provenance.clone();
     status["changed"] = changes_json(&changes);
+    status["tables"] = record_tables(&proposal.tables, &frame_value, &program, &after_names);
     if !compiled.stats.is_empty() {
         status["stats"] = afx_stats.clone();
     }
@@ -1536,8 +2018,8 @@ fn run_trial(
             "public_passed": public.iter().filter(|case| case.passed).count(),
         });
     }
-    drafts.write(
-        &handle,
+    drafts.record(
+        &mut claim,
         &Revision {
             input: &proposal.input,
             frame: Some(&frame_value),
@@ -1559,6 +2041,7 @@ fn run_trial(
                 .unwrap_or_else(|| verdict.decision.clone()),
         );
     }
+    notes.splice(0..0, compiled.notes.iter().cloned());
     let (tests, public) = ran?;
     let failed =
         tests.iter().filter(|t| !t.passed()).count() + public.iter().filter(|p| !p.passed).count();
@@ -1587,7 +2070,7 @@ fn run_trial(
             "verdict": verdict.to_json(),
             "tests": tests_json(&tests, &after_names),
             "public": public_json(&public),
-            "notes": compiled.notes,
+            "notes": notes,
             "also": also,
             "changed": changes_json(&changes),
             "obligations": obligations,
@@ -1607,7 +2090,14 @@ fn run_trial(
         counts.2,
         verdict.details()
     );
-    for note in &compiled.notes {
+    // The authored position of a refusal about a TestCase (its entry, or
+    // the table row it comes from), when the verdict names none itself.
+    if verdict.authored.is_none()
+        && let Some(at) = obligations.first().and_then(|record| record["at"].as_str())
+    {
+        let _ = writeln!(text, "  authored: {}", json!(at));
+    }
+    for note in &notes {
         let _ = writeln!(text, "  note: {note}");
     }
     for finding in &also {
@@ -1817,8 +2307,14 @@ fn draft_text(spelled: &str, status: &Value, latest: u64) -> String {
     if let Some(parent) = status["parent"].as_str() {
         let _ = write!(text, " from {parent}");
     }
-    if let Some(on) = status["on"].as_str().filter(|on| candidate::is_handle(on)) {
-        let _ = write!(text, " on the frame of {on}");
+    if let Some(on) = status["on"].as_str() {
+        if status["unlayered"] == true {
+            let _ = write!(text, ", a follow-up not yet layered on {on}");
+        } else if candidate::is_handle(on) {
+            let _ = write!(text, " on the frame of {on}");
+        } else if status["parent"].as_str() != Some(on) {
+            let _ = write!(text, ", layered on {on}");
+        }
     }
     if let Some(targets) = status["delta"]["targets"].as_array() {
         let _ = write!(text, ", {} target(s)", targets.len());
@@ -1879,6 +2375,9 @@ fn draft_text(spelled: &str, status: &Value, latest: u64) -> String {
 }
 
 fn list_drafts(global: &Global, drafts: &Drafts, out: &mut dyn Write) -> Result<i32> {
+    let last = drafts
+        .last_recorded()?
+        .map(|(handle, revision)| draft::spell(&handle, revision));
     let mut rows = Vec::new();
     for handle in drafts.handles()? {
         let latest = drafts.latest(&handle)?;
@@ -1894,7 +2393,7 @@ fn list_drafts(global: &Global, drafts: &Drafts, out: &mut dyn Write) -> Result<
         let rows: Vec<Value> = rows
             .iter()
             .map(|(spelled, status, obligations)| {
-                json!({"draft": spelled, "state": status["state"], "candidate": status["candidate"], "obligations": obligations})
+                json!({"draft": spelled, "state": status["state"], "candidate": status["candidate"], "obligations": obligations, "last": last.as_deref() == Some(spelled.as_str())})
             })
             .collect();
         write_json(out, &json!({"drafts": rows}))?;
@@ -1909,6 +2408,9 @@ fn list_drafts(global: &Global, drafts: &Drafts, out: &mut dyn Write) -> Result<
         text.push_str(&draft_headline(spelled, status));
         if *obligations > 0 {
             let _ = write!(text, "; {obligations} obligation(s)");
+        }
+        if last.as_deref() == Some(spelled.as_str()) {
+            text.push_str("; recorded last (a bare submit takes it)");
         }
         text.push('\n');
     }
@@ -2129,7 +2631,8 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
     let head = workspace.head()?;
     let store = Store::open(&workspace)?;
     let (reference, from_draft) = match words.positional.as_slice() {
-        [] => (store.resolve(None)?, None),
+        [] => bare_submission(global, &workspace, &store)?,
+        [latest] if latest == "latest" => bare_submission(global, &workspace, &store)?,
         [reference] => match DraftRef::parse(reference) {
             Some(reference) => {
                 let drafts = Drafts::open(&workspace)?;
@@ -2210,6 +2713,47 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
         write_text(out, &text)?;
     }
     Ok(EXIT_OK)
+}
+
+/// What a bare `submit` (or `submit latest`) submits: the draft revision
+/// recorded last in this workspace, over every draft, when it is valid. Any
+/// other state refuses, naming that revision: an earlier revision or
+/// candidate is submitted only when named. Without drafts, the latest
+/// candidate.
+fn bare_submission(
+    global: &Global,
+    workspace: &Workspace,
+    store: &Store,
+) -> Result<(String, Option<String>)> {
+    let drafts = Drafts::open(workspace)?;
+    let Some((handle, revision)) = drafts.last_recorded()? else {
+        return Ok((store.resolve(None)?, None));
+    };
+    let spelled = draft::spell(&handle, revision);
+    global.note("draft", spelled.as_str());
+    let status = drafts.status(&handle, revision)?;
+    let state = status["state"].as_str().unwrap_or("unknown");
+    if state != State::Valid.as_str() {
+        let earlier = (1..revision).rev().find_map(|earlier| {
+            let status = drafts.status(&handle, earlier).ok()?;
+            (status["state"] == State::Valid.as_str()).then(|| {
+                format!(
+                    " (the latest valid revision is {}, candidate {})",
+                    draft::spell(&handle, earlier),
+                    status["candidate"].as_str().unwrap_or("?")
+                )
+            })
+        });
+        return Err(AgentError::new(
+            AgentErrorCode::DraftIncomplete,
+            format!(
+                "the last recorded draft revision, {spelled}, is {state}: a bare submit takes only that revision when it is valid, never an earlier one; repair it (sley-agent draft {spelled}), or name what to submit: sley-agent submit <draft>@r<N> or <handle>{}",
+                earlier.unwrap_or_default()
+            ),
+        ));
+    }
+    let candidate = draft_candidate(&drafts, store, &handle, revision)?;
+    Ok((candidate, Some(spelled)))
 }
 
 /// The candidate a draft revision made: only a Valid revision resolves,

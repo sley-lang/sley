@@ -89,7 +89,7 @@ impl NameMap {
         let mut text =
             serde_json::to_string_pretty(&serde_json::Value::Object(object)).unwrap_or_default();
         text.push('\n');
-        fs::write(path, text).map_err(|error| io(path, &error))
+        crate::candidate::replace_file(path, text.as_bytes())
     }
 
     /// Adds or replaces one preferred name.

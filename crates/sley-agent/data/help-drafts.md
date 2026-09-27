@@ -19,9 +19,14 @@ repeat or contain each other; the replacements apply together or not at
 all. To insert into or delete from an array, replace the array. A frame
 that did not parse can only be replaced whole.
 
+A follow-up that is not JSON, or that cannot be layered, is kept as the
+next revision; `fill` repairs it and layers it on its base again.
+Obligations point at pointers that exist in the revision's frame.
+
 `fill` needs the latest revision number (`AGENT_DRAFT_STALE` otherwise).
 When the accepted head has changed since the revision, `fill` and
 `try --on` refuse with `AGENT_DRAFT_HEAD_CHANGED` unless `--rebase` is
 given. `submit d1` submits only a Valid candidate of that revision
 (`AGENT_DRAFT_INCOMPLETE` otherwise); an older revision is never used
-instead, but `submit d1@r2` names one explicitly.
+instead, but `submit d1@r2` names one explicitly. A bare `submit` takes
+the revision recorded last, over all drafts, and only when it is valid.

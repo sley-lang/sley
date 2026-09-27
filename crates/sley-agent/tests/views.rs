@@ -824,3 +824,48 @@ fn view_json_shapes() {
         "{x}"
     );
 }
+
+#[test]
+fn a_focused_view_stays_bounded_when_one_line_is_long() {
+    // Regression: a 200-case variant renders on one line, and a
+    // 200-parameter function has a 200-parameter signature line.
+    let temp = workspace("focus-long-line");
+    let cases: Vec<String> = (0..200)
+        .map(|index| format!("Case{index:03}_xxxxxxxxxxxxxxxxxxxx"))
+        .collect();
+    let params: Vec<Value> = (0..200)
+        .map(|index| json!([format!("p{index:03}_yyyyyyyyyyyyyyyyyyyy"), "i64"]))
+        .collect();
+    let frame = json!({"af1": 1, "types": [{"name": "Huge", "variant": cases}],
+        "fns": [{"fn": "wide", "params": params, "returns": "i64",
+                 "blocks": [{"name": "entry", "ops": [], "term": ["return", "p000_yyyyyyyyyyyyyyyyyyyy"]}]}]});
+    let (status, text) = run(&temp.path, &["try", "--no-test", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    for target in ["Huge", "wide"] {
+        let (status, text) = run(&temp.path, &["view", "--focus", target, "--after", "c1"]);
+        assert_eq!(status, 0, "{text}");
+        assert!(
+            text.len() <= BOUND,
+            "{target}: {} bytes\n{text}",
+            text.len()
+        );
+        assert!(
+            text.contains(" more bytes: sley-agent view --after c1 "),
+            "{text}"
+        );
+        let (_, value) = run_json(&temp.path, &["view", "--focus", target, "--after", "c1"]);
+        let focus = &value["focus"];
+        assert!(focus["bytes"].as_u64().unwrap() <= BOUND as u64, "{focus}");
+        let omitted = focus["omitted"].as_array().unwrap();
+        assert!(
+            omitted
+                .iter()
+                .any(|entry| entry["section"] == "target" && entry["unit"] == "bytes"),
+            "{focus}"
+        );
+        // The disclosed command shows the line whole.
+        let (status, whole) = run(&temp.path, &["view", "--after", "c1", target]);
+        assert_eq!(status, 0);
+        assert!(whole.len() > BOUND, "{target}");
+    }
+}
