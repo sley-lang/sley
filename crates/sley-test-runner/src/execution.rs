@@ -4,9 +4,10 @@
 //! admission, and VM execution belong to `sley-tests::source_execution`.
 //! Neither layer supplies supervisor measurement or commit authority.
 
+use sley_tests::NativeExecutionReportV1;
 use sley_tests::source_execution::{
     NativeTestEvaluation, NativeTestSourceInput, evaluate_native_test_source,
-    execute_native_test_source,
+    execute_native_test_source, report_native_test_source,
 };
 use sley_vm::native_execution::NativeExecutionOutcome;
 
@@ -55,4 +56,19 @@ pub fn evaluate_portable_test(
     worker: &WorkerRequest,
 ) -> Result<NativeTestEvaluation, PortableExecutionError> {
     evaluate_native_test_source(source_input(program, worker)?, program.plan().plan_id())
+}
+
+/// Records a pure portable test as an observed or VM-rejected report.
+///
+/// This report is diagnostic until the supervisor measures the worker and
+/// the owner verifies admission against its protected plan.
+///
+/// # Errors
+///
+/// Refuses invalid portable source or a report-building defect.
+pub fn report_portable_test(
+    program: &PortableTestProgram,
+    worker: &WorkerRequest,
+) -> Result<NativeExecutionReportV1, PortableExecutionError> {
+    report_native_test_source(source_input(program, worker)?, program.plan().plan_id())
 }

@@ -6,7 +6,7 @@
 //! the checked enforcement math (page-aligned memory caps, monotonic
 //! deadlines, peak/event admission), the measurement-admission predicate, the
 //! worker request envelope, bounded portable program artifact, pure native
-//! execution bridge, observed-report request binding, authenticated socket
+//! execution/report bridge, observed-report request binding, authenticated socket
 //! ingress boundary, fail-closed
 //! one-connection service boundary, and the
 //! readiness probes. The root service loop and privileged transient-unit

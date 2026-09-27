@@ -35,7 +35,7 @@ use sley_vm::{
 use crate::{
     MAX_EXECUTION_REPORT_STORED, NativeExecutionEvidence, NativeExecutionReportParts,
     NativeExecutionReportV1, NativeExpected, NativeTestEntry, SelectedEntry,
-    compare_native_expected, execution_report_capacity_required,
+    compare_native_expected, execution_report_capacity_required, rejected_from_error,
 };
 
 /// Failure before an unmeasured native VM result can be returned.
@@ -352,14 +352,7 @@ pub fn evaluate_native_test_source(
     let evidence = NativeExecutionEvidence::observed(outcome.observation().stored_bytes().to_vec())
         .map_err(NativeTestSourceError::ReportBuild)?;
     let selected = source.selected;
-    let execution_report = NativeExecutionReportV1::build(NativeExecutionReportParts {
-        plan_id,
-        test_entity: selected.test_entity,
-        test_object: selected.test_object,
-        target_object: selected.target_object,
-        evidence,
-    })
-    .map_err(NativeTestSourceError::ReportBuild)?;
+    let execution_report = build_execution_report(source, plan_id, evidence)?;
     let comparison = compare_native_expected(expected, outcome.observation().termination());
     let entry = NativeTestEntry {
         test_entity: selected.test_entity,
@@ -373,4 +366,46 @@ pub fn evaluate_native_test_source(
         execution_report,
         entry,
     })
+}
+
+fn build_execution_report(
+    source: NativeTestSourceInput<'_>,
+    plan_id: NativeTestPlanId,
+    evidence: NativeExecutionEvidence,
+) -> Result<NativeExecutionReportV1, NativeTestSourceError> {
+    let selected = source.selected;
+    NativeExecutionReportV1::build(NativeExecutionReportParts {
+        plan_id,
+        test_entity: selected.test_entity,
+        test_object: selected.test_object,
+        target_object: selected.target_object,
+        evidence,
+    })
+    .map_err(NativeTestSourceError::ReportBuild)
+}
+
+/// Records one pure native test as observed or as a VM-owned rejection.
+///
+/// Malformed or mismatched source still returns an error: it cannot be
+/// represented as an execution refusal from an authenticated test. This
+/// report alone carries no supervisor measurement or admission authority.
+///
+/// # Errors
+///
+/// Refuses invalid source or a report-building defect.
+pub fn report_native_test_source(
+    source: NativeTestSourceInput<'_>,
+    plan_id: NativeTestPlanId,
+) -> Result<NativeExecutionReportV1, NativeTestSourceError> {
+    let evidence = match execute_source_inner(source) {
+        Ok((outcome, _)) => {
+            NativeExecutionEvidence::observed(outcome.observation().stored_bytes().to_vec())
+                .map_err(NativeTestSourceError::ReportBuild)?
+        }
+        Err(NativeTestSourceError::Vm(error)) => NativeExecutionEvidence::Rejected(
+            rejected_from_error(&error).map_err(NativeTestSourceError::ReportBuild)?,
+        ),
+        Err(error) => return Err(error),
+    };
+    build_execution_report(source, plan_id, evidence)
 }

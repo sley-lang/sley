@@ -252,7 +252,7 @@ impl PortableTestProgram {
 mod tests {
     use super::*;
     use crate::{
-        execution::{evaluate_portable_test, execute_portable_test},
+        execution::{evaluate_portable_test, execute_portable_test, report_portable_test},
         protocol::RunRequest,
         worker::WorkerRequest,
     };
@@ -273,7 +273,9 @@ mod tests {
         GrantCeilings, NativeAggregateLimits, NativeExecutionEvidence, NativeExecutionReportParts,
         NativeExecutionReportV1, NativeResourcePolicyParts, NativeResourcePolicyV1,
         NativeTestPlanParts, NativeTestReportV1, REJECT_PHASE_EXECUTION, RejectedEvidence,
-        TestComparison, ValidationLimits, plan::SELECTION_MODE_EXPLICIT_ROOT,
+        TestComparison, ValidationLimits,
+        plan::SELECTION_MODE_EXPLICIT_ROOT,
+        source_execution::{NativeTestSourceInput, report_native_test_source},
     };
     use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
 
@@ -657,6 +659,10 @@ mod tests {
             assert_eq!(result.entry.test_entity, test);
             assert_eq!(result.execution_report.plan_id(), plan.plan_id());
             assert_eq!(
+                report_portable_test(&program, &worker).expect("pure report"),
+                result.execution_report
+            );
+            assert_eq!(
                 NativeExecutionReportV1::parse(result.execution_report.stored_bytes())
                     .expect("canonical report"),
                 result.execution_report
@@ -703,6 +709,11 @@ mod tests {
             );
             let mut substituted_worker = worker.clone();
             substituted_worker.input_hashes[0] = [99; 32];
+            assert_eq!(
+                report_portable_test(&program, &substituted_worker)
+                    .expect_err("input hash substitution is not a VM rejection"),
+                crate::execution::PortableExecutionError::InputHashesMismatch
+            );
             run.worker_frame = substituted_worker
                 .encode_frame()
                 .expect("substituted frame");
@@ -718,5 +729,35 @@ mod tests {
             assert_eq!(report.match_count(), u64::from(expected_value));
             assert_eq!(report.mismatch_count(), u64::from(!expected_value));
         }
+    }
+
+    #[test]
+    fn vm_profile_refusal_becomes_canonical_rejected_report() {
+        let (plan, root, objects, test) = fixture();
+        let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
+        let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
+            .expect("validated Boolean hash");
+        let implementation_limits = NativeImplementationLimits {
+            max_report_bytes: 0,
+            ..NativeImplementationLimits::HARD_MAXIMA
+        };
+        let source = NativeTestSourceInput {
+            root: program.root(),
+            objects: program.objects(),
+            selected: program.selected(),
+            implementation_limits,
+            input_hashes: &[*hash.as_bytes()],
+        };
+        let report = report_native_test_source(source, plan.plan_id()).expect("rejected report");
+        assert_eq!(
+            NativeExecutionReportV1::parse(report.stored_bytes()).expect("canonical report"),
+            report
+        );
+        let NativeExecutionEvidence::Rejected(rejection) = report.evidence() else {
+            panic!("VM profile refusal must be rejected evidence");
+        };
+        assert_eq!(rejection.phase(), REJECT_PHASE_EXECUTION);
+        assert_eq!(rejection.numeric_code(), 27_002);
+        assert_eq!(rejection.symbol(), "VM_EXEC_RESOURCE_LIMIT");
     }
 }

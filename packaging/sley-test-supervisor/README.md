@@ -22,8 +22,9 @@ not yet invoke that check. A pure `execute_portable_test` bridge now projects
 the bound objects, rechecks the selected native `TestCase`, executes the
 existing Sley VM, and compares VM-derived ordered input hashes. The pure
 `sley-tests` owner reserves the complete execution report before the VM runs
-and can build a canonical observed report and expectation comparison. This
-result has no host memory/time measurement and does not pass admission. A
+and can build a canonical observed report and expectation comparison, or a
+canonical rejected report when the VM refuses before observation. These
+results have no host memory/time measurement and do not pass admission. A
 separate `RunRequest::verified_observed_worker_report` check parses a bounded
 worker report and binds its plan, selected test, root, function, ordered input
 hashes, schema hashes, profile, and limits to the authenticated request. It
