@@ -1,0 +1,199 @@
+//! Fail-closed socket service boundary before worker execution is wired.
+//!
+//! This handles one connection on a caller-supplied Unix listener. The
+//! existing ingress authenticates kernel peer credentials, scope, framing,
+//! and deadline before a response is written. A valid request receives an
+//! explicit refusal. Invalid or unauthorized peers receive no response.
+//! No worker is launched, no measurement is signed, and no production daemon
+//! entry or systemd unit is supplied by this module.
+
+use std::io::Write;
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::time::Duration;
+
+use crate::config::{MAX_WORKER_OUTPUT_BYTES, RunnerConfig};
+use crate::ingress::{IngressError, authenticate_request};
+use crate::protocol::{RunResponse, RunStatus};
+
+/// Stable refusal code while the selected-program handoff is absent.
+pub const RUN_REFUSAL_EXECUTION_NOT_WIRED: u32 = 1;
+
+/// A socket service failure; none confers a test result or attestation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ServiceError {
+    /// A peer failed authentication, scope, framing, or the read deadline.
+    Ingress(IngressError),
+    /// The listener could not accept a connection.
+    AcceptFailure,
+    /// The closed refusal frame could not be encoded.
+    ResponseEncoding,
+    /// The peer disconnected or its response could not be written.
+    WriteFailure,
+}
+
+/// Handles one already accepted socket connection, always refusing execution.
+///
+/// # Errors
+///
+/// Returns an ingress or transport failure without signing or spawning.
+pub fn handle_connection(
+    stream: &mut UnixStream,
+    config: &RunnerConfig,
+    timeout: Duration,
+) -> Result<(), ServiceError> {
+    let _request = authenticate_request(stream, config, timeout).map_err(ServiceError::Ingress)?;
+    let response = RunResponse {
+        status: RunStatus::Refused,
+        code: RUN_REFUSAL_EXECUTION_NOT_WIRED,
+        output: Vec::new(),
+    };
+    let frame = response
+        .encode_frame(MAX_WORKER_OUTPUT_BYTES)
+        .map_err(|_| ServiceError::ResponseEncoding)?;
+    stream
+        .write_all(&frame)
+        .map_err(|_| ServiceError::WriteFailure)
+}
+
+/// Accepts and handles exactly one connection from a trusted listener.
+///
+/// This is a composable boundary for the eventual root loop; it does not
+/// bind a path, install a service, or claim execution readiness.
+///
+/// # Errors
+///
+/// Returns the first accept, ingress, or response error.
+pub fn serve_one(
+    listener: &UnixListener,
+    config: &RunnerConfig,
+    timeout: Duration,
+) -> Result<(), ServiceError> {
+    let (mut stream, _) = listener.accept().map_err(|_| ServiceError::AcceptFailure)?;
+    handle_connection(&mut stream, config, timeout)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use std::os::unix::fs::MetadataExt;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use sley_id::{CandidateId, EntityId, ObjectId, PolicyRootId, PrincipalId, WorkspaceId};
+    use sley_vm::native_execution::NativeDeclaredLimits;
+
+    use crate::config::{AllowedCaller, default_config};
+    use crate::protocol::RunRequest;
+
+    static NEXT_SOCKET: AtomicU64 = AtomicU64::new(0);
+
+    fn test_listener() -> (UnixListener, std::path::PathBuf) {
+        let path = std::env::temp_dir().join(format!(
+            "sley-native-service-{}-{}",
+            std::process::id(),
+            NEXT_SOCKET.fetch_add(1, Ordering::Relaxed)
+        ));
+        (UnixListener::bind(&path).expect("bind test socket"), path)
+    }
+
+    fn config(uid: u32) -> RunnerConfig {
+        default_config(
+            "/run/sley-test-supervisor",
+            "/usr/lib/sley/sley-native-test-worker",
+            [7; 32],
+            [8; 32],
+            vec![AllowedCaller {
+                uid,
+                workspace: WorkspaceId::from_bytes([1; 32]),
+                principal: PrincipalId::from_bytes([2; 32]),
+            }],
+            "/etc/sley-test-supervisor/measurement.key",
+            "/etc/sley-test-supervisor/trust",
+        )
+        .expect("test config")
+    }
+
+    fn request() -> RunRequest {
+        RunRequest {
+            workspace: WorkspaceId::from_bytes([1; 32]),
+            principal: PrincipalId::from_bytes([2; 32]),
+            candidate_id: Some(CandidateId::from_bytes([3; 32])),
+            plan_id: sley_id::NativeTestPlanId::from_bytes([4; 32]),
+            test_object: ObjectId::from_bytes([5; 32]),
+            test_entity: EntityId::from_bytes([6; 32]),
+            target_function: EntityId::from_bytes([7; 32]),
+            policy_root: PolicyRootId::from_bytes([8; 32]),
+            declared_limits: NativeDeclaredLimits {
+                fuel: 100,
+                memory_bytes: 4_096,
+                output_bytes: 64,
+                effect_count: 0,
+                call_depth: 8,
+                wall_timeout_millis: 1_000,
+            },
+            wall_ms: 1_000,
+            nonce: [9; 32],
+        }
+    }
+
+    #[test]
+    fn authenticated_socket_request_receives_only_not_wired_refusal() {
+        let (listener, path) = test_listener();
+        let uid = std::fs::symlink_metadata(&path)
+            .expect("socket metadata")
+            .uid();
+        let client = std::thread::spawn({
+            let path = path.clone();
+            move || {
+                let mut stream = UnixStream::connect(path).expect("connect");
+                stream
+                    .write_all(&request().encode_frame().expect("frame"))
+                    .expect("write request");
+                let mut bytes = Vec::new();
+                stream.read_to_end(&mut bytes).expect("read refusal");
+                bytes
+            }
+        });
+        assert_eq!(
+            serve_one(&listener, &config(uid), Duration::from_secs(1)),
+            Ok(())
+        );
+        let reply = client.join().expect("client thread");
+        assert_eq!(
+            RunResponse::decode_frame(&reply, MAX_WORKER_OUTPUT_BYTES).expect("closed response"),
+            RunResponse {
+                status: RunStatus::Refused,
+                code: RUN_REFUSAL_EXECUTION_NOT_WIRED,
+                output: Vec::new(),
+            }
+        );
+        std::fs::remove_file(path).expect("remove socket");
+    }
+
+    #[test]
+    fn unauthorized_peer_receives_no_response() {
+        let (listener, path) = test_listener();
+        let uid = std::fs::symlink_metadata(&path)
+            .expect("socket metadata")
+            .uid();
+        let client = std::thread::spawn({
+            let path = path.clone();
+            move || {
+                let mut stream = UnixStream::connect(path).expect("connect");
+                let mut bytes = Vec::new();
+                stream.read_to_end(&mut bytes).expect("read EOF");
+                bytes
+            }
+        });
+        assert_eq!(
+            serve_one(
+                &listener,
+                &config(uid.wrapping_add(1)),
+                Duration::from_secs(1)
+            ),
+            Err(ServiceError::Ingress(IngressError::UnauthorizedPeer))
+        );
+        assert!(client.join().expect("client thread").is_empty());
+        std::fs::remove_file(path).expect("remove socket");
+    }
+}

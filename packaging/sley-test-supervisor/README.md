@@ -2,8 +2,12 @@
 
 N3 source (crate `sley-test-runner`, CLI `__native-test-worker` entry,
 transient-unit renderer, enforcement math, worker envelope, readiness
-probes) is landed and tested. The steps below need root on each intended
-host and are explicitly **pending**, not waived:
+probes, and one-connection authenticated refusal service) is landed and
+tested. The service answers a valid request with
+`RUN_REFUSAL_EXECUTION_NOT_WIRED`; invalid peers receive no response. It has
+no production daemon entry, worker launch, or measurement signature. The
+steps below need root on each intended host and are explicitly **pending**,
+not waived:
 
 The closed runner request carries `candidate_id=Some` for candidate-affected
 runs and `None` for explicit-root diagnostics, matching the owner-derived plan
