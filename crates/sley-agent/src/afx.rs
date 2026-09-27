@@ -26,9 +26,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value, json};
 use sley_id::EntityId;
+use sley_mutate::value::BlockBody;
 use sley_mutate::value::EntityBodyValue;
 use sley_ssmc::{
-    BuiltinFailureKind, FunctionType, IntegerWidth, NamedType, Terminator, TypeDefForm, TypeExpr,
+    BuiltinCase, BuiltinFailureKind, CaseKey, FunctionType, Immediate, IntegerWidth, NamedType,
+    OperationResultRef, SwitchArgument, Terminator, TypeDefForm, TypeExpr, ValueRef,
 };
 
 use crate::error::{AgentError, AgentErrorCode, Result, frame};
@@ -142,8 +144,13 @@ pub struct SourceMap {
     /// Entries in expansion order.
     pub entries: Vec<MapEntry>,
     /// Per function: every generated block and value name to the authored
-    /// pointer it comes from.
+    /// pointer it comes from (a block's entry wins when a value has the
+    /// same name).
     pub names: BTreeMap<String, BTreeMap<String, String>>,
+    /// Per function: generated block names only.
+    pub blocks: BTreeMap<String, BTreeMap<String, String>>,
+    /// Per function: generated value names only.
+    pub values: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 impl SourceMap {
@@ -158,7 +165,7 @@ impl SourceMap {
                        "role": entry.role.name(), "name": entry.name})
             })
             .collect();
-        json!({"entries": entries, "names": self.names})
+        json!({"entries": entries, "names": self.names, "blocks": self.blocks, "values": self.values})
     }
 
     /// The authored pointer for an expanded pointer: the entry with the
@@ -1757,34 +1764,30 @@ impl Expander<'_, '_> {
             None => Some(function.result_type.clone()),
         };
         let mut fx = FnExp::new(self.cx, name, pointer, true, params, result);
-        let restated: BTreeSet<String> = patched.keys().cloned().collect();
-        let is_piece_of = |leaf: &str| {
-            restated.iter().any(|key| {
-                leaf.len() > key.len() + 2
-                    && leaf.starts_with(key.as_str())
-                    && leaf[key.len()..].starts_with("__")
-            })
-        };
-        let is_shared_exit =
-            |leaf: &str| leaf == "__err" || leaf == "__none" || leaf.starts_with("__fail_");
+        // Generated blocks are recognized by their exact generated shape
+        // (a continuation reached only from the previous piece, a shared
+        // exit's body) as well as their names; a live block the expander did
+        // not make is kept as it is, whatever its name.
+        let live = LiveGraph::new(self.cx, &function.blocks);
+        let mut pieces: BTreeSet<String> = BTreeSet::new();
+        for key in patched.keys() {
+            pieces.extend(live.pieces_of(key));
+        }
         let mut live_order = Vec::new();
-        for block in &function.blocks {
-            let leaf = self.cx.names.leaf(block);
+        for (leaf, block, body) in &live.blocks {
+            let leaf = leaf.clone();
             live_order.push(leaf.clone());
-            if restated.contains(&leaf) {
+            if patched.contains_key(&leaf) {
                 continue;
             }
-            if is_piece_of(&leaf) {
+            if pieces.contains(&leaf) {
                 fx.stale.push(leaf);
                 continue;
             }
-            if is_shared_exit(&leaf) {
+            if live.is_generated_exit(&leaf, body) {
                 fx.live_exits.push((leaf, live_targets(self.cx, block)));
                 continue;
             }
-            let Some(EntityBodyValue::Block(body)) = self.cx.program.body(block) else {
-                continue;
-            };
             fx.kept.push(Kept {
                 leaf,
                 params: body
@@ -1891,15 +1894,233 @@ impl Expander<'_, '_> {
     fn absorb(&mut self, fx: FnExp<'_, '_>) {
         self.obligations.extend(fx.obligations);
         self.map.entries.extend(fx.entries);
-        if !fx.names.is_empty() {
+        if !fx.value_names.is_empty() || !fx.block_names.is_empty() {
+            let function = fx.fn_name.clone();
+            // The merged table (a block and a value may share a name, as a
+            // continuation and an exit condition do): the block's entry wins.
+            let merged = self.map.names.entry(function.clone()).or_default();
+            merged.extend(fx.value_names.clone());
+            merged.extend(fx.block_names.clone());
             self.map
-                .names
-                .entry(fx.fn_name.clone())
+                .blocks
+                .entry(function.clone())
                 .or_default()
-                .extend(fx.names);
+                .extend(fx.block_names);
+            self.map
+                .values
+                .entry(function)
+                .or_default()
+                .extend(fx.value_names);
         }
         self.stats.add(&fx.stats);
     }
+}
+
+/// A live function's blocks, for recognizing the ones an earlier expansion
+/// generated.
+struct LiveGraph<'c, 'a> {
+    cx: &'c Context<'a>,
+    blocks: Vec<(String, EntityId, &'a BlockBody)>,
+    index: BTreeMap<String, usize>,
+    preds: Vec<Vec<usize>>,
+}
+
+impl<'c, 'a> LiveGraph<'c, 'a> {
+    fn new(cx: &'c Context<'a>, ids: &[EntityId]) -> Self {
+        let mut blocks = Vec::new();
+        for id in ids {
+            if let Some(EntityBodyValue::Block(body)) = cx.program.body(id) {
+                blocks.push((cx.names.leaf(id), *id, body));
+            }
+        }
+        let index: BTreeMap<String, usize> = blocks
+            .iter()
+            .enumerate()
+            .map(|(position, (leaf, _, _))| (leaf.clone(), position))
+            .collect();
+        let mut preds = vec![Vec::new(); blocks.len()];
+        for (position, (_, id, _)) in blocks.iter().enumerate() {
+            for target in live_targets(cx, id) {
+                if let Some(&target) = index.get(&target)
+                    && !preds[target].contains(&position)
+                {
+                    preds[target].push(position);
+                }
+            }
+        }
+        Self {
+            cx,
+            blocks,
+            index,
+            preds,
+        }
+    }
+
+    fn first_param(&self, position: usize) -> Option<String> {
+        self.blocks[position]
+            .2
+            .parameters
+            .first()
+            .map(|param| self.cx.names.leaf(param))
+    }
+
+    /// The generated continuation pieces of the live block `root`, in
+    /// order: each is the continuation edge's target of the one before (a
+    /// switch's Ok/Some case passing `$` first, or a cond's else target),
+    /// has that one as its only predecessor, and has the name the
+    /// expansion allocates for it.
+    fn pieces_of(&self, root: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let Some(&start) = self.index.get(root) else {
+            return out;
+        };
+        let mut current = start;
+        for _ in 0..self.blocks.len() {
+            let next = match &self.blocks[current].2.terminator {
+                Terminator::VariantSwitch(switch) if switch.cases.len() == 2 => switch
+                    .cases
+                    .iter()
+                    .find(|case| {
+                        matches!(
+                            case.case_key,
+                            CaseKey::Builtin(BuiltinCase::Ok | BuiltinCase::Some)
+                        ) && case.edge.arguments.first() == Some(&SwitchArgument::CasePayload)
+                    })
+                    .map(|case| self.cx.names.leaf(&case.edge.target))
+                    .filter(|leaf| {
+                        self.index
+                            .get(leaf)
+                            .and_then(|&position| self.first_param(position))
+                            .is_some_and(|value| is_allocated(leaf, &format!("{root}__{value}")))
+                    }),
+                Terminator::CondBranch(cond) => Some(self.cx.names.leaf(&cond.if_false.target))
+                    .filter(|leaf| is_exit_piece(leaf, root, self.blocks.len())),
+                _ => None,
+            };
+            let Some((next, position)) =
+                next.and_then(|leaf| self.index.get(&leaf).map(|&position| (leaf, position)))
+            else {
+                break;
+            };
+            if self.preds[position] != [current] || out.contains(&next) || position == start {
+                break;
+            }
+            out.push(next);
+            current = position;
+        }
+        out
+    }
+
+    /// Whether a live block is a shared exit an expansion generated: the
+    /// exact body (`variant E.Case [p]; err; return`, `err e; return`,
+    /// `none; return`) under the name allocated for it.
+    fn is_generated_exit(&self, leaf: &str, body: &BlockBody) -> bool {
+        let op = |position: usize| {
+            let id = body.operations.get(position)?;
+            match self.cx.program.body(id) {
+                Some(EntityBodyValue::Operation(op)) => Some((*id, op)),
+                _ => None,
+            }
+        };
+        let result = |id: EntityId| {
+            ValueRef::OperationResult(OperationResultRef {
+                operation: id,
+                result_index: 0,
+            })
+        };
+        let returns = |id: EntityId| matches!(&body.terminator, Terminator::Return(ret) if ret.value == result(id));
+        let params: Vec<ValueRef> = body
+            .parameters
+            .iter()
+            .map(|param| ValueRef::Parameter(*param))
+            .collect();
+        match (params.len(), body.operations.len()) {
+            (1, 1) => op(0).is_some_and(|(id, op)| {
+                op.opcode == 131
+                    && op.operands == params
+                    && returns(id)
+                    && is_allocated(leaf, "__err")
+            }),
+            (0, 1) => op(0).is_some_and(|(id, op)| {
+                op.opcode == 129
+                    && op.operands.is_empty()
+                    && returns(id)
+                    && is_allocated(leaf, "__none")
+            }),
+            (0 | 1, 2) => match (op(0), op(1)) {
+                (Some((variant_id, variant)), Some((err_id, err))) => {
+                    let Immediate::Variant(member) = &variant.immediate else {
+                        return false;
+                    };
+                    let case = self
+                        .cx
+                        .names
+                        .member_leaf(&member.definition, &member.member_id);
+                    variant.opcode == 20
+                        && variant.operands == params
+                        && err.opcode == 131
+                        && err.operands == [result(variant_id)]
+                        && returns(err_id)
+                        && is_allocated(leaf, &format!("__fail_{case}"))
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+}
+
+/// A generated name fitted to the name grammar, as allocation fits it.
+fn fit(name: String) -> String {
+    if name.len() <= MAX_NAME {
+        name
+    } else {
+        shorten(&name)
+    }
+}
+
+/// Whether `leaf` is a name allocation gives `base`: the base itself or
+/// with a collision suffix `_<n>`, shortened when too long.
+fn is_allocated(leaf: &str, base: &str) -> bool {
+    if leaf == fit(base.to_owned()) {
+        return true;
+    }
+    let suffixed = leaf
+        .strip_prefix(base)
+        .and_then(|rest| rest.strip_prefix('_'))
+        .is_some_and(all_digits);
+    if suffixed {
+        return fit(leaf.to_owned()) == leaf;
+    }
+    looks_shortened(leaf) && (2..=64).any(|n| fit(format!("{base}_{n}")) == leaf)
+}
+
+/// Whether `leaf` is the block after an exit of `root`: `<root>__if<i>`,
+/// possibly suffixed or shortened.
+fn is_exit_piece(leaf: &str, root: &str, limit: usize) -> bool {
+    let plain = leaf
+        .strip_prefix(root)
+        .and_then(|rest| rest.strip_prefix("__if"))
+        .is_some_and(|rest| match rest.split_once('_') {
+            Some((index, suffix)) => all_digits(index) && all_digits(suffix),
+            None => all_digits(rest),
+        });
+    (plain && fit(leaf.to_owned()) == leaf)
+        || (looks_shortened(leaf)
+            && (0..=limit).any(|i| is_allocated(leaf, &format!("{root}__if{i}"))))
+}
+
+fn all_digits(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Whether `leaf` has the form of a shortened generated name.
+fn looks_shortened(leaf: &str) -> bool {
+    leaf.len() > 19
+        && leaf[leaf.len() - 19..].starts_with("__h")
+        && leaf[leaf.len() - 16..]
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit())
 }
 
 /// The leaves a live block's terminator targets.
@@ -1949,7 +2170,10 @@ struct FnExp<'c, 'a> {
     degraded: bool,
     obligations: Vec<Obligation>,
     entries: Vec<MapEntry>,
-    names: BTreeMap<String, String>,
+    /// Generated block names to their authored pointers.
+    block_names: BTreeMap<String, String>,
+    /// Generated value names to their authored pointers.
+    value_names: BTreeMap<String, String>,
     stats: AfxStats,
 }
 
@@ -1985,7 +2209,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
             degraded: false,
             obligations: Vec::new(),
             entries: Vec::new(),
-            names: BTreeMap::new(),
+            block_names: BTreeMap::new(),
+            value_names: BTreeMap::new(),
             stats: AfxStats::default(),
         }
     }
@@ -2647,7 +2872,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     return Sym::Raw(Value::Null);
                 }
                 let name = self.alloc_value(generated);
-                self.names.insert(name.clone(), child.pointer.clone());
+                self.value_names.insert(name.clone(), child.pointer.clone());
                 let types = self.node_types(st.b, child, context);
                 let operands = self.lower_args(st, child, &types, &name, depth + 1);
                 self.stats.nested += 1;
@@ -2688,7 +2913,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
         };
         let name = self.alloc_value(generated);
-        self.names.insert(name.clone(), pointer.to_owned());
+        self.value_names.insert(name.clone(), pointer.to_owned());
         let op = EOp {
             name: name.clone(),
             word: "const".to_owned(),
@@ -2868,7 +3093,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
     ) {
         if let Some(check) = &node.check {
             let result = self.alloc_value(&format!("{name}__r"));
-            self.names.insert(result.clone(), node.pointer.clone());
+            self.value_names
+                .insert(result.clone(), node.pointer.clone());
             let op = EOp {
                 name: result.clone(),
                 word: node.word.clone(),
@@ -2974,7 +3200,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             .map_or(Value::from("unit"), |ty| Value::from(self.cx.render(ty)));
         let block = self.blocks[st.b].name.clone();
         let continuation = self.alloc_block(&format!("{block}__{name}"));
-        self.names
+        self.block_names
             .insert(continuation.clone(), node.pointer.clone());
         let next = self.new_piece(
             continuation.clone(),
@@ -3119,7 +3345,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             ExitKind::None => "__none".to_owned(),
         };
         let name = self.alloc_block(&base);
-        self.names.insert(name.clone(), pointer.to_owned());
+        self.block_names.insert(name.clone(), pointer.to_owned());
         self.stats.generated_blocks += 1;
         self.exits.push(SharedExit {
             key,
@@ -3363,7 +3589,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
         self.stats.exits += 1;
         let edge = self.exit_edge(st, exit, &format!("{base}__p"));
         let continuation = self.alloc_block(&base);
-        self.names
+        self.block_names
             .insert(continuation.clone(), exit.pointer.clone());
         let next = self.new_piece(
             continuation.clone(),
@@ -3663,7 +3889,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 let generated = self.term_name(st);
                 let sym = self.lower_operand(st, arg, Some(&ok), &generated, 0, true);
                 let name = self.alloc_value(&format!("{}__ok", block.name));
-                self.names.insert(name.clone(), pointer.clone());
+                self.value_names.insert(name.clone(), pointer.clone());
                 let op = EOp {
                     name: name.clone(),
                     word: "ok".to_owned(),
@@ -4446,7 +4672,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
             && let Some((name, _)) = &piece.unwrapped
             && name.contains("__")
         {
-            self.names.insert(name.clone(), piece.authored.clone());
+            self.value_names
+                .insert(name.clone(), piece.authored.clone());
         }
         Value::Object(block)
     }
@@ -4693,7 +4920,7 @@ mod tests {
                     name: "entry".into(),
                 },
             ],
-            names: BTreeMap::new(),
+            ..SourceMap::default()
         };
         assert_eq!(
             map.authored("/fns/0/blocks/2/ops/0/3").as_deref(),

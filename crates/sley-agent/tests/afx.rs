@@ -2035,3 +2035,159 @@ fn a_root_cause_is_reported_before_the_literals_it_leaves_untyped() {
         assert!(!detail.contains("literal"), "{term}: {detail}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Review regressions: patches recognize generated blocks by their shape
+// ---------------------------------------------------------------------------
+
+fn commit_frame(dir: &Path, frame: &Value) {
+    let (status, text) = run(dir, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let (status, text) = run(dir, &["commit"]);
+    assert_eq!(status, 0, "{text}");
+}
+
+fn patch_blocks(dir: &Path, patch: &Value) -> Value {
+    let expansion = expand(dir, patch);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    expansion.frame["patch"][0]["blocks"].clone()
+}
+
+#[test]
+fn restating_a_block_deletes_its_shortened_pieces() {
+    // W2-A5: a continuation whose name was shortened is still recognized.
+    let temp = workspace("shortened");
+    let long = "block_with_a_very_long_descriptive_name_for_the_checked_step";
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Overflow"]}],
+          "fns": [{"fn": "g", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "term": ["br", long]},
+            {"name": long, "ops": [["quotient", "div?Overflow", "a", "b"]], "term": ["ok", "quotient"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "g"]);
+    let old: Vec<String> = block_names(&view)
+        .into_iter()
+        .filter(|name| name.contains("__h"))
+        .collect();
+    assert_eq!(old.len(), 1, "{view}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "g", "blocks": {
+        long: {"ops": [["product", "mul?Overflow", "a", "b"]], "term": ["ok", "product"]}}}]});
+    let blocks = patch_blocks(&temp.path, &patch);
+    assert_eq!(blocks[&old[0]], Value::Null, "{blocks}");
+    let (status, text) = run(&temp.path, &["try", &patch.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let (_, value) = run(&temp.path, &["call", "g", "6", "7", "--on", "latest"]);
+    assert_eq!(value.trim(), "{\"Ok\":42}");
+}
+
+#[test]
+fn a_patch_never_rewrites_or_deletes_blocks_it_did_not_generate() {
+    // W2-A6: a plain AF1 block named like a shared exit, and one named like
+    // a piece, are the author's: kept as they are.
+    let temp = workspace("user-blocks");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "types": [{"name": "E", "variant": ["Zero", "Other"]}],
+          "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["neg", "lt", "a", "b"]], "term": ["cond", "neg", "k", "__fail_Zero"]},
+            {"name": "k", "ops": [["r", "ok", "a"]], "term": ["return", "r"]},
+            {"name": "__fail_Zero", "ops": [["v", "variant", "E.Other"], ["r", "err", "v"]], "term": ["return", "r"]}]},
+          {"fn": "h", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["zero", "const", 0], ["pos", "gt", "a", "zero"]], "term": ["cond", "pos", "k", "entry__pos"]},
+            {"name": "k", "ops": [["r", "ok", "a"]], "term": ["return", "r"]},
+            {"name": "entry__pos", "ops": [["v", "variant", "E.Other"], ["r", "err", "v"]], "term": ["return", "r"]}]}]}),
+    );
+    let (_, before) = run(&temp.path, &["call", "f", "5", "1"]);
+    assert_eq!(before.trim(), "{\"Err\":\"Other\"}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [
+        {"fn": "f", "blocks": {"k": {"ops": [["!Zero", "if", ["eq", "a", 0]]], "term": ["ok", "a"]}}},
+        {"fn": "h", "blocks": {"entry": {"ops": [["!Zero", "if", ["eq", "a", 0]], ["pos", "gt", "a", 0]],
+                                         "term": ["cond", "pos", "k", "entry__pos"]}}}]});
+    let expansion = expand(&temp.path, &patch);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let f_blocks = &expansion.frame["patch"][0]["blocks"];
+    assert!(f_blocks.get("__fail_Zero").is_none(), "{f_blocks}");
+    assert!(f_blocks["__fail_Zero_2"].is_object(), "{f_blocks}");
+    assert_eq!(
+        f_blocks["k"]["term"][2],
+        json!("__fail_Zero_2"),
+        "{f_blocks}"
+    );
+    let h_blocks = &expansion.frame["patch"][1]["blocks"];
+    assert!(h_blocks.get("entry__pos").is_none(), "{h_blocks}");
+    let (status, text) = run(&temp.path, &["try", &patch.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    for (function, args, want) in [
+        ("f", ["5", "1"], "{\"Err\":\"Other\"}"),
+        ("f", ["0", "1"], "{\"Err\":\"Zero\"}"),
+        ("f", ["1", "5"], "{\"Ok\":1}"),
+        ("h", ["-3", "0"], "{\"Err\":\"Other\"}"),
+        ("h", ["0", "0"], "{\"Err\":\"Zero\"}"),
+        ("h", ["4", "0"], "{\"Ok\":4}"),
+    ] {
+        let mut words = vec!["call", function, args[0]];
+        if function == "f" {
+            words.push(args[1]);
+        }
+        words.extend(["--on", "latest"]);
+        let (_, value) = run(&temp.path, &words);
+        assert_eq!(value.trim(), want, "{function}{args:?}");
+    }
+}
+
+#[test]
+fn a_suffixed_shared_exit_is_recognized_and_deleted_when_unused() {
+    // W2-P2: with a top-level `__err`, the exit is `__err_2`; a later patch
+    // that no longer needs it deletes it.
+    let temp = workspace("suffixed-exit");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "__err", "params": [], "returns": "i64", "blocks": [{"name": "entry", "ops": [["z", "const", 0]], "term": ["return", "z"]}]},
+          {"fn": "g", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>", "blocks": [
+            {"name": "entry", "ops": [["s", "add?", "a", 1]], "term": ["ok", "s"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "g"]);
+    assert!(block_names(&view).contains(&"__err_2".to_owned()), "{view}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "g", "blocks": {
+        "entry": {"ops": [["s", "add", "a", 1]], "term": ["return", "s"]}}}]});
+    let blocks = patch_blocks(&temp.path, &patch);
+    assert_eq!(blocks["__err_2"], Value::Null, "{blocks}");
+    assert_eq!(blocks["entry__s"], Value::Null, "{blocks}");
+    commit_frame(&temp.path, &patch);
+    let (_, view) = run(&temp.path, &["view", "g"]);
+    assert_eq!(block_names(&view), ["entry"], "{view}");
+}
+
+#[test]
+fn generated_block_and_value_names_have_separate_tables() {
+    // W2-P1: the exit condition value and the block after the exit share
+    // the name `entry__if0`; each table maps it to its own construct.
+    let temp = workspace("name-tables");
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Neg"]}],
+      "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "a", 0]]], "term": ["ok", "a"]}]}]});
+    let map = expand(&temp.path, &frame).map.to_json();
+    assert_eq!(
+        map["values"]["f"]["entry__if0"],
+        json!("/fns/0/blocks/0/ops/0/2")
+    );
+    assert_eq!(
+        map["blocks"]["f"]["entry__if0"],
+        json!("/fns/0/blocks/0/ops/0")
+    );
+    assert_eq!(
+        map["blocks"]["f"]["__fail_Neg"],
+        json!("/fns/0/blocks/0/ops/0")
+    );
+    assert!(map["values"]["f"].get("__fail_Neg").is_none());
+}
