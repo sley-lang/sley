@@ -868,11 +868,11 @@ pub fn text_obligation(detail: &str, line: usize, column: usize, byte: usize) ->
 }
 
 /// The obligation of a kernel refusal: the kernel's symbol, phase and
-/// locator, never reinterpreted. When the verdict names authored frame
-/// positions, the first is `at` and the others `also_at`; otherwise `at` is
-/// the authored position the caller found for the refused entity.
+/// locator, never reinterpreted. The verdict's authored frame positions, or
+/// else `positions` (those of a refused `TestCase`), give `at` (the first)
+/// and `also_at` (the others).
 #[must_use]
-pub fn kernel_obligation(verdict: &Verdict, at: Option<String>) -> Value {
+pub fn kernel_obligation(verdict: &Verdict, positions: &[String]) -> Value {
     let symbol = verdict
         .symbol
         .clone()
@@ -885,7 +885,12 @@ pub fn kernel_obligation(verdict: &Verdict, at: Option<String>) -> Value {
         .flatten()
         .filter_map(|entry| entry.get("at").filter(|at| at.is_string()).cloned())
         .collect();
-    let at = authored.first().cloned().or_else(|| at.map(Value::from));
+    let authored = if authored.is_empty() {
+        positions.iter().map(|at| json!(at)).collect()
+    } else {
+        authored
+    };
+    let at = authored.first().cloned();
     let mut decision = format!(
         "{}: {}",
         verdict.headline(),
@@ -1087,22 +1092,33 @@ pub fn entry_digest(entry: &Value) -> String {
     sha256(entry.to_string().as_bytes())
 }
 
-/// Frame tests by origin: `(imported, authored)`. A frame test is imported
-/// when a source names it and its entry is unchanged since the import;
-/// authored tests are the other frame tests plus every table row.
+/// Frame tests by origin: `(imported, authored)`. A frame test (or table
+/// row) named in `kept` restates a live test unchanged and counts as
+/// provided, not here. Of the others, a test is imported when a source
+/// names it and its entry is unchanged since the import; the rest, and
+/// every other table row, are authored.
 #[must_use]
-pub fn frame_tests(frame: &Value, sources: &[Value]) -> (u64, u64) {
-    let entries = frame
+pub fn frame_tests(frame: &Value, sources: &[Value], kept: &[String]) -> (u64, u64) {
+    let is_kept = |name: Option<&str>| name.is_some_and(|name| kept.iter().any(|k| k == name));
+    let entries: Vec<&Value> = frame
         .get("tests")
         .and_then(Value::as_array)
-        .map_or(&[][..], Vec::as_slice);
+        .into_iter()
+        .flatten()
+        .filter(|entry| !is_kept(entry.get("name").and_then(Value::as_str)))
+        .collect();
     let imported = entries
         .iter()
         .filter(|entry| is_imported(entry, sources))
         .count() as u64;
+    let kept_rows = crate::tables::row_tests(frame)
+        .1
+        .iter()
+        .filter(|row| is_kept(Some(&row.name)))
+        .count() as u64;
     (
         imported,
-        entries.len() as u64 - imported + table_rows(frame),
+        entries.len() as u64 - imported + table_rows(frame).saturating_sub(kept_rows),
     )
 }
 

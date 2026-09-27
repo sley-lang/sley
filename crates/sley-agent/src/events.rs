@@ -4,11 +4,13 @@
 //! provenance, refusals, draft completion).
 //!
 //! A line carries counts, handles and symbols only: no clock, no names, no
-//! frame or program content. Appending is best effort; it never fails or
-//! changes the command.
+//! frame or program content. Each line takes the next `seq` under an
+//! exclusive lock on the ledger, so numbers are unique and follow file
+//! order even for concurrent commands. Appending is best effort; it never
+//! fails or changes the command.
 
 use std::fs::{self, OpenOptions};
-use std::io::Write as _;
+use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
 use std::path::PathBuf;
 
 use serde_json::{Map, Value, json};
@@ -108,12 +110,33 @@ pub fn append(event: &Event, command: &str, output_bytes: usize) {
         return;
     }
     let path = state.join(EVENTS_FILE);
-    let seq = fs::read(&path).map_or(0, |bytes| {
-        bytes.split(|byte| *byte == b'\n').count() as u64 - 1
-    }) + 1;
+    let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .read(true)
+        .open(&path)
+    else {
+        return;
+    };
+    // The sequence number is read and the line appended under an exclusive
+    // lock on the ledger, so concurrent commands number their lines once
+    // each, in file order. Without the lock (unsupported), the append goes
+    // ahead unlocked.
+    let locked = file.lock().is_ok();
+    let seq = count_lines(&mut file) + 1;
     let mut text = event.line(seq, command, output_bytes).to_string();
     text.push('\n');
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = file.write_all(text.as_bytes());
+    let _ = file.write_all(text.as_bytes());
+    if locked {
+        let _ = file.unlock();
     }
+}
+
+/// The number of complete lines in the ledger.
+fn count_lines(file: &mut fs::File) -> u64 {
+    let mut bytes = Vec::new();
+    if file.seek(SeekFrom::Start(0)).is_err() || file.read_to_end(&mut bytes).is_err() {
+        return 0;
+    }
+    bytes.split(|byte| *byte == b'\n').count() as u64 - 1
 }

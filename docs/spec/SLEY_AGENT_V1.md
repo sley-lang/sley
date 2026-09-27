@@ -776,6 +776,16 @@ naming the repair), and `fill` repairs the follow-up and layers the result
 on `on` again, so the base's definitions and tests stay in the draft. `try
 --on <base>` with the corrected follow-up does the same in one step.
 
+A follow-up refused before layering is not recorded: when the revision it
+names is a text revision or an `unlayered` one (`AGENT_DRAFT_INCOMPLETE`),
+or when the head changed since that revision (`AGENT_DRAFT_HEAD_CHANGED`,
+section 12.5). Recording it would either build on a revision without a
+complete frame, hiding that revision's repair behind a newer one, or build
+on a head the author did not choose. The refusal says the follow-up was
+not recorded and how to send it again: after the repair, with `--on` the
+revision the refusal names, or with `--rebase`. `import --on` is refused
+the same way.
+
 ### 12.2 Trial output
 
 A frame refusal keeps exit status 2, its `error AGENT_*:` line and its
@@ -807,10 +817,15 @@ then lists:
 - the `next:` step, which layers on the draft (`try --on d1`), repairs it
   (`fill`) or submits it (`submit d1`).
 
-A kernel refusal about a TestCase adds `authored:` with the pointer of that
-test's entry in the frame (and of the refused limit), or, for a test made
-from a table row, of the row or the table's `defaults` the limit comes
-from, unless the verdict already names authored positions (section 8).
+A kernel refusal about a TestCase, when the verdict names no authored
+positions itself (section 8), gets them from the test: `authored:` lists,
+as bare pointers with what each designates, the refused limit (when the
+refusal names one) and the test's entry in the frame, for example
+`authored: /tests/0/limits/fuel (fuel limit of test t_lim), /tests/0
+(test t_lim)`. For a test made from a table row these are the row's
+`limits` or the table's `defaults` the limit comes from, and the row. In
+JSON they are the kernel obligation's `at` and `also_at`; the verdict's
+own `authored` list stays the phase 7 analysis of section 8.
 Unchanged program bodies are not reprinted. JSON output keeps every earlier
 key and adds `draft`, `state`, `changed`, `obligations` and `provenance`.
 
@@ -830,8 +845,9 @@ an expected type or shape or the values available, and are `null`
 otherwise. Problems with the same symbol and decision form one obligation
 with their `count`; `also_at` lists the pointers after the first. A kernel
 refusal is one obligation whose `kernel` holds the kernel's symbol, phase
-and locator unchanged; its `at` is the authored position the verdict or
-the refused TestCase's entry gives, when there is one. Obligations report what the author must decide;
+and locator unchanged; its `at` is the first authored position of the
+verdict (for a TestCase limit, the limit), when there is one, and
+`also_at` holds the others. Obligations report what the author must decide;
 they complete nothing.
 
 `draft` lists the drafts: the latest revision of each, its state, its
@@ -878,7 +894,9 @@ A revision records the accepted head it was made on. When the head has
 changed since, `fill`, `try --on <draft>` and `import --on <draft>` refuse
 with `AGENT_DRAFT_HEAD_CHANGED` unless `--rebase` is given. A rebased
 revision records `made_by: "rebase"` and `rebase: {"from_head",
-"to_head", "via"}`. Nothing is rebased implicitly.
+"to_head", "via"}`. Nothing is rebased implicitly, and a command refused
+for a changed head records nothing: the refusal says to send it again
+with `--rebase`.
 
 ### 12.6 Submission
 
@@ -917,11 +935,19 @@ Tests are counted by origin (`tests` in `status.json`, `provenance` in
 trial JSON):
 
 - `provided`: the TestCases live at the base head that the candidate
-  keeps and does not replace; a live test the candidate replaces counts
-  where its new entry comes from, and `replaced` lists it;
-- `imported`: frame tests whose entry is unchanged since their import;
-- `authored`: the other frame tests, plus the rows of `test_tables` when
-  the frame has them.
+  keeps and does not replace. A frame test (or table row) that restates a
+  live test unchanged, so that its compiled TestCase is the live one,
+  counts here once and not as imported or authored. A frame test that
+  changes a live test replaces it: it counts where its entry comes from,
+  and `replaced` lists it;
+- `imported`: the other frame tests whose entry is unchanged since their
+  import;
+- `authored`: the remaining frame tests and table rows.
+
+Every TestCase of the candidate that the frame states or the head
+provides is therefore counted once. Before a candidate exists (an
+incomplete revision), a frame test that names a live test counts where its
+entry comes from, and that live test is not counted as provided.
 
 An imported test that the author restates counts as authored from then on.
 Imported tests never satisfy a requirement to author a test.
@@ -937,8 +963,11 @@ exist), `delta_targets`, `delta_bytes`, `afx` (the authoring
 feature counters of the compiled frame), `table_rows`, `tests` (the
 provenance counts), `refusal` (the workbench or kernel symbol),
 `obligations` and `valid`. A line holds counts, handles and symbols only:
-no clock, no names and no program content. A failure to append never
-fails the command, and `help` and `version` append nothing.
+no clock, no names and no program content. `seq` is the line's position in
+the file: each command takes it and appends its line (one write) under an
+exclusive lock on the ledger, so concurrent commands get unique numbers in
+file order. A failure to append never fails the command, and `help` and
+`version` append nothing.
 
 `crates/sley-agent/tests/drafts.rs` executes the contract of this section:
 stale revisions, changed heads and explicit rebases, missing, repeated and
@@ -949,8 +978,10 @@ revisions, the refusal to submit after a newer incomplete revision
 (named or bare), import provenance and digests, grouped and bounded
 obligations, ledger lines without content, table rows that would take over
 live tests, restated tables, existing obligation pointers, concurrent
-commands, repaired and refused follow-ups, replaced provided tests, and
-the authored pointers of table-test refusals.
+commands, repaired and refused follow-ups, replaced provided tests,
+identical restatements counted once, the authored pointers of table-test
+refusals, ledger sequence numbers under concurrent commands, and
+follow-ups refused without being recorded.
 
 ## 13. Verified search
 

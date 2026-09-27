@@ -798,6 +798,23 @@ fn layer_base(drafts: &Drafts, handle: &str, revision: u64) -> Result<(Value, Va
     Err(AgentError::new(AgentErrorCode::DraftIncomplete, detail))
 }
 
+/// A follow-up refused before it could be recorded (its base cannot be
+/// layered on, or the head changed): the refusal says that nothing was
+/// recorded and how to send the follow-up again.
+fn not_recorded(error: AgentError, what: &str) -> AgentError {
+    let again = match error.code() {
+        AgentErrorCode::DraftHeadChanged => "send it again with --rebase",
+        AgentErrorCode::DraftIncomplete => {
+            "send it again once that revision is repaired, or with --on the revision named above"
+        }
+        _ => return error,
+    };
+    AgentError::new(
+        error.code(),
+        format!("{}; this {what} was not recorded: {again}", error.detail()),
+    )
+}
+
 /// The frame a follow-up builds on: a draft revision's complete frame, or
 /// the frame a candidate was made from.
 fn base_frame(workspace: &Workspace, on: &str) -> Result<Value> {
@@ -859,8 +876,10 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             let reference = DraftRef::parse(reference).expect("a draft reference");
             let (handle, base) = drafts.resolve(&reference)?;
             let spelled = draft::spell(&handle, base);
-            let (base_frame, status) = layer_base(&drafts, &handle, base)?;
-            let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "try-on")?;
+            let (base_frame, status) = layer_base(&drafts, &handle, base)
+                .map_err(|error| not_recorded(error, "follow-up"))?;
+            let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "try-on")
+                .map_err(|error| not_recorded(error, "follow-up"))?;
             let target = Target::Next {
                 handle,
                 parent: base,
@@ -1099,8 +1118,10 @@ fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
             let drafts = Drafts::open(&workspace)?;
             let (handle, base) = drafts.resolve(&reference)?;
             let spelled = draft::spell(&handle, base);
-            let (base_frame, status) = layer_base(&drafts, &handle, base)?;
-            let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "import")?;
+            let (base_frame, status) = layer_base(&drafts, &handle, base)
+                .map_err(|error| not_recorded(error, "import"))?;
+            let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "import")
+                .map_err(|error| not_recorded(error, "import"))?;
             let frame = Input::layered(&base_frame, Ok(tests));
             let target = Target::Next {
                 handle,
@@ -1240,6 +1261,17 @@ fn provided_tests(head: &Head, after: Option<&Program>, replaced: &[EntityId]) -
         .count()
 }
 
+/// The live `TestCase` a name denotes at the head, if any.
+fn live_test(head: &Head, names: &Names, name: &str) -> Option<EntityId> {
+    names.resolve(name).filter(|id| {
+        names.scope(id) == Scope::Top
+            && head
+                .program()
+                .body(id)
+                .is_some_and(|body| body.kind_tag() == 14)
+    })
+}
+
 /// One refusal holding the problems of two: `first`'s code and headline,
 /// then every other line, prefixed with its own symbol where it differs.
 fn merge_refusals(first: &AgentError, second: &AgentError) -> AgentError {
@@ -1341,15 +1373,7 @@ fn check_tables(
     };
     let deleted = listed("delete", None);
     let frame_tests = listed("tests", Some("name"));
-    let live_test = |name: &str| {
-        names.resolve(name).filter(|id| {
-            names.scope(id) == Scope::Top
-                && head
-                    .program()
-                    .body(id)
-                    .is_some_and(|body| body.kind_tag() == 14)
-        })
-    };
+    let live_test = |name: &str| live_test(head, names, name);
     for row in &rows {
         if deleted.contains(&row.name) {
             continue;
@@ -1429,16 +1453,17 @@ fn record_tables(
     Value::Object(owned)
 }
 
-/// The authored pointer of a kernel refusal about a `TestCase`: its entry
-/// in the frame (and the refused limit), through the source map for a test
-/// made from a table row.
-fn test_pointer(
+/// The authored positions of a kernel refusal about a `TestCase`: for a
+/// refused limit, that limit, then the test's entry in the frame, through
+/// the source map for a test made from a table row (its row, and the row's
+/// `limits` or the table's `defaults`).
+fn test_positions(
     output: &sley_policy::CandidateValidationOutput,
     program: &Program,
     names: &Names,
     frame_value: &Value,
     artifacts: &[(String, Value)],
-) -> Option<String> {
+) -> Option<crate::locate::Authored> {
     let locator = output.refusal_locator()?;
     let subject = locator.subject?;
     if program.body(&subject)?.kind_tag() != 14 {
@@ -1457,21 +1482,25 @@ fn test_pointer(
         .as_array()?
         .iter()
         .position(|test| test.get("name").and_then(Value::as_str) == Some(name.as_str()))?;
-    let mut pointer = format!("/tests/{index}");
-    if let Some(limit) = locator
+    let authored = |pointer: String| {
+        artifact("sourcemap.json")
+            .and_then(|map| draft::authored_pointer(map, &pointer))
+            .unwrap_or(pointer)
+    };
+    // The refused limit first: it is what a repair changes.
+    let entry = format!("/tests/{index}");
+    let mut items = Vec::new();
+    if let Some(field) = locator
         .field
         .and_then(|field| field.strip_prefix("resource_limits."))
     {
-        let limit = format!("{pointer}/limits/{limit}");
+        let limit = format!("{entry}/limits/{field}");
         if expanded.pointer(&limit).is_some() {
-            pointer = limit;
+            items.push((authored(limit), format!("{field} limit of test {name}")));
         }
     }
-    Some(
-        artifact("sourcemap.json")
-            .and_then(|map| draft::authored_pointer(map, &pointer))
-            .unwrap_or(pointer),
-    )
+    items.push((authored(entry), format!("test {name}")));
+    Some(crate::locate::Authored { items, none: None })
 }
 
 /// The `next:` repair of an incomplete revision: a fill at the first
@@ -1835,11 +1864,26 @@ fn run_trial(
         &frame_value,
         &status["sources"].as_array().cloned().unwrap_or_default(),
     );
-    let (imported_tests, authored) = draft::frame_tests(&frame_value, &sources);
+    let (imported_tests, authored) = draft::frame_tests(&frame_value, &sources, &[]);
     status["sources"] = json!(sources);
     let authority = Authority::of(head)?;
     let mut map = name_map(workspace)?;
     let names = Names::build(head.program(), &map);
+    // Until a candidate exists, a frame test that restates a live test by
+    // name counts where its entry comes from, not also as provided.
+    let restated: Vec<EntityId> = frame_value["tests"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get("name").and_then(Value::as_str).map(str::to_owned))
+        .chain(
+            crate::tables::row_tests(&frame_value)
+                .1
+                .into_iter()
+                .map(|row| row.name),
+        )
+        .filter_map(|name| live_test(head, &names, &name))
+        .collect();
     let nonce = candidate::fresh_nonce()?;
     let tables = check_tables(head, &names, &frame_value, &proposal.tables, &drafts);
     // A table restated without a row it made deletes that row's live test.
@@ -1875,7 +1919,7 @@ fn run_trial(
         Err(error) => {
             let mut obligations = draft::obligations_of(&error);
             draft::anchor(&mut obligations, Some(&frame_value));
-            let provenance = json!({"provided": provided_tests(head, None, &[]), "imported": imported_tests, "authored": authored});
+            let provenance = json!({"provided": provided_tests(head, None, &restated), "imported": imported_tests, "authored": authored});
             status["obligations"] = json!(obligations);
             status["tests"] = provenance.clone();
             global.note("tests", provenance);
@@ -1920,6 +1964,20 @@ fn run_trial(
     let mut verdict = Verdict::of(&output, &program, &after_names);
     let source = Source::of_try(&frame_value, &compiled.artifacts);
     verdict.locate(&output, &source, &program, &after_names);
+    // A refusal about a TestCase: its authored limit and entry, for the
+    // trial's `authored:` line and the obligation (the verdict's own
+    // `authored` list stays the phase-7 analysis).
+    let test_authored = if !verdict.valid && verdict.authored.is_none() {
+        test_positions(
+            &output,
+            &program,
+            &after_names,
+            &frame_value,
+            &compiled.artifacts,
+        )
+    } else {
+        None
+    };
     let afx_stats = Value::Object(compiled.stats.clone());
     let store = Store::open(workspace)?;
     let mut meta = json!({
@@ -1975,14 +2033,11 @@ fn run_trial(
     let mut obligations = if verdict.valid {
         Vec::new()
     } else {
-        let at = test_pointer(
-            &output,
-            &program,
-            &after_names,
-            &frame_value,
-            &compiled.artifacts,
-        );
-        vec![draft::kernel_obligation(&verdict, at)]
+        let positions: Vec<String> = test_authored
+            .iter()
+            .flat_map(|authored| authored.items.iter().map(|(at, _)| at.clone()))
+            .collect();
+        vec![draft::kernel_obligation(&verdict, &positions)]
     };
     draft::anchor(&mut obligations, Some(&frame_value));
     // Live tests the candidate replaces count where their new entry comes
@@ -2000,6 +2055,19 @@ fn run_trial(
         .collect();
     let mut replaced_names: Vec<String> = replaced.iter().map(|id| names.name(id)).collect();
     replaced_names.sort();
+    // A frame test the candidate keeps unchanged (its compiled TestCase is
+    // the live one) is provided, and counts once; a changed one replaces
+    // the provided test and counts where its entry comes from.
+    let kept: Vec<String> = head
+        .program()
+        .objects()
+        .iter()
+        .filter(|object| object.record().body.kind_tag() == 14)
+        .map(|object| object.record().entity_id)
+        .filter(|id| program.contains(id) && !replaced.contains(id))
+        .map(|id| names.name(&id))
+        .collect();
+    let (imported_tests, authored) = draft::frame_tests(&frame_value, &sources, &kept);
     let mut provenance = json!({
         "provided": provided_tests(head, Some(&program), &replaced),
         "imported": imported_tests,
@@ -2096,21 +2164,20 @@ fn run_trial(
         write_json(out, &value)?;
         return Ok(exit);
     }
+    let mut details = verdict.details();
+    if let Some(authored) = &test_authored {
+        // After `where:`, as the verdict's own `authored:` line would be.
+        let line = format!("  authored: {}\n", authored.text());
+        let at = details.find("  hint:").unwrap_or(details.len());
+        details.insert_str(at, &line);
+    }
     let mut text = format!(
-        "{candidate_handle}: {} (+{} created, {} replaced, {} deleted) draft {reference}\n{}",
+        "{candidate_handle}: {} (+{} created, {} replaced, {} deleted) draft {reference}\n{details}",
         verdict.headline(),
         counts.0,
         counts.1,
         counts.2,
-        verdict.details()
     );
-    // The authored position of a refusal about a TestCase (its entry, or
-    // the table row it comes from), when the verdict names none itself.
-    if verdict.authored.is_none()
-        && let Some(at) = obligations.first().and_then(|record| record["at"].as_str())
-    {
-        let _ = writeln!(text, "  authored: {}", json!(at));
-    }
     for note in &notes {
         let _ = writeln!(text, "  note: {note}");
     }

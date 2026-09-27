@@ -60,7 +60,7 @@ For a function the draft does not define, `edit` takes plain AF1: use
 
 ## Refusals and repair
 
-A `try` of a frame keeps a draft revision, even when refused, and lists
+A `try` keeps a draft revision even when its frame is refused, and lists
 every problem with its JSON pointer; repair those pointers, not the file:
 
 ```json
