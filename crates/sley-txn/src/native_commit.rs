@@ -40,13 +40,15 @@ use sley_id::{
 use sley_policy::ValidatedCandidatePlan;
 use sley_scb1::{ScbError, ScbErrorCode};
 use sley_test_runner::{
+    enforce::{check_elapsed, check_memory_evidence, floor_page_cap, runtime_max_usec},
     program::PortableTestProgram,
     protocol::{RunRequest, RunResponse, RunStatus},
 };
 use sley_tests::plan::SELECTION_MODE_CANDIDATE_AFFECTED;
 use sley_tests::{
-    HistoricalTrustPolicyV1, NATIVE_WALL_CAP_MILLIS, NativeTestApprovalV1, NativeTestPlanV1,
-    NativeTestReportV1, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
+    HistoricalTrustPolicyV1, MeasuredTestAttestationV1, NATIVE_WALL_CAP_MILLIS,
+    NativeExecutionEvidence, NativeExecutionReportV1, NativeTestApprovalV1, NativeTestPlanV1,
+    NativeTestReportV1, ROLE_ACCEPTANCE, ROLE_MEASUREMENT, SelectedEntry, SupervisorConfigV1,
 };
 
 use crate::codec::TransactionErrorCode;
@@ -456,7 +458,10 @@ pub fn verified_supervisor_execution(
         .verified_response_evidence(&response, caller_uid)
         .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
     let status_matches_report = match (response.status, evidence.report().evidence()) {
-        (RunStatus::Complete, sley_tests::NativeExecutionEvidence::Observed { .. }) => true,
+        // A worker-owned Rejected report is also complete output. It remains
+        // a test rejection when the owner compares the report, even though
+        // the host measurement can truthfully claim a complete run.
+        (RunStatus::Complete, _) => true,
         (
             RunStatus::Refused | RunStatus::Failed,
             sley_tests::NativeExecutionEvidence::Rejected(_),
@@ -801,6 +806,103 @@ pub fn verify_measurement_attestation(
     verify_ed25519_signature(&parts.key_id, &preimage, &parts.signature)
 }
 
+/// Independently checks an observed Sley report's complete program binding
+/// and the signed host facts required for native commit admission.
+///
+/// A bound but non-admissible measurement returns `Ok(false)` so the owner can
+/// issue a rejected approval without writing an accepted state. Cross-boundary
+/// substitutions return a binding mismatch instead.
+pub(crate) fn observed_measurement_admits(
+    plan: &NativeTestPlanV1,
+    validated: &ValidatedCandidatePlan,
+    selected: SelectedEntry,
+    report: &NativeExecutionReportV1,
+    attestation: &MeasuredTestAttestationV1,
+    config: &SupervisorConfigV1,
+) -> Result<bool, TransactionErrorCode> {
+    let mismatch = TransactionErrorCode::ReceiptBindingMismatch;
+    if !matches!(report.evidence(), NativeExecutionEvidence::Observed { .. })
+        || attestation.supervisor_config_id() != *config.id().as_bytes()
+        || attestation.execution_report_id() != Some(report.report_id())
+        || attestation.plan_id() != plan.plan_id()
+        || attestation.test_object() != selected.test_object
+        || attestation.declared_limits() != selected.declared_limits
+    {
+        return Err(mismatch);
+    }
+    let request = build_candidate_supervisor_request(
+        plan,
+        validated,
+        selected.test_entity,
+        selected.declared_limits.wall_timeout_millis,
+        attestation.parts().attempt_nonce,
+    )
+    .map_err(|_| mismatch)?;
+    request
+        .verified_observed_worker_report(report.stored_bytes())
+        .map_err(|_| mismatch)?;
+    host_measurement_admits(&request, attestation, config)
+}
+
+fn host_measurement_admits(
+    request: &RunRequest,
+    attestation: &MeasuredTestAttestationV1,
+    config: &SupervisorConfigV1,
+) -> Result<bool, TransactionErrorCode> {
+    let mismatch = TransactionErrorCode::ReceiptBindingMismatch;
+    if attestation.supervisor_config_id() != *config.id().as_bytes()
+        || attestation.workspace() != request.workspace
+        || attestation.principal() != request.principal
+        || attestation.declared_limits() != request.declared_limits
+        || attestation.parts().attempt_nonce != request.nonce
+    {
+        return Err(mismatch);
+    }
+    let caller_uid = attestation.parts().caller_uid;
+    let mut caller_matches = config
+        .callers()
+        .iter()
+        .filter(|caller| caller.uid == caller_uid);
+    let caller = caller_matches.next().ok_or(mismatch)?;
+    if caller_matches.next().is_some()
+        || caller.workspace != request.workspace
+        || caller.principal != request.principal
+    {
+        return Err(mismatch);
+    }
+    let (_, expected_cap) = floor_page_cap(
+        request.declared_limits.memory_bytes,
+        config.parts().page_size,
+    )
+    .map_err(|_| mismatch)?;
+    let property = |name: &str| {
+        config
+            .properties()
+            .iter()
+            .find(|property| property.name == name)
+            .map(|property| property.value.as_str())
+    };
+    let runtime_text = property("RuntimeMaxUSec").ok_or(mismatch)?;
+    let expected_runtime = runtime_max_usec(request.wall_ms).map_err(|_| mismatch)?;
+    let events = attestation.memory_events();
+    let expected_cap_text = expected_cap.to_string();
+    let runtime_canonical = expected_runtime.to_string();
+    Ok(attestation.claims_success()
+        && attestation.installed_memory_cap() == expected_cap
+        && property("MemoryMax") == Some(expected_cap_text.as_str())
+        && runtime_text == runtime_canonical
+        && check_memory_evidence(
+            attestation.measured_memory_peak(),
+            attestation.installed_memory_cap(),
+            request.declared_limits.memory_bytes,
+            events.max,
+            events.oom,
+            events.oom_kill,
+        )
+        .is_ok()
+        && check_elapsed(attestation.elapsed_ns(), request.wall_ms).is_ok())
+}
+
 /// Verifies executor-returned evidence covers exactly the plan selection.
 ///
 /// Every execution report and attestation must bind the plan, the exact
@@ -825,12 +927,6 @@ pub fn check_execution_coverage(
     if executions.len() != plan.selected().len() {
         return Err(TransactionErrorCode::ReceiptBindingMismatch);
     }
-    let mut configs = BTreeSet::new();
-    for execution in executions {
-        let config = sley_tests::SupervisorConfigV1::parse(&execution.supervisor_config_stored)
-            .map_err(|_| TransactionErrorCode::ReceiptBindingMismatch)?;
-        configs.insert(*config.id().as_bytes());
-    }
     let mut seen = BTreeSet::new();
     for (execution, entry) in executions.iter().zip(plan.selected()) {
         if execution.test_entity != entry.test_entity || !seen.insert(execution.test_entity) {
@@ -842,12 +938,14 @@ pub fn check_execution_coverage(
         let attestation =
             sley_tests::MeasuredTestAttestationV1::parse(&execution.attestation_stored)
                 .map_err(|_| TransactionErrorCode::ReceiptBindingMismatch)?;
+        let config = sley_tests::SupervisorConfigV1::parse(&execution.supervisor_config_stored)
+            .map_err(|_| TransactionErrorCode::ReceiptBindingMismatch)?;
         if execution_report.plan_id() != plan.plan_id()
             || execution_report.test_entity() != entry.test_entity
             || execution_report.test_object() != entry.test_object
             || attestation.plan_id() != plan.plan_id()
             || attestation.test_object() != entry.test_object
-            || !configs.contains(&attestation.supervisor_config_id())
+            || attestation.supervisor_config_id() != *config.id().as_bytes()
         {
             return Err(TransactionErrorCode::ReceiptBindingMismatch);
         }
@@ -1426,6 +1524,7 @@ mod tests {
         parts.execution_report_id = Some(old.report().report_id());
         parts.termination = TERMINATION_COMPLETE;
         parts.complete_output = true;
+        parts.installed_memory_cap = 4_096;
         parts.signature = [0; 64];
         let unsigned = unsigned_record_prefix(&parts).expect("unsigned attestation");
         let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
@@ -1454,18 +1553,23 @@ mod tests {
         );
         false_refusal.status = RunStatus::Complete;
         false_refusal.code = 0;
+        let rejected_complete = verified_supervisor_execution(
+            &request,
+            &false_refusal
+                .encode_frame()
+                .expect("complete rejected frame"),
+            1_000,
+            &trust,
+        )
+        .expect("complete worker rejection remains a diagnostic result");
         assert_eq!(
-            verified_supervisor_execution(
-                &request,
-                &false_refusal
-                    .encode_frame()
-                    .expect("complete rejected frame"),
-                1_000,
-                &trust,
-            ),
-            Err(SupervisorEvidenceError::InvalidResponse(
-                ScbErrorCode::ContractUnknown
-            ))
+            rejected_complete.execution_stored,
+            false_refusal
+                .evidence
+                .as_ref()
+                .expect("complete evidence")
+                .report()
+                .stored_bytes()
         );
 
         let no_evidence = RunResponse {
@@ -1526,6 +1630,35 @@ mod tests {
             .expect("trusted native observation");
         assert_eq!(executed.execution_stored, report.stored_bytes());
         assert_eq!(executed.test_entity, request.test_entity);
+        let evidence = response.evidence.as_ref().expect("complete evidence");
+        assert_eq!(
+            host_measurement_admits(
+                &request,
+                evidence.attestation(),
+                evidence.supervisor_config()
+            ),
+            Ok(true)
+        );
+        let signed_change = |change: fn(&mut sley_tests::MeasuredTestAttestationParts)| {
+            let mut parts = evidence.attestation().parts().clone();
+            change(&mut parts);
+            parts.signature = [0; 64];
+            let unsigned = unsigned_record_prefix(&parts).expect("unsigned attestation");
+            let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+            parts.signature = SigningKey::from_bytes(&[3; 32]).sign(&preimage).to_bytes();
+            MeasuredTestAttestationV1::build(parts).expect("changed signed attestation")
+        };
+        for attestation in [
+            signed_change(|parts| parts.measured_memory_peak = 4_097),
+            signed_change(|parts| parts.elapsed_ns = 1_000_000_000),
+            signed_change(|parts| parts.memory_events.oom = 1),
+            signed_change(|parts| parts.complete_output = false),
+        ] {
+            assert_eq!(
+                host_measurement_admits(&request, &attestation, evidence.supervisor_config()),
+                Ok(false)
+            );
+        }
     }
 
     fn record(state: AttemptState) -> AttemptRecord {

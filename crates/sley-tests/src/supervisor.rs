@@ -287,8 +287,12 @@ impl SupervisorConfigV1 {
 }
 
 fn validate_parts(parts: &SupervisorConfigParts) -> Result<(), ScbError> {
+    if parts.properties.len() as u64 > MAX_PROPERTIES || parts.callers.len() as u64 > MAX_CALLERS {
+        return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+    }
     if parts.cleanup_millis != SUPERVISOR_CLEANUP_MILLIS
         || parts.launch_profile != SUPERVISOR_LAUNCH_PROFILE
+        || !parts.page_size.is_power_of_two()
     {
         return Err(ScbError::new(ScbErrorCode::ContractUnknown));
     }
@@ -542,6 +546,32 @@ mod tests {
                 .expect_err("digest")
                 .code(),
             ScbErrorCode::DigestMismatch
+        );
+    }
+
+    #[test]
+    fn configuration_builder_enforces_page_and_caller_bounds() {
+        let mut bad_page_size = golden_parts();
+        bad_page_size.page_size = 0;
+        assert_eq!(
+            SupervisorConfigV1::build(bad_page_size)
+                .expect_err("zero page size")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+        let mut too_many_callers = golden_parts();
+        too_many_callers.callers = (0..=MAX_CALLERS)
+            .map(|uid| Caller {
+                uid: u32::try_from(uid).unwrap(),
+                workspace: WorkspaceId::from_bytes([0xB0; 32]),
+                principal: PrincipalId::from_bytes([0xB1; 32]),
+            })
+            .collect();
+        assert_eq!(
+            SupervisorConfigV1::build(too_many_callers)
+                .expect_err("caller cap")
+                .code(),
+            ScbErrorCode::ResourceLimit
         );
     }
 }

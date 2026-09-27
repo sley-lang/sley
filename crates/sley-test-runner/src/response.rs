@@ -425,6 +425,54 @@ mod tests {
     }
 
     #[test]
+    fn complete_worker_owned_rejection_remains_bound_diagnostic_output() {
+        let (request, mut response) = complete_fixture();
+        let old = response.evidence.take().expect("complete evidence");
+        let report = NativeExecutionReportV1::build(NativeExecutionReportParts {
+            plan_id: request.plan_id,
+            test_entity: request.test_entity,
+            test_object: request.test_object,
+            target_object: request
+                .verified_program()
+                .expect("program")
+                .selected()
+                .target_object,
+            evidence: NativeExecutionEvidence::Rejected(
+                RejectedEvidence::from_parts(
+                    REJECT_PHASE_EXECUTION,
+                    29_211,
+                    "NATIVE_TEST_EXECUTION_REJECTED",
+                )
+                .expect("worker rejection"),
+            ),
+        })
+        .expect("rejected report");
+        let mut parts = old.attestation().parts().clone();
+        parts.execution_report_id = Some(report.report_id());
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned attestation");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        parts.signature = Ed25519MeasurementSigner::from_secret_bytes([3; 32])
+            .sign(&preimage)
+            .expect("test signature");
+        let attestation = MeasuredTestAttestationV1::build(parts).expect("attestation");
+        response.evidence = Some(
+            RunEvidence::build(report, attestation, old.supervisor_config().clone())
+                .expect("bound rejection"),
+        );
+        let frame = response.encode_frame().expect("complete rejected frame");
+        let parsed = RunResponse::decode_frame(&frame).expect("canonical frame");
+        let evidence = request
+            .verified_response_evidence(&parsed, 1_000)
+            .expect("request-bound complete rejection");
+        assert!(evidence.attestation().claims_success());
+        assert!(matches!(
+            evidence.report().evidence(),
+            NativeExecutionEvidence::Rejected(_)
+        ));
+    }
+
+    #[test]
     fn complete_response_rejects_cross_attempt_and_missing_measurement() {
         let (request, mut response) = complete_fixture();
         assert_eq!(

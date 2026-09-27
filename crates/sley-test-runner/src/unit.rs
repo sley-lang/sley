@@ -14,10 +14,13 @@
 //! bind read-only, output goes to a daemon-owned bounded channel, and the
 //! unit binds to the supervisor service lifetime.
 
+use sley_scb1::{ScbError, ScbErrorCode};
 use sley_tests::supervisor::SUPERVISOR_CLEANUP_MILLIS;
+use sley_tests::{Caller, Property, SupervisorConfigParts, SupervisorConfigV1};
 
 use crate::config::{RunnerConfig, UNIT_PREFIX};
 use crate::enforce::{EnforceError, floor_page_cap, runtime_max_usec};
+use crate::protocol::RunRequest;
 
 /// Fixed launch-profile identity; the only mapping the daemon renders.
 pub const LAUNCH_PROFILE: u32 = 1;
@@ -44,6 +47,77 @@ pub const REQUIRED_PROPERTIES: [(&str, &str); 14] = [
     ("TasksMax", "1"),
     ("TimeoutStopUSec", "2000000"),
 ];
+
+/// Constructs the exact configuration the administrator and selected run
+/// require the system manager to install.
+///
+/// This is an expectation for the host verifier, not evidence that systemd
+/// installed the properties. The daemon may sign a successful measurement
+/// only after checking the actual transient unit and cgroup against it.
+///
+/// # Errors
+///
+/// Refuses an invalid request, caller mapping, page-floor/deadline budget, or
+/// malformed configuration envelope.
+pub fn expected_supervisor_config(
+    config: &RunnerConfig,
+    request: &RunRequest,
+    caller_uid: u32,
+) -> Result<SupervisorConfigV1, ScbError> {
+    let mismatch = || ScbError::new(ScbErrorCode::ContractUnknown);
+    config.validate().map_err(|_| mismatch())?;
+    request.verified_program()?;
+    let caller = config.caller_for_uid(caller_uid).ok_or_else(mismatch)?;
+    if caller.workspace != request.workspace || caller.principal != request.principal {
+        return Err(mismatch());
+    }
+    let (_, installed_memory) =
+        floor_page_cap(request.declared_limits.memory_bytes, config.page_size)
+            .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
+    let manager_runtime = runtime_max_usec(request.wall_ms)
+        .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
+    let mut properties = REQUIRED_PROPERTIES
+        .iter()
+        .map(|(name, value)| Property {
+            name: (*name).to_owned(),
+            value: (*value).to_owned(),
+        })
+        .collect::<Vec<_>>();
+    properties.push(Property {
+        name: "MemoryMax".to_owned(),
+        value: installed_memory.to_string(),
+    });
+    properties.push(Property {
+        name: "RuntimeMaxUSec".to_owned(),
+        value: manager_runtime.to_string(),
+    });
+    properties.sort_by(|left, right| left.name.cmp(&right.name));
+    let mut callers = config
+        .allowed_callers
+        .iter()
+        .map(|caller| Caller {
+            uid: caller.uid,
+            workspace: caller.workspace,
+            principal: caller.principal,
+        })
+        .collect::<Vec<_>>();
+    callers.sort_by_key(|caller| {
+        (
+            caller.uid,
+            *caller.workspace.as_bytes(),
+            *caller.principal.as_bytes(),
+        )
+    });
+    SupervisorConfigV1::build(SupervisorConfigParts {
+        worker_digest: config.worker_sha256,
+        supervisor_digest: config.supervisor_sha256,
+        properties,
+        callers,
+        page_size: config.page_size,
+        cleanup_millis: SUPERVISOR_CLEANUP_MILLIS,
+        launch_profile: LAUNCH_PROFILE,
+    })
+}
 
 /// One rendered transient unit: the exact manager argv plus the installed
 /// ceilings bound into the run attestation.
@@ -123,6 +197,18 @@ mod tests {
 
     use super::*;
     use crate::config::{AllowedCaller, default_config};
+    use crate::program::PortableTestProgram;
+    use crate::worker::WorkerRequest;
+
+    fn selected_request() -> RunRequest {
+        let worker = WorkerRequest::decode_frame(include_bytes!(
+            "../../../conformance/native-worker/v1/observed-input.bin"
+        ))
+        .expect("canonical worker vector");
+        let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
+        RunRequest::from_portable_program(&program, 1_000, [9; 32])
+            .expect("selected supervisor request")
+    }
 
     fn runner_config() -> RunnerConfig {
         default_config(
@@ -165,6 +251,45 @@ mod tests {
         );
         assert_eq!(LAUNCH_PROFILE, 1);
         assert_eq!(TIMEOUT_STOP_USEC, 2_000_000);
+    }
+
+    #[test]
+    fn expected_configuration_matches_rendered_unit_and_authenticated_scope() {
+        let request = selected_request();
+        let mut config = runner_config();
+        config.allowed_callers[0].workspace = request.workspace;
+        config.allowed_callers[0].principal = request.principal;
+        let expected = expected_supervisor_config(&config, &request, 1_000)
+            .expect("expected attested projection");
+        let unit = render_transient_unit(
+            &config,
+            "9f2c",
+            "/run/sley-test-supervisor/input/9f2c.bin",
+            request.declared_limits.memory_bytes,
+            request.wall_ms,
+        )
+        .expect("rendered transient unit");
+        assert_eq!(expected.properties().len(), 16);
+        assert_eq!(expected.callers().len(), 1);
+        for property in expected.properties() {
+            assert!(
+                unit.argv
+                    .contains(&format!("--property={}={}", property.name, property.value))
+            );
+        }
+        assert_eq!(
+            expected_supervisor_config(&config, &request, 1_001)
+                .expect_err("unapproved caller")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+        config.allowed_callers[0].principal = PrincipalId::from_bytes([0xff; 32]);
+        assert_eq!(
+            expected_supervisor_config(&config, &request, 1_000)
+                .expect_err("wrong principal mapping")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
     }
 
     #[test]

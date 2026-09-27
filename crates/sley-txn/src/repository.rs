@@ -55,9 +55,9 @@ use crate::native_commit::{
     AttemptRecord, AttemptState, AttemptStatus, ExecutedNativeTest, NativeAttemptId,
     NativeAttemptScope, NativeCommitError, NativeCommitInput, NativeCommitOutcome,
     NativeCommitOutput, NativeRejection, NativeVerifiedRevision, check_admission_profile_binding,
-    check_execution_coverage, check_native_wall_budget, commit_needs_executor, park_attempt_record,
-    read_attempt_record, verify_acceptance_statement, verify_measurement_attestation,
-    write_attempt_record,
+    check_execution_coverage, check_native_wall_budget, commit_needs_executor,
+    observed_measurement_admits, park_attempt_record, read_attempt_record,
+    verify_acceptance_statement, verify_measurement_attestation, write_attempt_record,
 };
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
@@ -3597,11 +3597,15 @@ impl TransactionRepository {
         let mut entries = Vec::with_capacity(plan.selected().len());
         let mut bindings = Vec::with_capacity(plan.selected().len());
         let mut first_rejected: Option<NativeFailureRecord> = None;
+        let mut first_measurement_rejected: Option<NativeFailureRecord> = None;
         for (plan_entry, execution) in plan.selected().iter().zip(executions) {
             let execution_report =
                 NativeExecutionReportV1::parse(&execution.execution_stored).map_err(codec_error)?;
             let attestation = MeasuredTestAttestationV1::parse(&execution.attestation_stored)
                 .map_err(codec_error)?;
+            let supervisor_config =
+                sley_tests::SupervisorConfigV1::parse(&execution.supervisor_config_stored)
+                    .map_err(codec_error)?;
             verify_measurement_attestation(
                 &attestation,
                 validated.candidate_root().record.workspace_id,
@@ -3636,6 +3640,27 @@ impl TransactionRepository {
                 ),
                 NativeExecutionEvidence::Rejected(_) => (TestComparison::ExecutionRejected, None),
             };
+            if observed.is_some()
+                && !observed_measurement_admits(
+                    plan,
+                    validated,
+                    *plan_entry,
+                    &execution_report,
+                    &attestation,
+                    &supervisor_config,
+                )
+                .map_err(txn_commit_error)?
+                && first_measurement_rejected.is_none()
+            {
+                first_measurement_rejected = Some(
+                    NativeFailureRecord::from_parts(
+                        29213,
+                        "NATIVE_TEST_MEASUREMENT_REJECTED",
+                        NativeDetail::None,
+                    )
+                    .map_err(codec_error)?,
+                );
+            }
             if first_rejected.is_none() {
                 first_rejected = match (&comparison, observed, &expected) {
                     (TestComparison::Match, _, _) => None,
@@ -3694,6 +3719,7 @@ impl TransactionRepository {
                 attestation_id: attestation.id(),
             });
         }
+        let first_rejected = first_measurement_rejected.or(first_rejected);
         let report = NativeTestReportV1::build(plan, entries).map_err(codec_error)?;
         let historical_context =
             HistoricalAdmissionContextV1::build(HistoricalAdmissionContextParts {
@@ -5649,14 +5675,35 @@ mod tests {
         /// carried only `CreateEntity`; the recovery tests later widened the
         /// default grant. The fixture-refresh emitter keeps the frozen grant.
         pub(super) fn with_mutation_classes(label: &str, classes: &[MutationClass]) -> Self {
+            Self::with_classes_and_ceilings(
+                label,
+                classes,
+                PolicyResourceCeilings::new(1_000, 1_000, 1_000, 100, 100, 100),
+            )
+        }
+
+        pub(super) fn with_memory_ceiling(label: &str, max_memory_bytes: u64) -> Self {
+            Self::with_classes_and_ceilings(
+                label,
+                &[
+                    MutationClass::CreateEntity,
+                    MutationClass::DeleteEntityBinding,
+                ],
+                PolicyResourceCeilings::new(1_000, max_memory_bytes, 1_000, 100, 100, 100),
+            )
+        }
+
+        fn with_classes_and_ceilings(
+            label: &str,
+            classes: &[MutationClass],
+            ceilings: PolicyResourceCeilings,
+        ) -> Self {
             let temp = TempDir::new(label);
             let repository = super::TransactionRepository::new(&temp.path);
             let workspace_id = fixed(1, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
             let base_entity = fixed(10, EntityId::from_bytes);
-            let mut grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
-                1_000, 1_000, 1_000, 100, 100, 100,
-            ));
+            let mut grant = PrincipalGrantBuilder::new(ceilings);
             for class in classes {
                 grant = grant.mutation_class(*class);
             }
@@ -23917,7 +23964,7 @@ mod native_commit_tests {
         NativeExecutionReportParts, NativeExecutionReportV1, NativeImplementationLimits,
         NativeTestPlanV1, Property, REJECT_PHASE_EXECUTION, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
         RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_PRELAUNCH_REFUSED,
-        TrustEntry, native_execution_profile_id,
+        TERMINATION_TIMEOUT, TrustEntry, native_execution_profile_id,
     };
 
     use super::tests::{Fixture, fixed};
@@ -23990,6 +24037,115 @@ mod native_commit_tests {
         supervisor_config_id: [u8; 32],
         recorded_millis: u64,
         corrupt_signature: bool,
+    }
+
+    /// Test-only pure VM report paired with signed host facts. It exercises
+    /// owner admission without claiming a qualified supervisor.
+    struct ObservedExecutor {
+        measurement_policy: [u8; 32],
+        timed_out: bool,
+    }
+
+    impl NativeTestExecutor for ObservedExecutor {
+        fn execute(
+            &self,
+            plan: &NativeTestPlanV1,
+            validated: &ValidatedCandidatePlan,
+        ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            use sley_test_runner::{
+                config::{AllowedCaller, default_config},
+                enforce::floor_page_cap,
+                execution::report_portable_test,
+                unit::expected_supervisor_config,
+            };
+            let mut results = Vec::new();
+            for selected in plan.selected() {
+                let request = crate::build_candidate_supervisor_request(
+                    plan,
+                    validated,
+                    selected.test_entity,
+                    selected.declared_limits.wall_timeout_millis,
+                    [0xA5; 32],
+                )
+                .expect("owner request");
+                let program = request.verified_program().expect("portable program");
+                let worker = request.worker_request().expect("worker input");
+                let report = report_portable_test(&program, &worker).expect("pure VM report");
+                assert!(matches!(
+                    report.evidence(),
+                    NativeExecutionEvidence::Observed { .. }
+                ));
+                let config = default_config(
+                    "/run/sley-test-supervisor",
+                    "/usr/lib/sley/sley-native-test-worker",
+                    [7; 32],
+                    [8; 32],
+                    vec![AllowedCaller {
+                        uid: 0,
+                        workspace: request.workspace,
+                        principal: request.principal,
+                    }],
+                    "/etc/sley-test-supervisor/measurement.key",
+                    "/etc/sley-test-supervisor/trust",
+                )
+                .expect("runner config");
+                let config = expected_supervisor_config(&config, &request, 0)
+                    .expect("expected supervisor config");
+                let mut parts = MeasuredTestAttestationParts {
+                    key_id: measurement_key(),
+                    trust_policy_id: self.measurement_policy,
+                    supervisor_config_id: *config.id().as_bytes(),
+                    plan_id: plan.plan_id(),
+                    test_object: selected.test_object,
+                    execution_report_id: Some(report.report_id()),
+                    attempt_nonce: request.nonce,
+                    workspace: request.workspace,
+                    principal: request.principal,
+                    caller_uid: 0,
+                    declared_limits: selected.declared_limits,
+                    installed_memory_cap: floor_page_cap(
+                        selected.declared_limits.memory_bytes,
+                        4_096,
+                    )
+                    .expect("page floor")
+                    .1,
+                    elapsed_ns: if self.timed_out {
+                        selected.declared_limits.wall_timeout_millis * 1_000_000
+                    } else {
+                        1
+                    },
+                    measured_memory_peak: 0,
+                    memory_events: MemoryEvents {
+                        max: 0,
+                        oom: 0,
+                        oom_kill: 0,
+                    },
+                    termination: if self.timed_out {
+                        TERMINATION_TIMEOUT
+                    } else {
+                        sley_tests::TERMINATION_COMPLETE
+                    },
+                    complete_output: !self.timed_out,
+                    empty_cgroup_confirmed: true,
+                    recorded_unix_millis: NOW,
+                    signature: [0; 64],
+                };
+                let unsigned =
+                    sley_tests::unsigned_record_prefix(&parts).expect("unsigned attestation");
+                let preimage = sley_tests::measurement_signature_preimage(&unsigned)
+                    .expect("signature preimage");
+                parts.signature = measurement_signing_key().sign(&preimage).to_bytes();
+                let attestation =
+                    MeasuredTestAttestationV1::build(parts).expect("signed host attestation");
+                results.push(ExecutedNativeTest {
+                    test_entity: selected.test_entity,
+                    execution_stored: report.stored_bytes().to_vec(),
+                    attestation_stored: attestation.stored_bytes().to_vec(),
+                    supervisor_config_stored: config.stored_bytes().to_vec(),
+                });
+            }
+            Ok(results)
+        }
     }
 
     fn assert_candidate_request(
@@ -24200,6 +24356,27 @@ mod native_commit_tests {
         policy: &AcceptedPolicyRoot,
         nonce_byte: u8,
     ) -> ImportedCandidate {
+        testcase_candidate_with_memory_for(
+            workspace_id,
+            principal_id,
+            base_transaction_id,
+            base_state,
+            policy,
+            nonce_byte,
+            100,
+        )
+    }
+
+    #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
+    fn testcase_candidate_with_memory_for(
+        workspace_id: WorkspaceId,
+        principal_id: PrincipalId,
+        base_transaction_id: TransactionId,
+        base_state: &AcceptedStateRoot,
+        policy: &AcceptedPolicyRoot,
+        nonce_byte: u8,
+        memory_bytes: u64,
+    ) -> ImportedCandidate {
         use sley_id::CandidateNonce;
         use sley_mutate::value::{BlockBody, EntityBodyValue, EntityIdSet, FunctionBody};
         use sley_mutate::{
@@ -24269,7 +24446,7 @@ mod native_commit_tests {
                     observations: vec![],
                     resource_limits: ResourceLimits {
                         fuel: 100,
-                        memory_bytes: 100,
+                        memory_bytes,
                         output_bytes: 100,
                         effect_count: 0,
                         call_depth: 4,
@@ -24648,6 +24825,108 @@ mod native_commit_tests {
                 .unwrap(),
             AttemptStatus::AbortedBeforePromotion
         ));
+    }
+
+    #[test]
+    fn signed_host_timeout_cannot_admit_matching_sley_observation() {
+        let fixture = Fixture::with_memory_ceiling("native-observed-host-timeout", 4_096);
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_with_memory_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            45,
+            4_096,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let executor = ObservedExecutor {
+            measurement_policy: *harness.measurement_trust.id().as_bytes(),
+            timed_out: true,
+        };
+        let outcome = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(45),
+                Some(&executor),
+            ))
+            .expect("signed timeout returns diagnostic rejection");
+        let NativeCommitOutcome::Rejected(rejection) = outcome else {
+            panic!("a timed-out host run cannot commit");
+        };
+        assert_eq!(rejection.report.entries().len(), 1);
+        assert_eq!(
+            rejection.report.entries()[0].comparison,
+            TestComparison::Match
+        );
+        let ApprovalDecision::Rejected(record) = rejection.approval.decision() else {
+            panic!("measurement must reject approval");
+        };
+        assert_eq!(record.numeric_code(), 29213);
+        assert_eq!(record.symbol(), "NATIVE_TEST_MEASUREMENT_REJECTED");
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+        assert_eq!(
+            AttemptRecord::parse(
+                &std::fs::read(attempt_path(fixture.repository.root(), attempt(45))).unwrap()
+            )
+            .unwrap()
+            .state,
+            AttemptState::AbortedBeforePromotion
+        );
+    }
+
+    #[test]
+    fn signed_in_budget_host_measurement_admits_matching_sley_observation() {
+        let fixture = Fixture::with_memory_ceiling("native-observed-host-success", 4_096);
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_with_memory_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            46,
+            4_096,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let executor = ObservedExecutor {
+            measurement_policy: *harness.measurement_trust.id().as_bytes(),
+            timed_out: false,
+        };
+        let outcome = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(46),
+                Some(&executor),
+            ))
+            .expect("signed in-budget observation commits");
+        let NativeCommitOutcome::Committed(committed) = outcome else {
+            panic!("matching result with an admissible measurement must commit");
+        };
+        let maintenance = acquire_shared_repository_maintenance(fixture.repository.root()).unwrap();
+        assert_eq!(
+            fixture
+                .repository
+                .accepted_head_any_with_maintenance(&maintenance)
+                .unwrap()
+                .transaction_id(),
+            committed.transaction_id()
+        );
+        let revision = fixture
+            .repository
+            .verified_native_revision(committed.transaction_id())
+            .expect("accepted native receipt verifies");
+        assert_eq!(revision.receipt().bundle.executions().len(), 1);
     }
 
     #[test]
