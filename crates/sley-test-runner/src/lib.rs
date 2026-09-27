@@ -5,7 +5,9 @@
 //! `RunNativeTest` IPC protocol, the frozen systemd transient-unit rendering,
 //! the checked enforcement math (page-aligned memory caps, monotonic
 //! deadlines, peak/event admission), the measurement-admission predicate, the
-//! worker request envelope with its private entry, and the readiness probes.
+//! worker request envelope with its private entry, the authenticated socket
+//! ingress boundary, and the readiness probes. The root service loop and
+//! privileged transient-unit execution are not wired yet.
 //!
 //! It performs no policy selection, grants no commit authority, and holds no
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
@@ -17,6 +19,7 @@
 
 pub mod config;
 pub mod enforce;
+pub mod ingress;
 pub mod outcome;
 pub mod probe;
 pub mod protocol;
