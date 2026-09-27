@@ -707,17 +707,26 @@ pub fn text_obligation(detail: &str, line: usize, column: usize, byte: usize) ->
 }
 
 /// The obligation of a kernel refusal: the kernel's symbol, phase and
-/// locator, never reinterpreted.
+/// locator, never reinterpreted. When the verdict names authored frame
+/// positions, the first is `at` and the others `also_at`.
 #[must_use]
 pub fn kernel_obligation(verdict: &Verdict) -> Value {
     let symbol = verdict
         .symbol
         .clone()
         .unwrap_or_else(|| verdict.decision.clone());
-    json!({
+    let authored: Vec<Value> = verdict
+        .to_json()
+        .get("authored")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get("at").filter(|at| at.is_string()).cloned())
+        .collect();
+    let mut record = json!({
         "id": "o1",
         "symbol": symbol,
-        "at": null,
+        "at": authored.first(),
         "expected": null,
         "available": null,
         "decision": format!("{}: {}", verdict.headline(), verdict.hint.as_deref().unwrap_or("no hint")),
@@ -728,7 +737,11 @@ pub fn kernel_obligation(verdict: &Verdict) -> Value {
             "where": verdict.location,
         },
         "count": 1,
-    })
+    });
+    if authored.len() > 1 {
+        record["also_at"] = json!(authored[1..]);
+    }
+    record
 }
 
 /// The number of unresolved problems obligations stand for.

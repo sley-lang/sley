@@ -1401,6 +1401,14 @@ fn run_trial(
     if !compiled.stats.is_empty() {
         meta["afx"] = json!({"stats": afx_stats});
     }
+    // The source map travels with the candidate, for `explain` locators.
+    if let Some((_, sourcemap)) = compiled
+        .artifacts
+        .iter()
+        .find(|(file, _)| file == "sourcemap.json")
+    {
+        meta["sourcemap"] = sourcemap.clone();
+    }
     let candidate_handle = store.save(&imported.stored_bytes, &meta)?;
     let ran = (|| -> Result<(Vec<TestOutcome>, Vec<PublicOutcome>)> {
         let (mut tests, mut public) = (Vec::new(), Vec::new());
