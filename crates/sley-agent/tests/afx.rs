@@ -1981,3 +1981,57 @@ fn an_explicit_block_qualification_resolves_as_in_plain_af1() {
     assert_eq!(detail, plain_detail);
     assert!(detail.contains("mid.lo` in scope"), "{detail}");
 }
+
+#[test]
+fn a_root_cause_is_reported_before_the_literals_it_leaves_untyped() {
+    let temp = workspace("root-causes");
+    // W2-V3: a misspelled name, not the literal it leaves without a type.
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Neg"]}],
+          "fns": [{"fn": "n10", "params": [["a", "i64"]], "returns": "Result<i64,E>",
+            "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "aa", 0]]], "term": ["ok", "a"]}]}]}),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert_eq!(
+        detail,
+        "/fns/0/blocks/0/ops/0/2/1: no value named `aa` in this function"
+    );
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "n9", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+            "blocks": [{"name": "entry", "ops": [["x", "add?", "a", "zz"]], "term": ["ok", "x"]}]}]}),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert!(
+        detail.starts_with("/fns/0/blocks/0/ops/0/3: no value named `zz` in this function"),
+        "{detail}"
+    );
+    assert!(!detail.contains("not known here"), "{detail}");
+    // A surplus edge argument: the arity, as for a named argument, not the
+    // type of a literal that has no parameter.
+    for (term, at) in [
+        (
+            json!(["cond", "c", ["t", "a", 5], ["t", "a"]]),
+            "/fns/0/blocks/0/term/2",
+        ),
+        (json!(["br", "t", "a", 5]), "/fns/0/blocks/0/term"),
+        (
+            json!(["switch", ["lt", "a", 0], ["true", "t", "a", 5]]),
+            "/fns/0/blocks/0/term/2",
+        ),
+    ] {
+        let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "ops": [["c", "lt", "a", "a"]], "term": term},
+                       {"name": "t", "params": [["x", "i64"]], "term": ["return", "x"]}]}]});
+        let (symbol, detail) = refused(&temp.path, &frame);
+        assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+        assert!(
+            detail.starts_with(&format!(
+                "{at}: block `t` takes 1 argument(s) (x: i64); this edge passes 2"
+            )),
+            "{term}: {detail}"
+        );
+        assert!(!detail.contains("literal"), "{term}: {detail}");
+    }
+}
