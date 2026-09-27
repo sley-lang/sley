@@ -11,9 +11,15 @@ ed25519-dalek = "=3.0.0"
 nix = { version = "=0.31.3", default-features = false, features = ["socket"] }
 sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 sley-id = { path = "../sley-id" }
+sley-mutate = { path = "../sley-mutate" }
 sley-scb1 = { path = "../sley-scb1" }
+sley-state-root = { path = "../sley-state-root" }
 sley-tests = { path = "../sley-tests" }
 sley-vm = { path = "../sley-vm" }
+
+[dev-dependencies]
+sley-schema = { path = "../sley-schema" }
+sley-ssmc = { path = "../sley-ssmc" }
 
 [lints]
 workspace = true

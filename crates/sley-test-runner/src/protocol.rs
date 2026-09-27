@@ -16,6 +16,7 @@ use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_un
 use sley_vm::native_execution::NativeDeclaredLimits;
 
 use crate::config::MAX_REQUEST_BYTES;
+use crate::program::PortableTestProgram;
 use crate::worker::WorkerRequest;
 
 /// IPC magic for the closed run protocol.
@@ -171,6 +172,34 @@ fn read_option_candidate(value: &[u8]) -> Result<Option<CandidateId>, ScbError> 
 }
 
 impl RunRequest {
+    /// Parses the portable program and binds its owner plan, test, policy,
+    /// and limits to this authenticated request and the worker envelope.
+    ///
+    /// # Errors
+    ///
+    /// Refuses malformed program bytes or a mismatch across any boundary.
+    /// This verifies data consistency; it does not authorize the plan.
+    pub fn verified_program(&self) -> Result<PortableTestProgram, ScbError> {
+        let worker = self.worker_request()?;
+        let program = PortableTestProgram::parse(&worker.program_bytes)?;
+        let plan = program.plan();
+        let selected = program.selected();
+        if plan.workspace() != self.workspace
+            || plan.resource_policy().principal() != self.principal
+            || plan.candidate_id() != self.candidate_id
+            || plan.plan_id() != self.plan_id
+            || selected.test_object != self.test_object
+            || selected.test_entity != self.test_entity
+            || selected.target_function != self.target_function
+            || plan.policy_root() != self.policy_root
+            || selected.declared_limits != self.declared_limits
+            || plan.implementation_limits() != worker.implementation_limits
+        {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        }
+        Ok(program)
+    }
+
     /// Parses the embedded worker frame and checks its declared limits
     /// against this authenticated outer request.
     ///

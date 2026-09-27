@@ -13,8 +13,8 @@
 //! are disjoint from the CLI's own statuses 2 through 5, so the launcher
 //! can tell a worker refusal from a CLI usage or input failure.
 //!
-//! Execution dispatch lands with the N5 commit path, which owns
-//! plans-to-inputs construction and the portable program artifact. Until
+//! Execution dispatch lands with the N5 commit path. The portable program
+//! artifact now has a strict codec and outer-request consistency check. Until
 //! then [`dispatch`] strictly decodes and explicitly refuses with
 //! [`WorkerRefusal::ExecutionNotWired`]: a well-formed envelope never
 //! becomes a silent success.
@@ -44,11 +44,12 @@ pub const MAX_WORKER_FRAME: usize = 262_144;
 
 /// Closed worker request: opaque program artifact plus enforced ceilings.
 ///
-/// `program_bytes` is an N5-owned portable artifact the worker executes
-/// without repository access; this crate never interprets it.
+/// `program_bytes` is a portable artifact the worker will execute without
+/// repository access. The program codec and outer-request check are separate
+/// from the current refusal-only dispatch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkerRequest {
-    /// Opaque N5-owned program artifact bytes.
+    /// Canonical portable program artifact bytes.
     pub program_bytes: Vec<u8>,
     /// Ordered canonical input hashes bound by the execution report.
     pub input_hashes: Vec<[u8; 32]>,
