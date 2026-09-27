@@ -123,7 +123,9 @@ and writes `final_candidate.hex` only when it is Valid. A Valid candidate
 that creates, replaces or deletes part of a function while no TestCase in it
 targets a function it changes (the kernel selects none) is refused with
 `AGENT_SUBMISSION_REFUSED`, unless `--untested` is given; such a submission
-then notes that no TestCase targets a function it changes. Submissions
+then notes that no TestCase targets a function it changes. Without a
+reference (or with `latest`), `submit` takes the draft revision recorded
+last (section 12.6). Submissions
 repeat: the last Valid submission wins. `status` renders the submission's affected
 functions and TestCases in AV1 and runs its selected tests.
 
@@ -445,6 +447,23 @@ derived name that collides with another test is refused with
 `AGENT_TEST_TABLE_INVALID` at the row's pointer. `try --on` replaces a table
 by name.
 
+A row's test name (given or derived) may name a TestCase live at the head
+only when that very test (by identity) was made by the same table in the
+same draft lineage; the row then updates it. Otherwise the row is refused
+with `AGENT_TEST_TABLE_INVALID` at the row (at its `name` when given), and
+the refusal names the draft whose table made the test when one did. The
+author gives the row another `name`, deletes the live test explicitly
+(`"delete": ["t_0"]`, which makes a new test), or updates the table on the
+draft that made it (`try --on <draft>`, with `--rebase` after a commit).
+A draft lineage records, per table and test name, the TestCase identities
+its candidates made (`tables` in `status.json`); a lineage continues
+through `try --on`, `fill` and `import --on`, and through `try --on
+<handle>` to the draft that made the candidate. When a table is restated
+without a row it once made, the live test of that row is deleted in the
+same candidate (a `note:` says so), so no stale row survives beside the
+restated ones. A table removed from the frame altogether deletes nothing;
+its live tests are deleted only explicitly.
+
 ## 6. Opcodes
 
 The mnemonic table maps every epoch-1 opcode one to one:
@@ -534,14 +553,14 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_EXECUTION_REFUSED` | the dev loop cannot execute the function or state |
 | `AGENT_SUBMISSION_REFUSED` | the candidate is not Valid, changes a function no TestCase in it targets (without `--untested`), or the transaction engine refused a commit |
 | `AGENT_IO_FAILED` | a workspace file could not be read or written |
-| `AGENT_DRAFT_STALE` | the revision a `fill` names is not the draft's latest revision |
+| `AGENT_DRAFT_STALE` | the revision a `fill` names is not the draft's latest revision, or another command recorded a newer revision while this one ran |
 | `AGENT_DRAFT_HEAD_CHANGED` | the accepted head changed since the draft revision; build on the new head explicitly with `--rebase` |
-| `AGENT_DRAFT_INCOMPLETE` | the draft revision has no complete, Valid candidate for the request: a text revision cannot be layered on, and only a `valid` revision is submitted |
+| `AGENT_DRAFT_INCOMPLETE` | the draft revision has no complete, Valid candidate for the request: a text revision or a follow-up not yet layered cannot be layered on, and only a `valid` revision is submitted |
 | `AGENT_DELTA_INVALID` | a delta has another shape, or a target that is malformed, missing, given twice or overlapping another |
 | `AGENT_X_PROPAGATION` | an AF1-X `?` or exit has no single, type-correct failure route |
 | `AGENT_X_SCOPE` | an AF1-X name is ambiguous, not available where it is used, or an omitted edge argument cannot be derived |
 | `AGENT_X_LIMIT` | an AF1-X expansion bound (depth, operations, generated blocks) was reached |
-| `AGENT_TEST_TABLE_INVALID` | a test table or row is malformed, duplicated, or collides with another test |
+| `AGENT_TEST_TABLE_INVALID` | a test table or row is malformed, duplicated, collides with another test, or names a live test its table did not make |
 | `AGENT_RIPPLE_INTENT_UNKNOWN` | a `ripple` intent is unknown or not enabled in this build |
 
 ## 10. Execution (advisory)
@@ -616,15 +635,16 @@ Every `try`, `fill` and `import` records one draft revision under
 `.sley/drafts/dN/`. A revision is identified by its draft handle, its
 revision number and its base head (the accepted transaction it was made
 on), and is spelled `d1@r3`; `d1` alone means the latest revision.
-`draft.json` names the latest revision and the base head of `r1`. Each
-revision directory `rN/` holds:
+`draft.json` names the latest revision and the base head of `r1`; the
+latest revision is the highest recorded `rN`. Each revision directory
+`rN/` holds:
 
 | File | Content |
 |---|---|
 | `input.txt` | the exact input bytes (the frame, delta or case file given) |
 | `frame.json` | the complete authored frame of the revision (layered, or with the delta applied); absent when the input is not JSON |
 | other `*.json` | derived authoring artifacts of the compiled frame |
-| `status.json` | `revision`, `base_head`, `parent`, `made_by` (`try`, `try-on`, `fill`, `import` or `rebase`), `on`, `delta`, `whole_frame`, `state`, `candidate`, `candidate_sha256`, `verdict`, `obligations`, `tests`, `sources`, and `results` when tests ran |
+| `status.json` | `revision`, `base_head`, `parent`, `made_by` (`try`, `try-on`, `fill`, `import` or `rebase`), `on`, `unlayered`, `delta`, `whole_frame`, `state`, `candidate`, `candidate_sha256`, `verdict`, `obligations`, `tests`, `sources`, `tables`, and `results` when tests ran |
 
 A revision's `state` is one of:
 
@@ -639,6 +659,16 @@ A `refused` or `valid` revision names its candidate handle and the SHA-256
 of that candidate's stored bytes, and the candidate's metadata names the
 revision. Candidate handles keep their meaning and stay monotonic.
 
+Commands may run concurrently in one workspace. A new draft claims its
+directory, a revision its `.rN.partial` directory, and a candidate its
+`cN.hex` file atomically (a create or link that fails when the name
+exists, then the next number), so two commands never report the same
+handle or revision, and a recorded revision always holds its own command's
+frame and candidate. Shared files (`names.json`, `layered.json`,
+`draft.json`, candidate metadata) are replaced whole. Every recorded
+revision also claims the next entry of `.sley/drafts/.order/`, the
+workspace's recording order over all drafts.
+
 `try` of a frame starts a new draft (`dN@r1`). `try --on <draft>` layers
 the frame on the frame of the draft's latest revision, or of the revision
 `dN@rK` names, with the layering rules of section 2, and records the next
@@ -649,6 +679,16 @@ earlier revisions stay in the frame until they are replaced or removed.
 text revision cannot be layered on (`AGENT_DRAFT_INCOMPLETE`, with the
 `fill` that replaces it whole).
 
+A follow-up given to `try --on` or `import --on` is kept even when it
+cannot be layered: when it is not JSON (state `text`), or when layering
+refuses it (a frame without `"af1": 1`, raw operations, or a base that is
+not an AF1 object; state `incomplete`). Such a revision records
+`unlayered: true` and its base in `on`; its `frame.json` holds the
+follow-up as given. Nothing is layered on it (`AGENT_DRAFT_INCOMPLETE`,
+naming the repair), and `fill` repairs the follow-up and layers the result
+on `on` again, so the base's definitions and tests stay in the draft. `try
+--on <base>` with the corrected follow-up does the same in one step.
+
 ### 12.2 Trial output
 
 A frame refusal keeps exit status 2, its `error AGENT_*:` line and its
@@ -656,9 +696,12 @@ problem lines. It then says where the pointers point (the frame file to
 edit in place, `.sley/layered.json`, or the revision's `frame.json`), and
 adds the draft line (`draft d1@r3: incomplete, 2 obligation(s)
 (AGENT_FRAME_INVALID 2); list: sley-agent draft d1 --obligations`) and a
-`next:` line with the `fill` that repairs it in place. Input that is not
-JSON gets the draft line with the parser location. In JSON the refusal
-object adds `draft`, `state`, `obligations` and `next`.
+`next:` line with the `fill` that repairs it in place, at the first
+obligation's pointer; when that pointer had to move to an existing
+ancestor (section 12.3), the line says which member is missing and that
+the ancestor is replaced whole. Input that is not JSON gets the draft line
+with the parser location. In JSON the refusal object adds `draft`,
+`state`, `obligations` and `next`.
 
 The first line of a candidate's result ends with its draft revision
 (`c4: Valid (+3 created, 1 replaced, 0 deleted) draft d1@r2`). The result
@@ -670,12 +713,17 @@ then lists:
 - `exported:` the exported functions that existed before the candidate and
   are changed or deleted by it;
 - `tests: X/Y passed [authored A, imported I, provided P]` (counts that are
-  zero are left out) and one line per failing test; passing tests are
+  zero are left out; `; replaces provided t_1` names the live tests the
+  candidate replaces) and one line per failing test; passing tests are
   listed only with `--verbose`;
 - `tests: 0 ran` when no TestCase ran, as section 2 describes;
 - the `next:` step, which layers on the draft (`try --on d1`), repairs it
   (`fill`) or submits it (`submit d1`).
 
+A kernel refusal about a TestCase adds `authored:` with the pointer of that
+test's entry in the frame (and of the refused limit), or, for a test made
+from a table row, of the row or the table's `defaults` the limit comes
+from, unless the verdict already names authored positions (section 8).
 Unchanged program bodies are not reprinted. JSON output keeps every earlier
 key and adds `draft`, `state`, `changed`, `obligations` and `provenance`.
 
@@ -687,12 +735,16 @@ lines of a frame refusal become obligations; a line prefixed
 `[AGENT_...] ` carries that symbol, and every other line carries the
 refusal's symbol. `at` is the JSON pointer into the revision's
 `frame.json` (`""` for the whole frame, `null` when the problem names no
-pointer). `expected` and `available` are set only when the problem states
+pointer). An `at` always exists in that frame: a problem about a missing
+member (a test without `args`) points at the nearest existing ancestor,
+and the pointer the problem names is kept as `missing`, so the `fill` an
+obligation suggests is one `fill` accepts. `expected` and `available` are set only when the problem states
 an expected type or shape or the values available, and are `null`
 otherwise. Problems with the same symbol and decision form one obligation
 with their `count`; `also_at` lists the pointers after the first. A kernel
 refusal is one obligation whose `kernel` holds the kernel's symbol, phase
-and locator unchanged. Obligations report what the author must decide;
+and locator unchanged; its `at` is the authored position the verdict or
+the refused TestCase's entry gives, when there is one. Obligations report what the author must decide;
 they complete nothing.
 
 `draft` lists the drafts: the latest revision of each, its state, its
@@ -726,6 +778,12 @@ chosen by similarity.
 
 A successful `fill` records revision `N+1` (`made_by: "fill"`, with its
 targets and size under `delta`) and runs it exactly as `try` runs a frame.
+Filling an `unlayered` revision replaces parts of its follow-up (or, for a
+text revision, the whole follow-up) and layers the result on its `on`
+base again. When another command records a revision of the same draft
+while `fill` runs, the fill is refused with `AGENT_DRAFT_STALE` and writes
+nothing; `try --on <draft>` and `import --on <draft>` without an explicit
+revision are refused the same way.
 
 ### 12.5 Head changes
 
@@ -746,6 +804,16 @@ used in place of a later one. The candidate then takes the unchanged
 submit path, including the refusal of an untested function change.
 `submit <handle>` is unchanged.
 
+A bare `submit` (or `submit latest`) takes the draft revision recorded
+last in the workspace, over every draft (the last entry of the recording
+order; `draft` marks it `recorded last`). It submits that revision's
+candidate when the revision is `valid`; any other state is refused with
+`AGENT_DRAFT_INCOMPLETE`, naming the revision, its state and the latest
+valid revision of its draft, if any. An earlier revision or candidate is
+submitted only when named (`submit d1@r2`, `submit c4`). In a workspace
+without draft revisions, a bare `submit` takes the latest candidate
+handle.
+
 ### 12.7 Test import and provenance
 
 `import <cases.json> [--on <draft>] [--only a,b]` reads public cases
@@ -762,7 +830,8 @@ Tests are counted by origin (`tests` in `status.json`, `provenance` in
 trial JSON):
 
 - `provided`: the TestCases live at the base head that the candidate
-  keeps;
+  keeps and does not replace; a live test the candidate replaces counts
+  where its new entry comes from, and `replaced` lists it;
 - `imported`: frame tests whose entry is unchanged since their import;
 - `authored`: the other frame tests, plus the rows of `test_tables` when
   the frame has them.
@@ -789,6 +858,9 @@ stale revisions, changed heads and explicit rebases, missing, repeated and
 overlapping delta targets, recorded whole-frame replacement, text drafts
 repaired whole, monotonic candidate handles bound by digest, tests
 inherited across one-operation corrections, name collisions across
-revisions, the refusal to submit after a newer incomplete revision, import
-provenance and digests, grouped and bounded obligations, and ledger lines
-without content.
+revisions, the refusal to submit after a newer incomplete revision
+(named or bare), import provenance and digests, grouped and bounded
+obligations, ledger lines without content, table rows that would take over
+live tests, restated tables, existing obligation pointers, concurrent
+commands, repaired and refused follow-ups, replaced provided tests, and
+the authored pointers of table-test refusals.

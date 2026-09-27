@@ -827,7 +827,7 @@ fn view_json_shapes() {
 
 #[test]
 fn a_focused_view_stays_bounded_when_one_line_is_long() {
-    // Review regression: a 200-case variant renders on one line, and a
+    // Regression: a 200-case variant renders on one line, and a
     // 200-parameter function has a 200-parameter signature line.
     let temp = workspace("focus-long-line");
     let cases: Vec<String> = (0..200)

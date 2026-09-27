@@ -895,7 +895,7 @@ fn a_whole_new_frame_after_a_draft_is_counted_as_a_rewrite() {
     assert_eq!(rewrites, [&json!(false), &json!(true), &json!(false)]);
 }
 
-// Review regressions (wave 2). Each reproduces the finding's scenario.
+// Regressions: each test below rebuilds a reported scenario.
 
 /// Two committed functions, `neg(a) = a < 0` and `big(a) = a > 100`.
 fn neg_big() -> Value {
@@ -933,7 +933,7 @@ fn view_text(dir: &Path, names: &[&str]) -> String {
 
 #[test]
 fn a_table_row_never_takes_over_a_live_test_it_did_not_make() {
-    // W2-D1 (a): table `u` of another draft made the live `u_0` (a test of
+    // table `u` of another draft made the live `u_0` (a test of
     // `big`); a new table `u` on `neg` would silently retarget it.
     let temp = neg_big_workspace("table-takeover");
     let tables = json!({"af1": 1, "afx": 1, "test_tables": [
@@ -973,7 +973,7 @@ fn a_table_row_never_takes_over_a_live_test_it_did_not_make() {
 
 #[test]
 fn a_restated_table_deletes_the_rows_it_no_longer_has() {
-    // W2-D1 (b): a committed 3-row table restated without its first row.
+    // a committed 3-row table restated without its first row.
     let temp = neg_big_workspace("table-rows");
     let three = json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(1, false), (-2, true), (3, false)])]});
     let two =
@@ -1013,7 +1013,7 @@ fn a_restated_table_deletes_the_rows_it_no_longer_has() {
 
 #[test]
 fn obligations_and_fill_hints_name_existing_pointers() {
-    // W2-D2: a missing member moves to its nearest existing ancestor, and
+    // a missing member moves to its nearest existing ancestor, and
     // the fill the hint suggests is accepted.
     let temp = neg_big_workspace("existing-pointers");
     for (frame, row, fixed) in [
@@ -1063,7 +1063,7 @@ fn obligations_and_fill_hints_name_existing_pointers() {
 
 #[test]
 fn a_bare_submit_never_falls_back_to_an_earlier_revision() {
-    // W2-D3: d2@r1 is valid (c2); d2@r2 is incomplete.
+    // d2@r1 is valid (c2); d2@r2 is incomplete.
     let temp = neg_big_workspace("bare-submit");
     let change = json!({"af1": 1, "afx": 1,
         "fns": [{"fn": "neg", "params": [["a", "i64"]], "returns": "bool",
@@ -1113,7 +1113,7 @@ fn a_bare_submit_never_falls_back_to_an_earlier_revision() {
 
 #[test]
 fn concurrent_commands_never_share_a_handle() {
-    // W2-D4: parallel commands in one workspace.
+    // parallel commands in one workspace.
     let temp = neg_big_workspace("concurrent");
     let dir = temp.path.clone();
     let outputs: Vec<(i32, String)> = std::thread::scope(|scope| {
@@ -1206,7 +1206,7 @@ fn concurrent_commands_never_share_a_handle() {
 
 #[test]
 fn a_malformed_follow_up_is_repaired_on_its_base() {
-    // W2-D7: repairing the text revision as the hint says keeps the parent.
+    // repairing the text revision as the hint says keeps the parent.
     let temp = neg_big_workspace("follow-up");
     let change = json!({"af1": 1, "afx": 1,
         "fns": [{"fn": "neg", "params": [["a", "i64"]], "returns": "bool",
@@ -1254,7 +1254,7 @@ fn a_malformed_follow_up_is_repaired_on_its_base() {
 
 #[test]
 fn a_follow_up_layering_refuses_is_kept() {
-    // W2-D8: a parseable follow-up without "af1", and raw operations.
+    // a parseable follow-up without "af1", and raw operations.
     let temp = neg_big_workspace("unlayered");
     let change = json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(3, false)])]});
     assert_eq!(run(&temp.path, &["try", &change.to_string()]).0, 0);
@@ -1287,7 +1287,7 @@ fn a_follow_up_layering_refuses_is_kept() {
 
 #[test]
 fn provenance_counts_a_replaced_live_test_once() {
-    // W2-D5: four live tests; a frame test and an imported case named t_1.
+    // four live tests; a frame test and an imported case named t_1.
     let temp = neg_big_workspace("provenance");
     let tables = json!({"af1": 1, "afx": 1, "test_tables": [
         table("t", "neg", &[(1, false), (-5, true)]), table("u", "big", &[(1, false), (500, true)])]});
@@ -1326,7 +1326,7 @@ fn provenance_counts_a_replaced_live_test_once() {
 
 #[test]
 fn table_test_refusals_point_at_the_table() {
-    // W2-D6: an explicit limit above the grant from the table's defaults,
+    // an explicit limit above the grant from the table's defaults,
     // and a table whose function does not exist.
     let temp = neg_big_workspace("table-pointers");
     let limit = json!({"af1": 1, "afx": 1,
