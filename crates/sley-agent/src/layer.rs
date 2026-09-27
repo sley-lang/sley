@@ -17,8 +17,15 @@
 //! - `test_tables`: a table replaces the base table of the same name.
 //! - `ripple`: an intent replaces the base intent of the same kind and
 //!   target (`arity` of the same function; `guard` with the same checker
-//!   and parameter) where it stands; others are appended in order.
+//!   and parameter) where it stands; others are appended in order. An
+//!   `arity` intent the follow-up does not restate records, in `after`, the
+//!   functions, tests and test tables the follow-up states: its
+//!   `frame_calls` does not cover them. A restating intent keeps that list,
+//!   unless it restates the function's parameters (a new change) or says
+//!   `frame_calls` itself (which then covers everything the frame states).
 //! - `delete` entries are added; `namespace` replaces.
+
+use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
 
@@ -39,6 +46,7 @@ pub fn layer(base: &Value, delta: &Value) -> Result<Value> {
     if delta.get("af1") != Some(&Value::from(1)) {
         return Err(frame("/af1", "an AF1 frame starts with \"af1\": 1"));
     }
+    let stated = stated_names(delta);
     let mut merged = base.clone();
     // `functions` is an alias of `fns`: layer on one list.
     if let Some(functions) = merged.remove("functions") {
@@ -47,14 +55,13 @@ pub fn layer(base: &Value, delta: &Value) -> Result<Value> {
     for (key, value) in delta {
         let entries = value.as_array().cloned().unwrap_or_default();
         match key.as_str() {
-            "af1" => {}
+            // Intents are layered below, where a restated intent replaces
+            // the same intent in place.
+            "af1" | "ripple" => {}
             "types" | "consts" | "tests" | "test_tables" => {
                 replace_named(list(&mut merged, key), entries, "name");
             }
             "fns" | "functions" => replace_named(list(&mut merged, "fns"), entries, "fn"),
-            // Intents apply in written order to the accumulated frame; a
-            // restated intent replaces the same intent in place.
-            "ripple" => replace_intents(list(&mut merged, "ripple"), entries),
             "delete" => {
                 let deletes = list(&mut merged, "delete");
                 for entry in entries {
@@ -80,8 +87,124 @@ pub fn layer(base: &Value, delta: &Value) -> Result<Value> {
             }
         }
     }
+    let intents = delta
+        .get("ripple")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    layer_intents(list(&mut merged, "ripple"), intents, &stated, delta);
     merged.retain(|_, value| !matches!(value, Value::Array(items) if items.is_empty()));
     Ok(Value::Object(merged))
+}
+
+/// The functions (`fns`, `patch`, `edit`), tests and test tables a frame
+/// states, by name.
+fn stated_names(frame: &Map<String, Value>) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for (key, field) in [
+        ("fns", "fn"),
+        ("functions", "fn"),
+        ("patch", "fn"),
+        ("edit", "fn"),
+        ("tests", "name"),
+        ("test_tables", "name"),
+    ] {
+        for entry in frame
+            .get(key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(name) = name_of(entry, field).or_else(|| name_of(entry, "name")) {
+                out.insert(name.to_owned());
+            }
+        }
+    }
+    out
+}
+
+/// The names under `key` of an intent.
+fn names_at(intent: &Value, key: &str) -> BTreeSet<String> {
+    intent
+        .get(key)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Sets `key` of an intent to `names` (removed when empty).
+fn set_names(intent: &mut Value, key: &str, names: &BTreeSet<String>) {
+    let Some(object) = intent.as_object_mut() else {
+        return;
+    };
+    if names.is_empty() {
+        object.remove(key);
+    } else {
+        object.insert(
+            key.to_owned(),
+            Value::Array(names.iter().cloned().map(Value::from).collect()),
+        );
+    }
+}
+
+/// Layers the follow-up's intents on the base's: each replaces the base
+/// intent with the same identity where it stands, or is appended; `arity`
+/// intents record in `after` what the follow-ups state after them.
+fn layer_intents(
+    base: &mut Vec<Value>,
+    entries: Vec<Value>,
+    stated: &BTreeSet<String>,
+    delta: &Map<String, Value>,
+) {
+    let owned =
+        |intent: &Value| intent_key(intent).map(|(kind, a, b)| (kind, a.to_owned(), b.to_owned()));
+    let restated: Vec<(&'static str, String, String)> = entries.iter().filter_map(owned).collect();
+    for intent in base.iter_mut() {
+        if matches!(owned(intent), Some(key) if key.0 == "arity" && !restated.contains(&key)) {
+            let after: BTreeSet<String> =
+                names_at(intent, "after").union(stated).cloned().collect();
+            set_names(intent, "after", &after);
+        }
+    }
+    for mut entry in entries {
+        let key = owned(&entry);
+        let slot = key.as_ref().and_then(|key| {
+            base.iter()
+                .position(|item| owned(item).as_ref() == Some(key))
+        });
+        let Some(index) = slot else {
+            base.push(entry);
+            continue;
+        };
+        if let Some((kind, target, _)) = &key
+            && *kind == "arity"
+            && entry.get("frame_calls").is_none()
+            && !restates_parameters(delta, target)
+        {
+            let after: BTreeSet<String> = names_at(&base[index], "after")
+                .union(&names_at(&entry, "after"))
+                .chain(stated)
+                .cloned()
+                .collect();
+            set_names(&mut entry, "after", &after);
+        }
+        base[index] = entry;
+    }
+}
+
+/// Whether a follow-up restates the parameters of `function`.
+fn restates_parameters(delta: &Map<String, Value>, function: &str) -> bool {
+    ["fns", "functions", "patch"].iter().any(|key| {
+        delta
+            .get(*key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .any(|entry| name_of(entry, "fn") == Some(function) && entry.get("params").is_some())
+    })
 }
 
 /// The list under `key`, created empty when absent.
@@ -122,19 +245,6 @@ fn intent_key(entry: &Value) -> Option<(&'static str, &str, &str)> {
     }
     let checker = object.get("guard").and_then(Value::as_str)?;
     Some(("guard", checker, object.get("arg").and_then(Value::as_str)?))
-}
-
-/// Each intent replaces the base intent with the same identity, where it
-/// stands, or is appended.
-fn replace_intents(base: &mut Vec<Value>, entries: Vec<Value>) {
-    for entry in entries {
-        let slot = intent_key(&entry)
-            .and_then(|key| base.iter().position(|item| intent_key(item) == Some(key)));
-        match slot {
-            Some(index) => base[index] = entry,
-            None => base.push(entry),
-        }
-    }
 }
 
 /// The index of the base `fns` definition of `function`.

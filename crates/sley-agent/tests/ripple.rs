@@ -347,23 +347,23 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
         patched_calls(&expanded, "g"),
         [(
             "r".to_owned(),
-            vec![json!("r__a1"), json!("x"), json!("r__a2")]
+            vec![json!("r__a1"), json!("x"), json!("r__v2")]
         )]
     );
     assert_eq!(
         patched_calls(&expanded, "h"),
-        [("r".to_owned(), vec![json!("x"), json!("y"), json!("r__a2")])]
+        [("r".to_owned(), vec![json!("x"), json!("y"), json!("r__v2")])]
     );
     assert_eq!(
         patched_calls(&expanded, "pair"),
         [
             (
                 "r1".to_owned(),
-                vec![json!("y"), json!("x"), json!("r1__a2")]
+                vec![json!("y"), json!("x"), json!("r1__v2")]
             ),
             (
                 "r2".to_owned(),
-                vec![json!("x"), json!("y"), json!("r2__a2")]
+                vec![json!("x"), json!("y"), json!("r2__v2")]
             ),
         ]
     );
@@ -376,7 +376,7 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
         .unwrap();
     assert_eq!(
         g["blocks"]["entry"]["ops"][1],
-        json!({"name": "r__a2", "op": "const", "args": [{"type": "i64", "value": 0}], "type": "i64"})
+        json!({"name": "r__v2", "op": "const", "args": [{"type": "i64", "value": 0}], "type": "i64"})
     );
     // The live test gets the same treatment; its expectation is kept.
     let test = expanded["tests"]
@@ -661,15 +661,19 @@ fn the_value_must_be_a_literal_of_the_one_new_parameter() {
     assert_eq!(inventory["intents"][0]["edit"], "already applied");
     assert_eq!(inventory["edits"], 0);
     assert_eq!(expansion.frame["patch"].as_array().unwrap().len(), 1);
+    // "old" then only reads the frame's own calls as the head has them;
+    // this frame writes none.
     let mut old = same.clone();
     old["ripple"][0]["frame_calls"] = json!("old");
-    assert_refused(
-        &temp.path,
-        &old,
-        "AGENT_RIPPLE_HOLE_UNFILLED",
-        &[
-            "/ripple/0/frame_calls: `f` already has these parameters (a: i64, b: i64), so the old ones that \"frame_calls\": \"old\" refers to are gone",
-        ],
+    let expansion = expand(&temp.path, &old);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.ripple.unwrap()["intents"][0]["edit"],
+        "already applied"
     );
     assert_refused(
         &temp.path,
@@ -719,8 +723,8 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
     // m's authored block: the constant goes before the call, and the source
     // map follows the move.
     let m = &expanded["patch"][1]["blocks"]["entry"]["ops"];
-    assert_eq!(m[1], json!(["r__a1", "const", {"type": "i64", "value": 0}]));
-    assert_eq!(m[2], json!(["r", "call", "f", "x", "r__a1"]));
+    assert_eq!(m[1], json!(["r__v1", "const", {"type": "i64", "value": 0}]));
+    assert_eq!(m[2], json!(["r", "call", "f", "x", "r__v1"]));
     assert_eq!(
         expanded["fns"][0]["blocks"][0]["ops"][0],
         json!(["r__a1", "const", {"type": "i64", "value": 5}])
@@ -744,7 +748,7 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
         entry("/patch/1/blocks/entry/ops/1").unwrap()["role"],
         "ripple"
     );
-    assert_eq!(map["names"]["m"]["r__a1"], "/ripple/0");
+    assert_eq!(map["names"]["m"]["r__v1"], "/ripple/0");
     let inventory = artifact(&temp.path, draft, "ripple.json");
     let calls = &inventory["intents"][0]["calls"];
     let edits: Vec<(String, String, String)> = calls
@@ -809,11 +813,11 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
     assert_eq!(w["fn"], "w");
     assert_eq!(
         w["blocks"]["kept"]["ops"][1],
-        json!({"name": "r", "op": "call", "args": ["f", "x", "r__a1"], "type": "Result<i64,ArithmeticError>"})
+        json!({"name": "r", "op": "call", "args": ["f", "x", "r__v1"], "type": "Result<i64,ArithmeticError>"})
     );
     assert_eq!(
         w["blocks"]["restated"]["ops"][2],
-        json!(["r", "call", "f", "r__a0", "r__a1"])
+        json!(["r", "call", "f", "r__a0", "r__v1"])
     );
     assert!(
         edits.contains(&(
@@ -1863,21 +1867,15 @@ fn a_guard_never_runs_twice_or_twice_over() {
           {"fn": "checked", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
            "blocks": [{"name": "entry", "ops": [["q", "call?", "check_quantity", "quantity"]], "term": ["ok", "q"]}]}]}),
     );
-    // It already starts with exactly what an entry guard derives: the
-    // guard is applied and derives nothing.
-    let expansion = expand(
+    // It checks the quantity first itself, but not in the exact shape an
+    // entry guard derives: entry would evaluate the checker again.
+    assert_refused(
         &temp.path,
         &json!({"af1": 1, "afx": 1, "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["checked"], "mode": "entry"}]}),
+        "AGENT_RIPPLE_GUARD_ORDER",
+        &["/ripple/0/in/0: `checked` already evaluates `check_quantity` at `checked.entry.q__r`"],
     );
-    assert!(
-        expansion.obligations.is_empty(),
-        "{:?}",
-        expansion.obligations
-    );
-    assert_eq!(
-        expansion.ripple.unwrap()["intents"][0]["functions"],
-        json!([{"fn": "checked", "edit": "already applied", "site": "checked.entry.q__r"}])
-    );
+
     // It evaluates the checker in another shape: entry would run it again.
     commit(
         &temp.path,
@@ -3072,4 +3070,309 @@ fn a_follow_up_intent_replaces_the_same_intent() {
         text.contains("to drop an intent instead, set \"/ripple\" to the intents to keep (a follow-up's intent replaces the same intent)"),
         "{text}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Applied intents compare their whole effect; guard order; provenance
+// ---------------------------------------------------------------------------
+
+/// Commits `base`, then tries `change` and commits it: the draft of the
+/// change is `d2`.
+fn committed_change(label: &str, base: &Value, change: &Value) -> TempDir {
+    let temp = workspace(label);
+    commit(&temp.path, base);
+    let (status, text) = run(&temp.path, &["try", &change.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    temp
+}
+
+/// The Valid candidate `try --on d2 --rebase` makes of `follow_up`, and its
+/// ripple inventory.
+fn rebased(dir: &Path, follow_up: &Value) -> (Machine, Value) {
+    let (status, report) = run_json(
+        dir,
+        &["try", "--on", "d2", "--rebase", &follow_up.to_string()],
+    );
+    assert_eq!(report["state"], "valid", "{report:#}");
+    assert!(status <= 1, "{report:#}");
+    let revision = report["draft"].as_str().unwrap();
+    let frame = artifact(dir, revision, "frame.json");
+    (
+        Machine::candidate(dir, &frame),
+        artifact(dir, revision, "ripple.json"),
+    )
+}
+
+#[test]
+fn a_tests_only_rebase_keeps_what_the_committed_intent_derived() {
+    // An equal-count reorder whose frame wrote k against the old order.
+    let temp = committed_change(
+        "rebase-reorder",
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,ArithmeticError>",
+          "blocks": [{"name": "entry", "term": ["return", ["sub", "a", "b"]]}]}]}),
+        &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["b", "i64"], ["a", "i64"]]}],
+          "fns": [{"fn": "k", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,ArithmeticError>",
+                   "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", "y"]], "term": ["return", "r"]}]}],
+          "ripple": [{"arity": "f", "frame_calls": "old"}]}),
+    );
+    let mut head = Machine::head(&temp.path);
+    assert_eq!(head.call("k", &[json!(5), json!(2)]), json!({"Ok": 3}));
+    let tests = json!({"af1": 1, "afx": 1, "tests": [{"name": "tf", "fn": "f", "args": [2, 5], "expect": {"Ok": 3}},
+                                                   {"name": "tk", "fn": "k", "args": [5, 2], "expect": {"Ok": 3}}]});
+    let (mut after, inventory) = rebased(&temp.path, &tests);
+    assert_eq!(after.call("k", &[json!(5), json!(2)]), json!({"Ok": 3}));
+    assert_eq!(
+        inventory["intents"][0]["calls"],
+        json!([{"site": "/fns/0/blocks/0/ops/0 (k)", "origin": "frame", "edit": "as committed"}])
+    );
+    // Without "old", the carried call is not known to be either: a hole,
+    // never a flip.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            "--rebase",
+            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "f"}]}).to_string(),
+        ],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("/fns/0/blocks/0/ops/0 (k) passes 2 arguments to `f`, which fits its parameters (b: i64, a: i64), but it differs from the committed call"), "{text}");
+    // A new parameter with a value, and a frame call with the old count.
+    let temp = committed_change(
+        "rebase-value",
+        &json!({"af1": 1, "fns": [
+          {"fn": "f", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+          {"fn": "g", "params": [["x", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]}]}),
+        &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "blocks": {"entry": {"term": ["return", "b"]}}}],
+          "fns": [{"fn": "k", "params": [["y", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "ops": [["r", "call", "f", "y"]], "term": ["return", "r"]}]}],
+          "ripple": [{"arity": "f", "value": 7}]}),
+    );
+    let (mut after, inventory) = rebased(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "tests": [{"name": "tk", "fn": "k", "args": [1], "expect": 7}]}),
+    );
+    assert_eq!(after.call("k", &[json!(1)]), json!(7));
+    assert_eq!(after.call("g", &[json!(1)]), json!(7));
+    assert_eq!(inventory["intents"][0]["calls"][0]["edit"], "as committed");
+}
+
+#[test]
+fn a_changed_value_after_the_commit_reaches_the_calls() {
+    let base = json!({"af1": 1, "fns": [
+      {"fn": "f", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+      {"fn": "g", "params": [["x", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]}]});
+    let change = json!({"af1": 1, "afx": 1,
+      "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "blocks": {"entry": {"term": ["return", "b"]}}}],
+      "ripple": [{"arity": "f", "value": 0}]});
+    let follow_up = |value: i64| {
+        json!({"af1": 1, "afx": 1, "ripple": [{"arity": "f", "value": value}],
+               "tests": [{"name": "tf", "fn": "f", "args": [1, 2], "expect": 2}]})
+    };
+    // Before the commit, a follow-up's value replaces the draft's.
+    let temp = workspace("value-before");
+    commit(&temp.path, &base);
+    let (status, text) = run(&temp.path, &["try", &change.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", &follow_up(5).to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let frame = artifact(&temp.path, report["draft"].as_str().unwrap(), "frame.json");
+    assert_eq!(
+        Machine::candidate(&temp.path, &frame).call("g", &[json!(3)]),
+        json!(5)
+    );
+    // After it, the same: the committed fill loads the new value.
+    let temp = committed_change("value-after", &base, &change);
+    let (mut after, inventory) = rebased(&temp.path, &follow_up(5));
+    assert_eq!(after.call("g", &[json!(3)]), json!(5));
+    assert_eq!(inventory["intents"][0]["edit"], "applied again");
+    assert_eq!(
+        inventory["intents"][0]["calls"],
+        json!([{"site": "g.entry.r", "origin": "live", "edit": "value"}])
+    );
+    // The value it already loads: nothing to derive.
+    let (_, inventory) = rebased(&temp.path, &follow_up(0));
+    assert_eq!(inventory["intents"][0]["edit"], "already applied");
+    // A value that does not fit the parameter is refused as before.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            "--rebase",
+            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "f", "value": 2.5}]}).to_string(),
+        ],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("/ripple/0/value: 2.5 is not a literal of new parameter `b`'s type"),
+        "{text}"
+    );
+}
+
+#[test]
+fn entry_guards_run_in_written_order() {
+    let temp = workspace("guard-order");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["BadP", "BadQ"]}],
+          "fns": [{"fn": "f", "params": [["p", "i64"], ["q", "i64"]], "returns": "Result<i64,E>",
+                   "blocks": [{"name": "entry", "term": ["ok", ["add?BadP", "p", "q"]]}]}]}),
+    );
+    let checker = |name: &str, case: &str, step: i64| {
+        json!({"fn": name, "params": [["x", "i64"]], "returns": "Result<i64,E>",
+               "blocks": [{"name": "entry", "ops": [[format!("!{case}"), "if", ["lt", "x", 0]]], "term": ["ok", ["add?BadP", "x", step]]}]})
+    };
+    let frame = json!({"af1": 1, "afx": 1, "fns": [checker("cp", "BadP", 10), checker("cq", "BadQ", 100), checker("cs", "BadQ", 1000)],
+      "ripple": [{"guard": "cp", "arg": "p", "in": ["f"], "mode": "entry"},
+                 {"guard": "cq", "arg": "q", "in": ["f"], "mode": "entry"},
+                 {"guard": "cs", "arg": "p", "in": ["f"], "mode": "entry"}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let mut after = Machine::candidate(&temp.path, &frame);
+    // cp first, then cq on q, then cs on the value cp left for p.
+    assert_eq!(
+        after.call("f", &[json!(-1), json!(-1)]),
+        json!({"Err": "BadP"})
+    );
+    assert_eq!(
+        after.call("f", &[json!(1), json!(-1)]),
+        json!({"Err": "BadQ"})
+    );
+    assert_eq!(after.call("f", &[json!(1), json!(2)]), json!({"Ok": 1113}));
+    // Committed, the chain is recognized whole: a tests-only rebase derives
+    // nothing.
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (_, inventory) = rebased(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "tests": [{"name": "tf", "fn": "f", "args": [-1, -1], "expect": {"Err": "BadP"}}]}),
+    );
+    let edits: Vec<&Value> = inventory["intents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|intent| &intent["functions"][0]["edit"])
+        .collect();
+    assert_eq!(edits, [&json!("already applied"); 3], "{inventory:#}");
+}
+
+#[test]
+fn live_tests_an_intent_restates_stay_provided() {
+    let temp = workspace("provenance");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "fns": [
+          {"fn": "f", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+          {"fn": "g", "params": [["x", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]}]}),
+    );
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "tests": [{"name": "tf", "fn": "f", "args": [3], "expect": 3}, {"name": "tg", "fn": "g", "args": [4], "expect": 4}]}),
+    );
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
+          "ripple": [{"arity": "f", "value": 0}], "tests": [{"name": "t_new", "fn": "f", "args": [1, 2], "expect": 1}]}).to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    assert_eq!(
+        report["provenance"],
+        json!({"authored": 1, "imported": 0, "provided": 2})
+    );
+    assert_eq!(report["tests"].as_array().unwrap().len(), 3);
+}
+
+#[test]
+fn frame_calls_old_covers_only_what_was_written_with_the_intent() {
+    let temp = workspace("provenance-calls");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,ArithmeticError>",
+          "blocks": [{"name": "entry", "term": ["return", ["sub", "a", "b"]]}]}]}),
+    );
+    let caller = |name: &str, args: [&str; 2]| {
+        json!({"fn": name, "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,ArithmeticError>",
+               "blocks": [{"name": "entry", "ops": [["r", "call", "f", args[0], args[1]]], "term": ["return", "r"]}]})
+    };
+    // r1: the reorder, and k written for the old order.
+    let r1 = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["b", "i64"], ["a", "i64"]]}],
+      "fns": [caller("k", ["x", "y"])], "ripple": [{"arity": "f", "frame_calls": "old"}]});
+    let (status, text) = run(&temp.path, &["try", &r1.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    // r2 adds m, written for the new order (as `view --after` shows it):
+    // "old" covers only what r1 stated, and the count fits both orders, so
+    // m's call is a hole, never flipped.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            &json!({"af1": 1, "afx": 1, "fns": [caller("m", ["y", "x"])]}).to_string(),
+        ],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("/fns/1/blocks/0/ops/0 (m) passes 2 arguments to `f`, which fits both its old parameters (a: i64, b: i64) and its new ones (b: i64, a: i64), and it was stated in a revision after the intent, which \"frame_calls\" does not cover"),
+        "{text}"
+    );
+    let frame = artifact(&temp.path, "d2@r2", "frame.json");
+    assert_eq!(
+        frame["ripple"],
+        json!([{"arity": "f", "frame_calls": "old", "after": ["m"]}])
+    );
+    // A count that decides needs no declaration: a call added later with
+    // the old count is rewritten.
+    let grow = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"], ["c", "i64"]]}],
+      "ripple": [{"arity": "f", "value": 0}]});
+    let temp2 = workspace("provenance-count");
+    commit(
+        &temp2.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,ArithmeticError>",
+          "blocks": [{"name": "entry", "term": ["return", ["sub", "a", "b"]]}]}]}),
+    );
+    assert_eq!(run(&temp2.path, &["try", &grow.to_string()]).0, 0);
+    let (status, report) = run_json(
+        &temp2.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            &json!({"af1": 1, "afx": 1, "fns": [caller("m", ["x", "y"])]}).to_string(),
+        ],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let frame = artifact(&temp2.path, report["draft"].as_str().unwrap(), "frame.json");
+    assert_eq!(
+        Machine::candidate(&temp2.path, &frame).call("m", &[json!(5), json!(2)]),
+        json!({"Ok": 3})
+    );
+    // Restating the intent with "frame_calls" in a revision covers what the
+    // frame states then: with k written for the new order too, "new".
+    let (status, report) = run_json(
+        &temp.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            &json!({"af1": 1, "afx": 1, "fns": [caller("k", ["y", "x"])],
+                                       "ripple": [{"arity": "f", "frame_calls": "new"}]})
+            .to_string(),
+        ],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let frame = artifact(&temp.path, report["draft"].as_str().unwrap(), "frame.json");
+    assert_eq!(
+        frame["ripple"],
+        json!([{"arity": "f", "frame_calls": "new"}])
+    );
+    let mut after = Machine::candidate(&temp.path, &frame);
+    assert_eq!(after.call("k", &[json!(5), json!(2)]), json!({"Ok": 3}));
+    assert_eq!(after.call("m", &[json!(5), json!(2)]), json!({"Ok": 3}));
 }

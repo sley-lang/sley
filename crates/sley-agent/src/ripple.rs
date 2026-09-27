@@ -21,7 +21,10 @@
 //!   frame itself writes is kept when its argument count is the new one and
 //!   rewritten when it is the old one; when both counts are equal the count
 //!   decides nothing, so it is a hole unless `"frame_calls"` says `"old"`
-//!   (rewrite) or `"new"` (keep).
+//!   (rewrite) or `"new"` (keep); `"frame_calls"` covers only what the
+//!   intent's revision states, not what later revisions state (`"after"`,
+//!   kept by layering). An intent the head already reflects derives only
+//!   what differs from what its committed derivation left.
 //! - `{"guard": g, "arg": p, "in": [f, ...], "mode": "preserve"|"entry"}`.
 //!   The checker `g: P -> Result<P,E>` takes over the checking of parameter
 //!   `p` of each live function `f`, read as the frame leaves the program
@@ -100,6 +103,10 @@ enum Intent {
         /// against the old parameters, `Some(false)` against the new ones,
         /// `None` by their argument count.
         frame_calls: Option<bool>,
+        /// Functions, tests and test tables the frame stated in revisions
+        /// after the intent's own (kept by layering): `"frame_calls"` does
+        /// not cover them, so only their argument count can tell.
+        after: BTreeSet<String>,
     },
     Guard {
         checker: String,
@@ -122,14 +129,16 @@ enum Intent {
 /// The compiler's refusal of the frame's own definitions, mapped to the
 /// authored frame, when a `guard` needs its checker compiled from the frame
 /// and the frame does not compile.
+#[allow(clippy::too_many_lines)]
 pub(crate) fn apply(
     cx: &Context<'_>,
-    intents: &Value,
+    frame: &Map<String, Value>,
     out: &mut Map<String, Value>,
     map: &mut SourceMap,
     obligations: &mut Vec<Obligation>,
     derive: bool,
 ) -> Result<Outcome> {
+    let intents = frame.get("ripple").unwrap_or(&Value::Null);
     let mut outcome = Outcome {
         inventory: json!({"intents": [], "changed": {"functions": [], "tests": []}}),
         intents: 0,
@@ -170,13 +179,38 @@ pub(crate) fn apply(
         return Ok(outcome);
     }
     let mut ripple = Ripple::new(cx, out, map);
+    ripple.tables = frame
+        .get("test_tables")
+        .and_then(Value::as_array)
+        .map(|tables| {
+            tables
+                .iter()
+                .map(|table| {
+                    table
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     for (index, intent) in parsed.into_iter().enumerate() {
         match intent {
             Intent::Arity {
                 target,
                 value,
                 frame_calls,
-            } => ripple.arity(index, &target, value.as_ref(), frame_calls),
+                after,
+            } => ripple.arity(
+                index,
+                &target,
+                &Stated {
+                    value: value.as_ref(),
+                    declared: frame_calls,
+                    after: &after,
+                },
+            ),
             Intent::Guard {
                 checker,
                 arg,
@@ -243,7 +277,7 @@ fn parse(entry: &Value, index: usize) -> std::result::Result<Intent, Obligation>
         )));
     }
     let allowed: &[&str] = if kind == "arity" {
-        &["arity", "value", "frame_calls", "comment"]
+        &["arity", "value", "frame_calls", "after", "comment"]
     } else {
         &["guard", "arg", "in", "mode", "handler", "comment"]
     };
@@ -281,10 +315,23 @@ fn parse(entry: &Value, index: usize) -> std::result::Result<Intent, Obligation>
                 ));
             }
         };
+        let names = |key: &str| match object.get(key) {
+            None => Ok(BTreeSet::new()),
+            Some(Value::Array(names)) if names.iter().all(Value::is_string) => Ok(names
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()),
+            Some(_) => Err(shape(
+                format!("{at}/{key}"),
+                "a list of the names of functions, tests and test tables: [\"name\", ...]",
+            )),
+        };
         return Ok(Intent::Arity {
             target: name("arity")?,
             value: object.get("value").cloned(),
             frame_calls,
+            after: names("after")?,
         });
     }
     let checker = name("guard")?;
@@ -548,8 +595,13 @@ impl Func {
 
     /// Blocks reachable from the entry.
     fn reachable(&self) -> BTreeSet<String> {
+        self.reachable_from(&self.entry)
+    }
+
+    /// Blocks reachable from `start`.
+    fn reachable_from(&self, start: &str) -> BTreeSet<String> {
         let mut seen = BTreeSet::new();
-        let mut stack = vec![self.entry.clone()];
+        let mut stack = vec![start.to_owned()];
         while let Some(leaf) = stack.pop() {
             if !seen.insert(leaf.clone()) {
                 continue;
@@ -1038,6 +1090,8 @@ struct FrameCall {
     function: String,
     /// Pointer of the block object (`None` for an `edit.with`).
     block: Option<String>,
+    /// The block's name (for an `edit.with`, the edited block).
+    block_leaf: String,
     /// Pointer of the operation.
     pointer: String,
     /// Operation index in its block.
@@ -1150,6 +1204,14 @@ struct Fill {
     data: Value,
 }
 
+/// What an arity intent states besides its target.
+struct Stated<'s> {
+    value: Option<&'s Value>,
+    /// `"frame_calls"`: `Some(true)` old, `Some(false)` new.
+    declared: Option<bool>,
+    after: &'s BTreeSet<String>,
+}
+
 /// One guard intent.
 struct Guard<'g> {
     checker: &'g str,
@@ -1182,6 +1244,8 @@ struct Ripple<'c, 'a> {
     records: Vec<Value>,
     /// Arity targets derived so far, with their intent.
     arities: BTreeMap<String, String>,
+    /// The frame's test tables by position, by name.
+    tables: Vec<String>,
 }
 
 impl<'c, 'a> Ripple<'c, 'a> {
@@ -1198,6 +1262,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
             edits: 0,
             records: Vec::new(),
             arities: BTreeMap::new(),
+            tables: Vec::new(),
         }
     }
 
@@ -1416,6 +1481,29 @@ impl<'c, 'a> Ripple<'c, 'a> {
             return None;
         };
         let (param, ty) = &new[*position];
+        match self.literal(value, param, ty, target) {
+            Ok((constant, data)) => Some(Fill {
+                position: *position,
+                constant,
+                data,
+            }),
+            Err(decision) => {
+                self.hole(AgentErrorCode::RippleHoleUnfilled, &pointer, decision);
+                None
+            }
+        }
+    }
+
+    /// The supplied value as a literal of parameter `param` of type `ty`:
+    /// the `const` immediate `{"type": T, "value": v}` and the test
+    /// argument `v`; or why it is not one.
+    fn literal(
+        &self,
+        value: &Value,
+        param: &str,
+        ty: &TypeExpr,
+        target: &str,
+    ) -> std::result::Result<(Value, Value), String> {
         let rendered = self.render(ty);
         let (stated, data) = match value {
             Value::Object(object)
@@ -1427,28 +1515,18 @@ impl<'c, 'a> Ripple<'c, 'a> {
             }
             Value::Number(_) | Value::Bool(_) => (None, value.clone()),
             _ => {
-                self.hole(
-                    AgentErrorCode::RippleHoleUnfilled,
-                    &pointer,
-                    format!(
-                        "state the value of new parameter `{param}` (expected {rendered}) as a literal: 3, true, or {{\"type\": \"{rendered}\", \"value\": ...}}"
-                    ),
-                );
-                return None;
+                return Err(format!(
+                    "state the value of new parameter `{param}` (expected {rendered}) as a literal: 3, true, or {{\"type\": \"{rendered}\", \"value\": ...}}"
+                ));
             }
         };
         if let Some(stated) = stated {
             match crate::types::read(stated, self.cx, "") {
                 Ok(read) if read == *ty => {}
                 _ => {
-                    self.hole(
-                        AgentErrorCode::RippleHoleUnfilled,
-                        &pointer,
-                        format!(
-                            "the value's type is {stated}, but new parameter `{param}` of `{target}` is {rendered} (expected {rendered})"
-                        ),
-                    );
-                    return None;
+                    return Err(format!(
+                        "the value's type is {stated}, but new parameter `{param}` of `{target}` is {rendered} (expected {rendered})"
+                    ));
                 }
             }
         } else {
@@ -1461,14 +1539,9 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 _ => false,
             };
             if !fits {
-                self.hole(
-                    AgentErrorCode::RippleHoleUnfilled,
-                    &pointer,
-                    format!(
-                        "{data} is not a literal of new parameter `{param}`'s type (expected {rendered}): state it as {{\"type\": \"{rendered}\", \"value\": ...}}"
-                    ),
-                );
-                return None;
+                return Err(format!(
+                    "{data} is not a literal of new parameter `{param}`'s type (expected {rendered}): state it as {{\"type\": \"{rendered}\", \"value\": ...}}"
+                ));
             }
         }
         // The literal must decode as the parameter type (a live type; a type
@@ -1479,26 +1552,18 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 names: self.cx.names,
             };
             if let Err(error) = crate::values::read(&data, ty, &defs, "") {
-                self.hole(
-                    AgentErrorCode::RippleHoleUnfilled,
-                    &pointer,
-                    format!(
-                        "the value does not fit new parameter `{param}` (expected {rendered}): {}",
-                        error.detail().trim_start_matches(": ")
-                    ),
-                );
-                return None;
+                return Err(format!(
+                    "the value does not fit new parameter `{param}` (expected {rendered}): {}",
+                    error.detail().trim_start_matches(": ")
+                ));
             }
         }
-        Some(Fill {
-            position: *position,
-            constant: json!({"type": rendered, "value": data}),
-            data,
-        })
+        Ok((json!({"type": rendered, "value": data}), data))
     }
 
     #[allow(clippy::too_many_lines)]
-    fn arity(&mut self, index: usize, target: &str, value: Option<&Value>, declared: Option<bool>) {
+    fn arity(&mut self, index: usize, target: &str, stated: &Stated<'_>) {
+        let (value, declared) = (stated.value, stated.declared);
         let at = format!("/ripple/{index}");
         if let Some(first) = self.arities.get(target) {
             self.hole(
@@ -1560,33 +1625,9 @@ impl<'c, 'a> Ripple<'c, 'a> {
             new.push((name, ty));
         }
         if new == old {
-            // The head already has these parameters (the intent was applied,
-            // for example by a committed revision this frame is layered on):
-            // nothing to propagate, and the frame's own calls and tests of
-            // `f` are read as written, as plain AF1 reads them. Only "old"
-            // cannot be honoured: the parameters it names are gone.
-            if declared == Some(true) {
-                self.hole(
-                    AgentErrorCode::RippleHoleUnfilled,
-                    &format!("{at}/frame_calls"),
-                    format!(
-                        "`{target}` already has these parameters ({}), so the old ones that \"frame_calls\": \"old\" refers to are gone: drop \"frame_calls\" (the frame's calls are then read as written), or drop the intent",
-                        self.params_text(&old).join(", ")
-                    ),
-                );
-                return;
-            }
-            self.records.push(json!({
-                "at": at,
-                "intent": "arity",
-                "target": target,
-                "edit": "already applied",
-                "old": self.params_text(&old),
-                "new": self.params_text(&new),
-                "calls": [],
-                "tests": [],
-                "changed": {"functions": [], "tests": []},
-            }));
+            // The head already has these parameters: the intent was applied
+            // (by a committed revision this frame is layered on, typically).
+            self.applied(&at, target, f_id, &new, stated);
             return;
         }
         let slots: Vec<Slot> = new
@@ -1695,10 +1736,18 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 );
                 continue;
             }
+            // Stated in a revision after the intent: only the count can tell.
+            let reading = |count: usize| {
+                if stated.after.contains(&call.function) {
+                    revised_reading(count, old.len(), new.len())
+                } else {
+                    reading(count)
+                }
+            };
             let edit = match reading(call.args.len()) {
                 Reading::AsWritten => "as written",
                 Reading::Compiler => "left to the compiler",
-                Reading::Ambiguous | Reading::Contradicts => {
+                Reading::Ambiguous | Reading::Contradicts | Reading::Revised => {
                     let why = self.unread(
                         reading(call.args.len()),
                         &site,
@@ -1753,10 +1802,18 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 .authored(&format!("/tests/{test_index}"))
                 .unwrap_or_else(|| format!("/tests/{test_index}"));
             let label = format!("{authored} (`{name}`)");
+            let later = self.stated_in(test_index, &name, stated.after);
+            let reading = |count: usize| {
+                if later {
+                    revised_reading(count, old.len(), new.len())
+                } else {
+                    reading(count)
+                }
+            };
             let edit = match reading(count) {
                 Reading::AsWritten => "as written",
                 Reading::Compiler => "left to the compiler",
-                Reading::Ambiguous | Reading::Contradicts => {
+                Reading::Ambiguous | Reading::Contradicts | Reading::Revised => {
                     let why = self.unread(reading(count), &label, count, &old, &new, target);
                     self.hole(AgentErrorCode::RippleHoleUnfilled, &at, why);
                     "hole"
@@ -1878,6 +1935,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
 
     /// Calls and function values of `target` the frame's own functions
     /// write (after expansion), and in its edits.
+    #[allow(clippy::too_many_lines)]
     fn frame_calls(&self, target: &str, id: &EntityId) -> Vec<FrameCall> {
         let names = self.cx.names;
         let is_target = |callee: &str| {
@@ -1885,7 +1943,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 || (!self.cx.top.contains(callee) && names.resolve(callee) == Some(*id))
         };
         let mut out = Vec::new();
-        let mut scan = |function: &str, block_pointer: &str, block: &Value| {
+        let mut scan = |function: &str, block_pointer: &str, leaf: &str, block: &Value| {
             let Some(ops) = block.get("ops").and_then(Value::as_array) else {
                 return;
             };
@@ -1899,6 +1957,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 out.push(FrameCall {
                     function: function.to_owned(),
                     block: Some(block_pointer.to_owned()),
+                    block_leaf: leaf.to_owned(),
                     pointer: format!("{block_pointer}/ops/{index}"),
                     index,
                     name,
@@ -1919,7 +1978,11 @@ impl<'c, 'a> Ripple<'c, 'a> {
                     continue;
                 };
                 for (b, block) in blocks.iter().enumerate() {
-                    scan(function, &format!("/{key}/{k}/blocks/{b}"), block);
+                    let leaf = block
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    scan(function, &format!("/{key}/{k}/blocks/{b}"), leaf, block);
                 }
             }
         }
@@ -1933,7 +1996,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 };
                 for (leaf, block) in blocks {
                     if block.is_object() {
-                        scan(function, &format!("/patch/{k}/blocks/{leaf}"), block);
+                        scan(function, &format!("/patch/{k}/blocks/{leaf}"), leaf, block);
                     }
                 }
             }
@@ -1956,12 +2019,19 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 if !is_target(&callee) {
                     continue;
                 }
+                let (block_leaf, name) = decl
+                    .get("replace_op")
+                    .and_then(Value::as_str)
+                    .and_then(|path| path.split_once('.'))
+                    .map(|(block, op)| (block.to_owned(), op.to_owned()))
+                    .unwrap_or_default();
                 out.push(FrameCall {
                     function: function.to_owned(),
                     block: None,
+                    block_leaf,
                     pointer: format!("/edit/{k}/with"),
                     index: 0,
-                    name: String::new(),
+                    name,
                     fnref: tag == 194,
                     args,
                 });
@@ -1996,6 +2066,465 @@ impl<'c, 'a> Ripple<'c, 'a> {
             .collect()
     }
 
+    /// Whether the frame test at `index` in `tests`, or the table its row
+    /// was lowered from, is in `names`.
+    fn stated_in(&self, index: usize, name: &str, names: &BTreeSet<String>) -> bool {
+        if names.contains(name) {
+            return true;
+        }
+        let Some(row) = self.map.authored(&format!("/tests/{index}")) else {
+            return false;
+        };
+        row.strip_prefix("/test_tables/")
+            .and_then(|rest| rest.split('/').next())
+            .and_then(|table| table.parse::<usize>().ok())
+            .and_then(|table| self.tables.get(table))
+            .is_some_and(|table| names.contains(table))
+    }
+
+    /// An arity intent whose restated parameters `f` already has at the
+    /// head: it was applied (by a committed revision this frame is layered
+    /// on, typically). Deriving it again changes only what differs from what
+    /// that derivation left: the value its fills load (`<call>__v<k>`), and
+    /// the frame's own calls and tests of `f` written before the change,
+    /// which are read as the head has them. Nothing else is derived.
+    #[allow(clippy::too_many_lines)]
+    fn applied(
+        &mut self,
+        at: &str,
+        target: &str,
+        f_id: EntityId,
+        params: &[(String, TypeExpr)],
+        stated: &Stated<'_>,
+    ) {
+        let mut calls = Vec::new();
+        let mut changed_fns: BTreeSet<String> = BTreeSet::new();
+        let mut changed_tests: BTreeSet<String> = BTreeSet::new();
+        let mut edits = 0_u64;
+        let holes = self.holes.len();
+        // The value the committed fills load.
+        if let Some(value) = stated.value {
+            for site in self.live_calls(&f_id) {
+                if site.fnref {
+                    continue;
+                }
+                let label = format!("`{}.{}.{}`", site.function, site.block, site.op);
+                let fills = self.fills(&site.function, &site.block, &site.op);
+                for (position, fill) in fills {
+                    let Some((param, ty)) = params.get(position).cloned() else {
+                        continue;
+                    };
+                    let (constant, data) = match self.literal(value, &param, &ty, target) {
+                        Ok(literal) => literal,
+                        Err(why) => {
+                            self.hole(
+                                AgentErrorCode::RippleHoleUnfilled,
+                                &format!("{at}/value"),
+                                why,
+                            );
+                            return;
+                        }
+                    };
+                    if self.loads(&site.function, &site.block, &fill, &ty, &data) {
+                        continue;
+                    }
+                    if let Some(why) = self.cannot_patch(&site.function, &f_id, target) {
+                        self.hole(
+                            AgentErrorCode::RippleHoleUnfilled,
+                            at,
+                            format!("{label} passes the value the intent filled for `{param}`, but {why}"),
+                        );
+                        continue;
+                    }
+                    let Some(func) = self.funcs.get_mut(&site.function) else {
+                        continue;
+                    };
+                    let Some(block) = func
+                        .blocks
+                        .iter_mut()
+                        .find(|block| block.leaf == site.block)
+                    else {
+                        continue;
+                    };
+                    if let Some(op) = block.ops.iter_mut().find(|op| op.leaf == fill) {
+                        op.imm = Imm::Literal(constant);
+                        block.changed.get_or_insert(at.to_owned());
+                        edits += 1;
+                        changed_fns.insert(site.function.clone());
+                        calls.push(json!({"site": label.trim_matches('`'), "origin": "live", "edit": "value"}));
+                    }
+                }
+            }
+        }
+        // The frame's own calls and tests of `f` written before the change:
+        // read as the head has them.
+        let mut frame_calls = self.frame_calls(target, &f_id);
+        frame_calls.sort_by(|a, b| {
+            (a.block.as_deref(), std::cmp::Reverse(a.index))
+                .cmp(&(b.block.as_deref(), std::cmp::Reverse(b.index)))
+        });
+        for call in &frame_calls {
+            let authored = self
+                .map
+                .authored(&call.pointer)
+                .unwrap_or_else(|| call.pointer.clone());
+            let site = format!("{authored} ({})", call.function);
+            if call.fnref {
+                continue;
+            }
+            let revised = stated.after.contains(&call.function);
+            if call.args.len() == params.len() && (stated.declared != Some(true) || revised) {
+                // A count that fits the parameters the head has: as written
+                // when "new" says so or it is the committed call; otherwise
+                // it may be written for the parameters before the change.
+                let committed = self.committed_args(call, &f_id);
+                // Stated after the intent with no committed form: new code
+                // for the parameters the head has.
+                if stated.declared == Some(false) && !revised
+                    || committed.as_ref() == Some(&call.args)
+                    || revised && committed.is_none()
+                {
+                    continue;
+                }
+                self.hole(
+                    AgentErrorCode::RippleHoleUnfilled,
+                    at,
+                    format!(
+                        "{site} passes {} arguments to `{target}`, which fits its parameters ({}), but it differs from the committed call and {}: write it as the head has it (sley-agent view {}), or say \"frame_calls\": \"old\" (rewritten as committed) or \"new\" (kept as written)",
+                        call.args.len(),
+                        self.params_text(params).join(", "),
+                        if revised {
+                            "was stated after the intent"
+                        } else {
+                            "may be written for the parameters before the change"
+                        },
+                        call.function
+                    ),
+                );
+                continue;
+            }
+            match self.adopt_call(call, &f_id, stated.value, params, target) {
+                Ok(true) => {
+                    edits += 1;
+                    changed_fns.insert(call.function.clone());
+                    calls.push(json!({"site": site, "origin": "frame", "edit": "as committed"}));
+                }
+                Ok(false) => {}
+                Err(why) => {
+                    self.hole(
+                        AgentErrorCode::RippleHoleUnfilled,
+                        at,
+                        format!(
+                            "{site} was written for the parameters `{target}` had before ({} argument(s)), and {why}: write it for ({})",
+                            call.args.len(),
+                            self.params_text(params).join(", ")
+                        ),
+                    );
+                }
+            }
+        }
+        for (index, name) in self.frame_tests(target) {
+            let args = self
+                .out
+                .get("tests")
+                .and_then(|tests| tests.get(index))
+                .and_then(|test| test.get("args").or_else(|| test.get("inputs")))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let count = args.len();
+            let again = self.stated_in(index, &name, stated.after);
+            if count == params.len() && !again && stated.declared == Some(false) {
+                continue;
+            }
+            let equal = count == params.len() && (again || stated.declared != Some(true));
+            let live = self
+                .live_tests(&f_id)
+                .into_iter()
+                .chain(self.live_test_named(&f_id, &name))
+                .find(|(_, live)| *live == name);
+            let inputs = live.and_then(|(id, _)| match self.cx.program.body(&id) {
+                Some(EntityBodyValue::TestCase(test)) => Some(
+                    test.inputs
+                        .iter()
+                        .map(|input| crate::values::to_json(input, self.cx.names))
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            });
+            let authored = self
+                .map
+                .authored(&format!("/tests/{index}"))
+                .unwrap_or_else(|| format!("/tests/{index}"));
+            if equal && (inputs.is_none() || inputs.as_ref() == Some(&args)) {
+                continue;
+            }
+            if equal {
+                self.hole(
+                    AgentErrorCode::RippleHoleUnfilled,
+                    at,
+                    format!(
+                        "{authored} (`{name}`) passes {count} arguments to `{target}`, which fits its parameters ({}), but they differ from the committed test and {}: write them as the head has them, or say \"frame_calls\": \"old\" (rewritten as committed) or \"new\" (kept as written)",
+                        self.params_text(params).join(", "),
+                        if again {
+                            "it was stated after the intent"
+                        } else {
+                            "they may be written for the parameters before the change"
+                        }
+                    ),
+                );
+                continue;
+            }
+            match inputs {
+                Some(inputs) => {
+                    let key = if self.out["tests"][index].get("args").is_some() {
+                        "args"
+                    } else {
+                        "inputs"
+                    };
+                    if let Some(slot) = at_mut(self.out, &format!("/tests/{index}/{key}")) {
+                        *slot = Value::Array(inputs);
+                    }
+                    edits += 1;
+                    changed_tests.insert(name.clone());
+                    calls.push(json!({"test": name, "origin": "frame", "edit": "as committed"}));
+                }
+                None => self.hole(
+                    AgentErrorCode::RippleHoleUnfilled,
+                    at,
+                    format!(
+                        "{authored} (`{name}`) was written for the parameters `{target}` had before ({count} argument(s)), and the head has no committed form of it: write its arguments for ({})",
+                        self.params_text(params).join(", ")
+                    ),
+                ),
+            }
+        }
+        self.edits += edits;
+        let edit = if edits == 0 && self.holes.len() == holes {
+            "already applied"
+        } else {
+            "applied again"
+        };
+        self.records.push(json!({
+            "at": at,
+            "intent": "arity",
+            "target": target,
+            "edit": edit,
+            "old": self.params_text(params),
+            "new": self.params_text(params),
+            "calls": calls,
+            "tests": [],
+            "changed": {"functions": changed_fns, "tests": changed_tests},
+        }));
+    }
+
+    /// A frame test the frame restates, live at the head under that name
+    /// and targeting `f` (the frame's own tests are left out of
+    /// [`Self::live_tests`]).
+    fn live_test_named(&self, f_id: &EntityId, name: &str) -> Option<(EntityId, String)> {
+        let id = self.cx.names.resolve(name)?;
+        match self.cx.program.body(&id) {
+            Some(EntityBodyValue::TestCase(test)) if test.target == *f_id => {
+                Some((id, name.to_owned()))
+            }
+            _ => None,
+        }
+    }
+
+    /// The value fills of a live call: `(argument position, operation)` for
+    /// each argument that is a constant load named `<call>__v<k>` (the
+    /// operation an arity intent adds for a supplied value).
+    fn fills(&mut self, function: &str, block: &str, op: &str) -> Vec<(usize, String)> {
+        let Some(func) = self.func(function) else {
+            return Vec::new();
+        };
+        let Some(blk) = func.block(block) else {
+            return Vec::new();
+        };
+        let Some(call) = blk.ops.iter().find(|candidate| candidate.leaf == op) else {
+            return Vec::new();
+        };
+        call.args
+            .iter()
+            .enumerate()
+            .filter_map(|(position, arg)| match arg {
+                Val::Op(owner, name, 0)
+                    if *owner == blk.leaf
+                        && is_fill(op, name, position)
+                        && blk
+                            .ops
+                            .iter()
+                            .any(|load| load.leaf == *name && load.tag == 1) =>
+                {
+                    Some((position, name.clone()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Whether the constant load `fill` already loads `data` (of type `ty`).
+    fn loads(&self, function: &str, block: &str, fill: &str, ty: &TypeExpr, data: &Value) -> bool {
+        let Some(op) = self
+            .funcs
+            .get(function)
+            .and_then(|func| func.block(block))
+            .and_then(|blk| blk.ops.iter().find(|op| op.leaf == fill))
+        else {
+            return false;
+        };
+        match &op.imm {
+            Imm::Literal(literal) => literal.get("value") == Some(data),
+            Imm::Entity(id) => {
+                let defs = crate::values::ProgramTypes {
+                    program: self.cx.program,
+                    names: self.cx.names,
+                };
+                match (
+                    self.cx.program.body(id),
+                    crate::values::read(data, ty, &defs, ""),
+                ) {
+                    (Some(EntityBodyValue::Constant(constant)), Ok(wanted)) => {
+                        constant.value == wanted
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Why a live caller of `f` cannot be patched here, if it cannot.
+    fn cannot_patch(&mut self, function: &str, f_id: &EntityId, target: &str) -> Option<String> {
+        let home = self.namespaces_of(f_id);
+        let caller = self.func(function).map(|func| func.id)?;
+        let caller_home = self.namespaces_of(&caller);
+        if caller_home != home {
+            return Some(format!(
+                "`{function}` is in namespace {} while `{target}` is in {}: ripple does not edit code across a namespace boundary",
+                namespace_text(&caller_home),
+                namespace_text(&home)
+            ));
+        }
+        if self.authored.edit.contains_key(function) {
+            return Some(format!("this frame changes `{function}` with edit"));
+        }
+        if self.authored.fns.contains_key(function) {
+            return Some(format!("this frame restates `{function}`"));
+        }
+        self.funcs
+            .get(function)
+            .and_then(unpatchable)
+            .map(|why| format!("`{function}` {why}, which a patch cannot restate"))
+    }
+
+    /// The arguments of the live call a frame call restates (the operation
+    /// of the same name in the same block), as the frame would write them.
+    fn committed_args(&mut self, call: &FrameCall, f_id: &EntityId) -> Option<Vec<Value>> {
+        let live = self
+            .func(&call.function)
+            .and_then(|func| func.block(&call.block_leaf).cloned())?;
+        let op = live.ops.iter().find(|op| {
+            op.leaf == call.name && matches!(&op.imm, Imm::Function { id, .. } if id == f_id)
+        })?;
+        op.args
+            .iter()
+            .map(|arg| render_val(&live.leaf, arg).ok().map(Value::from))
+            .collect()
+    }
+
+    /// Reads a frame call written for the old parameters as the head has it:
+    /// its arguments become those of the live operation of the same name
+    /// in the same block (with the value fills that call loads, loading
+    /// `value` when one is stated). `Ok(false)` when the call already is the
+    /// live one; why not, when there is no such live call or it takes a
+    /// value the frame's block cannot state.
+    fn adopt_call(
+        &mut self,
+        call: &FrameCall,
+        f_id: &EntityId,
+        value: Option<&Value>,
+        params: &[(String, TypeExpr)],
+        target: &str,
+    ) -> std::result::Result<bool, String> {
+        let no_form = || "the head has no committed form of it".to_owned();
+        let live = self
+            .func(&call.function)
+            .and_then(|func| func.block(&call.block_leaf).cloned())
+            .ok_or_else(no_form)?;
+        let op = live
+            .ops
+            .iter()
+            .find(|op| {
+                op.leaf == call.name && matches!(&op.imm, Imm::Function { id, .. } if id == f_id)
+            })
+            .cloned()
+            .ok_or_else(no_form)?;
+        let mut args = Vec::new();
+        let mut loads = Vec::new();
+        for (position, arg) in op.args.iter().enumerate() {
+            args.push(Value::from(render_val(&live.leaf, arg).map_err(|why| {
+                format!("its committed form cannot be stated here: {why}")
+            })?));
+            if let Val::Op(owner, name, 0) = arg
+                && *owner == live.leaf
+                && is_fill(&call.name, name, position)
+            {
+                let load = live
+                    .ops
+                    .iter()
+                    .find(|load| load.leaf == *name)
+                    .ok_or_else(no_form)?;
+                let imm = match (value, params.get(position)) {
+                    (Some(value), Some((param, ty))) => self.literal(value, param, ty, target)?.0,
+                    _ => match &load.imm {
+                        Imm::Entity(id) => Value::from(self.cx.names.name(id)),
+                        Imm::Literal(literal) => literal.clone(),
+                        _ => return Err(no_form()),
+                    },
+                };
+                loads.push(json!([name, "const", imm]));
+            }
+        }
+        if args == call.args && loads.is_empty() {
+            return Ok(false);
+        }
+        let Some(block_pointer) = &call.block else {
+            if !loads.is_empty() {
+                return Err("an edit cannot add the operation its committed form loads".to_owned());
+            }
+            if let Some(Value::Array(items)) = at_mut(self.out, &call.pointer) {
+                items.truncate(2);
+                items.extend(args);
+            }
+            return Ok(true);
+        };
+        let ops_pointer = format!("{block_pointer}/ops");
+        let Some(Value::Array(ops)) = at_mut(self.out, &ops_pointer) else {
+            return Err(no_form());
+        };
+        let defined: BTreeSet<String> = ops.iter().filter_map(op_name).map(str::to_owned).collect();
+        let loads: Vec<Value> = loads
+            .into_iter()
+            .filter(|load| !defined.contains(load[0].as_str().unwrap_or_default()))
+            .collect();
+        let Some(slot) = ops.get_mut(call.index) else {
+            return Err(no_form());
+        };
+        set_call_args(slot, args);
+        for load in loads.into_iter().rev() {
+            ops.insert(call.index, load);
+            self.map.shift_ops(&ops_pointer, call.index);
+            self.map.entries.push(MapEntry {
+                expanded: format!("{ops_pointer}/{}", call.index),
+                authored: call.pointer.clone(),
+                role: Role::Ripple,
+                name: call.name.clone(),
+            });
+        }
+        Ok(true)
+    }
+
     /// Why a call or test the frame writes cannot be read mechanically.
     fn unread(
         &self,
@@ -2006,7 +2535,13 @@ impl<'c, 'a> Ripple<'c, 'a> {
         new: &[(String, TypeExpr)],
         target: &str,
     ) -> String {
-        if reading == Reading::Ambiguous {
+        if reading == Reading::Revised {
+            format!(
+                "{site} passes {count} arguments to `{target}`, which fits both its old parameters ({}) and its new ones ({}), and it was stated in a revision after the intent, which \"frame_calls\" does not cover: restate the intent with \"frame_calls\" in this revision (it then covers everything the frame states), or remove it from the intent's \"after\" to read it like the intent's own revision",
+                self.params_text(old).join(", "),
+                self.params_text(new).join(", ")
+            )
+        } else if reading == Reading::Ambiguous {
             format!(
                 "{site} passes {count} arguments to `{target}`, which fits both its old parameters ({}) and its new ones ({}): say how this frame's calls and tests of `{target}` are written with \"frame_calls\": \"old\" (rewritten by name) or \"new\" (kept as written)",
                 self.params_text(old).join(", "),
@@ -2274,7 +2809,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
             let base = if call.name.is_empty() {
                 "ripple".to_owned()
             } else {
-                format!("{}__a{position}", call.name)
+                format!("{}__v{position}", call.name)
             };
             constant_name = Some(self.unique(&base, &taken));
         }
@@ -2452,7 +2987,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
         let taken = self.funcs[&site.function].taken();
         let constant = fill
             .as_ref()
-            .map(|(_, _, position)| self.unique(&format!("{}__a{position}", site.op), &taken));
+            .map(|(_, _, position)| self.unique(&format!("{}__v{position}", site.op), &taken));
         let func = self.funcs.get_mut(&site.function).expect("present");
         let block = &mut func.blocks[b];
         let leaf = block.leaf.clone();
@@ -3245,10 +3780,24 @@ impl<'c, 'a> Ripple<'c, 'a> {
             );
             return None;
         };
-        // The new entry branches to the checked continuation and to the
+        // Entry guards run in written order: a new one goes after the
+        // guards the function already starts with, and checks the value
+        // they leave for `arg`.
+        let chain = entry_chain(&func);
+        let (continuation, tail) = match chain.last() {
+            Some(link) => (link.next.clone(), Some(link.guarded.clone())),
+            None => (func.entry.clone(), None),
+        };
+        let mut current = Val::Param(arg.to_owned());
+        for link in &chain {
+            if link.arg == current {
+                current = link.checked.clone();
+            }
+        }
+        // The new guard branches to the checked continuation and to the
         // error route; only what the error route cannot reach is dominated
         // by the checked value.
-        let mut reach = func.reachable();
+        let mut reach = func.reachable_from(&continuation);
         let mut from_route = BTreeSet::new();
         let mut stack = vec![route.clone()];
         while let Some(leaf) = stack.pop() {
@@ -3288,7 +3837,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
             let mut touched = false;
             for op in &mut block.ops {
                 for value in &mut op.args {
-                    if *value == Val::Param(arg.to_owned()) {
+                    if *value == current {
                         *value = checked_value.clone();
                         touched = true;
                         uses += 1;
@@ -3296,7 +3845,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 }
             }
             for value in block.term.values_mut() {
-                if *value == Val::Param(arg.to_owned()) {
+                if *value == current {
                     *value = checked_value.clone();
                     touched = true;
                     uses += 1;
@@ -3306,7 +3855,6 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 block.changed.get_or_insert(at.to_owned());
             }
         }
-        let old_entry = func.entry.clone();
         let mut cases = vec![
             (
                 CaseKey::Builtin(BuiltinCase::Ok),
@@ -3335,7 +3883,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                     name: checker.name.clone(),
                     generic: false,
                 },
-                args: vec![Val::Param(arg.to_owned())],
+                args: vec![current],
                 types: vec![TypeExpr::Result {
                     ok: Box::new(checker.param.clone()),
                     error: Box::new(error.clone()),
@@ -3365,7 +3913,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 },
             ],
             term: Term::Br(Edge {
-                target: old_entry,
+                target: continuation,
                 args: Vec::new(),
             }),
             unreachable: false,
@@ -3381,8 +3929,18 @@ impl<'c, 'a> Ripple<'c, 'a> {
         ] {
             func.generated.insert(name.clone(), at.to_owned());
         }
-        func.entry = guard_leaf;
-        func.entry_changed = Some(at.to_owned());
+        if let Some(tail) =
+            tail.and_then(|tail| func.blocks.iter_mut().find(|block| block.leaf == tail))
+        {
+            tail.term = Term::Br(Edge {
+                target: guard_leaf,
+                args: Vec::new(),
+            });
+            tail.changed.get_or_insert(at.to_owned());
+        } else {
+            func.entry = guard_leaf;
+            func.entry_changed = Some(at.to_owned());
+        }
         self.funcs.insert(function.to_owned(), func);
         Some(json!({"fn": function, "edit": "entry", "uses": uses, "error": route}))
     }
@@ -3545,6 +4103,18 @@ enum Reading {
     Contradicts,
     /// Its argument count fits neither list: the compiler reports it.
     Compiler,
+    /// Stated in a revision after the intent, with a count that fits both
+    /// lists.
+    Revised,
+}
+
+/// The reading of a call or test stated after the intent: by its count
+/// alone.
+fn revised_reading(count: usize, old: usize, new: usize) -> Reading {
+    match reading(None, count, old, new) {
+        Reading::Ambiguous => Reading::Revised,
+        other => other,
+    }
 }
 
 /// The reading of a frame-written call of `count` arguments, given the
@@ -3577,6 +4147,23 @@ struct LiveSite {
     block: String,
     op: String,
     fnref: bool,
+}
+
+/// Whether `name` is the operation an arity intent adds to load the
+/// supplied value for argument `position` of the call named `call`:
+/// `<call>__v<position>`, with a collision suffix `_2`, `_3`, ...
+fn is_fill(call: &str, name: &str, position: usize) -> bool {
+    let base = format!("{call}__v{position}");
+    name == base
+        || name
+            .strip_prefix(&base)
+            .and_then(|rest| rest.strip_prefix('_'))
+            .is_some_and(all_digits)
+        || (name.len() > MAX_NAME - 20 && name == shorten(&base))
+}
+
+fn all_digits(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// Whether a constant value holds a reference to function `id`.
@@ -3640,6 +4227,96 @@ fn visit_named(ty: &TypeExpr, visit: &mut dyn FnMut(&EntityId)) {
     }
 }
 
+/// One entry guard a function starts with: the block calling the checker,
+/// the block holding its checked value, where that one continues, the
+/// checker, the value it checks, the value it leaves and its error edge.
+struct Link {
+    block: String,
+    call: String,
+    guarded: String,
+    next: String,
+    checker: String,
+    arg: Val,
+    checked: Val,
+    error: Edge,
+}
+
+/// The entry guards `func` starts with, in the order they run: each block
+/// holds one call of a checker and switches on it, `Ok` passing the value
+/// to a block that holds it (`tuple`, `tuple_get 0`) and branches on.
+fn entry_chain(func: &Func) -> Vec<Link> {
+    let mut out: Vec<Link> = Vec::new();
+    let mut current = func.entry.clone();
+    for _ in 0..func.blocks.len() {
+        let Some(block) = func.block(&current) else {
+            break;
+        };
+        let ([op], true) = (block.ops.as_slice(), block.params.is_empty()) else {
+            break;
+        };
+        let (Imm::Function { name, .. }, [arg]) = (&op.imm, op.args.as_slice()) else {
+            break;
+        };
+        let Term::Switch(Val::Op(owner, value, 0), cases) = &block.term else {
+            break;
+        };
+        let case = |key: BuiltinCase| {
+            cases
+                .iter()
+                .find(|(case, _)| *case == CaseKey::Builtin(key))
+                .map(|(_, edge)| edge.clone())
+        };
+        let (Some(ok), Some(error)) = (case(BuiltinCase::Ok), case(BuiltinCase::Err)) else {
+            break;
+        };
+        let Some(guarded) = func.block(&ok.target) else {
+            break;
+        };
+        let holds = match (
+            guarded.params.as_slice(),
+            guarded.ops.as_slice(),
+            &guarded.term,
+        ) {
+            ([(param, _)], [tuple, first], Term::Br(next))
+                if tuple.tag == 16
+                    && tuple.args == [Val::Block(guarded.leaf.clone(), param.clone())]
+                    && first.tag == 17
+                    && first.imm == Imm::Index(0)
+                    && first.args == [Val::Op(guarded.leaf.clone(), tuple.leaf.clone(), 0)]
+                    && next.args.is_empty() =>
+            {
+                Some((next.target.clone(), first.leaf.clone()))
+            }
+            _ => None,
+        };
+        let Some((next, unwrapped)) = holds else {
+            break;
+        };
+        if *owner != block.leaf
+            || *value != op.leaf
+            || op.tag != 112
+            || cases.len() != 2
+            || ok.args != [Arg::Payload]
+            || error.args != [Arg::Payload]
+            || out.iter().any(|link| link.block == next)
+        {
+            break;
+        }
+        out.push(Link {
+            block: block.leaf.clone(),
+            call: op.leaf.clone(),
+            guarded: guarded.leaf.clone(),
+            next: next.clone(),
+            checker: name.clone(),
+            arg: arg.clone(),
+            checked: Val::Op(guarded.leaf.clone(), unwrapped, 0),
+            error,
+        });
+        current = next;
+    }
+    out
+}
+
 /// Where `func` already has the shape a guard of `checker` on `arg`
 /// derives: a block whose last operation calls the checker on the parameter
 /// and which switches on that call, its `Err` case passing the error to the
@@ -3653,10 +4330,32 @@ fn guarded_call(
     entry: bool,
     handler: Option<&str>,
 ) -> Option<String> {
-    func.blocks.iter().find_map(|block| {
-        if entry && (block.leaf != func.entry || block.ops.len() != 1) {
-            return None;
+    let error_fits = |edge: &Edge| {
+        edge.args == [Arg::Payload]
+            && func
+                .block(&edge.target)
+                .is_some_and(|target| match handler {
+                    Some(handler) => target.leaf == handler,
+                    None => {
+                        target.params.len() == 1 && is_error_return(target, &target.params[0].0)
+                    }
+                })
+    };
+    if entry {
+        // A guard in the chain the function starts with, on the value the
+        // guards before it leave for `arg`.
+        let mut current = Val::Param(arg.to_owned());
+        for link in entry_chain(func) {
+            if link.arg == current {
+                if link.checker == checker && error_fits(&link.error) {
+                    return Some(format!("{}.{}.{}", func.name, link.block, link.call));
+                }
+                current = link.checked;
+            }
         }
+        return None;
+    }
+    func.blocks.iter().find_map(|block| {
         let op = block.ops.last()?;
         let calls = matches!(&op.imm, Imm::Function { name, .. } if name == checker)
             && op.tag == 112
@@ -3671,16 +4370,8 @@ fn guarded_call(
                 .map(|(_, edge)| edge)
         };
         let (ok, err) = (case(BuiltinCase::Ok)?, case(BuiltinCase::Err)?);
-        let ok_fits = if entry {
-            ok.args == [Arg::Payload]
-        } else {
-            !ok.args.contains(&Arg::Payload)
-        };
-        let err_fits = err.args == [Arg::Payload]
-            && func.block(&err.target).is_some_and(|target| match handler {
-                Some(handler) => target.leaf == handler,
-                None => target.params.len() == 1 && is_error_return(target, &target.params[0].0),
-            });
+        let ok_fits = !ok.args.contains(&Arg::Payload);
+        let err_fits = error_fits(err);
         (calls
             && *owner == block.leaf
             && *name == op.leaf
