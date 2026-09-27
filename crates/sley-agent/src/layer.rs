@@ -17,19 +17,30 @@
 //! - `test_tables`: a table replaces the base table of the same name.
 //! - `ripple`: an intent replaces the base intent of the same kind and
 //!   target (`arity` of the same function; `guard` with the same checker
-//!   and parameter) where it stands; others are appended in order. An
+//!   and parameter) where it stands; others are appended in order. Only
+//!   the base's intents are replaced, never one the same follow-up states.
+//!   When either side has several intents of one identity, an intent
+//!   replaces the base intent of that identity naming the same functions
+//!   (`in`); one naming others is appended once every base intent of that
+//!   identity is replaced, and is otherwise refused as ambiguous. An
 //!   `arity` intent the follow-up does not restate records, in `after`, the
-//!   functions, tests and test tables the follow-up states: its
-//!   `frame_calls` does not cover them. A restating intent keeps that list,
-//!   unless it restates the function's parameters (a new change) or says
-//!   `frame_calls` itself (which then covers everything the frame states).
+//!   functions, tests and test tables the follow-up states (a test without
+//!   a name as [`UNNAMED_TESTS`]): its `frame_calls` does not cover them. A
+//!   restating intent keeps that list, unless it restates the function's
+//!   parameters (a new change) or says `frame_calls` itself (which then
+//!   covers everything the frame states).
 //! - `delete` entries are added; `namespace` replaces.
 
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
 
-use crate::error::{Result, frame};
+use crate::error::{AgentError, Result, frame};
+
+/// How an intent's `after` lists the tests without a name a follow-up
+/// states: a test without a name cannot be told from another, so this one
+/// entry stands for all of them.
+pub(crate) const UNNAMED_TESTS: &str = "(unnamed)";
 
 /// `delta` layered on `base`, both AF1 frames.
 ///
@@ -92,15 +103,24 @@ pub fn layer(base: &Value, delta: &Value) -> Result<Value> {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    layer_intents(list(&mut merged, "ripple"), intents, &stated, delta);
+    layer_intents(list(&mut merged, "ripple"), intents, &stated, delta)?;
     merged.retain(|_, value| !matches!(value, Value::Array(items) if items.is_empty()));
     Ok(Value::Object(merged))
 }
 
 /// The functions (`fns`, `patch`, `edit`), tests and test tables a frame
-/// states, by name.
+/// states, by name; [`UNNAMED_TESTS`] when it states a test without one.
 fn stated_names(frame: &Map<String, Value>) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
+    if frame
+        .get("tests")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|test| name_of(test, "name").is_none())
+    {
+        out.insert(UNNAMED_TESTS.to_owned());
+    }
     for (key, field) in [
         ("fns", "fn"),
         ("functions", "fn"),
@@ -150,6 +170,95 @@ fn set_names(intent: &mut Value, key: &str, names: &BTreeSet<String>) {
     }
 }
 
+/// An intent's identity, owned.
+type Identity = (&'static str, String, String);
+
+fn identity(intent: &Value) -> Option<Identity> {
+    intent_key(intent).map(|(kind, a, b)| (kind, a.to_owned(), b.to_owned()))
+}
+
+/// The base intent each follow-up intent replaces (`None`: appended). Only
+/// the base's own intents are replaced. With one intent of an identity on
+/// each side, it is replaced; with several on either side, a follow-up
+/// intent replaces the one naming the same functions (`in`), and one
+/// naming others is appended when every base intent of its identity is
+/// replaced; otherwise which one it replaces cannot be told.
+fn slots(base: &[Value], entries: &[Value]) -> Result<Vec<Option<usize>>> {
+    let functions = |intent: &Value| names_at(intent, "in");
+    let mut out: Vec<Option<usize>> = vec![None; entries.len()];
+    let mut taken = vec![false; base.len()];
+    let mut unmatched = Vec::new();
+    for (index, entry) in entries.iter().enumerate() {
+        let Some(key) = identity(entry) else {
+            continue;
+        };
+        let same: Vec<usize> = (0..base.len())
+            .filter(|at| identity(&base[*at]).as_ref() == Some(&key))
+            .collect();
+        let peers = entries
+            .iter()
+            .filter(|other| identity(other).as_ref() == Some(&key))
+            .count();
+        let chosen = match same.as_slice() {
+            [] => None,
+            [only] if peers == 1 => Some(*only),
+            _ => {
+                let exact: Vec<usize> = same
+                    .iter()
+                    .copied()
+                    .filter(|at| key.0 == "guard" && functions(&base[*at]) == functions(entry))
+                    .collect();
+                match exact.as_slice() {
+                    [at] if !taken[*at] => Some(*at),
+                    [] => {
+                        unmatched.push((index, same));
+                        continue;
+                    }
+                    _ => return Err(ambiguous(index, &key, base, &same)),
+                }
+            }
+        };
+        if let Some(at) = chosen {
+            taken[at] = true;
+        }
+        out[index] = chosen;
+    }
+    for (index, same) in unmatched {
+        if same.iter().any(|at| !taken[*at]) {
+            let key = identity(&entries[index]).expect("a matched identity");
+            return Err(ambiguous(index, &key, base, &same));
+        }
+    }
+    Ok(out)
+}
+
+/// The refusal of a follow-up intent that could replace several base
+/// intents of its identity, or be a new one.
+fn ambiguous(index: usize, key: &Identity, base: &[Value], same: &[usize]) -> AgentError {
+    let what = if key.0 == "arity" {
+        format!("arity of `{}`", key.1)
+    } else {
+        format!("guard `{}` on `{}`", key.1, key.2)
+    };
+    let listed: Vec<String> = same
+        .iter()
+        .map(|at| {
+            format!(
+                "/ripple/{at} (\"in\": {})",
+                base[*at].get("in").unwrap_or(&Value::Null)
+            )
+        })
+        .collect();
+    frame(
+        &format!("/ripple/{index}"),
+        format!(
+            "the draft has {} intents with this identity ({what}): {}; which one this intent replaces, or whether it is a new one, cannot be told: state it with the \"in\" of the one it replaces, or set \"/ripple\" to the whole list of intents to keep",
+            same.len(),
+            listed.join(", ")
+        ),
+    )
+}
+
 /// Layers the follow-up's intents on the base's: each replaces the base
 /// intent with the same identity where it stands, or is appended; `arity`
 /// intents record in `after` what the follow-ups state after them.
@@ -158,31 +267,25 @@ fn layer_intents(
     entries: Vec<Value>,
     stated: &BTreeSet<String>,
     delta: &Map<String, Value>,
-) {
-    let owned =
-        |intent: &Value| intent_key(intent).map(|(kind, a, b)| (kind, a.to_owned(), b.to_owned()));
-    let restated: Vec<(&'static str, String, String)> = entries.iter().filter_map(owned).collect();
-    for intent in base.iter_mut() {
-        if matches!(owned(intent), Some(key) if key.0 == "arity" && !restated.contains(&key)) {
+) -> Result<()> {
+    let slots = slots(base, &entries)?;
+    let replaced: BTreeSet<usize> = slots.iter().flatten().copied().collect();
+    for (index, intent) in base.iter_mut().enumerate() {
+        if !replaced.contains(&index) && matches!(identity(intent), Some(key) if key.0 == "arity") {
             let after: BTreeSet<String> =
                 names_at(intent, "after").union(stated).cloned().collect();
             set_names(intent, "after", &after);
         }
     }
-    for mut entry in entries {
-        let key = owned(&entry);
-        let slot = key.as_ref().and_then(|key| {
-            base.iter()
-                .position(|item| owned(item).as_ref() == Some(key))
-        });
+    for (mut entry, slot) in entries.into_iter().zip(slots) {
         let Some(index) = slot else {
             base.push(entry);
             continue;
         };
-        if let Some((kind, target, _)) = &key
-            && *kind == "arity"
+        if let Some((kind, target, _)) = identity(&entry)
+            && kind == "arity"
             && entry.get("frame_calls").is_none()
-            && !restates_parameters(delta, target)
+            && !restates_parameters(delta, &target)
         {
             let after: BTreeSet<String> = names_at(&base[index], "after")
                 .union(&names_at(&entry, "after"))
@@ -193,6 +296,7 @@ fn layer_intents(
         }
         base[index] = entry;
     }
+    Ok(())
 }
 
 /// Whether a follow-up restates the parameters of `function`.
@@ -509,6 +613,30 @@ mod tests {
                 {"guard": "g", "arg": "q", "in": ["a"]},
                 {"arity": "h"},
                 {"effect": "f"}])
+        );
+    }
+
+    #[test]
+    fn two_guards_in_one_follow_up_do_not_replace_each_other() {
+        let base = json!({"af1": 1, "afx": 1, "ripple": [
+            {"guard": "check", "arg": "x", "in": ["first"]},
+            {"guard": "check", "arg": "x", "in": ["second"], "handler": "H"}]});
+        let second = json!({"af1": 1, "afx": 1, "ripple": [
+            {"guard": "check", "arg": "x", "in": ["second"], "handler": "H"}]});
+        assert_eq!(layer(&base, &second).unwrap()["ripple"], base["ripple"]);
+        let empty = json!({"af1": 1, "afx": 1});
+        assert_eq!(layer(&empty, &base).unwrap()["ripple"], base["ripple"]);
+    }
+
+    #[test]
+    fn an_unnamed_follow_up_test_is_recorded_after_the_intent() {
+        let base = json!({"af1": 1, "afx": 1, "ripple": [
+            {"arity": "f", "frame_calls": "old"}]});
+        let delta = json!({"af1": 1, "afx": 1, "tests": [
+            {"fn": "f", "args": [2, 5], "expect": 3}]});
+        assert_eq!(
+            layer(&base, &delta).unwrap()["ripple"][0]["after"],
+            json!(["(unnamed)"])
         );
     }
 }

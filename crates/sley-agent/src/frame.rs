@@ -144,6 +144,14 @@ pub fn compile(
                 | "namespace"
                 | "comment"
         ) {
+            if matches!(key.as_str(), "ripple" | "test_tables") {
+                return Err(frame(
+                    &format!("/{key}"),
+                    format!(
+                        "`{key}` belongs to the authoring dialect: add \"afx\": 1 to the frame (the AF1-X envelope) to use it"
+                    ),
+                ));
+            }
             return Err(frame(&format!("/{key}"), "unknown frame key"));
         }
     }

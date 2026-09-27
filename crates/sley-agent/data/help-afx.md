@@ -163,25 +163,29 @@ brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
 A ripple intent states a change once, and `try` derives the edits it
 implies into the frame. Intents apply in order, after the frame's own
 definitions, and the kernel judges the whole candidate as usual. An intent
-the head already reflects (a committed revision derived it) derives only
-what differs from what that revision left, so a follow-up such as tests on
-`try --on dN --rebase` gives what the draft gave before the commit: for an
-`arity` whose parameters `f` already has, calls whose `n__v<k>` value
-differs from `"value"` get the new one, and the frame's own calls and
-tests of `f` written for the old parameters are read as the head has them
-(one that differs from the head's and may be written for either list is an
-obligation). With nothing to derive, it is reported `already applied`. In
-`try --on`, a follow-up's intent replaces the draft's intent of the same
-kind and target (`arity` of the same function, `guard` with the same
-checker and `arg`); others are added after them. An `arity` intent a
+the head already reflects derives only what differs from that committed
+revision: an unambiguous value fill, or a carried call or test written for
+the old parameters, is read as the head has it. A call explicitly changed
+after the intent is an obligation when it differs from the committed call;
+it is never silently replaced. If several value fills could belong to
+earlier intents, a changed value is an obligation rather than a guess. A
+tests-only `try --on dN --rebase` therefore keeps the committed behavior.
+With nothing to derive, an intent is reported `already applied`. In
+`try --on`, a follow-up's intent replaces
+the draft's intent of the same kind and target (`arity` of the same
+function, `guard` with the same checker and `arg`); others are added after
+them, and a follow-up's intents never replace each other. With several
+draft intents of one kind and target, it replaces the one with the same
+`"in"`, and is refused when which one cannot be told. An `arity` intent a
 follow-up does not restate keeps, in `"after"`, the functions, tests and
-tables the follow-up states: `"frame_calls"` covers only what the intent's
-own revision states, so a call there is read by its count alone, and one
-whose count fits both lists is an obligation until the intent is restated
-with `"frame_calls"` (which then covers everything the frame states). See the
-derived edits with `sley-agent draft <d> --expanded`; `ripple.json` in the
-draft lists the changed entities and the boundaries met. A decision ripple
-cannot make is an `AGENT_RIPPLE_*` obligation that points into the intent.
+tables the follow-up states (tests without a name as `"(unnamed)"`):
+`"frame_calls"` covers only what the intent's own revision states, so a
+call there is read by its count alone, and one whose count fits both lists
+is an obligation until the intent is restated with `"frame_calls"` (which
+then covers everything the frame states). See the derived edits with
+`sley-agent draft <d> --expanded`; `ripple.json` in the draft lists the
+changed entities and the boundaries met. A decision ripple cannot make is
+an `AGENT_RIPPLE_*` obligation that points into the intent.
 
 `{"arity": f}`: the frame restates the parameters of the live function `f`
 (in `fns`, or in a `patch` with `params`). Every call of `f` in live code
@@ -212,7 +216,9 @@ way before reaching a check of `p`; when `g` succeeds, `f` runs as before
 and every use of `p` reads the checked value (a block the error also
 reaches keeps `p`). The error is returned unchanged when `f` returns
 `Result<_,E>`; otherwise name the block of `f` that takes `(e: E)` with
-`"handler"`, or it is an obligation. Several entry guards on one function
+`"handler"`, or it is an obligation. The error reaches the handler before
+anything else `f` does, so a handler that reads a value another block
+computes is an obligation. Several entry guards on one function
 run in written order: each goes after the guards `f` already starts with
 and checks the value they leave for its `arg`. Entry is refused when `f` already
 evaluates `g` (on any value, directly or through the functions it calls),
@@ -227,44 +233,44 @@ Given these live functions:
 
 ```json
 {"af1": 1, "afx": 1,
- "types": [{"name": "OrderError", "variant": ["InvalidQuantity", "InvalidPrice", "Overflow"]}],
- "fns": [{"fn": "line_total", "params": [["quantity", "i64"], ["price", "i64"]], "returns": "Result<i64,OrderError>",
+ "types": [{"name": "SensorError", "variant": ["Offline", "BelowAbsolute", "Overflow"]}],
+ "fns": [{"fn": "kelvin", "params": [["sensor", "i64"], ["tenths", "i64"]], "returns": "Result<i64,SensorError>",
           "blocks": [{"name": "entry",
-                      "ops": [["!InvalidPrice", "if", ["lt", "price", 0]],
-                              ["!InvalidQuantity", "if", ["lt", "quantity", 1]],
-                              ["total", "mul?Overflow", "quantity", "price"]],
-                      "term": ["ok", "total"]}]},
-         {"fn": "order_total", "params": [["quantity", "i64"], ["price", "i64"]], "returns": "Result<i64,OrderError>",
-          "blocks": [{"name": "entry", "ops": [["t", "call?", "line_total", "quantity", "price"]], "term": ["ok", "t"]}]}]}
+                      "ops": [["!Offline", "if", ["lt", "sensor", 0]],
+                              ["!BelowAbsolute", "if", ["lt", "tenths", -2731]],
+                              ["k", "add?Overflow", "tenths", 2731]],
+                      "term": ["ok", "k"]}]},
+         {"fn": "log_reading", "params": [["sensor", "i64"], ["tenths", "i64"]], "returns": "Result<i64,SensorError>",
+          "blocks": [{"name": "entry", "ops": [["k", "call?", "kelvin", "sensor", "tenths"]], "term": ["ok", "k"]}]}]}
 ```
 
-this frame adds a `fee` parameter to `line_total`; the call in `order_total`
-passes `0` for it:
+this frame adds a calibration `offset` parameter to `kelvin`; the call in
+`log_reading` passes `0` for it:
 
 ```json
 {"af1": 1, "afx": 1,
- "patch": [{"fn": "line_total", "params": [["quantity", "i64"], ["price", "i64"], ["fee", "i64"]],
-            "blocks": {"entry": {"ops": [["!InvalidPrice", "if", ["lt", "price", 0]],
-                                         ["!InvalidQuantity", "if", ["lt", "quantity", 1]],
-                                         ["total", "mul?Overflow", "quantity", "price"]],
-                                 "term": ["ok", ["add?Overflow", "total", "fee"]]}}}],
- "ripple": [{"arity": "line_total", "value": 0}],
- "test_tables": [{"name": "t_fee", "fn": "line_total", "cases": [{"args": [2, 5, 1], "expect": {"Ok": 11}}]},
-                 {"name": "t_order", "fn": "order_total", "cases": [{"args": [2, 5], "expect": {"Ok": 10}}]}]}
+ "patch": [{"fn": "kelvin", "params": [["sensor", "i64"], ["tenths", "i64"], ["offset", "i64"]],
+            "blocks": {"entry": {"ops": [["!Offline", "if", ["lt", "sensor", 0]],
+                                         ["!BelowAbsolute", "if", ["lt", "tenths", -2731]],
+                                         ["k", "add?Overflow", "tenths", 2731]],
+                                 "term": ["ok", ["add?Overflow", "k", "offset"]]}}}],
+ "ripple": [{"arity": "kelvin", "value": 0}],
+ "test_tables": [{"name": "t_offset", "fn": "kelvin", "cases": [{"args": [1, 250, 5], "expect": {"Ok": 2986}}]},
+                 {"name": "t_log", "fn": "log_reading", "cases": [{"args": [1, 250], "expect": {"Ok": 2981}}]}]}
 ```
 
-and this one moves the quantity check of `line_total` into a checker, at
-the same place (the price check still comes first):
+and this one moves the reading check of `kelvin` into a checker, at the
+same place (the sensor check still comes first):
 
 ```json
 {"af1": 1, "afx": 1,
- "fns": [{"fn": "check_quantity", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
-          "blocks": [{"name": "entry", "ops": [["!InvalidQuantity", "if", ["lt", "q", 1]]], "term": ["ok", "q"]}]}],
- "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["line_total"]}],
- "test_tables": [{"name": "t_line", "fn": "line_total",
-                  "cases": [{"args": [0, -1], "expect": {"Err": "InvalidPrice"}},
-                            {"args": [0, 5], "expect": {"Err": "InvalidQuantity"}},
-                            {"args": [2, 5], "expect": {"Ok": 10}}]}]}
+ "fns": [{"fn": "above_absolute", "params": [["t", "i64"]], "returns": "Result<i64,SensorError>",
+          "blocks": [{"name": "entry", "ops": [["!BelowAbsolute", "if", ["lt", "t", -2731]]], "term": ["ok", "t"]}]}],
+ "ripple": [{"guard": "above_absolute", "arg": "tenths", "in": ["kelvin"]}],
+ "test_tables": [{"name": "t_kelvin", "fn": "kelvin",
+                  "cases": [{"args": [-1, -9999], "expect": {"Err": "Offline"}},
+                            {"args": [1, -9999], "expect": {"Err": "BelowAbsolute"}},
+                            {"args": [1, 250], "expect": {"Ok": 2981}}]}]}
 ```
 
 ## Refusals

@@ -166,7 +166,7 @@ fn plain_af1_frames_compile_exactly_as_before() {
         "shapes=334a74eefde9ef3a",
         "nested-refused=refused AGENT_FRAME_INVALID: /fns/0/blocks/0/ops/0: operations do not nest; add the operation to the block's ops under a name and use that name",
         "literal-refused=refused AGENT_FRAME_INVALID: /fns/0/blocks/0/ops/0: the literal 1 is not a value name; add an operation such as [\"k\", \"const\", 1] and use \"k\"",
-        "tables-refused=refused AGENT_FRAME_INVALID: /test_tables: unknown frame key",
+        "tables-refused=refused AGENT_FRAME_INVALID: /test_tables: `test_tables` belongs to the authoring dialect: add \"afx\": 1 to the frame (the AF1-X envelope) to use it",
         "afx-key-refused-in-plain-order=refused AGENT_FRAME_INVALID: /af1: declare \"af1\": 1",
     ];
     assert_eq!(digests, expected, "{digests:#?}");

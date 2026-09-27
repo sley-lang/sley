@@ -167,10 +167,23 @@ pub fn authored(
     let leaf = names.leaf(&function);
     let entries = index.entries(&leaf);
     if entries.is_empty() {
-        out.none = Some(format!(
-            "{} is not in this frame; the kernel names the whole function",
-            names.name(&function)
-        ));
+        // A function a ripple intent derived is located at that intent.
+        let derived = index.derived(&leaf);
+        if derived.is_empty() {
+            out.none = Some(format!(
+                "{} is not in this frame; the kernel names the whole function",
+                names.name(&function)
+            ));
+        }
+        for at in derived {
+            out.push(
+                at,
+                format!(
+                    "the ripple intent that derived {}; {FUNCTION_WIDE}",
+                    names.name(&function)
+                ),
+            );
+        }
         return Some(out);
     }
     for (at, _) in entries {
@@ -348,6 +361,31 @@ impl FrameIndex<'_> {
             .flat_map(|key| self.list(key))
             .filter(|(_, entry)| entry.get("fn").and_then(Value::as_str) == Some(function))
             .collect()
+    }
+
+    /// The ripple intents (`/ripple/<i>...` pointers) that derived a patch
+    /// of `function` the frame does not state, per the source map.
+    fn derived(&self, function: &str) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let entries = self
+            .sourcemap
+            .and_then(|map| map.get("entries"))
+            .and_then(Value::as_array);
+        for entry in entries.into_iter().flatten() {
+            let text = |key: &str| entry.get(key).and_then(Value::as_str);
+            let whole = text("expanded")
+                .and_then(|at| at.strip_prefix("/patch/"))
+                .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()));
+            if let (true, Some("ripple"), Some(name), Some(at)) =
+                (whole, text("role"), text("name"), text("authored"))
+                && name == function
+                && at.starts_with("/ripple/")
+                && !out.iter().any(|seen| seen == at)
+            {
+                out.push(at.to_owned());
+            }
+        }
+        out
     }
 
     /// The authored `params` and `returns` of `function`.

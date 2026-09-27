@@ -23,8 +23,10 @@
 //!   decides nothing, so it is a hole unless `"frame_calls"` says `"old"`
 //!   (rewrite) or `"new"` (keep); `"frame_calls"` covers only what the
 //!   intent's revision states, not what later revisions state (`"after"`,
-//!   kept by layering). An intent the head already reflects derives only
-//!   what differs from what its committed derivation left.
+//!   kept by layering). An intent the head already reflects derives
+//!   nothing again: what that derivation did cannot be established from the
+//!   head, so what the frame states must be what the head has, and each
+//!   difference is a hole.
 //! - `{"guard": g, "arg": p, "in": [f, ...], "mode": "preserve"|"entry"}`.
 //!   The checker `g: P -> Result<P,E>` takes over the checking of parameter
 //!   `p` of each live function `f`, read as the frame leaves the program
@@ -34,7 +36,9 @@
 //!   before anything else `f` does and routes every use of `p` that the
 //!   `Ok` payload dominates through it. Its error goes to `f`'s own result
 //!   when `f` returns that error type, or to the block named by
-//!   `"handler"`; never to a block chosen by type alone.
+//!   `"handler"`; never to a block chosen by type alone. A handler that
+//!   reads a value another block of `f` computes is a hole, since the
+//!   error now reaches it first.
 //!
 //! `effect`, `member`, `retype`, `move` and `prune` are specified but not
 //! enabled in this build (`AGENT_RIPPLE_INTENT_UNKNOWN`).
@@ -2059,7 +2063,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                     index,
                     test.get("name")
                         .and_then(Value::as_str)
-                        .unwrap_or("(unnamed)")
+                        .unwrap_or(crate::layer::UNNAMED_TESTS)
                         .to_owned(),
                 )
             })
@@ -2085,9 +2089,9 @@ impl<'c, 'a> Ripple<'c, 'a> {
     /// An arity intent whose restated parameters `f` already has at the
     /// head: it was applied (by a committed revision this frame is layered
     /// on, typically). Deriving it again changes only what differs from what
-    /// that derivation left: the value its fills load (`<call>__v<k>`), and
-    /// the frame's own calls and tests of `f` written before the change,
-    /// which are read as the head has them. Nothing else is derived.
+    /// that derivation left: its unambiguous value fill, and the frame's
+    /// carried calls and tests. An explicit edit after the intent is a hole
+    /// when its old spelling conflicts with the committed call.
     #[allow(clippy::too_many_lines)]
     fn applied(
         &mut self,
@@ -2110,6 +2114,27 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 }
                 let label = format!("`{}.{}.{}`", site.function, site.block, site.op);
                 let fills = self.fills(&site.function, &site.block, &site.op);
+                if fills.len() > 1 {
+                    let matching = fills
+                        .iter()
+                        .filter(|(position, fill)| {
+                            params.get(*position).is_some_and(|(param, ty)| {
+                                self.literal(value, param, ty, target)
+                                    .is_ok_and(|(_, data)| {
+                                        self.loads(&site.function, &site.block, fill, ty, &data)
+                                    })
+                            })
+                        })
+                        .count();
+                    if matching == 0 {
+                        self.hole(
+                            AgentErrorCode::RippleHoleUnfilled,
+                            &format!("{at}/value"),
+                            format!("{label} has several generated value fills: which one this intent owns cannot be established from the committed head; change the intended call yourself or drop the value from this intent"),
+                        );
+                    }
+                    continue;
+                }
                 for (position, fill) in fills {
                     let Some((param, ty)) = params.get(position).cloned() else {
                         continue;
@@ -2173,11 +2198,19 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 continue;
             }
             let revised = stated.after.contains(&call.function);
+            let committed = self.committed_args(call, &f_id);
+            if revised && stated.declared != Some(false) && committed.as_ref() != Some(&call.args) {
+                self.hole(
+                    AgentErrorCode::RippleHoleUnfilled,
+                    at,
+                    format!("{site} was explicitly stated after the intent and differs from the committed call: write it for the current parameters, or restate the intent with \"frame_calls\": \"new\""),
+                );
+                continue;
+            }
             if call.args.len() == params.len() && (stated.declared != Some(true) || revised) {
                 // A count that fits the parameters the head has: as written
                 // when "new" says so or it is the committed call; otherwise
                 // it may be written for the parameters before the change.
-                let committed = self.committed_args(call, &f_id);
                 // Stated after the intent with no committed form: new code
                 // for the parameters the head has.
                 if stated.declared == Some(false) && !revised
@@ -3941,6 +3974,22 @@ impl<'c, 'a> Ripple<'c, 'a> {
             func.entry = guard_leaf;
             func.entry_changed = Some(at.to_owned());
         }
+        // The error edge reaches the named handler before anything else
+        // `f` does, so what the handler (or a block after it) reads from
+        // another block must still come first on every path to it.
+        if let Some(handler) = intent.handler
+            && let Some((block, value)) = undominated(&func, &from_route)
+        {
+            self.hole(
+                AgentErrorCode::RippleHoleUnfilled,
+                at,
+                format!(
+                    "the error of `{}` reaches handler `{handler}` of `{function}` before anything else `{function}` does, but block `{block}` reads `{value}`, which is then not computed on every path to it: name another handler, change `{handler}` to compute what it reads from its parameter and those of `{function}` (commit that first: a guard rewrites live functions), or write the call",
+                    checker.name
+                ),
+            );
+            return None;
+        }
         self.funcs.insert(function.to_owned(), func);
         Some(json!({"fn": function, "edit": "entry", "uses": uses, "error": route}))
     }
@@ -4384,6 +4433,67 @@ fn guarded_call(
 
 /// Why a patch cannot restate a live function whole: AF1 states neither
 /// type parameters nor declared effects.
+/// The first use, in one of `blocks`, of a value another block defines
+/// that does not dominate the using block: `(block, "owner.value")`.
+fn undominated(func: &Func, blocks: &BTreeSet<String>) -> Option<(String, String)> {
+    let reachable = func.reachable();
+    let mut dominators: BTreeMap<String, BTreeSet<String>> = reachable
+        .iter()
+        .map(|leaf| {
+            let all = if *leaf == func.entry {
+                BTreeSet::from([leaf.clone()])
+            } else {
+                reachable.clone()
+            };
+            (leaf.clone(), all)
+        })
+        .collect();
+    // Iterative dataflow; each round only shrinks the sets, so it ends
+    // within the block count.
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for block in &func.blocks {
+            if block.leaf == func.entry || !reachable.contains(&block.leaf) {
+                continue;
+            }
+            let mut meet: Option<BTreeSet<String>> = None;
+            for pred in func.predecessors(&block.leaf) {
+                let Some(set) = dominators.get(&pred) else {
+                    continue;
+                };
+                meet = Some(match meet {
+                    None => set.clone(),
+                    Some(meet) => meet.intersection(set).cloned().collect(),
+                });
+            }
+            let mut next = meet.unwrap_or_default();
+            next.insert(block.leaf.clone());
+            if dominators.get(&block.leaf) != Some(&next) {
+                dominators.insert(block.leaf.clone(), next);
+                changed = true;
+            }
+        }
+    }
+    for block in &func.blocks {
+        if !blocks.contains(&block.leaf) || !reachable.contains(&block.leaf) {
+            continue;
+        }
+        for value in block.uses() {
+            let (Val::Op(owner, name, _) | Val::Block(owner, name)) = value else {
+                continue;
+            };
+            let dominated = dominators
+                .get(&block.leaf)
+                .is_some_and(|set| set.contains(owner));
+            if *owner != block.leaf && !dominated {
+                return Some((block.leaf.clone(), format!("{owner}.{name}")));
+            }
+        }
+    }
+    None
+}
+
 fn unpatchable(func: &Func) -> Option<&'static str> {
     if func.generic {
         Some("has type parameters")

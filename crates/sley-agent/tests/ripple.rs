@@ -1178,12 +1178,15 @@ fn targets_of_the_wrong_kind_and_disabled_intents_are_refused() {
         "AGENT_FRAME_INVALID",
         &["/ripple/0/mode: the mode is \"preserve\" (the default) or \"entry\""],
     );
-    // Without "afx": 1 the key is unknown, as before.
+    // Without "afx": 1 the key is refused, and the refusal names the
+    // envelope it needs.
     assert_refused(
         &temp.path,
         &json!({"af1": 1, "ripple": [{"arity": "f"}]}),
         "AGENT_FRAME_INVALID",
-        &["/ripple: unknown frame key"],
+        &[
+            "/ripple: `ripple` belongs to the authoring dialect: add \"afx\": 1 to the frame (the AF1-X envelope) to use it",
+        ],
     );
     // One intent per function.
     assert_refused(
@@ -2895,8 +2898,8 @@ fn a_tests_only_rebase_after_committing_an_intent_derives_nothing_again() {
     assert_eq!(status, 0, "{text}");
     let (status, text) = run(&temp.path, &["commit"]);
     assert_eq!(status, 0, "{text}");
-    let tests = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t_fee", "fn": "line_total",
-      "cases": [{"args": [2, 5, 1], "expect": {"Ok": 11}}, {"args": [0, 5, 1], "expect": {"Err": "InvalidQuantity"}}]}]});
+    let tests = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t_offset", "fn": "kelvin",
+      "cases": [{"args": [1, 250, 5], "expect": {"Ok": 2986}}, {"args": [-1, 250, 5], "expect": {"Err": "Offline"}}]}]});
     let (status, report) = run_json(
         &temp.path,
         &["try", "--on", "d2", "--rebase", &tests.to_string()],
@@ -2912,8 +2915,8 @@ fn a_tests_only_rebase_after_committing_an_intent_derives_nothing_again() {
     assert_eq!(inventory["edits"], 0);
     assert_eq!(
         report["changed"],
-        json!([{"change": "created", "exported": false, "kind": "test", "name": "t_fee_0"},
-               {"change": "created", "exported": false, "kind": "test", "name": "t_fee_1"}])
+        json!([{"change": "created", "exported": false, "kind": "test", "name": "t_offset_0"},
+               {"change": "created", "exported": false, "kind": "test", "name": "t_offset_1"}])
     );
     let (status, text) = run(&temp.path, &["submit", "d2"]);
     assert_eq!(status, 0, "{text}");
@@ -2957,7 +2960,7 @@ fn a_tests_only_rebase_after_committing_an_intent_derives_nothing_again() {
     assert_eq!(run(&temp.path, &["commit"]).0, 0);
     let (status, report) = run_json(
         &temp.path,
-        &["try", "--on", "d2", "--rebase", &tests_for_line_total()],
+        &["try", "--on", "d2", "--rebase", &tests_for_kelvin()],
     );
     assert_eq!(status, 0, "{report:#}");
     let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
@@ -2986,9 +2989,9 @@ fn help_example(index: usize) -> Value {
     frame
 }
 
-fn tests_for_line_total() -> String {
-    json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t_line", "fn": "line_total",
-      "cases": [{"args": [0, -1], "expect": {"Err": "InvalidPrice"}}, {"args": [2, 5], "expect": {"Ok": 10}}]}]})
+fn tests_for_kelvin() -> String {
+    json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t_kelvin", "fn": "kelvin",
+      "cases": [{"args": [-1, -9999], "expect": {"Err": "Offline"}}, {"args": [1, 250], "expect": {"Ok": 2981}}]}]})
     .to_string()
 }
 
@@ -3002,15 +3005,15 @@ fn restating_a_block_after_a_committed_guard_leaves_no_orphans() {
     // The guard left `entry__if0` switching on its call, `Ok -> entry__if1`
     // without the payload. Restating `entry` replaces its pieces through
     // that edge too.
-    let restate = json!({"af1": 1, "afx": 1, "patch": [{"fn": "line_total", "blocks": {"entry": {
-      "ops": [["!InvalidPrice", "if", ["lt", "price", 0]],
-              ["q", "call?", "check_quantity", "quantity"],
-              ["total", "mul?Overflow", "q", "price"]],
-      "term": ["ok", "total"]}}}],
-      "test_tables": [{"name": "t_restated", "fn": "line_total",
-        "cases": [{"args": [0, -1], "expect": {"Err": "InvalidPrice"}},
-                  {"args": [0, 5], "expect": {"Err": "InvalidQuantity"}},
-                  {"args": [2, 5], "expect": {"Ok": 10}}]}]});
+    let restate = json!({"af1": 1, "afx": 1, "patch": [{"fn": "kelvin", "blocks": {"entry": {
+      "ops": [["!Offline", "if", ["lt", "sensor", 0]],
+              ["t", "call?", "above_absolute", "tenths"],
+              ["k", "add?Overflow", "t", 2731]],
+      "term": ["ok", "k"]}}}],
+      "test_tables": [{"name": "t_restated", "fn": "kelvin",
+        "cases": [{"args": [-1, -9999], "expect": {"Err": "Offline"}},
+                  {"args": [1, -9999], "expect": {"Err": "BelowAbsolute"}},
+                  {"args": [1, 250], "expect": {"Ok": 2981}}]}]});
     let report = valid(&temp.path, &restate);
     let expanded = artifact(
         &temp.path,
@@ -3038,21 +3041,17 @@ fn a_follow_up_intent_replaces_the_same_intent() {
             "try",
             "--on",
             "d2",
-            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "line_total", "value": 5}]})
-                .to_string(),
+            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "kelvin", "value": 5}]}).to_string(),
         ],
     );
     assert_eq!(status, 0, "{report:#}");
     let revision = report["draft"].as_str().unwrap();
     let frame = artifact(&temp.path, revision, "frame.json");
-    assert_eq!(
-        frame["ripple"],
-        json!([{"arity": "line_total", "value": 5}])
-    );
+    assert_eq!(frame["ripple"], json!([{"arity": "kelvin", "value": 5}]));
     let mut after = Machine::candidate(&temp.path, &frame);
     assert_eq!(
-        after.call("order_total", &[json!(2), json!(5)]),
-        json!({"Ok": 15})
+        after.call("log_reading", &[json!(1), json!(250)]),
+        json!({"Ok": 2986})
     );
     // A hole's hint says how to drop an intent.
     let (status, text) = run(
@@ -3061,7 +3060,7 @@ fn a_follow_up_intent_replaces_the_same_intent() {
             "try",
             "--on",
             "d2",
-            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "line_total", "value": "five"}]})
+            &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "kelvin", "value": "five"}]})
                 .to_string(),
         ],
     );
@@ -3375,4 +3374,82 @@ fn frame_calls_old_covers_only_what_was_written_with_the_intent() {
     let mut after = Machine::candidate(&temp.path, &frame);
     assert_eq!(after.call("k", &[json!(5), json!(2)]), json!({"Ok": 3}));
     assert_eq!(after.call("m", &[json!(5), json!(2)]), json!({"Ok": 3}));
+}
+
+#[test]
+fn an_explicit_call_edit_after_commit_is_never_replaced_by_the_old_call() {
+    let base = json!({"af1": 1, "fns": [{"fn": "f", "params": [["a", "i64"]],
+        "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]}]});
+    let change = json!({"af1": 1, "afx": 1,
+        "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
+        "fns": [
+            {"fn": "m", "params": [["x", "i64"]], "returns": "i64",
+             "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]},
+            {"fn": "n", "params": [["x", "i64"]], "returns": "i64",
+             "blocks": [{"name": "entry", "ops": [["y", "const", 100]], "term": ["return", "y"]}]}
+        ], "ripple": [{"arity": "f", "value": 0}]});
+    let temp = committed_change("changed-call-after-commit", &base, &change);
+    let edit = json!({"af1": 1, "afx": 1,
+        "edit": [{"fn": "m", "replace_op": "entry.r",
+                  "with": ["call", "f", ["call", "n", "x"]]}]});
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &edit.to_string()],
+    );
+    assert_eq!(status, 2, "{report:#}");
+    assert_eq!(report["error"], "AGENT_RIPPLE_HOLE_UNFILLED");
+    assert!(
+        report["detail"]
+            .as_str()
+            .unwrap()
+            .contains("explicitly stated after")
+    );
+    assert_eq!(Machine::head(&temp.path).call("m", &[json!(1)]), json!(1));
+}
+
+#[test]
+fn a_later_arity_value_never_changes_an_earlier_fill() {
+    let temp = workspace("distinct-value-fills");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+            {"fn": "f", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+         "blocks": [{"name": "entry", "term": ["ok", "a"]}]},
+            {"fn": "g", "params": [["x", "i64"]], "returns": "Result<i64,ArithmeticError>",
+             "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]}
+        ]}),
+    );
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1,
+        "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]],
+                   "blocks": {"entry": {"term": ["ok", ["add?", "a", ["mul?", "b", 10]]]}}}],
+        "ripple": [{"arity": "f", "value": 0}]}),
+    );
+    let second = json!({"af1": 1, "afx": 1,
+        "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"], ["c", "i64"]],
+                   "blocks": {"entry": {"term": ["ok", ["add?", "a", ["add?", ["mul?", "b", 10], ["mul?", "c", 100]]]]}}}],
+        "ripple": [{"arity": "f", "value": 7}]});
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &second.to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    assert_eq!(
+        Machine::head(&temp.path).call("g", &[json!(1)]),
+        json!({"Ok": 701})
+    );
+    let follow = json!({"af1": 1, "afx": 1,
+        "tests": [{"name": "tf", "fn": "f", "args": [1, 2, 3], "expect": {"Ok": 321}}]});
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", "d2", "--rebase", &follow.to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let frame = artifact(&temp.path, report["draft"].as_str().unwrap(), "frame.json");
+    assert_eq!(
+        Machine::candidate(&temp.path, &frame).call("g", &[json!(1)]),
+        json!({"Ok": 701})
+    );
 }

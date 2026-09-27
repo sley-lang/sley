@@ -459,7 +459,9 @@ pub fn refusal_beside(obligations: &[Obligation], rest: Option<&AgentError>) -> 
             .collect();
         for line in crate::frame::problem_lines(error) {
             let body = match line.strip_prefix('[') {
-                Some(rest) => rest.split_once("] ").map_or(line.as_str(), |(_, body)| body),
+                Some(rest) => rest
+                    .split_once("] ")
+                    .map_or(line.as_str(), |(_, body)| body),
                 None => line.as_str(),
             };
             let Some((pointer, _)) = body.split_once(": ") else {
@@ -2931,6 +2933,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
 
     /// Authored names: the `__` reservation, duplicates, and the tables the
     /// typing and use-before-definition checks read.
+    #[allow(clippy::too_many_lines)]
     fn declare(&mut self) {
         for (b, block) in self.blocks.iter().enumerate() {
             self.block_at.entry(block.name.clone()).or_insert(b);
@@ -3130,34 +3133,30 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// none, the name is refused, and the type (the one definition's, as
     /// the only one there is) only keeps that refusal the one reported.
     fn far_type(&self, b: usize, name: &str) -> Option<TypeExpr> {
-        match self.far_results(b, name) {
-            Some(types) => {
-                let first = types.first()?.clone()?;
-                types
-                    .iter()
-                    .all(|ty| ty.as_ref() == Some(&first))
-                    .then_some(first)
+        if let Some(types) = self.far_results(b, name) {
+            let first = types.first()?.clone()?;
+            return types
+                .iter()
+                .all(|ty| ty.as_ref() == Some(&first))
+                .then_some(first);
+        }
+        let mut found = Vec::new();
+        for &d in self.def_index.get(name).map_or(&[][..], Vec::as_slice) {
+            if d != b
+                && let Some(def) = self.defs[d].get(name)
+            {
+                found.push(def.ty.clone());
             }
-            None => {
-                let mut found = Vec::new();
-                for &d in self.def_index.get(name).map_or(&[][..], Vec::as_slice) {
-                    if d != b
-                        && let Some(def) = self.defs[d].get(name)
-                    {
-                        found.push(def.ty.clone());
-                    }
-                }
-                for &k in self.kept_index.get(name).map_or(&[][..], Vec::as_slice) {
-                    if let Some((_, ty)) = self.kept[k].value(name) {
-                        found.push(ty);
-                    }
-                }
-                if found.len() == 1 {
-                    found.remove(0)
-                } else {
-                    None
-                }
+        }
+        for &k in self.kept_index.get(name).map_or(&[][..], Vec::as_slice) {
+            if let Some((_, ty)) = self.kept[k].value(name) {
+                found.push(ty);
             }
+        }
+        if found.len() == 1 {
+            found.remove(0)
+        } else {
+            None
         }
     }
 

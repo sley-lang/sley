@@ -384,8 +384,10 @@ create in the same list that carries `"key"`.
 A frame with `"afx": 1` is an AF1-X frame. The workbench expands it,
 client-side and deterministically, into an ordinary AF1 frame, which the
 AF1 compiler of section 5 compiles unchanged. A frame without `"afx"` is
-plain AF1 and refuses every form below exactly as before; a frame whose
-`afx` is not the number 1 is refused at `/afx`. `sley-agent help
+plain AF1 and refuses every form below exactly as before (its extension
+keys `ripple` and `test_tables` are refused at `/ripple` and
+`/test_tables` with the fix `add "afx": 1`, the envelope they need); a
+frame whose `afx` is not the number 1 is refused at `/afx`. `sley-agent help
 afx` is the normative reference text and `data/help-afx.md` its source.
 AF1-X adds, inside the blocks of `fns` and `patch` (`edit.with` stays plain
 AF1):
@@ -506,18 +508,15 @@ An intent the head already reflects (a committed revision derived it)
 derives only what differs from what that derivation left, so a revision
 layered on the committed one, such as a tests-only `try --on dN --rebase`,
 gives what the draft gave before the commit. For an `arity` intent whose
-restated parameters `f` already has at the head: every live call's value
-fill (the constant load `n__v<k>` that passed `"value"` as argument `k` of
-call `n`) that loads another value than the intent's `"value"` is
-rewritten to load it; each call or test of `f` the frame itself writes is
-read as the head has it: one whose argument count is not that of the
-parameters, or that `"frame_calls": "old"` covers, takes the arguments of
-the committed call of the same name (with the value fills that call
-loads), or of the committed TestCase of the same name, and is an
-obligation when there is none; one with the fitting count that differs
-from the committed one is an obligation unless `"frame_calls": "new"`
-covers it (one stated after the intent with no committed form is new code
-and kept). Live tests keep their arguments. A `guard`
+restated parameters `f` already has at the head, an unambiguous value fill
+(the constant load `n__v<k>` that passed `"value"` as argument `k` of call
+`n`) may load a changed value. When several fills could belong to earlier
+intents, a changed value is an obligation at `/ripple/<i>/value`, never a
+guess. A call or test of `f` the frame carries in its old spelling takes
+the arguments of the committed call or TestCase of the same name. A call
+explicitly changed after the intent that differs from the committed call
+is an obligation at `/ripple/<i>` unless `"frame_calls": "new"` covers it;
+it is never silently replaced. Live tests keep their arguments. A `guard`
 is applied when its function already has the exact shape its mode derives
 (entry: a guard block in the chain of guards the function starts with,
 calling `g` on the value the guards before it leave for `p`, its checked
@@ -528,9 +527,19 @@ derive is listed as `already applied`.
 
 In `try --on`, a follow-up's intent replaces the draft's intent with the
 same identity where it stands: `arity` of the same function, or `guard`
-with the same checker and `arg`; other intents are appended. An `arity`
+with the same checker and `arg`; other intents are appended. Only the
+draft's intents are replaced, never one the same follow-up states. When
+the draft or the follow-up has several intents of one identity (two guards
+with the same checker and `arg`, say, for functions that need different
+handlers), a follow-up intent replaces the draft intent of that identity
+naming the same functions in `"in"`; one naming other functions is
+appended when each draft intent of that identity is replaced, and is
+otherwise refused (`AGENT_FRAME_INVALID` at its `/ripple/<j>`), since which
+one it replaces cannot be told. An `arity`
 intent the follow-up does not restate records the follow-up's provenance
-in `"after"`: the functions, tests and test tables it states. The intent's
+in `"after"`: the functions, tests and test tables it states (a test
+without a name as `"(unnamed)"`, which stands for every test without a
+name, since one cannot be told from another). The intent's
 `"frame_calls"` covers only what the intent's own revision states, so a
 call or test of `f` in content listed in `"after"` is read by its argument
 count alone, and one whose count fits both the old and the new parameters
@@ -598,7 +607,11 @@ Two intents are enabled:
   reach, or an explicitly unreachable one, keeps `p`. The error is
   returned unchanged when `f` returns `Result<_,E>`; otherwise it goes to
   the block the author names with `"handler"`, which must take exactly one
-  `E`, and without one it is a hole. A block is never chosen as a route by
+  `E`, and without one it is a hole. The error then reaches the handler
+  before anything else `f` does, so a handler that reads (itself or through
+  a block after it) a value another block of `f` computes is a hole at
+  `/ripple/<i>/in/<j>`: that value is no longer computed on every path to
+  it. A block is never chosen as a route by
   its parameter type alone. Entry is refused (`AGENT_RIPPLE_GUARD_ORDER`)
   when `f` performs effects, when `g` calls `f` in the candidate's call
   graph, and when `f` already evaluates `g`, on any value, directly or
@@ -689,7 +702,10 @@ refusal of a caller the frame does not contain points at the signature or
 constant the frame changed. When the analysis ties nothing to the symbol,
 the line gives the function's own entry marked `(function-wide; the kernel
 names no smaller location)`, with its authored parameters and result for a
-signature refusal, or says that the function is not in the frame. Names the
+signature refusal, or, for a function the frame does not state, the
+ripple intent that derived it (`/ripple/<i>...`, function-wide; the
+`fix:` line then repairs or drops that intent), else says that the
+function is not in the frame. Names the
 frame does not spell are looked up in the candidate's source-map names table
 when it has one. The line never changes the kernel's judgment and never
 narrows a function-wide cause to one operation.

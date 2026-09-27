@@ -2554,7 +2554,20 @@ fn run_trial(
         );
     } else if !verdict.valid {
         let _ = writeln!(text, "more: sley-agent explain {candidate_handle}");
-        if layerable {
+        // A function a ripple intent derived is repaired at the intent.
+        let intent = verdict.authored.as_ref().and_then(|authored| {
+            authored
+                .items
+                .iter()
+                .find(|(at, _)| at.starts_with("/ripple/"))
+        });
+        if let Some((at, _)) = intent {
+            let _ = writeln!(
+                text,
+                "fix: the ripple intent at {at} derived the refused function: repair it in place: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": {}, \"value\": ...}}]}}, or drop it by setting \"/ripple\" to the intents to keep",
+                json!(at)
+            );
+        } else if layerable {
             let _ = writeln!(
                 text,
                 "fix: layer only the change on {handle}: sley-agent try --on {handle} '{{{envelope}, \"patch\": [...]}}'"
