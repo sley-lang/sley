@@ -1279,6 +1279,41 @@ impl Parser<'_> {
         }
     }
 
+    /// `["trap"]`, `["trap", code]` or `["trap", code, payload]`. Stricter
+    /// than plain AF1, which ignores what it cannot read here: nothing
+    /// written in a trap is dropped silently.
+    fn trap(&mut self, items: &[Value], pointer: &str) -> Term {
+        let refused = Term::Trap {
+            head: vec![items[0].clone()],
+            payload: None,
+        };
+        if items.len() > 3 {
+            self.oblige(
+                AgentErrorCode::FrameInvalid,
+                pointer,
+                format!(
+                    "`trap` takes [\"trap\"], [\"trap\", code] or [\"trap\", code, payload], not {} items",
+                    items.len()
+                ),
+            );
+            return refused;
+        }
+        if items.get(1).is_some_and(|code| !code.is_string()) {
+            self.oblige(
+                AgentErrorCode::FrameInvalid,
+                &format!("{pointer}/1"),
+                "a trap code is a word (unreachable, resource_exhausted, adapter_contract_violation or internal_invariant); a payload goes after it: [\"trap\", \"unreachable\", payload]",
+            );
+            return refused;
+        }
+        Term::Trap {
+            head: items[..items.len().min(2)].to_vec(),
+            payload: items
+                .get(2)
+                .map(|value| self.arg(value, format!("{pointer}/2"))),
+        }
+    }
+
     fn term(&mut self, value: &Value, pointer: &str) -> Term {
         let raw = || Term::Raw(value.clone());
         let Some(items) = value.as_array() else {
@@ -1369,10 +1404,7 @@ impl Parser<'_> {
                 }
                 Term::Switch { value, cases }
             }
-            "trap" if items.len() <= 3 => Term::Trap {
-                head: items[..items.len().min(2)].to_vec(),
-                payload: items.get(2).map(|value| self.arg(value, at(2))),
-            },
+            "trap" => self.trap(items, pointer),
             _ => raw(),
         }
     }
@@ -4892,7 +4924,13 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 .get(&derive.target)
                 .zip(use_node)
                 .is_some_and(|(target, node)| cfg.dominates(*target, node));
-            if back && !self.degraded {
+            // The loop-edge and type rules hold in every mode: a degraded
+            // expansion (a block or terminator the compiler refuses) passes
+            // nothing instead, and the compiler reports the refused part.
+            if back && self.degraded {
+                return Value::Null;
+            }
+            if back {
                 let target = &derive.target;
                 fail(
                     self,
@@ -4903,9 +4941,11 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 return Value::Null;
             }
             if let Some((local, ty)) = &derive.local {
-                if mismatch(ty.as_ref()) && !self.degraded {
-                    let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
-                    fail(self, format!("the `{name}` here is {found}"));
+                if mismatch(ty.as_ref()) {
+                    if !self.degraded {
+                        let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
+                        fail(self, format!("the `{name}` here is {found}"));
+                    }
                     return Value::Null;
                 }
                 self.stats.derived_args += 1;
@@ -4956,10 +4996,17 @@ impl<'c, 'a> FnExp<'c, 'a> {
             .unwrap_or_default();
         match nearest {
             Nearest::Op { owner, holder, ty } => {
-                let rebound = match (self.degraded, cfg.index.get(&holder), use_node) {
-                    (false, Some(&from), Some(to)) => cfg.rebound(from, to, name, &owner, here),
+                let rebound = match (cfg.index.get(&holder), use_node) {
+                    (Some(&from), Some(to)) => cfg.rebound(from, to, name, &owner, here),
                     _ => None,
                 };
+                if rebound.is_some() && self.degraded {
+                    return if derive.is_some() {
+                        Value::Null
+                    } else {
+                        fallback
+                    };
+                }
                 if let Some(other) = rebound {
                     fail(
                         self,
@@ -4973,9 +5020,11 @@ impl<'c, 'a> FnExp<'c, 'a> {
                         fallback
                     };
                 }
-                if mismatch(ty.as_ref()) && !self.degraded {
-                    let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
-                    fail(self, format!("the `{name}` of `{owner}` is {found}"));
+                if mismatch(ty.as_ref()) {
+                    if !self.degraded {
+                        let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
+                        fail(self, format!("the `{name}` of `{owner}` is {found}"));
+                    }
                     return Value::Null;
                 }
                 let role = if derive.is_some() {

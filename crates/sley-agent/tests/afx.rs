@@ -2520,3 +2520,66 @@ fn an_unknown_type_callee_or_constant_is_the_reported_root_cause() {
         assert_eq!(detail, want, "{frame}");
     }
 }
+
+#[test]
+fn a_trap_never_hides_content_or_relaxes_the_loop_edge_rule() {
+    let temp = workspace("strict-trap");
+    // W3-A2: an extra trap item used to put the function in a lenient mode
+    // that skipped the loop-edge rule (the W2-A3 loop that never advances).
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "SumError", "variant": ["Negative", "Overflow"]}],
+      "fns": [{"fn": "sum_to2", "params": [["n", "i64"]], "returns": "Result<i64,SumError>", "blocks": [
+        {"name": "entry", "ops": [["!Negative", "if", ["lt", "n", 0]]], "term": ["br", "loop", 0, 1]},
+        {"name": "loop", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["more", "le", "i", "n"]], "term": ["cond", "more", "body", "done"]},
+        {"name": "body", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["next", "add?Overflow", "acc", "i"]], "term": ["br", "loop", "next"]},
+        {"name": "done", "params": [["acc", "i64"]], "term": ["ok", "acc"]},
+        {"name": "never", "unreachable": true, "term": ["trap", "unreachable", "n", "ignored"]}]}]});
+    let (symbol, detail) = refused(&temp.path, &frame);
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert!(
+        detail.starts_with("/fns/0/blocks/4/term: `trap` takes [\"trap\"], [\"trap\", code] or [\"trap\", code, payload], not 4 items"),
+        "{detail}"
+    );
+    assert!(
+        detail.contains("[AGENT_X_SCOPE] /fns/0/blocks/2/term: block `loop` takes `i: i64`, and this edge goes back into `loop`"),
+        "{detail}"
+    );
+    // W3-DOC8: an operation where the code goes is refused, not dropped; a
+    // nested payload is lowered and kept.
+    let trap = |term: Value| {
+        json!({"af1": 1, "afx": 1, "fns": [{"fn": "tt", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "term": term}]}]})
+    };
+    assert_refused(
+        &temp.path,
+        &trap(json!(["trap", ["add", "a", 1]])),
+        "AGENT_FRAME_INVALID",
+        &["/fns/0/blocks/0/term/1: a trap code is a word"],
+    );
+    let expansion = expand(
+        &temp.path,
+        &trap(json!(["trap", "unreachable", ["add", "a", 1]])),
+    );
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let block = &expansion.frame["fns"][0]["blocks"][0];
+    assert_eq!(block["ops"][1][0], json!("entry__t0"), "{block}");
+    assert_eq!(
+        block["term"],
+        json!(["trap", "unreachable", "entry__t0"]),
+        "{block}"
+    );
+    // Plain AF1 keeps its behavior.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &json!({"af1": 1, "fns": [{"fn": "tp", "params": [["a", "i64"]], "returns": "i64",
+            "blocks": [{"name": "entry", "term": ["trap", "unreachable", "a", "ignored"]}]}]})
+            .to_string(),
+        ],
+    );
+    assert_ne!(status, 2, "{text}");
+}

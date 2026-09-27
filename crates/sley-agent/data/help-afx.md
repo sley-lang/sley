@@ -9,7 +9,7 @@ without `"afx": 1` is plain AF1 and refuses these forms.
 ## Operands
 
 After an operation's immediate, and in `return`, `cond`, `switch`, `br`,
-`trap`, `ok` and `fail`, an operand may be:
+`ok`, `fail` and a trap's payload, an operand may be:
 
     "x"                           a value name, as in AF1
     3, -7, 2.5, true              a literal; the context gives its type
@@ -23,6 +23,8 @@ a variant payload or a record field; with none of these, state the type.
 Nested operations run left to right, depth first, before the operation
 that uses them. In `cond`/`switch` target arguments and in an exit's
 payload only names and literals may appear (they run on one path only).
+A trap is `["trap"]`, `["trap", code]` or `["trap", code, payload]`, its
+code a word (`unreachable`, ...): anything else is refused, never dropped.
 
 ## Checked operations
 
