@@ -2865,12 +2865,32 @@ impl<'c, 'a> Ripple<'c, 'a> {
             );
             return None;
         };
-        let reach = f.reachable();
         let mut func = f;
         let route = match route {
             Some(leaf) => leaf.clone(),
             None => error_exit(&mut func, error, at, self),
         };
+        // The new entry branches to the checked continuation and to the
+        // error route; only what the error route cannot reach is dominated
+        // by the checked value.
+        let mut reach = func.reachable();
+        let mut from_route = BTreeSet::new();
+        let mut stack = vec![route.clone()];
+        while let Some(leaf) = stack.pop() {
+            if !from_route.insert(leaf.clone()) {
+                continue;
+            }
+            if let Some(block) = func.block(&leaf) {
+                stack.extend(
+                    block
+                        .term
+                        .edges()
+                        .into_iter()
+                        .map(|edge| edge.target.clone()),
+                );
+            }
+        }
+        reach.retain(|leaf| !from_route.contains(leaf));
         let taken = func.taken();
         let mut all = taken.clone();
         let guard_leaf = self.unique(&format!("{arg}__guard"), &all);

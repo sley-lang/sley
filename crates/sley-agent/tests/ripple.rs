@@ -1669,7 +1669,15 @@ fn entry_leaves_uses_it_does_not_dominate() {
         &json!({"af1": 1, "afx": 1, "types": [order_error()], "fns": [
           {"fn": "kept", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
            "blocks": [{"name": "entry", "term": ["ok", "quantity"]},
-                      {"name": "dead", "unreachable": true, "term": ["ok", "quantity"]}]}]}),
+                      {"name": "dead", "unreachable": true, "term": ["ok", "quantity"]}]},
+          {"fn": "validate", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "ops": [["!Overflow", "if", ["gt", "quantity", 100]]], "term": ["ok", "quantity"]}]},
+          // The error handler reads the parameter too: the checker's error
+          // reaches it without the checked value.
+          {"fn": "handled", "params": [["quantity", "i64"]], "returns": "Result<(i64,i64),i64>",
+           "blocks": [{"name": "entry", "ops": [["v", "call?log", "validate", "quantity"]],
+                       "term": ["return", ["ok", ["tuple", "v", "quantity"]]]},
+                      {"name": "log", "params": [["e", "OrderError"]], "term": ["return", ["err", "quantity"]]}]}]}),
     );
     let frame = guard_frame(
         &to_index(),
@@ -1689,6 +1697,32 @@ fn entry_leaves_uses_it_does_not_dominate() {
     assert!(entry.contains("quantity__guarded.quantity__ok"), "{entry}");
     let mut after = Machine::candidate(&temp.path, &frame);
     assert_eq!(after.call("kept", &[json!(5)]), json!({"Ok": 4}));
+    let frame = guard_frame(
+        &to_index(),
+        &json!({"guard": "to_index", "arg": "quantity", "in": ["handled"], "mode": "entry"}),
+    );
+    let report = valid(&temp.path, &frame);
+    let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
+    assert_eq!(
+        inventory["intents"][0]["functions"][0],
+        json!({"fn": "handled", "edit": "entry", "uses": 2, "error": "log"})
+    );
+    let expanded = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
+    assert!(
+        expanded["patch"][0]["blocks"].get("log").is_none(),
+        "{expanded:#}"
+    );
+    let mut after = Machine::candidate(&temp.path, &frame);
+    // The checker's error reaches `log`, which reads the parameter as given.
+    assert_eq!(after.call("handled", &[json!(0)]), json!({"Err": 0}));
+    // On the checked path everything reads the 0-based value, including
+    // validate's own error, which also goes to `log`.
+    assert_eq!(after.call("handled", &[json!(5)]), json!({"Ok": [4, 4]}));
+    assert_eq!(after.call("handled", &[json!(102)]), json!({"Err": 102}));
 }
 
 #[test]
