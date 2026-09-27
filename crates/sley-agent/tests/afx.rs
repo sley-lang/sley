@@ -1458,6 +1458,23 @@ fn bounds_are_refused_never_truncated() {
 }
 
 #[test]
+fn the_generated_block_bound_is_refused() {
+    let temp = workspace("block-bound");
+    let exits: Vec<Value> = (0..1030).map(|_| json!(["!A", "if", "c"])).collect();
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,E>",
+            &json!([["c", "bool"], ["a", "i64"]]),
+            &json!([
+            {"name": "entry", "ops": exits, "term": ["ok", "a"]}]),
+        ),
+        "AGENT_X_LIMIT",
+        &["/fns/0: the expanded function has 1031 generated blocks, more than the bound of 1024"],
+    );
+}
+
+#[test]
 fn expansion_and_compilation_are_deterministic() {
     let temp = workspace("determinism");
     let frame = constructs_afx();
@@ -1698,4 +1715,30 @@ fn every_example_in_help_afx_runs() {
     let (status, text) = run(&temp.path, &["help", "afx"]);
     assert_eq!(status, 0);
     assert!(text.starts_with("# AF1-X"), "{text}");
+}
+
+#[test]
+fn a_malformed_terminator_is_reported_by_the_compiler_as_authored() {
+    // The expander passes a terminator it does not understand through; the
+    // compiler's own fix is reported, not a guess about names downstream.
+    let temp = workspace("malformed");
+    let (symbol, detail) = refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,E>",
+            &params(&["a", "b"], "i64"),
+            &json!([
+            {"name": "entry", "ops": [["k", "lt", "a", "b"], ["s", "add?Ov", "a", "b"]],
+             "term": ["cond", "k", "yes", "no", "s"]},
+            {"name": "yes", "term": ["ok", ["add?Ov", "m", 1]]},
+            {"name": "no", "ops": [["m", "const", 5]], "term": ["ok", 0]}]),
+        ),
+    );
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert!(
+        detail
+            .contains("/fns/0/blocks/0/term: `cond` takes [\"cond\", c, then, else], not 5 items"),
+        "{detail}"
+    );
+    assert!(!detail.contains("AGENT_X_SCOPE"), "{detail}");
 }

@@ -1587,12 +1587,12 @@ impl Expander<'_, '_> {
             for (index, block) in blocks.iter().enumerate() {
                 let block_pointer = format!("{pointer}/blocks/{index}");
                 let block_name = block.get("name").and_then(Value::as_str).unwrap_or("");
-                match parser.block(block_name, block, &block_pointer, self.cx) {
-                    Some(parsed) => {
-                        slots.push(Slot::Parsed(fx.blocks.len()));
-                        fx.blocks.push(parsed);
-                    }
-                    None => slots.push(Slot::Raw(block.clone())),
+                if let Some(parsed) = parser.block(block_name, block, &block_pointer, self.cx) {
+                    slots.push(Slot::Parsed(fx.blocks.len()));
+                    fx.blocks.push(parsed);
+                } else {
+                    fx.degraded = true;
+                    slots.push(Slot::Raw(block.clone()));
                 }
             }
         }
@@ -1729,11 +1729,11 @@ impl Expander<'_, '_> {
                     continue;
                 }
                 let block_pointer = format!("{pointer}/blocks/{key}");
-                match parser.block(key, spec, &block_pointer, self.cx) {
-                    Some(parsed) => fx.blocks.push(parsed),
-                    None => {
-                        raw_keys.insert(key.clone());
-                    }
+                if let Some(parsed) = parser.block(key, spec, &block_pointer, self.cx) {
+                    fx.blocks.push(parsed);
+                } else {
+                    fx.degraded = true;
+                    raw_keys.insert(key.clone());
                 }
             }
         }
@@ -1854,6 +1854,10 @@ struct FnExp<'c, 'a> {
     value_taken: BTreeSet<String>,
     block_taken: BTreeSet<String>,
     cfg: Option<Cfg>,
+    /// A block or terminator the expander does not understand is passed to
+    /// the compiler as written; the control-flow graph is then incomplete,
+    /// so X4 defers to the compiler's own diagnostics instead of guessing.
+    degraded: bool,
     obligations: Vec<Obligation>,
     entries: Vec<MapEntry>,
     names: BTreeMap<String, String>,
@@ -1889,6 +1893,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             value_taken: BTreeSet::new(),
             block_taken: BTreeSet::new(),
             cfg: None,
+            degraded: false,
             obligations: Vec::new(),
             entries: Vec::new(),
             names: BTreeMap::new(),
@@ -1930,7 +1935,10 @@ impl<'c, 'a> FnExp<'c, 'a> {
             if reserved(&block.name) {
                 problems.push((block.pointer.clone(), block.name.clone()));
             }
-            self.block_taken.insert(block.name.clone());
+            // A block named twice is the compiler's to report.
+            if !self.block_taken.insert(block.name.clone()) {
+                self.degraded = true;
+            }
         }
         for kept in &self.kept {
             self.block_taken.insert(kept.leaf.clone());
@@ -3517,6 +3525,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 self.set_term(st.piece, Tpl::List(items), &pointer, Role::Term, Vec::new());
             }
             Term::Raw(value) => {
+                self.degraded = true;
                 self.set_term(
                     st.piece,
                     Tpl::Lit(value.clone()),
@@ -3844,6 +3853,16 @@ impl<'c, 'a> FnExp<'c, 'a> {
         }
         let use_node = cfg.index.get(&self.pieces[piece].name).copied();
         let derive = far.derive.clone();
+        if self.degraded {
+            // Emitted as written: the compiler reports the malformed block
+            // or terminator, and this name with it when it is unresolved.
+            if let [definer] = definers.as_slice()
+                && definer.kind == Kind::Op
+            {
+                return Value::from(format!("{}.{name}{}", definer.holder, far.suffix));
+            }
+            return fallback;
+        }
         let fail = |this: &mut Self, detail: String| match &derive {
             Some(derive) => {
                 this.missing_argument(
