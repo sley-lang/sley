@@ -67,7 +67,7 @@ pub struct StagedWorkerInput {
 }
 
 impl StagedWorkerInput {
-    /// Exact absolute path to bind read-only into the worker unit.
+    /// Exact absolute source path for the worker's private systemd credential.
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path

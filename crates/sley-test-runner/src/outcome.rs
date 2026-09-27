@@ -13,6 +13,12 @@
 
 use crate::enforce::{EnforceError, check_elapsed, check_memory_evidence};
 use ed25519_dalek::{Signer as _, SigningKey};
+use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
+use std::fs::File;
+use std::io::Read;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path::{Component, Path};
+use zeroize::Zeroize;
 
 /// Worker termination classes the daemon can observe.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -163,8 +169,8 @@ pub trait Signer {
 /// Root-daemon Ed25519 measurement signer.
 ///
 /// The signer accepts exactly one raw 32-byte RFC 8032 secret seed. The
-/// underlying key zeroizes secret material on drop. Callers retain ownership
-/// of path permissions and root-only provisioning checks.
+/// underlying key zeroizes secret material on drop. The production file
+/// loader requires a root-owned, private, symlink-free regular file.
 pub struct Ed25519MeasurementSigner {
     key: SigningKey,
 }
@@ -172,21 +178,63 @@ pub struct Ed25519MeasurementSigner {
 impl Ed25519MeasurementSigner {
     /// Constructs a signer from one exact 32-byte secret seed.
     #[must_use]
-    pub fn from_secret_bytes(secret: [u8; 32]) -> Self {
-        Self {
-            key: SigningKey::from_bytes(&secret),
-        }
+    pub fn from_secret_bytes(mut secret: [u8; 32]) -> Self {
+        let key = SigningKey::from_bytes(&secret);
+        secret.zeroize();
+        Self { key }
     }
 
     /// Loads one exact 32-byte secret seed from a provisioned key file.
     ///
     /// # Errors
     ///
-    /// Returns `KeyUnavailable` when the file cannot be read and
-    /// `OperationFailed` when its length is not exactly 32 bytes.
-    pub fn from_key_file(path: &std::path::Path) -> Result<Self, SignerError> {
-        let bytes = std::fs::read(path).map_err(|_| SignerError::KeyUnavailable)?;
-        let secret: [u8; 32] = bytes.try_into().map_err(|_| SignerError::OperationFailed)?;
+    /// Returns `KeyUnavailable` for an unsafe path, owner, mode, file type,
+    /// or read failure; `OperationFailed` for a non-32-byte seed.
+    pub fn from_key_file(path: &Path) -> Result<Self, SignerError> {
+        if !nix::unistd::geteuid().is_root() {
+            return Err(SignerError::KeyUnavailable);
+        }
+        Self::from_key_file_for_owner(path, 0)
+    }
+
+    fn from_key_file_for_owner(path: &Path, expected_uid: u32) -> Result<Self, SignerError> {
+        let relative = path
+            .strip_prefix("/")
+            .map_err(|_| SignerError::KeyUnavailable)?;
+        if relative
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err(SignerError::KeyUnavailable);
+        }
+        let root = File::open("/").map_err(|_| SignerError::KeyUnavailable)?;
+        let how = OpenHow::new()
+            .flags(OFlag::O_RDONLY | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC)
+            .resolve(ResolveFlag::RESOLVE_BENEATH | ResolveFlag::RESOLVE_NO_SYMLINKS);
+        let opened = openat2(&root, relative, how).map_err(|_| SignerError::KeyUnavailable)?;
+        let mut file = File::from(opened);
+        let metadata = file.metadata().map_err(|_| SignerError::KeyUnavailable)?;
+        let mode = metadata.permissions().mode() & 0o7777;
+        if !metadata.is_file()
+            || metadata.uid() != expected_uid
+            || !matches!(mode, 0o400 | 0o600)
+            || metadata.nlink() != 1
+        {
+            return Err(SignerError::KeyUnavailable);
+        }
+        if metadata.len() != 32 {
+            return Err(SignerError::OperationFailed);
+        }
+        let mut secret = [0_u8; 32];
+        if file.read_exact(&mut secret).is_err() {
+            secret.zeroize();
+            return Err(SignerError::KeyUnavailable);
+        }
+        let mut trailing = [0_u8; 1];
+        if !matches!(file.read(&mut trailing), Ok(0)) {
+            secret.zeroize();
+            return Err(SignerError::OperationFailed);
+        }
         Ok(Self::from_secret_bytes(secret))
     }
 }
@@ -333,8 +381,21 @@ mod tests {
         let path =
             std::env::temp_dir().join(format!("sley-measurement-key-{}", std::process::id()));
         std::fs::write(&path, [0x42; 32]).expect("writes test key");
-        let signer = Ed25519MeasurementSigner::from_key_file(&path).expect("loads test key");
-        std::fs::remove_file(&path).expect("removes test key");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .expect("private test key");
+        let uid = std::fs::metadata(&path).expect("metadata").uid();
+        let signer = Ed25519MeasurementSigner::from_key_file_for_owner(&path, uid)
+            .expect("loads private test key");
+        assert!(matches!(
+            Ed25519MeasurementSigner::from_key_file_for_owner(&path, uid.wrapping_add(1)),
+            Err(SignerError::KeyUnavailable)
+        ));
+        if uid != 0 {
+            assert!(matches!(
+                Ed25519MeasurementSigner::from_key_file(&path),
+                Err(SignerError::KeyUnavailable)
+            ));
+        }
 
         let preimage = b"sley2 measured attestation preimage";
         let signature = signer.sign(preimage).expect("signs");
@@ -343,9 +404,33 @@ mod tests {
             .expect("strict verification passes");
         assert_eq!(signer.sign(&[]), Err(SignerError::OperationFailed));
 
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400))
+            .expect("make read-only");
+        assert!(Ed25519MeasurementSigner::from_key_file_for_owner(&path, uid).is_ok());
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640))
+            .expect("make group-readable");
+        assert!(matches!(
+            Ed25519MeasurementSigner::from_key_file_for_owner(&path, uid),
+            Err(SignerError::KeyUnavailable)
+        ));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .expect("restore private mode");
+        let linked = path.with_extension("link");
+        std::os::unix::fs::symlink(&path, &linked).expect("symlink key");
+        assert!(matches!(
+            Ed25519MeasurementSigner::from_key_file_for_owner(&linked, uid),
+            Err(SignerError::KeyUnavailable)
+        ));
+        std::fs::remove_file(&linked).expect("remove symlink");
+        std::fs::hard_link(&path, &linked).expect("hardlink key");
+        assert!(matches!(
+            Ed25519MeasurementSigner::from_key_file_for_owner(&path, uid),
+            Err(SignerError::KeyUnavailable)
+        ));
+        std::fs::remove_file(&linked).expect("remove hardlink");
         std::fs::write(&path, [0x42; 31]).expect("writes malformed key");
         assert!(matches!(
-            Ed25519MeasurementSigner::from_key_file(&path),
+            Ed25519MeasurementSigner::from_key_file_for_owner(&path, uid),
             Err(SignerError::OperationFailed)
         ));
         std::fs::remove_file(&path).expect("removes malformed key");

@@ -499,6 +499,8 @@ complete output, confirmed empty cgroup, zero memory events, bounded peak and
 strict wall deadline. VM mismatch can have valid measurement but cannot pass
 admission. Missing/failed telemetry remains diagnostic. Only daemon holds the
 root-only measurement key; separate acceptance key is unavailable to worker.
+The root daemon opens a symlink-free root-owned regular key file with one link,
+mode 0400 or 0600, and exactly 32 seed bytes before signing any measurement.
 
 Both intended hosts must prove actual placement/controller availability,
 distinct UID/control/key isolation, private IPC/network, exact deadlines,
