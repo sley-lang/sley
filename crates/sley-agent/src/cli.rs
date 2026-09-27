@@ -4,6 +4,8 @@
 //! `--json`. Exit status: 0 success, 1 a negative outcome (refused
 //! candidate, failing test), 2 a workbench refusal (`AGENT_*`).
 
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
 use std::io::{Read as _, Write};
@@ -16,7 +18,9 @@ use sley_ssmc::{ConstValue, TypeExpr};
 
 use crate::candidate::{self, Authority, Store};
 use crate::catalog::Verdict;
+use crate::draft::{self, DraftRef, Drafts, Revision, State};
 use crate::error::{AgentError, AgentErrorCode, Result, io, unknown_name, usage};
+use crate::events::Event;
 use crate::exec::{self, Executor, TestOutcome};
 use crate::frame;
 use crate::help;
@@ -32,11 +36,37 @@ pub const EXIT_NEGATIVE: i32 = 1;
 /// Exit status for a workbench refusal.
 pub const EXIT_REFUSED: i32 = 2;
 
-/// Parsed global options.
+/// Parsed global options, and the command's events-ledger counters.
 #[derive(Clone, Debug, Default)]
 struct Global {
     workspace: Option<PathBuf>,
     json: bool,
+    event: RefCell<Event>,
+}
+
+impl Global {
+    /// Sets one events-ledger counter of this command.
+    fn note(&self, key: &str, value: impl Into<Value>) {
+        self.event.borrow_mut().set(key, value);
+    }
+}
+
+/// Counts the bytes a command prints (the ledger's `output_bytes`).
+struct Counted<'a> {
+    out: &'a mut dyn Write,
+    bytes: usize,
+}
+
+impl Write for Counted<'_> {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let written = self.out.write(buffer)?;
+        self.bytes += written;
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.out.flush()
+    }
 }
 
 /// Set when the process exits as soon as the command returns.
@@ -72,10 +102,19 @@ pub fn run(args: &[String], out: &mut dyn Write) -> i32 {
             _ => rest.push(word.clone()),
         }
     }
-    match dispatch(&global, &rest, out) {
+    let words: usize = rest.iter().map(String::len).sum();
+    global.note("input_bytes", words + rest.len().saturating_sub(1));
+    let mut counted = Counted { out, bytes: 0 };
+    let status = match dispatch(&global, &rest, &mut counted) {
         Ok(status) => status,
-        Err(error) => refuse(out, &error, global.json),
-    }
+        Err(error) => {
+            global.note("refusal", error.code().symbol());
+            refuse(&mut counted, &error, global.json)
+        }
+    };
+    let command = rest.first().map_or("", String::as_str);
+    crate::events::append(&global.event.borrow(), command, counted.bytes);
+    status
 }
 
 fn refuse(out: &mut dyn Write, error: &AgentError, json: bool) -> i32 {
@@ -89,12 +128,14 @@ fn refuse(out: &mut dyn Write, error: &AgentError, json: bool) -> i32 {
 }
 
 fn workspace(global: &Global) -> Result<Workspace> {
-    if let Some(dir) = &global.workspace {
-        Ok(Workspace::at(dir.clone()))
+    let workspace = if let Some(dir) = &global.workspace {
+        Workspace::at(dir.clone())
     } else {
         let cwd = std::env::current_dir().map_err(|error| io(Path::new("."), &error))?;
-        Workspace::locate(&cwd)
-    }
+        Workspace::locate(&cwd)?
+    };
+    global.event.borrow_mut().at(workspace.dir().to_path_buf());
+    Ok(workspace)
 }
 
 /// Loads the workspace name maps (starter map, then workbench map).
@@ -124,6 +165,9 @@ fn dispatch(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32
         "view" => view_command(global, rest, out),
         "find" => find_command(global, rest, out),
         "try" => try_command(global, rest, out),
+        "fill" => fill_command(global, rest, out),
+        "import" => import_command(global, rest, out),
+        "draft" => draft_command(global, rest, out),
         "submit" => submit_command(global, rest, out),
         "status" => status_command(global, rest, out),
         "call" => call_command(global, rest, out),
@@ -448,84 +492,494 @@ fn find_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
     Ok(EXIT_OK)
 }
 
-/// Reads a frame argument: a path, `-` for standard input, or inline JSON.
-fn read_json_argument(argument: &str) -> Result<Value> {
-    let text = if argument == "-" {
-        let mut text = String::new();
+/// Reads an input argument's exact bytes: a path, `-` for standard input,
+/// or inline JSON.
+fn read_argument(argument: &str) -> Result<Vec<u8>> {
+    if argument == "-" {
+        let mut bytes = Vec::new();
         std::io::stdin()
-            .read_to_string(&mut text)
+            .read_to_end(&mut bytes)
             .map_err(|error| io(Path::new("<stdin>"), &error))?;
-        text
+        Ok(bytes)
     } else if argument.trim_start().starts_with('{') || argument.trim_start().starts_with('[') {
-        argument.to_owned()
+        Ok(argument.as_bytes().to_vec())
     } else {
-        fs::read_to_string(argument).map_err(|error| io(Path::new(argument), &error))?
-    };
-    serde_json::from_str(&text)
-        .map_err(|error| crate::error::frame("", format!("not JSON: {error}")))
+        fs::read(argument).map_err(|error| io(Path::new(argument), &error))
+    }
 }
 
-#[allow(clippy::too_many_lines)]
+/// Where an input failed to parse as JSON.
+struct TextFailure {
+    detail: String,
+    line: usize,
+    column: usize,
+    byte: usize,
+}
+
+fn parse_input(bytes: &[u8]) -> std::result::Result<Value, TextFailure> {
+    serde_json::from_slice(bytes).map_err(|error| {
+        let (line, column, byte) = draft::parse_location(bytes, &error);
+        TextFailure {
+            detail: error.to_string(),
+            line,
+            column,
+            byte,
+        }
+    })
+}
+
+/// The switches of every command that makes a draft revision.
+const TRIAL_SWITCHES: [&str; 5] = ["--no-test", "--all-tests", "--raw", "--verbose", "--rebase"];
+
+/// The options of the commands that make a draft revision.
+#[derive(Clone, Debug, Default)]
+#[allow(clippy::struct_excessive_bools)]
+struct TrialOptions {
+    no_test: bool,
+    all_tests: bool,
+    raw: bool,
+    verbose: bool,
+    public: Option<String>,
+}
+
+impl TrialOptions {
+    fn of(words: &Words) -> Self {
+        Self {
+            no_test: words.has("--no-test"),
+            all_tests: words.has("--all-tests"),
+            raw: words.has("--raw"),
+            verbose: words.has("--verbose"),
+            public: words.value("--public").map(str::to_owned),
+        }
+    }
+}
+
+/// The draft a revision goes to.
+enum Target {
+    /// A new draft (`dN@r1`).
+    New,
+    /// The next revision of `handle`, built on its revision `parent`.
+    Next { handle: String, parent: u64 },
+}
+
+/// Where the pointers of a frame refusal point.
+enum Origin {
+    /// An inline frame: the frame as given.
+    Inline,
+    /// A frame file, best edited in place.
+    File(String),
+    /// A frame layered on the frame of a candidate (`.sley/layered.json`).
+    Candidate(String),
+    /// The draft revision's `frame.json`.
+    Draft,
+}
+
+/// One draft revision to record and try.
+struct Proposal {
+    made_by: &'static str,
+    input: Vec<u8>,
+    frame: std::result::Result<Value, TextFailure>,
+    target: Target,
+    origin: Origin,
+    on: Option<String>,
+    delta: Option<Value>,
+    whole_frame: bool,
+    rebase: Option<Value>,
+    sources: Vec<Value>,
+    import: Option<Value>,
+}
+
+impl Proposal {
+    fn new(
+        made_by: &'static str,
+        input: Vec<u8>,
+        frame: std::result::Result<Value, TextFailure>,
+        target: Target,
+        origin: Origin,
+    ) -> Self {
+        Self {
+            made_by,
+            input,
+            frame,
+            target,
+            origin,
+            on: None,
+            delta: None,
+            whole_frame: false,
+            rebase: None,
+            sources: Vec::new(),
+            import: None,
+        }
+    }
+}
+
+/// The imported-test sources a revision's status carries.
+fn sources_of(status: &Value) -> Vec<Value> {
+    status["sources"].as_array().cloned().unwrap_or_default()
+}
+
+/// Refuses to build on a revision made on another head unless the author
+/// asked to rebase; the rebase record names both heads.
+fn head_check(
+    status: &Value,
+    head: &Head,
+    revision: &str,
+    rebase: bool,
+    via: &str,
+) -> Result<Option<Value>> {
+    let base = status["base_head"].as_str().unwrap_or("");
+    let now = crate::hex::encode(head.transaction_id().as_bytes());
+    if base == now {
+        return Ok(None);
+    }
+    if !rebase {
+        let short = |hex: &str| hex.chars().take(8).collect::<String>();
+        return Err(AgentError::new(
+            AgentErrorCode::DraftHeadChanged,
+            format!(
+                "{revision} was made on head {} and the head is now {}; build on the new head explicitly with --rebase",
+                short(base),
+                short(&now)
+            ),
+        ));
+    }
+    Ok(Some(json!({"from_head": base, "to_head": now, "via": via})))
+}
+
+/// The frame and status of a revision to build on; a text revision has no
+/// frame to build on.
+fn layer_base(drafts: &Drafts, handle: &str, revision: u64) -> Result<(Value, Value)> {
+    let status = drafts.status(handle, revision)?;
+    if let Some(frame) = drafts.frame(handle, revision)? {
+        return Ok((frame, status));
+    }
+    let mut detail = format!(
+        "{} is a text draft (its input is not JSON), so nothing can be layered on it; fix the JSON: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": \"\", \"value\": <the frame>}}]}}",
+        draft::spell(handle, revision)
+    );
+    let parent = status["parent"]
+        .as_str()
+        .and_then(DraftRef::parse)
+        .and_then(|parent| parent.revision)
+        .filter(|parent| drafts.frame(handle, *parent).ok().flatten().is_some());
+    if let Some(parent) = parent {
+        let parent = draft::spell(handle, parent);
+        let _ = write!(
+            detail,
+            ", or layer on {parent} again: sley-agent try --on {parent} <frame>"
+        );
+    }
+    Err(AgentError::new(AgentErrorCode::DraftIncomplete, detail))
+}
+
 fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let words = words(
-        args,
-        &["--public", "--on"],
-        &["--no-test", "--all-tests", "--raw"],
-    )?;
+    let words = words(args, &["--public", "--on"], &TRIAL_SWITCHES)?;
     let [frame_argument] = words.positional.as_slice() else {
         return Err(usage(
-            "try <frame.json | - | '{\"af1\":1,...}'> [--on <handle>] [--no-test] [--all-tests] [--public file] [--raw]",
+            "try <frame.json | - | '{\"af1\":1,...}'> [--on <handle|draft>] [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]",
         ));
     };
-    let mut frame_value = read_json_argument(frame_argument)?;
+    let on = words.value("--on");
+    if words.has("--rebase") && !on.is_some_and(draft::is_draft_ref) {
+        return Err(usage("--rebase goes with try --on <draft>"));
+    }
+    let options = TrialOptions::of(&words);
+    let input = read_argument(frame_argument)?;
+    global.note("input_bytes", input.len());
+    let parsed = parse_input(&input);
     let workspace = workspace(global)?;
-    // `--on c1`: this frame goes on top of the frame c1 was made from, so a
-    // follow-up states only what it adds or changes.
-    let layered_on = match words.value("--on") {
+    let head = workspace.head()?;
+    let proposal = match on {
+        None => {
+            let origin = if Path::new(frame_argument).is_file() {
+                Origin::File(frame_argument.clone())
+            } else {
+                Origin::Inline
+            };
+            Proposal::new("try", input, parsed, Target::New, origin)
+        }
+        // `--on d1`: the next revision of d1, this frame layered on the frame
+        // of its latest (or named) revision.
+        Some(reference) if draft::is_draft_ref(reference) => {
+            let drafts = Drafts::open(&workspace)?;
+            let reference = DraftRef::parse(reference).expect("a draft reference");
+            let (handle, base) = drafts.resolve(&reference)?;
+            let spelled = draft::spell(&handle, base);
+            let (base_frame, status) = layer_base(&drafts, &handle, base)?;
+            let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "try-on")?;
+            let frame = match parsed {
+                Ok(value) => Ok(crate::layer::layer(&base_frame, &value)?),
+                Err(failure) => Err(failure),
+            };
+            let target = Target::Next {
+                handle,
+                parent: base,
+            };
+            let mut proposal = Proposal::new("try-on", input, frame, target, Origin::Draft);
+            proposal.on = Some(spelled);
+            proposal.rebase = rebase;
+            proposal.sources = sources_of(&status);
+            proposal
+        }
+        // `--on c1`: this frame goes on top of the frame c1 was made from, so
+        // a follow-up states only what it adds or changes; a new draft.
         Some(reference) => {
             let store = Store::open(&workspace)?;
             let handle = store.resolve(Some(reference))?;
-            let base = store
-                .meta(&handle)
+            let meta = store.meta(&handle);
+            let base = meta
+                .as_ref()
                 .and_then(|meta| meta.get("frame").cloned())
+                .filter(|frame| !frame.is_null())
                 .ok_or_else(|| {
                     AgentError::new(
                         AgentErrorCode::Usage,
                         format!("{handle} was not made from an AF1 frame, so try --on cannot build on it"),
                     )
                 })?;
-            frame_value = crate::layer::layer(&base, &frame_value)?;
-            let path = workspace.state_dir()?.join("layered.json");
-            let mut text = serde_json::to_string_pretty(&frame_value).unwrap_or_default();
-            text.push('\n');
-            fs::write(&path, text).map_err(|error| io(&path, &error))?;
-            Some(handle)
+            let frame = match parsed {
+                Ok(value) => {
+                    let layered = crate::layer::layer(&base, &value)?;
+                    let path = workspace.state_dir()?.join("layered.json");
+                    let mut text = serde_json::to_string_pretty(&layered).unwrap_or_default();
+                    text.push('\n');
+                    fs::write(&path, text).map_err(|error| io(&path, &error))?;
+                    Ok(layered)
+                }
+                Err(failure) => Err(failure),
+            };
+            // Imported tests keep their provenance through the candidate's draft.
+            let sources = meta
+                .as_ref()
+                .and_then(|meta| meta["draft"].as_str().and_then(DraftRef::parse))
+                .and_then(|reference| {
+                    let drafts = Drafts::open(&workspace).ok()?;
+                    let (handle, revision) = drafts.resolve(&reference).ok()?;
+                    drafts.status(&handle, revision).ok()
+                })
+                .map(|status| sources_of(&status))
+                .unwrap_or_default();
+            let origin = Origin::Candidate(handle.clone());
+            let mut proposal = Proposal::new("try-on", input, frame, Target::New, origin);
+            proposal.on = Some(handle);
+            proposal.sources = sources;
+            proposal
         }
+    };
+    run_trial(global, &workspace, &head, proposal, &options, out)
+}
+
+fn fill_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
+    const USAGE: &str = "fill <draft> <delta.json | - | '{\"set\": [...]}'> --revision <N> [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]";
+    let words = words(args, &["--revision", "--public"], &TRIAL_SWITCHES)?;
+    let [reference, delta_argument] = words.positional.as_slice() else {
+        return Err(usage(USAGE));
+    };
+    let reference = DraftRef::parse(reference)
+        .ok_or_else(|| usage(format!("`{reference}` is not a draft (d1, d1@r2): {USAGE}")))?;
+    let revision = match (words.value("--revision"), reference.revision) {
+        (Some(text), spelled) => {
+            let revision: u64 = text
+                .strip_prefix('r')
+                .unwrap_or(text)
+                .parse()
+                .map_err(|_| usage("--revision takes a revision number"))?;
+            if spelled.is_some_and(|spelled| spelled != revision) {
+                return Err(usage(
+                    "the draft reference and --revision name different revisions",
+                ));
+            }
+            revision
+        }
+        (None, Some(revision)) => revision,
+        (None, None) => {
+            return Err(usage(format!(
+                "fill needs --revision <N>, the revision the delta was written against: {USAGE}"
+            )));
+        }
+    };
+    let options = TrialOptions::of(&words);
+    let input = read_argument(delta_argument)?;
+    global.note("input_bytes", input.len());
+    global.note("delta_bytes", input.len());
+    global.note("draft", draft::spell(&reference.handle, revision));
+    let workspace = workspace(global)?;
+    let head = workspace.head()?;
+    let drafts = Drafts::open(&workspace)?;
+    let handle = reference.handle;
+    let latest = drafts.latest(&handle)?;
+    if revision != latest {
+        return Err(AgentError::new(
+            AgentErrorCode::DraftStale,
+            format!(
+                "{handle} is at r{latest}, not r{revision}: read it (sley-agent draft {handle}) and write the delta against --revision {latest}"
+            ),
+        ));
+    }
+    let spelled = draft::spell(&handle, revision);
+    let status = drafts.status(&handle, revision)?;
+    let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "fill")?;
+    let delta_value: Value = serde_json::from_slice(&input).map_err(|error| {
+        AgentError::new(
+            AgentErrorCode::DeltaInvalid,
+            format!("the delta is not JSON: {error}"),
+        )
+    })?;
+    let delta = draft::parse_delta(&delta_value)?;
+    let base = drafts.frame(&handle, revision)?;
+    let frame = draft::apply_delta(base.as_ref(), &delta, &spelled)?;
+    let bytes = input.len();
+    let target = Target::Next {
+        handle,
+        parent: revision,
+    };
+    let mut proposal = Proposal::new("fill", input, Ok(frame), target, Origin::Draft);
+    proposal.delta = Some(json!({"targets": delta.targets(), "bytes": bytes}));
+    proposal.whole_frame = delta.whole_frame();
+    proposal.rebase = rebase;
+    proposal.sources = sources_of(&status);
+    run_trial(global, &workspace, &head, proposal, &options, out)
+}
+
+/// Public cases as AF1 tests, each with its source record. Expected values
+/// come from the case file only, never from running a candidate.
+fn import_cases(
+    bytes: &[u8],
+    digest: &str,
+    only: Option<&str>,
+) -> Result<(Vec<Value>, Vec<Value>)> {
+    let invalid = |detail: String| AgentError::new(AgentErrorCode::InputInvalid, detail);
+    let cases: Value = serde_json::from_slice(bytes)
+        .map_err(|error| invalid(format!("the case file is not JSON: {error}")))?;
+    let cases = cases.as_array().ok_or_else(|| {
+        invalid(
+            "public cases are a JSON array of {\"name\", \"function\", \"args\", \"expect\"}"
+                .to_owned(),
+        )
+    })?;
+    let wanted: Option<Vec<&str>> = only.map(|list| {
+        list.split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .collect()
+    });
+    let mut entries: Vec<Value> = Vec::new();
+    let mut sources = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for (index, case) in cases.iter().enumerate() {
+        let name = case
+            .get("name")
+            .and_then(Value::as_str)
+            .map_or_else(|| format!("case{index}"), str::to_owned);
+        if wanted
+            .as_ref()
+            .is_some_and(|wanted| !wanted.contains(&name.as_str()))
+        {
+            continue;
+        }
+        if seen.contains(&name) {
+            return Err(invalid(format!("case `{name}` appears twice")));
+        }
+        let function = case
+            .get("function")
+            .and_then(Value::as_str)
+            .ok_or_else(|| invalid(format!("case {index} ({name}): missing \"function\"")))?;
+        let args = case.get("args").cloned().unwrap_or_else(|| json!([]));
+        if !args.is_array() {
+            return Err(invalid(format!(
+                "case {index} ({name}): \"args\" is an array"
+            )));
+        }
+        let expect = case.get("expect").cloned().ok_or_else(|| {
+            invalid(format!(
+                "case {index} ({name}) has no \"expect\": expected values come from the case file"
+            ))
+        })?;
+        let entry = json!({"name": name, "fn": function, "args": args, "expect": expect});
+        sources.push(json!({"test": name, "case": name, "sha256": digest, "entry": draft::entry_digest(&entry)}));
+        entries.push(entry);
+        seen.push(name);
+    }
+    for name in wanted.iter().flatten() {
+        if !seen.iter().any(|seen| seen == name) {
+            return Err(invalid(format!("no case named `{name}` in the case file")));
+        }
+    }
+    if entries.is_empty() {
+        return Err(invalid("the case file holds no case to import".to_owned()));
+    }
+    Ok((entries, sources))
+}
+
+fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
+    const USAGE: &str = "import <cases.json | -> [--on <draft>] [--only name,name] [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]";
+    let words = words(args, &["--on", "--only", "--public"], &TRIAL_SWITCHES)?;
+    let [cases_argument] = words.positional.as_slice() else {
+        return Err(usage(USAGE));
+    };
+    let on = match words.value("--on") {
+        Some(reference) => Some(
+            DraftRef::parse(reference)
+                .ok_or_else(|| usage(format!("import --on takes a draft (d1, d1@r2): {USAGE}")))?,
+        ),
         None => None,
     };
-    // Where a frame refusal's pointers point, and how to fix it cheaply.
-    let fix_hint = |error: AgentError| {
-        if error.code() != AgentErrorCode::FrameInvalid {
-            return error;
-        }
-        let hint = match &layered_on {
-            Some(handle) => format!(
-                "pointers refer to .sley/layered.json (the frame of {handle} with yours on top); fix your frame and run try --on {handle} again"
-            ),
-            None if Path::new(frame_argument).is_file() => format!(
-                "fix: edit {frame_argument} in place at those pointers (no need to rewrite it) and run try again"
-            ),
-            None => return error,
-        };
-        AgentError::new(error.code(), format!("{}\n  {hint}", error.detail()))
-    };
+    if words.has("--rebase") && on.is_none() {
+        return Err(usage("--rebase goes with import --on <draft>"));
+    }
+    let options = TrialOptions::of(&words);
+    let input = read_argument(cases_argument)?;
+    global.note("input_bytes", input.len());
+    let digest = draft::sha256(&input);
+    let (entries, mut sources) = import_cases(&input, &digest, words.value("--only"))?;
+    let workspace = workspace(global)?;
     let head = workspace.head()?;
-    let authority = Authority::of(&head)?;
-    let mut map = name_map(&workspace)?;
-    let names = Names::build(head.program(), &map);
-    let nonce = candidate::fresh_nonce()?;
-    let compiled = if frame_value.is_array() {
-        let (ops, new_names) = crate::raw::compile(head.program(), &names, &frame_value, nonce)?;
+    let import = json!({"sha256": digest, "bytes": input.len(), "cases": entries.len()});
+    let tests = json!({"af1": 1, "tests": entries});
+    let mut proposal = match on {
+        None => Proposal::new("import", input, Ok(tests), Target::New, Origin::Draft),
+        Some(reference) => {
+            let drafts = Drafts::open(&workspace)?;
+            let (handle, base) = drafts.resolve(&reference)?;
+            let spelled = draft::spell(&handle, base);
+            let (base_frame, status) = layer_base(&drafts, &handle, base)?;
+            let rebase = head_check(&status, &head, &spelled, words.has("--rebase"), "import")?;
+            let frame = crate::layer::layer(&base_frame, &tests)?;
+            // A re-imported test replaces its earlier source.
+            let mut inherited = sources_of(&status);
+            inherited.retain(|old| !sources.iter().any(|new| new["test"] == old["test"]));
+            inherited.append(&mut sources);
+            sources = inherited;
+            let target = Target::Next {
+                handle,
+                parent: base,
+            };
+            let mut proposal = Proposal::new("import", input, Ok(frame), target, Origin::Draft);
+            proposal.on = Some(spelled);
+            proposal.rebase = rebase;
+            proposal
+        }
+    };
+    proposal.sources = sources;
+    proposal.import = Some(import);
+    run_trial(global, &workspace, &head, proposal, &options, out)
+}
+
+/// Everything before a candidate handle: compile the frame (or raw
+/// operation list), assemble the record over the head, validate it.
+fn stage(
+    head: &Head,
+    authority: &Authority,
+    names: &Names,
+    frame_value: &Value,
+    nonce: sley_id::CandidateNonce,
+) -> Result<(
+    frame::Compiled,
+    sley_mutate::ImportedCandidate,
+    sley_policy::CandidateValidationOutput,
+)> {
+    let mut compiled = if frame_value.is_array() {
+        let (ops, new_names) = crate::raw::compile(head.program(), names, frame_value, nonce)?;
         let count = |class: sley_mutate::MutationClass| {
             ops.iter().filter(|op| op.payload.class() == class).count()
         };
@@ -540,71 +994,499 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     } else {
         frame::compile(
             head.program(),
-            &names,
+            names,
             &authority.ceilings,
-            &frame_value,
+            frame_value,
             nonce,
             &mut candidate::random32,
-        )
-        .map_err(fix_hint)?
+        )?
     };
-    let counts = (compiled.created, compiled.replaced, compiled.deleted);
     if compiled.ops.is_empty() {
         return Err(AgentError::new(
             AgentErrorCode::FrameInvalid,
             "the frame changes nothing: everything it states is already live as stated",
         ));
     }
-    let imported = candidate::assemble(&head, &authority, nonce, compiled.ops)?;
-    let output = candidate::validate(&head, &authority, &imported.stored_bytes)?;
-    remember_names(&workspace, &compiled.names)?;
+    let ops = std::mem::take(&mut compiled.ops);
+    let imported = candidate::assemble(head, authority, nonce, ops)?;
+    let output = candidate::validate(head, authority, &imported.stored_bytes)?;
+    Ok((compiled, imported, output))
+}
+
+/// Appends where a frame refusal's pointers point, and how to fix it
+/// cheaply.
+fn pointer_hint(error: AgentError, origin: &Origin, frame_path: &str, draft: &str) -> AgentError {
+    let hint = match origin {
+        Origin::Inline => return error,
+        Origin::File(path) => format!(
+            "fix: edit {path} in place at those pointers (no need to rewrite it) and run try again"
+        ),
+        Origin::Candidate(handle) => format!(
+            "pointers refer to .sley/layered.json (the frame of {handle} with yours on top); fix your frame and run try --on {handle} again"
+        ),
+        Origin::Draft => {
+            format!("pointers refer to {frame_path} (sley-agent draft {draft} --frame prints it)")
+        }
+    };
+    AgentError::new(error.code(), format!("{}\n  {hint}", error.detail()))
+}
+
+/// Reports a revision that made no candidate: the refusal exactly as a
+/// workbench refusal prints (exit status 2), then the draft line and the
+/// next step.
+fn unfinished(
+    global: &Global,
+    out: &mut dyn Write,
+    error: &AgentError,
+    reference: &str,
+    state: State,
+    obligations: &[Value],
+    lines: [String; 2],
+) -> Result<i32> {
+    let symbol = error.code().symbol();
+    global.note("refusal", symbol);
+    global.note("obligations", draft::obligation_count(obligations));
+    let [summary, next] = lines;
+    if global.json {
+        write_json(
+            out,
+            &json!({
+                "error": symbol,
+                "detail": error.detail(),
+                "draft": reference,
+                "state": state.as_str(),
+                "obligations": obligations,
+                "next": next.strip_prefix("next: ").unwrap_or(&next),
+            }),
+        )?;
+    } else {
+        write_text(
+            out,
+            &format!("error {symbol}: {}\n{summary}\n{next}\n", error.detail()),
+        )?;
+    }
+    Ok(EXIT_REFUSED)
+}
+
+/// `TestCases` live at the head; with `after`, only those it keeps.
+fn provided_tests(head: &Head, after: Option<&Program>) -> usize {
+    head.program()
+        .objects()
+        .iter()
+        .filter(|object| object.record().body.kind_tag() == 14)
+        .filter(|object| after.is_none_or(|program| program.contains(&object.record().entity_id)))
+        .count()
+}
+
+/// One top-level entity a candidate changes.
+struct Change {
+    kind: u16,
+    name: String,
+    /// `+` created, `~` replaced (or a part of it changed), `-` deleted.
+    mark: char,
+    /// An exported function that existed before the candidate.
+    exported: bool,
+}
+
+/// The functions, types, constants and `TestCases` a candidate creates,
+/// changes or deletes, by kind and name.
+fn changes(
+    head: &Head,
+    head_names: &Names,
+    after: &Program,
+    after_names: &Names,
+    record: &sley_mutate::CandidateRecord,
+) -> Vec<Change> {
+    use sley_mutate::MutationClass;
+    use sley_mutate::value::EntityBodyValue;
+    let mut marks: BTreeMap<EntityId, (u16, char)> = BTreeMap::new();
+    for operation in &record.operations {
+        let target = operation.target_entity;
+        let (entity, kind, mark) = match operation.target_kind {
+            4 | 5 | 9 | 14 => {
+                let mark = match operation.class {
+                    MutationClass::CreateEntity => '+',
+                    MutationClass::DeleteEntityBinding => '-',
+                    _ => '~',
+                };
+                (target, operation.target_kind, mark)
+            }
+            6..=8 => {
+                let owner = owner_function(after, &Names::default(), &target)
+                    .or_else(|| owner_function(head.program(), &Names::default(), &target));
+                match owner {
+                    Some(owner) => (owner, 5, '~'),
+                    None => continue,
+                }
+            }
+            _ => continue,
+        };
+        let slot = marks.entry(entity).or_insert((kind, mark));
+        if slot.1 == '~' {
+            slot.1 = mark;
+        }
+    }
+    let rank = |kind: u16| match kind {
+        5 => 0,
+        4 => 1,
+        9 => 2,
+        _ => 3,
+    };
+    let mut changes: Vec<Change> = marks
+        .into_iter()
+        .map(|(id, (kind, mark))| {
+            let name = if after.contains(&id) {
+                after_names.name(&id)
+            } else {
+                head_names.name(&id)
+            };
+            let exported = mark != '+'
+                && matches!(
+                    head.program().body(&id),
+                    Some(EntityBodyValue::Function(function))
+                        if function.visibility == sley_ssmc::Visibility::Exported
+                );
+            Change {
+                kind,
+                name,
+                mark,
+                exported,
+            }
+        })
+        .collect();
+    changes.sort_by(|a, b| (rank(a.kind), &a.name).cmp(&(rank(b.kind), &b.name)));
+    changes
+}
+
+fn changes_json(changes: &[Change]) -> Value {
+    Value::Array(
+        changes
+            .iter()
+            .map(|change| {
+                json!({
+                    "kind": crate::names::kind_prefix(change.kind),
+                    "name": change.name,
+                    "change": match change.mark {
+                        '+' => "created",
+                        '-' => "deleted",
+                        _ => "replaced",
+                    },
+                    "exported": change.exported,
+                })
+            })
+            .collect(),
+    )
+}
+
+/// `changed: fn ~f +g; type +E; test +t1` and, when an exported function
+/// changed, `exported: ~f`.
+fn changes_text(changes: &[Change]) -> String {
+    if changes.is_empty() {
+        return String::new();
+    }
+    let mut groups: Vec<(u16, Vec<String>)> = Vec::new();
+    for change in changes {
+        let item = format!("{}{}", change.mark, change.name);
+        match groups.last_mut() {
+            Some((kind, items)) if *kind == change.kind => items.push(item),
+            _ => groups.push((change.kind, vec![item])),
+        }
+    }
+    let body: Vec<String> = groups
+        .iter()
+        .map(|(kind, items)| format!("{} {}", crate::names::kind_prefix(*kind), items.join(" ")))
+        .collect();
+    let mut text = format!("changed: {}\n", body.join("; "));
+    let exported: Vec<String> = changes
+        .iter()
+        .filter(|change| change.exported)
+        .map(|change| format!("{}{}", change.mark, change.name))
+        .collect();
+    if !exported.is_empty() {
+        let _ = writeln!(text, "exported: {}", exported.join(" "));
+    }
+    text
+}
+
+/// ` [authored 2, imported 1, provided 3]` (non-zero counts only).
+fn provenance_text(provenance: &Value) -> String {
+    let parts: Vec<String> = ["authored", "imported", "provided"]
+        .iter()
+        .filter_map(|key| {
+            let count = provenance[*key].as_u64().unwrap_or(0);
+            (count > 0).then(|| format!("{key} {count}"))
+        })
+        .collect();
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!(" [{}]", parts.join(", "))
+    }
+}
+
+/// Records one draft revision and tries it: compile, assemble, validate,
+/// store the candidate, run the tests, report. `try`, `fill` and `import`
+/// share it, so every revision goes through the same loop.
+#[allow(clippy::too_many_lines)]
+fn run_trial(
+    global: &Global,
+    workspace: &Workspace,
+    head: &Head,
+    proposal: Proposal,
+    options: &TrialOptions,
+    out: &mut dyn Write,
+) -> Result<i32> {
+    let drafts = Drafts::open(workspace)?;
+    let (handle, revision, parent) = match &proposal.target {
+        Target::New => (drafts.allocate()?, 1, None),
+        Target::Next { handle, parent } => (
+            handle.clone(),
+            drafts.latest(handle)? + 1,
+            Some(draft::spell(handle, *parent)),
+        ),
+    };
+    let reference = draft::spell(&handle, revision);
+    let frame_path = format!(
+        "{STATE_DIR}/{}/{handle}/r{revision}/frame.json",
+        draft::DRAFTS_DIR
+    );
+    let mut status = json!({
+        "revision": revision,
+        "base_head": crate::hex::encode(head.transaction_id().as_bytes()),
+        "parent": parent,
+        "made_by": if proposal.rebase.is_some() { "rebase" } else { proposal.made_by },
+        "on": proposal.on,
+        "delta": proposal.delta,
+        "whole_frame": proposal.whole_frame,
+        "state": State::Incomplete.as_str(),
+        "candidate": null,
+        "candidate_sha256": null,
+        "verdict": null,
+        "obligations": [],
+        "tests": null,
+        "sources": proposal.sources,
+    });
+    if let Some(rebase) = &proposal.rebase {
+        status["rebase"] = rebase.clone();
+    }
+    if let Some(import) = &proposal.import {
+        status["import"] = import.clone();
+    }
+    global.note("draft", reference.as_str());
+    global.note("input_bytes", proposal.input.len());
+    global.note("whole_frame", proposal.whole_frame);
+    if let Some(delta) = &proposal.delta {
+        global.note(
+            "delta_targets",
+            delta["targets"].as_array().map_or(0, Vec::len),
+        );
+        global.note("delta_bytes", proposal.input.len());
+    }
+    let frame_value = match proposal.frame {
+        Ok(value) => value,
+        Err(failure) => {
+            let message = failure
+                .detail
+                .rsplit_once(" at line ")
+                .map_or(failure.detail.as_str(), |(message, _)| message);
+            let obligations = vec![draft::text_obligation(
+                message,
+                failure.line,
+                failure.column,
+                failure.byte,
+            )];
+            status["state"] = json!(State::Text.as_str());
+            status["text"] =
+                json!({"line": failure.line, "column": failure.column, "byte": failure.byte});
+            status["obligations"] = json!(obligations);
+            drafts.write(
+                &handle,
+                &Revision {
+                    input: &proposal.input,
+                    frame: None,
+                    artifacts: &[],
+                    status: &status,
+                },
+            )?;
+            let error = crate::error::frame("", format!("not JSON: {}", failure.detail));
+            let summary = format!(
+                "draft {reference}: text (not JSON at line {}, column {}, byte {}); the input is kept",
+                failure.line, failure.column, failure.byte
+            );
+            let next = format!(
+                "next: fix the JSON and try again, or replace it whole: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": \"\", \"value\": <the frame>}}]}}"
+            );
+            return unfinished(
+                global,
+                out,
+                &error,
+                &reference,
+                State::Text,
+                &obligations,
+                [summary, next],
+            );
+        }
+    };
+    global.note("table_rows", draft::table_rows(&frame_value));
+    let sources = draft::live_sources(&frame_value, &proposal.sources);
+    let (imported_tests, authored) = draft::frame_tests(&frame_value, &sources);
+    status["sources"] = json!(sources);
+    let authority = Authority::of(head)?;
+    let mut map = name_map(workspace)?;
+    let names = Names::build(head.program(), &map);
+    let nonce = candidate::fresh_nonce()?;
+    let (compiled, imported, output) = match stage(head, &authority, &names, &frame_value, nonce) {
+        Ok(staged) => staged,
+        Err(error) => {
+            let obligations = draft::obligations_of(&error);
+            let provenance = json!({"provided": provided_tests(head, None), "imported": imported_tests, "authored": authored});
+            status["obligations"] = json!(obligations);
+            status["tests"] = provenance.clone();
+            global.note("tests", provenance);
+            drafts.write(
+                &handle,
+                &Revision {
+                    input: &proposal.input,
+                    frame: Some(&frame_value),
+                    artifacts: &[],
+                    status: &status,
+                },
+            )?;
+            let at = obligations.iter().find_map(|record| record["at"].as_str());
+            let error = if at.is_some() {
+                pointer_hint(error, &proposal.origin, &frame_path, &handle)
+            } else {
+                error
+            };
+            let summary = format!(
+                "draft {reference}: incomplete, {} obligation(s) ({}); list: sley-agent draft {handle} --obligations",
+                draft::obligation_count(&obligations),
+                draft::obligation_symbols(&obligations)
+            );
+            let next = format!(
+                "next: repair in place: sley-agent fill {handle} <delta.json> --revision {revision} with {{\"set\": [{{\"at\": {}, \"value\": ...}}]}}",
+                json!(at.unwrap_or(""))
+            );
+            return unfinished(
+                global,
+                out,
+                &error,
+                &reference,
+                State::Incomplete,
+                &obligations,
+                [summary, next],
+            );
+        }
+    };
+    let counts = (compiled.created, compiled.replaced, compiled.deleted);
+    remember_names(workspace, &compiled.names)?;
     map.extend(&compiled.names);
-    let program = candidate::proposed_program(&head, &output)
-        .or_else(|| candidate::applied_program(&head, &imported))
+    let program = candidate::proposed_program(head, &output)
+        .or_else(|| candidate::applied_program(head, &imported))
         .unwrap_or_else(|| head.program().clone());
     let after_names = Names::build(&program, &map);
     let verdict = Verdict::of(&output, &program, &after_names);
-    let store = Store::open(&workspace)?;
-    let handle = store.save(
-        &imported.stored_bytes,
-        &json!({
-            "base": crate::hex::encode(head.transaction_id().as_bytes()),
-            "ops": {"created": counts.0, "replaced": counts.1, "deleted": counts.2},
-            "verdict": verdict.to_json(),
-            "notes": compiled.notes,
-            // The frame (layered, with --on) this candidate was made from,
-            // for a later try --on.
-            "frame": if frame_value.is_object() { frame_value.clone() } else { Value::Null },
-        }),
-    )?;
-    let mut tests = Vec::new();
-    let mut public = Vec::new();
-    if output.is_valid() && !words.has("--no-test") {
-        let mut executor = Executor::new(&program)?;
-        let chosen: Vec<_> = executor
-            .tests()
-            .iter()
-            .filter(|test| {
-                words.has("--all-tests")
-                    || output
-                        .result()
-                        .record
-                        .selected_tests
-                        .contains(&test.entity_id)
-                    || compiled.tests.contains(&test.entity_id)
-            })
-            .cloned()
-            .collect();
-        for test in &chosen {
-            tests.push(executor.run_test(test, &after_names));
-        }
-        if let Some(path) = words.value("--public") {
-            public = run_public(&mut executor, &program, &after_names, Path::new(path))?;
-        }
+    let afx_stats = Value::Object(compiled.stats.clone());
+    let store = Store::open(workspace)?;
+    let mut meta = json!({
+        "base": crate::hex::encode(head.transaction_id().as_bytes()),
+        "ops": {"created": counts.0, "replaced": counts.1, "deleted": counts.2},
+        "verdict": verdict.to_json(),
+        "notes": compiled.notes,
+        // The frame (layered, with --on) this candidate was made from, for a
+        // later try --on.
+        "frame": if frame_value.is_object() { frame_value.clone() } else { Value::Null },
+        "draft": reference,
+    });
+    if !compiled.stats.is_empty() {
+        meta["afx"] = json!({"stats": afx_stats});
     }
+    let candidate_handle = store.save(&imported.stored_bytes, &meta)?;
+    let ran = (|| -> Result<(Vec<TestOutcome>, Vec<PublicOutcome>)> {
+        let (mut tests, mut public) = (Vec::new(), Vec::new());
+        if output.is_valid() && !options.no_test {
+            let mut executor = Executor::new(&program)?;
+            let chosen: Vec<_> = executor
+                .tests()
+                .iter()
+                .filter(|test| {
+                    options.all_tests
+                        || output
+                            .result()
+                            .record
+                            .selected_tests
+                            .contains(&test.entity_id)
+                        || compiled.tests.contains(&test.entity_id)
+                })
+                .cloned()
+                .collect();
+            for test in &chosen {
+                tests.push(executor.run_test(test, &after_names));
+            }
+            if let Some(path) = &options.public {
+                public = run_public(&mut executor, &program, &after_names, Path::new(path))?;
+            }
+        }
+        Ok((tests, public))
+    })();
+    let head_names = Names::build(head.program(), &map);
+    let changes = changes(head, &head_names, &program, &after_names, &imported.record);
+    let obligations = if verdict.valid {
+        Vec::new()
+    } else {
+        vec![draft::kernel_obligation(&verdict)]
+    };
+    let provenance = json!({"provided": provided_tests(head, Some(&program)), "imported": imported_tests, "authored": authored});
+    let state = if verdict.valid {
+        State::Valid
+    } else {
+        State::Refused
+    };
+    status["state"] = json!(state.as_str());
+    status["candidate"] = json!(candidate_handle);
+    status["candidate_sha256"] = json!(draft::sha256(&imported.stored_bytes));
+    status["verdict"] = verdict.to_json();
+    status["obligations"] = json!(obligations);
+    status["tests"] = provenance.clone();
+    status["changed"] = changes_json(&changes);
+    if !compiled.stats.is_empty() {
+        status["stats"] = afx_stats.clone();
+    }
+    if let Ok((tests, public)) = &ran {
+        status["results"] = json!({
+            "ran": tests.len(),
+            "passed": tests.iter().filter(|test| test.passed()).count(),
+            "public": public.len(),
+            "public_passed": public.iter().filter(|case| case.passed).count(),
+        });
+    }
+    drafts.write(
+        &handle,
+        &Revision {
+            input: &proposal.input,
+            frame: Some(&frame_value),
+            artifacts: &compiled.artifacts,
+            status: &status,
+        },
+    )?;
+    global.note("candidate", candidate_handle.as_str());
+    global.note("valid", verdict.valid);
+    global.note("tests", provenance.clone());
+    global.note("afx", afx_stats);
+    global.note("obligations", draft::obligation_count(&obligations));
+    if !verdict.valid {
+        global.note(
+            "refusal",
+            verdict
+                .symbol
+                .clone()
+                .unwrap_or_else(|| verdict.decision.clone()),
+        );
+    }
+    let (tests, public) = ran?;
     let failed =
         tests.iter().filter(|t| !t.passed()).count() + public.iter().filter(|p| !p.passed).count();
-    let status = if verdict.valid && failed == 0 {
+    let exit = if verdict.valid && failed == 0 {
         EXIT_OK
     } else {
         EXIT_NEGATIVE
@@ -617,81 +1499,339 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
         Vec::new()
     };
     // Bytes only on request (BR-10): the handle names them otherwise.
-    let raw = words
-        .has("--raw")
+    let raw = options
+        .raw
         .then(|| crate::hex::encode(&imported.stored_bytes));
     if global.json {
         let mut value = json!({
-            "handle": handle,
+            "handle": candidate_handle,
+            "draft": reference,
+            "state": state.as_str(),
             "ops": {"created": counts.0, "replaced": counts.1, "deleted": counts.2},
             "verdict": verdict.to_json(),
             "tests": tests_json(&tests, &after_names),
             "public": public_json(&public),
             "notes": compiled.notes,
             "also": also,
+            "changed": changes_json(&changes),
+            "obligations": obligations,
+            "provenance": provenance,
         });
         if let Some(raw) = &raw {
             value["stored_hex"] = json!(raw);
         }
         write_json(out, &value)?;
-    } else {
-        let mut text = format!(
-            "{handle}: {} (+{} created, {} replaced, {} deleted)\n{}",
-            verdict.headline(),
-            counts.0,
-            counts.1,
-            counts.2,
-            verdict.details()
+        return Ok(exit);
+    }
+    let mut text = format!(
+        "{candidate_handle}: {} (+{} created, {} replaced, {} deleted) draft {reference}\n{}",
+        verdict.headline(),
+        counts.0,
+        counts.1,
+        counts.2,
+        verdict.details()
+    );
+    for note in &compiled.notes {
+        let _ = writeln!(text, "  note: {note}");
+    }
+    for finding in &also {
+        let _ = writeln!(text, "  also: {finding}");
+    }
+    text.push_str(&changes_text(&changes));
+    let provenance = provenance_text(&provenance);
+    if !tests.is_empty() {
+        let passed = tests.iter().filter(|t| t.passed()).count();
+        let _ = writeln!(text, "tests: {passed}/{} passed{provenance}", tests.len());
+        text.push_str(&test_lines(&tests, &after_names, options.verbose));
+    }
+    if let Some(raw) = &raw {
+        let _ = writeln!(text, "stored: {raw}");
+    }
+    if verdict.valid && tests.is_empty() && !options.no_test {
+        // Like a test runner's "running 0 tests": say that none ran.
+        let _ = writeln!(
+            text,
+            "tests: 0 ran (no TestCase in this candidate targets a function it changes){provenance}"
         );
-        for note in &compiled.notes {
-            let _ = writeln!(text, "  note: {note}");
-        }
-        for finding in &also {
-            let _ = writeln!(text, "  also: {finding}");
-        }
-        text.push_str(&tests_text(&tests, &after_names));
-        if let Some(raw) = &raw {
-            let _ = writeln!(text, "stored: {raw}");
-        }
-        if verdict.valid && tests.is_empty() && !words.has("--no-test") {
-            // Like a test runner's "running 0 tests": say that none ran.
-            text.push_str(
-                "tests: 0 ran (no TestCase in this candidate targets a function it changes)\n",
-            );
-        }
-        text.push_str(&public_text(&public));
-        let layerable = frame_value.is_object();
-        if verdict.valid && failed == 0 && tests.is_empty() && !words.has("--no-test") {
-            if layerable {
-                let _ = writeln!(
-                    text,
-                    "next: add tests without restating the frame: sley-agent try --on {handle} '{{\"af1\": 1, \"tests\": [...]}}' (submit refuses an untested change; --untested overrides)"
-                );
-            } else {
-                let _ = writeln!(
-                    text,
-                    "next: add AF1 \"tests\" for what {handle} changes and try again (submit refuses an untested change; --untested overrides)"
-                );
-            }
-        } else if verdict.valid && failed == 0 {
-            let _ = writeln!(text, "next: sley-agent submit {handle}");
-        } else if verdict.valid && layerable {
+    }
+    text.push_str(&public_text(&public));
+    let layerable = frame_value.is_object();
+    if verdict.valid && failed == 0 && tests.is_empty() && !options.no_test {
+        if layerable {
             let _ = writeln!(
                 text,
-                "next: fix only what failed on top of {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"edit\": [...]}}' (or \"patch\", \"tests\")"
+                "next: add tests without restating the frame: sley-agent try --on {handle} '{{\"af1\": 1, \"tests\": [...]}}' (submit refuses an untested change; --untested overrides)"
             );
-        } else if !verdict.valid {
-            let _ = writeln!(text, "more: sley-agent explain {handle}");
-            if layerable {
-                let _ = writeln!(
-                    text,
-                    "fix: layer only the change on {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"patch\": [...]}}'"
-                );
+        } else {
+            let _ = writeln!(
+                text,
+                "next: add AF1 \"tests\" for what {candidate_handle} changes and try again (submit refuses an untested change; --untested overrides)"
+            );
+        }
+    } else if verdict.valid && failed == 0 {
+        let _ = writeln!(text, "next: sley-agent submit {handle}");
+    } else if verdict.valid && layerable {
+        let _ = writeln!(
+            text,
+            "next: fix only what failed on top of {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"edit\": [...]}}' (or \"patch\", \"tests\")"
+        );
+    } else if !verdict.valid {
+        let _ = writeln!(text, "more: sley-agent explain {candidate_handle}");
+        if layerable {
+            let _ = writeln!(
+                text,
+                "fix: layer only the change on {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"patch\": [...]}}'"
+            );
+        }
+    }
+    write_text(out, &text)?;
+    Ok(exit)
+}
+
+/// A draft revision's state line: `d1@r3: valid, candidate c5 (Valid)`.
+fn draft_headline(spelled: &str, status: &Value) -> String {
+    let state = status["state"].as_str().unwrap_or("unknown");
+    let mut text = format!("{spelled}: {state}");
+    if let Some(candidate) = status["candidate"].as_str() {
+        let verdict = &status["verdict"];
+        let decision = if verdict["valid"] == true {
+            "Valid".to_owned()
+        } else {
+            format!(
+                "REFUSED {} at phase {} ({})",
+                verdict["decision"].as_str().unwrap_or("?"),
+                verdict["phase"].as_u64().unwrap_or(0),
+                verdict["phase_name"].as_str().unwrap_or("unknown")
+            )
+        };
+        let _ = write!(text, ", candidate {candidate} ({decision})");
+    } else if state == State::Text.as_str() {
+        let location = &status["text"];
+        let _ = write!(
+            text,
+            " (not JSON at line {}, column {}, byte {})",
+            location["line"], location["column"], location["byte"]
+        );
+    }
+    text
+}
+
+#[allow(clippy::too_many_lines)]
+fn draft_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
+    const VIEWS: [&str; 4] = ["--obligations", "--expanded", "--input", "--frame"];
+    let words = words(args, &[], &VIEWS)?;
+    let asked: Vec<&str> = VIEWS.into_iter().filter(|view| words.has(view)).collect();
+    if asked.len() > 1 {
+        return Err(usage(
+            "draft takes one of --obligations, --expanded, --input, --frame",
+        ));
+    }
+    let workspace = workspace(global)?;
+    let drafts = Drafts::open(&workspace)?;
+    let reference = match words.positional.as_slice() {
+        [] if asked.is_empty() => return list_drafts(global, &drafts, out),
+        [reference] => DraftRef::parse(reference)
+            .ok_or_else(|| usage(format!("`{reference}` is not a draft (d1, d1@r2)")))?,
+        _ => {
+            return Err(usage(
+                "draft [<draft>[@r<N>]] [--obligations | --expanded | --input | --frame]",
+            ));
+        }
+    };
+    let (handle, revision) = drafts.resolve(&reference)?;
+    let spelled = draft::spell(&handle, revision);
+    global.note("draft", spelled.as_str());
+    let status = drafts.status(&handle, revision)?;
+    let obligations = status["obligations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    match asked.first().copied() {
+        Some("--input") => {
+            let input = drafts.input(&handle, revision)?;
+            if global.json {
+                write_json(
+                    out,
+                    &json!({"draft": spelled, "input": String::from_utf8_lossy(&input)}),
+                )?;
+            } else {
+                let mut text = String::from_utf8_lossy(&input).into_owned();
+                if !text.ends_with('\n') {
+                    text.push('\n');
+                }
+                write_text(out, &text)?;
             }
         }
-        write_text(out, &text)?;
+        Some("--frame") => {
+            let frame = drafts.frame(&handle, revision)?.ok_or_else(|| {
+                AgentError::new(
+                    AgentErrorCode::DraftIncomplete,
+                    format!("{spelled} is a text draft: it has no frame (sley-agent draft {spelled} --input prints its text)"),
+                )
+            })?;
+            if global.json {
+                write_json(out, &json!({"draft": spelled, "frame": frame}))?;
+            } else {
+                let mut text = serde_json::to_string_pretty(&frame).unwrap_or_default();
+                text.push('\n');
+                write_text(out, &text)?;
+            }
+        }
+        Some("--expanded") => {
+            let artifacts = drafts.artifacts(&handle, revision)?;
+            if global.json {
+                let map: serde_json::Map<String, Value> = artifacts.into_iter().collect();
+                write_json(out, &json!({"draft": spelled, "artifacts": map}))?;
+            } else if artifacts.is_empty() {
+                write_text(
+                    out,
+                    &format!(
+                        "{spelled} has no expanded form (its frame needed no expansion, or made no candidate)\n"
+                    ),
+                )?;
+            } else {
+                let mut text = String::new();
+                for (name, value) in artifacts {
+                    let _ = writeln!(
+                        text,
+                        "# {name}\n{}",
+                        serde_json::to_string_pretty(&value).unwrap_or_default()
+                    );
+                }
+                write_text(out, &text)?;
+            }
+        }
+        Some(_) => {
+            if global.json {
+                write_json(out, &json!({"draft": spelled, "obligations": obligations}))?;
+            } else {
+                write_text(out, &draft::obligations_text(&obligations, &spelled, true))?;
+            }
+        }
+        None => {
+            let latest = drafts.latest(&handle)?;
+            if global.json {
+                let mut value = status.clone();
+                value["draft"] = json!(spelled);
+                value["latest"] = json!(latest);
+                write_json(out, &value)?;
+            } else {
+                write_text(out, &draft_text(&spelled, &status, latest))?;
+            }
+        }
     }
-    Ok(status)
+    Ok(EXIT_OK)
+}
+
+/// The default text of `draft <d>`: state, origin, tests, obligations.
+fn draft_text(spelled: &str, status: &Value, latest: u64) -> String {
+    let mut text = draft_headline(spelled, status);
+    text.push('\n');
+    let _ = write!(
+        text,
+        "made by {}",
+        status["made_by"].as_str().unwrap_or("?")
+    );
+    if let Some(parent) = status["parent"].as_str() {
+        let _ = write!(text, " from {parent}");
+    }
+    if let Some(on) = status["on"].as_str().filter(|on| candidate::is_handle(on)) {
+        let _ = write!(text, " on the frame of {on}");
+    }
+    if let Some(targets) = status["delta"]["targets"].as_array() {
+        let _ = write!(text, ", {} target(s)", targets.len());
+    }
+    if status["whole_frame"] == true {
+        text.push_str(", whole frame");
+    }
+    if let Some(import) = status.get("import") {
+        let digest = import["sha256"].as_str().unwrap_or("");
+        let _ = write!(
+            text,
+            ", {} case(s) imported from sha256 {}",
+            import["cases"],
+            &digest[..digest.len().min(12)]
+        );
+    }
+    let short = |key: &str, value: &Value| {
+        value[key]
+            .as_str()
+            .map(|hex| hex.chars().take(8).collect::<String>())
+            .unwrap_or_default()
+    };
+    if let Some(rebase) = status.get("rebase") {
+        let _ = write!(
+            text,
+            ", rebased from head {} to {}",
+            short("from_head", rebase),
+            short("to_head", rebase)
+        );
+    }
+    let _ = write!(text, "; head {}", short("base_head", status));
+    let revision = status["revision"].as_u64().unwrap_or(0);
+    if revision != latest {
+        let _ = write!(text, "; the latest revision is r{latest}");
+    }
+    text.push('\n');
+    if status["tests"].is_object() {
+        let provenance = provenance_text(&status["tests"]);
+        match status.get("results") {
+            Some(results) => {
+                let _ = writeln!(
+                    text,
+                    "tests: {}/{} passed{provenance}",
+                    results["passed"], results["ran"]
+                );
+            }
+            None => {
+                let _ = writeln!(text, "tests: not run{provenance}");
+            }
+        }
+    }
+    let obligations = status["obligations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    text.push_str(&draft::obligations_text(&obligations, spelled, false));
+    text
+}
+
+fn list_drafts(global: &Global, drafts: &Drafts, out: &mut dyn Write) -> Result<i32> {
+    let mut rows = Vec::new();
+    for handle in drafts.handles()? {
+        let latest = drafts.latest(&handle)?;
+        let status = drafts.status(&handle, latest)?;
+        let obligations = draft::obligation_count(
+            status["obligations"]
+                .as_array()
+                .map_or(&[][..], Vec::as_slice),
+        );
+        rows.push((draft::spell(&handle, latest), status, obligations));
+    }
+    if global.json {
+        let rows: Vec<Value> = rows
+            .iter()
+            .map(|(spelled, status, obligations)| {
+                json!({"draft": spelled, "state": status["state"], "candidate": status["candidate"], "obligations": obligations})
+            })
+            .collect();
+        write_json(out, &json!({"drafts": rows}))?;
+        return Ok(EXIT_OK);
+    }
+    if rows.is_empty() {
+        write_text(out, "no drafts yet (sley-agent try <frame> makes one)\n")?;
+        return Ok(EXIT_OK);
+    }
+    let mut text = String::new();
+    for (spelled, status, obligations) in &rows {
+        text.push_str(&draft_headline(spelled, status));
+        if *obligations > 0 {
+            let _ = write!(text, "; {obligations} obligation(s)");
+        }
+        text.push('\n');
+    }
+    write_text(out, &text)?;
+    Ok(EXIT_OK)
 }
 
 fn sorted<'a>(tests: &'a [TestOutcome], names: &Names) -> Vec<&'a TestOutcome> {
@@ -723,7 +1863,17 @@ fn tests_text(tests: &[TestOutcome], names: &Names) -> String {
     }
     let passed = tests.iter().filter(|t| t.passed()).count();
     let mut text = format!("tests: {passed}/{} passed\n", tests.len());
+    text.push_str(&test_lines(tests, names, true));
+    text
+}
+
+/// One line per failing test, and per passing test when `passing`.
+fn test_lines(tests: &[TestOutcome], names: &Names, passing: bool) -> String {
+    let mut text = String::new();
     for test in sorted(tests, names) {
+        if test.passed() && !passing {
+            continue;
+        }
         if test.passed() {
             let _ = writeln!(text, "  ok   {} = {}", names.name(&test.test), test.actual);
         } else {
@@ -894,14 +2044,25 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
     let workspace = workspace(global)?;
     let head = workspace.head()?;
     let store = Store::open(&workspace)?;
-    let reference = match words.positional.as_slice() {
-        [] => store.resolve(None)?,
-        [reference] => store.resolve(Some(reference))?,
-        _ => return Err(usage("submit [<handle>] [--untested]")),
+    let (reference, from_draft) = match words.positional.as_slice() {
+        [] => (store.resolve(None)?, None),
+        [reference] => match DraftRef::parse(reference) {
+            Some(reference) => {
+                let drafts = Drafts::open(&workspace)?;
+                let (handle, revision) = drafts.resolve(&reference)?;
+                let spelled = draft::spell(&handle, revision);
+                global.note("draft", spelled.as_str());
+                let candidate = draft_candidate(&drafts, &store, &handle, revision)?;
+                (candidate, Some(spelled))
+            }
+            None => (store.resolve(Some(reference))?, None),
+        },
+        _ => return Err(usage("submit [<handle> | <draft>[@r<N>]] [--untested]")),
     };
     let stored = store.load(&reference)?;
     let authority = Authority::of(&head)?;
     let output = candidate::validate(&head, &authority, &stored)?;
+    global.note("valid", output.is_valid());
     // A change to a function travels with a test of it: a candidate that
     // changes functions while no TestCase targets them is refused unless
     // the agent says so explicitly.
@@ -941,15 +2102,19 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
         .map_err(|error| io(&path, &error))?;
     let marker = workspace.state_dir()?.join("submission");
     fs::write(&marker, format!("{reference}\n")).map_err(|error| io(&marker, &error))?;
+    global.note("candidate", reference.as_str());
     let tests = output.result().record.selected_tests.len();
     if global.json {
         write_json(
             out,
-            &json!({"submitted": reference, "file": SUBMISSION, "bytes": stored.len(), "selected_tests": tests}),
+            &json!({"submitted": reference, "draft": from_draft, "file": SUBMISSION, "bytes": stored.len(), "selected_tests": tests}),
         )?;
     } else {
+        let from = from_draft
+            .as_ref()
+            .map_or_else(String::new, |spelled| format!(" from {spelled}"));
         let mut text = format!(
-            "submitted {reference} -> {SUBMISSION} ({}-byte candidate, hex); resubmit any time, the last submission wins\n",
+            "submitted {reference}{from} -> {SUBMISSION} ({}-byte candidate, hex); resubmit any time, the last submission wins\n",
             stored.len()
         );
         if tests == 0 {
@@ -961,6 +2126,50 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
         write_text(out, &text)?;
     }
     Ok(EXIT_OK)
+}
+
+/// The candidate a draft revision made: only a Valid revision resolves,
+/// and only to the stored bytes it recorded. An older revision is never
+/// used in its place.
+fn draft_candidate(drafts: &Drafts, store: &Store, handle: &str, revision: u64) -> Result<String> {
+    let spelled = draft::spell(handle, revision);
+    let status = drafts.status(handle, revision)?;
+    let state = status["state"].as_str().unwrap_or("unknown");
+    if state != State::Valid.as_str() {
+        let fix = match State::parse(state) {
+            Some(State::Text) => {
+                format!("fix the JSON: sley-agent fill {handle} <delta.json> --revision {revision}")
+            }
+            Some(State::Refused) => format!(
+                "sley-agent explain {} says why",
+                status["candidate"].as_str().unwrap_or("latest")
+            ),
+            _ => format!("sley-agent draft {spelled} --obligations lists what is open"),
+        };
+        return Err(AgentError::new(
+            AgentErrorCode::DraftIncomplete,
+            format!(
+                "{spelled} is {state}, not valid: only a revision with a Valid candidate is submitted; {fix}"
+            ),
+        ));
+    }
+    let candidate = status["candidate"]
+        .as_str()
+        .filter(|handle| candidate::is_handle(handle))
+        .ok_or_else(|| {
+            AgentError::new(
+                AgentErrorCode::DraftIncomplete,
+                format!("{spelled} names no candidate"),
+            )
+        })?;
+    let stored = store.load(candidate)?;
+    if status["candidate_sha256"].as_str() != Some(draft::sha256(&stored).as_str()) {
+        return Err(AgentError::new(
+            AgentErrorCode::DraftIncomplete,
+            format!("the stored bytes of {candidate} are not the ones {spelled} recorded"),
+        ));
+    }
+    Ok(candidate.to_owned())
 }
 
 fn status_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
@@ -1325,6 +2534,7 @@ fn init_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
         None => None,
     };
     let workspace = crate::genesis::init(&dir, seed, crate::genesis::INIT_CEILINGS)?;
+    global.event.borrow_mut().at(workspace.dir().to_path_buf());
     let head = workspace.head()?;
     let authority = Authority::of(&head)?;
     let ceilings = authority.ceilings;
