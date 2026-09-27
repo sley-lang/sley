@@ -1082,6 +1082,8 @@ struct Checker {
     param: TypeExpr,
     error: TypeExpr,
     effects: bool,
+    /// Every function the checker calls, directly or through others.
+    calls: BTreeSet<EntityId>,
 }
 
 struct Ripple<'c, 'a> {
@@ -2292,7 +2294,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
         entry: bool,
     ) -> Result<()> {
         let at = format!("/ripple/{index}");
-        let Some(checker) = self.checker(checker, &at, !entry)? else {
+        let Some(checker) = self.checker(checker, &at)? else {
             return Ok(());
         };
         let mut seen = BTreeSet::new();
@@ -2316,10 +2318,13 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 );
                 continue;
             }
-            if let Err(why) = self.live_target(function) {
-                self.hole(AgentErrorCode::RippleTargetKind, &fat, why);
-                continue;
-            }
+            let func_id = match self.live_target(function) {
+                Ok((id, _)) => id,
+                Err(why) => {
+                    self.hole(AgentErrorCode::RippleTargetKind, &fat, why);
+                    continue;
+                }
+            };
             if self.authored.restates(function) {
                 self.hole(
                     AgentErrorCode::RippleTargetKind,
@@ -2375,6 +2380,17 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 );
                 continue;
             }
+            if entry && checker.calls.contains(&func_id) {
+                self.hole(
+                    AgentErrorCode::RippleGuardOrder,
+                    &fat,
+                    format!(
+                        "`{}` calls `{function}`: evaluating it at the entry of `{function}` would never end; write the check",
+                        checker.name
+                    ),
+                );
+                continue;
+            }
             let record = if entry {
                 self.guard_entry(&fat, function, arg, &checker)
             } else {
@@ -2401,7 +2417,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
     /// The checker `name` with its `P -> Result<P,E>` shape, and its body
     /// when `body` is asked for (preserve mode). A checker the frame defines
     /// or restates is read from the frame compiled on its own.
-    fn checker(&mut self, name: &str, at: &str, body: bool) -> Result<Option<Checker>> {
+    fn checker(&mut self, name: &str, at: &str) -> Result<Option<Checker>> {
         let pointer = format!("{at}/guard");
         let restated = self.authored.restates(name);
         if !restated && let Err(why) = self.live_target(name) {
@@ -2456,24 +2472,25 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 return Ok(None);
             }
         };
-        let mut func = None;
-        let mut effects = false;
-        if restated {
-            if body {
-                func = self.compiled_function(name)?;
-                if func.is_none() {
-                    self.hole(
-                        AgentErrorCode::RippleTargetKind,
-                        &pointer,
-                        format!("`{name}` is not a function the frame defines"),
-                    );
-                    return Ok(None);
-                }
-            }
-        } else if let Some(live) = self.func(name) {
-            effects = live.effects;
-            func = Some(live.clone());
-        }
+        let (func, calls) = if restated {
+            self.compiled_function(name)?
+        } else {
+            let found = self.func(name).cloned();
+            let calls = found.as_ref().map_or_else(BTreeSet::new, |func| {
+                reachable_calls(&self.live(), &func.id)
+            });
+            (found, calls)
+        };
+        let Some(func) = func else {
+            self.hole(
+                AgentErrorCode::RippleTargetKind,
+                &pointer,
+                format!("`{name}` is not a function the frame defines"),
+            );
+            return Ok(None);
+        };
+        let effects = func.effects;
+        let func = Some(func);
         if func.as_ref().is_some_and(|func| func.generic) {
             self.hole(
                 AgentErrorCode::RippleGuardShape,
@@ -2494,12 +2511,13 @@ impl<'c, 'a> Ripple<'c, 'a> {
             param,
             error,
             effects,
+            calls,
         }))
     }
 
     /// Function `name` as the frame's own definitions (compiled alone over
     /// the program) state it.
-    fn compiled_function(&self, name: &str) -> Result<Option<Func>> {
+    fn compiled_function(&self, name: &str) -> Result<(Option<Func>, BTreeSet<EntityId>)> {
         let mut frame = self.out.clone();
         frame.remove("tests");
         let mut counter: u64 = 0;
@@ -2546,10 +2564,10 @@ impl<'c, 'a> Ripple<'c, 'a> {
             Some(id) => id,
             None => match self.live_target(name) {
                 Ok((id, _)) => id,
-                Err(_) => return Ok(None),
+                Err(_) => return Ok((None, BTreeSet::new())),
             },
         };
-        Ok(build(&overlay, id, name))
+        Ok((build(&overlay, id, name), reachable_calls(&overlay, &id)))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -3325,6 +3343,32 @@ fn error_exit(func: &mut Func, error: &TypeExpr, at: &str, ripple: &Ripple<'_, '
         func.generated.insert(name.clone(), at.to_owned());
     }
     leaf
+}
+
+/// Every function `id` calls or names, directly or through the functions
+/// it calls (bounded by the functions `source` holds).
+fn reachable_calls(source: &dyn Source, id: &EntityId) -> BTreeSet<EntityId> {
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![*id];
+    while let Some(function) = stack.pop() {
+        let Some(EntityBodyValue::Function(body)) = source.body(&function) else {
+            continue;
+        };
+        for block in &body.blocks {
+            let Some(EntityBodyValue::Block(block)) = source.body(block) else {
+                continue;
+            };
+            for op in &block.operations {
+                if let Some(EntityBodyValue::Operation(op)) = source.body(op)
+                    && let Immediate::Function(reference) = &op.immediate
+                    && seen.insert(reference.function)
+                {
+                    stack.push(reference.function);
+                }
+            }
+        }
+    }
+    seen
 }
 
 /// Where `func` can perform an effect: an effect, adapter, capability or

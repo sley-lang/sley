@@ -1749,6 +1749,20 @@ fn a_guard_never_runs_twice_or_twice_over() {
         "AGENT_RIPPLE_GUARD_ORDER",
         &["(`checked` already calls `check_quantity` on `quantity` at `checked.entry.q__r`)"],
     );
+    // A checker that calls the function would call itself without end.
+    let calls_back = json!({"fn": "calls_back", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
+      "blocks": [{"name": "entry", "ops": [["r", "call?", "discounted", "q", 1, 0]], "term": ["ok", "q"]}]});
+    assert_refused(
+        &temp.path,
+        &guard_frame(
+            &calls_back,
+            &json!({"guard": "calls_back", "arg": "quantity", "in": ["discounted"], "mode": "entry"}),
+        ),
+        "AGENT_RIPPLE_GUARD_ORDER",
+        &[
+            "/ripple/0/in/0: `calls_back` calls `discounted`: evaluating it at the entry of `discounted` would never end",
+        ],
+    );
     // A function listed twice is guarded once.
     assert_refused(
         &temp.path,
