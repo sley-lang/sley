@@ -1341,11 +1341,12 @@ fn table_test_refusals_point_at_the_table() {
         "{text}"
     );
     assert!(
-        text.contains("  authored: \"/test_tables/0/defaults/limits/fuel\"\n"),
+        text.contains("  authored: /test_tables/0/defaults/limits/fuel (fuel limit of test t_0), /test_tables/0/cases/0 (test t_0)\n"),
         "{text}"
     );
     let obligation = &status_of(&temp.path, "d2")["obligations"][0];
     assert_eq!(obligation["at"], "/test_tables/0/defaults/limits/fuel");
+    assert_eq!(obligation["also_at"], json!(["/test_tables/0/cases/0"]));
     assert!(
         obligation["decision"]
             .as_str()
@@ -1371,6 +1372,166 @@ fn table_test_refusals_point_at_the_table() {
         text.starts_with(
             "error AGENT_FRAME_INVALID: /test_tables/0/fn: no Function named `nosuch`"
         ),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_test_limit_refusal_names_its_entry_and_limit_bare() {
+    // A plain AF1 test whose explicit fuel is above the grant.
+    let temp = neg_big_workspace("limit-pointers");
+    let frame = json!({"af1": 1, "patch": [{"fn": "neg", "blocks": {"entry": {"ops": [["z", "const", {"type": "i64", "value": 0}], ["r", "le", "a", "z"]], "term": ["return", "r"]}}}],
+        "tests": [{"name": "t_lim", "fn": "neg", "args": [1], "expect": false, "limits": {"fuel": 99_999_999_999_u64}}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(
+        text.contains(
+            "  authored: /tests/0/limits/fuel (fuel limit of test t_lim), /tests/0 (test t_lim)\n"
+        ),
+        "{text}"
+    );
+    assert!(!text.contains("authored: \""), "{text}");
+    let (_, value) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(value["obligations"][0]["at"], "/tests/0/limits/fuel");
+    assert_eq!(value["obligations"][0]["also_at"], json!(["/tests/0"]));
+}
+
+#[test]
+fn an_identical_restatement_counts_once() {
+    // Live t1 and t2. Restating t1 unchanged keeps the live test: it is
+    // provided, never also authored.
+    let temp = neg_big_workspace("identical");
+    let live = json!({"af1": 1, "tests": [{"name": "t1", "fn": "neg", "args": [1], "expect": false},
+                                          {"name": "t2", "fn": "neg", "args": [-1], "expect": true}]});
+    assert_eq!(run(&temp.path, &["try", &live.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let restate = json!({"af1": 1, "tests": [{"name": "t1", "fn": "neg", "args": [1], "expect": false},
+                                             {"name": "t3", "fn": "neg", "args": [-5], "expect": true}]});
+    let (status, text) = run(&temp.path, &["try", &restate.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("changed: test +t3\n"), "{text}");
+    assert!(text.contains("[authored 1, provided 2]"), "{text}");
+    assert_eq!(
+        status_of(&temp.path, "d3")["tests"],
+        json!({"provided": 2, "imported": 0, "authored": 1})
+    );
+    // A function change with an unchanged restatement: both tests provided.
+    let change = json!({"af1": 1, "afx": 1,
+        "fns": [{"fn": "neg", "params": [["a", "i64"]], "returns": "bool",
+                 "blocks": [{"name": "entry", "term": ["return", ["le", "a", -1]]}]}],
+        "tests": [{"name": "t1", "fn": "neg", "args": [1], "expect": false}]});
+    let (status, text) = run(&temp.path, &["try", &change.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 2/2 passed [provided 2]\n"), "{text}");
+    let last = ledger(&temp.path).pop().unwrap();
+    assert_eq!(
+        last["tests"],
+        json!({"provided": 2, "imported": 0, "authored": 0})
+    );
+    // A changed restatement replaces the provided test: authored once.
+    let changed =
+        json!({"af1": 1, "tests": [{"name": "t1", "fn": "neg", "args": [2], "expect": false}]});
+    let (_, text) = run(&temp.path, &["try", &changed.to_string()]);
+    assert!(
+        text.contains("[authored 1, provided 1; replaces provided t1]"),
+        "{text}"
+    );
+    // Table rows restated unchanged on their own draft count as provided.
+    let tables =
+        json!({"af1": 1, "afx": 1, "test_tables": [table("t", "big", &[(1, false), (500, true)])]});
+    let (_, text) = run(&temp.path, &["try", &tables.to_string()]);
+    let draft = text.lines().next().unwrap().rsplit(' ').next().unwrap();
+    let draft = draft.split('@').next().unwrap().to_owned();
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (status, text) = run(
+        &temp.path,
+        &["try", "--on", &draft, "--rebase", &change.to_string()],
+    );
+    assert_eq!(status, 0, "{text}");
+    let tests = &status_of(&temp.path, &draft)["tests"];
+    assert_eq!(
+        tests,
+        &json!({"provided": 4, "imported": 0, "authored": 0}),
+        "{text}"
+    );
+}
+
+#[test]
+fn ledger_sequence_numbers_are_unique_under_concurrent_commands() {
+    let temp = neg_big_workspace("ledger-seq");
+    let dir = temp.path.clone();
+    std::thread::scope(|scope| {
+        for _ in 0..24 {
+            let dir = dir.clone();
+            scope.spawn(move || run(&dir, &["draft", "d1"]));
+        }
+    });
+    let events = ledger(&temp.path);
+    assert_eq!(
+        events.len(),
+        2 + 24,
+        "the try and commit that made the workspace, then 24"
+    );
+    for (index, event) in events.iter().enumerate() {
+        assert_eq!(event["seq"], index as u64 + 1, "{event}");
+    }
+}
+
+#[test]
+fn a_follow_up_refused_before_layering_is_not_recorded() {
+    let temp = neg_big_workspace("not-recorded");
+    let base = json!({"af1": 1, "afx": 1, "test_tables": [table("t", "neg", &[(3, false)])]});
+    assert_eq!(run(&temp.path, &["try", &base.to_string()]).0, 0);
+    let follow_up = r#"{"af1":1,"tests":[{"name":"a","fn":"neg","args":[1],"expect":false}]}"#;
+    let (status, text) = run(&temp.path, &["try", "--on", "d2", r#"{"af1":1,"tests":["#]);
+    assert_eq!(status, 2, "{text}");
+    assert_eq!(revisions(&temp.path, "d2"), ["r1", "r2"]);
+    // A text base: refused, not recorded, and told how to send it again.
+    let (status, text) = run(&temp.path, &["try", "--on", "d2", follow_up]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("error AGENT_DRAFT_INCOMPLETE: d2@r2 holds a follow-up that is not JSON"),
+        "{text}"
+    );
+    assert!(
+        text.contains("; this follow-up was not recorded: send it again once that revision is repaired, or with --on the revision named above"),
+        "{text}"
+    );
+    assert_eq!(revisions(&temp.path, "d2"), ["r1", "r2"]);
+    let (status, _) = run(&temp.path, &["try", "--on", "d2@r1", follow_up]);
+    assert_eq!(status, 0);
+    // A changed head: refused, not recorded, sent again with --rebase.
+    let other = json!({"af1": 1, "afx": 1, "test_tables": [table("w", "big", &[(1, false)])]});
+    assert_eq!(run(&temp.path, &["try", &other.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (status, text) = run(&temp.path, &["try", "--on", "d2", follow_up]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("error AGENT_DRAFT_HEAD_CHANGED: d2@r3 was made on head"),
+        "{text}"
+    );
+    assert!(
+        text.contains("; this follow-up was not recorded: send it again with --rebase"),
+        "{text}"
+    );
+    assert_eq!(revisions(&temp.path, "d2"), ["r1", "r2", "r3"]);
+    let (status, text) = run(&temp.path, &["try", "--on", "d2", follow_up, "--rebase"]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(revisions(&temp.path, "d2"), ["r1", "r2", "r3", "r4"]);
+    let cases = temp.path.join("cases.json");
+    fs::write(
+        &cases,
+        r#"[{"name": "p", "function": "neg", "args": [2], "expect": false}]"#,
+    )
+    .unwrap();
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (status, text) = run(
+        &temp.path,
+        &["import", cases.to_str().unwrap(), "--on", "d2"],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("; this import was not recorded: send it again with --rebase"),
         "{text}"
     );
 }
