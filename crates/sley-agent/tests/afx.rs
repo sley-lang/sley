@@ -2643,3 +2643,55 @@ fn an_edit_of_an_expanded_operation_names_where_it_lives() {
     );
     assert_eq!(detail, "/edit/0: no operation `zz` in `entry`");
 }
+
+#[test]
+fn a_kernel_refusal_analyzes_its_function_once_and_names_its_frame() {
+    let temp = workspace("refusal-analysis");
+    // W3-RP1: the locator detail, the authored positions and the other
+    // findings share one analysis of the refused function.
+    let frame = json!({"af1": 1, "fns": [{"fn": "f", "params": [["a", "i64"], ["c", "bool"]], "returns": "bool", "blocks": [
+        {"name": "entry", "ops": [["x", "lt", "a", "a"]], "term": ["cond", "c", "l", "r"]},
+        {"name": "l", "ops": [["y", "not", "entry.x"]], "term": ["return", "y"]},
+        {"name": "r", "term": ["return", "l.y"]}]}]});
+    let before = sley_agent::explain::analyses_run();
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(text.contains("CFG_DOMINANCE"), "{text}");
+    assert!(
+        text.contains("  authored: /fns/0/blocks/2/term (terminator of f.r)\n"),
+        "{text}"
+    );
+    assert_eq!(sley_agent::explain::analyses_run() - before, 1, "{text}");
+    // W3-L1: for a layered revision the authored pointers name the frame
+    // they index, as a frame refusal's pointers do.
+    let base = json!({"af1": 1, "afx": 1, "fns": [{"fn": "g", "params": [["a", "i64"], ["c", "bool"]], "returns": "bool", "blocks": [
+        {"name": "entry", "ops": [["x", "lt", "a", 0]], "term": ["cond", "c", "l", "r"]},
+        {"name": "l", "ops": [["y", "not", "x"]], "term": ["return", "y"]},
+        {"name": "r", "term": ["return", "x"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &base.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let draft = text
+        .split_whitespace()
+        .skip_while(|word| *word != "draft")
+        .nth(1)
+        .unwrap()
+        .split('@')
+        .next()
+        .unwrap()
+        .to_owned();
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "g", "blocks": {"r": {"term": ["return", "l.y"]}}}]});
+    let (status, text) = run(&temp.path, &["try", "--on", &draft, &patch.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(
+        text.contains(&format!(
+            "  authored: /fns/0/blocks/2/term (terminator of g.r); pointers refer to .sley/drafts/{draft}/r2/frame.json\n"
+        )),
+        "{text}"
+    );
+    let (_, value) = run_json(&temp.path, &["explain", "latest"]);
+    assert_eq!(
+        value["verdict"]["authored_frame"],
+        json!(format!(".sley/drafts/{draft}/r2/frame.json")),
+        "{value}"
+    );
+}

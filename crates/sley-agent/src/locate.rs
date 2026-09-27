@@ -73,6 +73,9 @@ pub struct Authored {
     pub items: Vec<(String, String)>,
     /// Why there is no pointer, when there is none.
     pub none: Option<String>,
+    /// The frame the pointers index, when it is not the frame as given (a
+    /// layered frame: a draft revision's `frame.json`).
+    pub frame: Option<String>,
 }
 
 impl Authored {
@@ -82,11 +85,16 @@ impl Authored {
         if let Some(reason) = &self.none {
             return format!("none ({reason})");
         }
-        self.items
+        let text = self
+            .items
             .iter()
             .map(|(at, what)| format!("{at} ({what})"))
             .collect::<Vec<_>>()
-            .join(", ")
+            .join(", ");
+        match &self.frame {
+            Some(frame) => format!("{text}; pointers refer to {frame}"),
+            None => text,
+        }
     }
 
     fn push(&mut self, at: String, what: String) {
@@ -120,9 +128,10 @@ pub fn authored(
     locator: &RefusalLocator,
     program: &Program,
     names: &Names,
-    frame: &Value,
-    sourcemap: Option<&Value>,
+    source: &Source<'_>,
+    analysis: Option<&explain::Analysis>,
 ) -> Option<Authored> {
+    let (frame, sourcemap) = (source.frame?, source.sourcemap);
     let function = locator.subject?;
     let narrower =
         locator.operation.is_some() || locator.related.is_some() || locator.field.is_some();
@@ -137,7 +146,11 @@ pub fn authored(
         sourcemap,
     };
     let mut out = Authored::default();
-    for site in explain::sites(symbol, &function, program, names) {
+    let analysis = match analysis {
+        Some(analysis) if analysis.function() == function => analysis.clone(),
+        _ => explain::Analysis::of(locator, program, names)?,
+    };
+    for site in analysis.sites(symbol) {
         for (at, what) in index.site(site, program, names) {
             if what == FUNCTION_WIDE {
                 for (at, _) in index.entries(&names.leaf(&function)) {

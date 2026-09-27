@@ -20,10 +20,66 @@ use crate::workspace::Program;
 
 /// One observation about a function graph, tagged with the symbol it
 /// explains and the places it concerns.
+#[derive(Clone, Debug)]
 struct Finding {
     symbol: &'static str,
     text: String,
     sites: Vec<Site>,
+}
+
+/// The advisory analysis of one function, computed once for a refusal and
+/// shared by its locator detail, its authored positions and `also`.
+#[derive(Clone, Debug)]
+pub struct Analysis {
+    function: EntityId,
+    findings: Vec<Finding>,
+}
+
+impl Analysis {
+    /// Analyzes the function a locator names (`None` when it names none).
+    #[must_use]
+    pub fn of(locator: &RefusalLocator, program: &Program, names: &Names) -> Option<Self> {
+        let function = locator.subject?;
+        let Some(EntityBodyValue::Function(body)) = program.body(&function) else {
+            return None;
+        };
+        Some(Self {
+            function,
+            findings: analyze(program, names, &function, body),
+        })
+    }
+
+    /// The analyzed function.
+    #[must_use]
+    pub fn function(&self) -> EntityId {
+        self.function
+    }
+
+    /// The text of the finding for the kernel's own symbol, when there is
+    /// one: an unrelated finding would blame the wrong code.
+    #[must_use]
+    pub fn detail(&self, symbol: &str) -> Option<String> {
+        self.findings
+            .iter()
+            .find(|finding| finding.symbol == symbol)
+            .map(|finding| finding.text.clone())
+    }
+
+    /// The places every finding for `symbol` concerns, in finding order
+    /// without repeats.
+    pub(crate) fn sites(&self, symbol: &str) -> Vec<Site> {
+        let mut out = Vec::new();
+        for finding in &self.findings {
+            if finding.symbol == symbol {
+                for site in &finding.sites {
+                    if !out.contains(site) {
+                        out.push(*site);
+                    }
+                }
+            }
+        }
+        out
+    }
 }
 
 /// A place a finding concerns, for mapping to authored frame positions.
@@ -51,42 +107,7 @@ pub fn detail(
     program: &Program,
     names: &Names,
 ) -> Option<String> {
-    let function_id = locator.subject?;
-    let Some(EntityBodyValue::Function(function)) = program.body(&function_id) else {
-        return None;
-    };
-    let findings = analyze(program, names, &function_id, function);
-    // Only a finding for the kernel's own symbol explains the refusal; an
-    // unrelated finding would blame the wrong code, so say nothing instead.
-    findings
-        .iter()
-        .find(|finding| finding.symbol == symbol)
-        .map(|finding| finding.text.clone())
-}
-
-/// The places every finding for the kernel's `symbol` in one function
-/// concerns, in finding order without repeats (empty when the analysis sees
-/// nothing for that symbol). Advisory only.
-pub(crate) fn sites(
-    symbol: &str,
-    function_id: &EntityId,
-    program: &Program,
-    names: &Names,
-) -> Vec<Site> {
-    let Some(EntityBodyValue::Function(function)) = program.body(function_id) else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    for finding in analyze(program, names, function_id, function) {
-        if finding.symbol == symbol {
-            for site in finding.sites {
-                if !out.contains(&site) {
-                    out.push(site);
-                }
-            }
-        }
-    }
-    out
+    Analysis::of(locator, program, names)?.detail(symbol)
 }
 
 /// Every structural finding across the program's functions except the one
@@ -94,13 +115,28 @@ pub(crate) fn sites(
 /// analysis can see (the kernel reports only its first). Advisory only.
 #[must_use]
 pub fn also(program: &Program, names: &Names, shown: Option<&str>) -> Vec<String> {
+    also_with(program, names, shown, None)
+}
+
+/// [`also`], reusing the analysis a refusal already made of its function.
+#[must_use]
+pub fn also_with(
+    program: &Program,
+    names: &Names,
+    shown: Option<&str>,
+    known: Option<&Analysis>,
+) -> Vec<String> {
     let mut out = Vec::new();
     for object in program.objects() {
         let id = object.record().entity_id;
         let EntityBodyValue::Function(function) = &object.record().body else {
             continue;
         };
-        for finding in analyze(program, names, &id, function) {
+        let findings = match known {
+            Some(known) if known.function == id => known.findings.clone(),
+            _ => analyze(program, names, &id, function),
+        };
+        for finding in findings {
             let duplicate = shown.is_some_and(|shown| shown.contains(&finding.text));
             if !duplicate && !out.contains(&finding.text) {
                 out.push(finding.text);
@@ -117,6 +153,18 @@ fn block_body<'a>(program: &'a Program, id: &EntityId) -> Option<&'a BlockBody> 
     }
 }
 
+thread_local! {
+    static ANALYSES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many function analyses this thread has run (a cost check for
+/// tests: one refusal analyzes its function once).
+#[doc(hidden)]
+#[must_use]
+pub fn analyses_run() -> u64 {
+    ANALYSES.with(std::cell::Cell::get)
+}
+
 #[allow(clippy::too_many_lines)]
 fn analyze(
     program: &Program,
@@ -124,6 +172,7 @@ fn analyze(
     function_id: &EntityId,
     function: &FunctionBody,
 ) -> Vec<Finding> {
+    ANALYSES.with(|count| count.set(count.get() + 1));
     let mut findings = Vec::new();
     let mut add = |symbol: &'static str, text: String, sites: Vec<Site>| {
         findings.push(Finding {

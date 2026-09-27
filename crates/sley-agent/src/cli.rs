@@ -304,6 +304,9 @@ fn select(
     let mut verdict = Verdict::of(&output, &program, &names);
     let meta = store.meta(&reference).unwrap_or_default();
     verdict.locate(&output, &Source::of_meta(&meta), &program, &names);
+    if let Some(authored) = verdict.authored.as_mut() {
+        authored.frame = layered_frame(workspace, &meta);
+    }
     Ok(Selected {
         valid: output.is_valid(),
         chosen_tests: output.result().record.selected_tests.clone(),
@@ -1158,6 +1161,34 @@ fn stage(
     Ok((compiled, imported, output))
 }
 
+/// The frame a candidate's authored pointers index when it was layered, by
+/// the draft revision that made it: `.sley/layered.json` for a frame
+/// layered on a candidate, the revision's `frame.json` for one layered on a
+/// draft, as `try` prints them; `None` for a frame tried as given.
+fn layered_frame(workspace: &Workspace, meta: &Value) -> Option<String> {
+    let made = meta["draft"].as_str().and_then(DraftRef::parse)?;
+    let revision = made.revision?;
+    let status = Drafts::open(workspace)
+        .ok()?
+        .status(&made.handle, revision)
+        .ok()?;
+    match status["on"].as_str() {
+        Some(on) if candidate::is_handle(on) => Some(format!("{STATE_DIR}/layered.json")),
+        _ if matches!(
+            status["made_by"].as_str(),
+            Some("try-on" | "fill" | "import" | "rebase")
+        ) =>
+        {
+            Some(format!(
+                "{STATE_DIR}/{}/{}/r{revision}/frame.json",
+                draft::DRAFTS_DIR,
+                made.handle
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// Appends where a frame refusal's pointers point, and how to fix it
 /// cheaply.
 fn pointer_hint(error: AgentError, origin: &Origin, frame_path: &str, draft: &str) -> AgentError {
@@ -1906,6 +1937,15 @@ fn run_trial(
     let mut verdict = Verdict::of(&output, &program, &after_names);
     let source = Source::of_try(&frame_value, &compiled.artifacts);
     verdict.locate(&output, &source, &program, &after_names);
+    // A layered frame's pointers index the frame that was compiled, as a
+    // frame refusal on the same path says.
+    if let Some(authored) = verdict.authored.as_mut() {
+        authored.frame = match &proposal.origin {
+            Origin::Candidate(_) => Some(format!("{STATE_DIR}/layered.json")),
+            Origin::Draft => Some(frame_path.clone()),
+            Origin::Inline | Origin::File(_) => None,
+        };
+    }
     let afx_stats = Value::Object(compiled.stats.clone());
     let store = Store::open(workspace)?;
     let mut meta = json!({
@@ -2053,7 +2093,12 @@ fn run_trial(
     // After a control-flow refusal, every other finding the advisory analysis
     // sees, so the next frame can fix them all at once.
     let also = if !verdict.valid && verdict.phase == Some(7) {
-        crate::explain::also(&program, &after_names, verdict.location.as_deref())
+        crate::explain::also_with(
+            &program,
+            &after_names,
+            verdict.location.as_deref(),
+            verdict.analysis(),
+        )
     } else {
         Vec::new()
     };
