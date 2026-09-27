@@ -13,9 +13,10 @@
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, live cgroup telemetry,
 //! a bounded gated-worker report channel and ordered manager/cgroup gate phase,
-//! and readiness probes. The unit owner composes launch, gated execution,
-//! exit, and reap checks, but the root service loop does not invoke it yet;
-//! privileged qualification remains open.
+//! a signed-completion builder, and readiness probes. The unit owner composes
+//! launch, gated execution, exit, and reap checks; the signed-completion
+//! builder requires its result and an authenticated request. The root service
+//! loop does not invoke either yet; privileged qualification remains open.
 //!
 //! It performs no policy selection, grants no commit authority, and holds no
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
@@ -26,8 +27,9 @@
 //! The owner derives bounded worker input hashes and
 //! supervisor request bindings from the validated selected `TestCase`; the
 //! socket service rechecks both before its explicit refusal. Measured launch
-//! and admission still belong to N5; the service remains refusal-only.
+//! and native admission still belong to N5; the service remains refusal-only.
 
+pub mod attest;
 pub mod channel;
 pub mod client;
 pub mod config;
