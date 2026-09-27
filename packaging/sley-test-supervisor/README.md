@@ -17,9 +17,11 @@ host and are explicitly **pending**, not waived:
    binary, not before) and start it; verify the authenticated socket
    appears with root ownership.
 4. Run the unprivileged probe (`cargo run -p sley-test-runner --example
-   probe -- /run/sley-test-supervisor`) and keep the receipt. Every
-   `fail` names a platform prerequisite to implement; none may be waived
-   with a documented assumption.
+   probe -- /run/sley-test-supervisor`) and keep the receipt. Its socket
+   check requires a root-owned runtime directory without group/world write,
+   a root-owned Unix socket, and a live listener. Every `fail` names a
+   platform prerequisite to implement; none may be waived with a documented
+   assumption.
 5. Run the privileged probe set (pre-exec placement, transient units,
    UID/key isolation, manager backstop, caller and daemon SIGKILL
    cleanup, orphan reconciliation) on **both** intended hosts and keep
