@@ -1530,6 +1530,9 @@ fn changes_no_frame_can_state_are_skipped_before_the_budget() {
         let detail = neighbor["kernel"]["detail"].as_str().unwrap_or("");
         assert!(!detail.contains("reserved"), "{neighbor:#}");
     }
+    // Nudging the seed's 3 back to the head's 2 is a revert, not a neighbor.
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert_eq!(report["counts"]["skipped_reverts"], 1, "{report:#}");
     // An AF1-X seed that does not state `score` at all: nothing is stated,
     // nothing uses a slot, and the output says how to search it.
     let unrelated = json!({"af1": 1, "afx": 1, "fns": [{"fn": "helper", "params": [["q", "i64"]], "returns": "i64",
@@ -2086,4 +2089,61 @@ fn a_search_ledger_line_counts_the_case_file_whether_it_runs_or_is_refused() {
     ];
     let line_bytes = words.iter().map(|word| word.len()).sum::<usize>() + words.len() - 1;
     assert_eq!(last["input_bytes"], line_bytes);
+}
+
+#[test]
+fn a_neighbor_that_reverts_the_seed_to_the_head_is_skipped() {
+    let temp = workspace("reverts");
+    let live = one_fn(
+        "scale",
+        &json!([["a", "i64"]]),
+        "Result<i64,ArithmeticError>",
+        &json!([{"name": "entry", "ops": [["k", "const", 2], ["r", "mul", "a", "k"]], "term": ["return", "r"]}]),
+    );
+    let c1 = seed(&temp.path, &live);
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    // The seed changes the constant; nudging it back restates the head.
+    let edit =
+        json!({"af1": 1, "edit": [{"fn": "scale", "replace_op": "entry.k", "with": ["const", 3]}]});
+    let c2 = seed(&temp.path, &edit);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"function": "scale", "args": [5], "expect": {"Ok": 20}}]),
+    );
+    let (_, report) = search(
+        &temp.path,
+        &[
+            "scale",
+            "--public",
+            &public,
+            "--from",
+            &c2,
+            "--max-neighbors",
+            "5",
+        ],
+    );
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert_eq!(report["counts"]["skipped_reverts"], 1, "{report:#}");
+    assert_eq!(
+        report["counts"]["skipped"],
+        report["counts"]["skipped_unstated"].as_u64().unwrap() + 1
+    );
+    assert!(
+        !neighbors(&report).iter().any(|n| n["change"] == "3 -> 2"),
+        "{report:#}"
+    );
+    // It took no neighbor slot: four opcode swaps and 3 -> 4 fill the five
+    // slots, and 3 -> -3 finds them full.
+    assert_eq!(report["counts"]["generated"], 5);
+    assert_eq!(report["limits"]["neighbor_limit_reached"], true);
+    let (_, text) = run(
+        &temp.path,
+        &["search", "scale", "--public", &public, "--from", &c2],
+    );
+    assert!(
+        text.contains("1 revert the seed's change to the head"),
+        "{text}"
+    );
+    assert!(text.contains(" 0 refused, "), "{text}");
 }

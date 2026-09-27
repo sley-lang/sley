@@ -346,7 +346,6 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
         )
         .collect();
 
-    let mut generated = generate(&model, &writer, request.max_neighbors, deadline);
     let context = Context {
         function: &function_name,
         head: &head,
@@ -358,6 +357,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
         caps: &caps,
         deadline,
     };
+    let mut generated = generate(&model, &writer, &context, request.max_neighbors, deadline);
     let mut wall_reached = generated.wall;
     for neighbor in &mut generated.neighbors {
         if Instant::now() >= deadline {
@@ -365,7 +365,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
             neighbor.status = Status::NotEvaluated;
             continue;
         }
-        context.try_neighbor(neighbor)?;
+        context.try_neighbor(neighbor);
         if matches!(neighbor.status, Status::Partial | Status::NotEvaluated) {
             wall_reached = true;
         }
@@ -1529,11 +1529,15 @@ struct Generated {
     skipped: usize,
     /// Changes whose frame equals an earlier neighbor's.
     duplicates: usize,
+    /// Changes whose layered frame states exactly the head: they revert
+    /// the seed's change.
+    reverts: usize,
 }
 
 /// Collects neighbors up to the limit.
 struct Sink<'w> {
     writer: &'w Writer<'w>,
+    context: &'w Context<'w>,
     max: usize,
     deadline: Instant,
     seen: BTreeSet<String>,
@@ -1561,6 +1565,14 @@ impl Sink<'_> {
             self.out.duplicates += 1;
             return true;
         }
+        // Compiled now, as `try --on <seed>` compiles it: a frame that
+        // restates the head exactly reverts the seed's change.
+        let prepared = self.context.prepare(&written.frame);
+        if matches!(&prepared, Prepared::Compiled(_, compiled) if compiled.ops.is_empty()) {
+            self.seen.insert(key);
+            self.out.reverts += 1;
+            return true;
+        }
         if self.out.neighbors.len() >= self.max {
             self.out.more = true;
             self.done = true;
@@ -1579,6 +1591,7 @@ impl Sink<'_> {
             kernel: None,
             evaluation: None,
             rank: None,
+            prepared: Some(prepared),
         });
         true
     }
@@ -1586,9 +1599,16 @@ impl Sink<'_> {
 
 /// Runs the generators in the generation sequence.
 #[allow(clippy::too_many_lines)]
-fn generate(model: &Model<'_>, writer: &Writer<'_>, max: usize, deadline: Instant) -> Generated {
+fn generate(
+    model: &Model<'_>,
+    writer: &Writer<'_>,
+    context: &Context<'_>,
+    max: usize,
+    deadline: Instant,
+) -> Generated {
     let mut sink = Sink {
         writer,
+        context,
         max,
         deadline,
         seen: BTreeSet::new(),
@@ -1598,6 +1618,7 @@ fn generate(model: &Model<'_>, writer: &Writer<'_>, max: usize, deadline: Instan
             wall: false,
             skipped: 0,
             duplicates: 0,
+            reverts: 0,
         },
         done: false,
     };
@@ -3154,6 +3175,8 @@ struct Neighbor {
     kernel: Option<Value>,
     evaluation: Option<Evaluation>,
     rank: Option<usize>,
+    /// The layered frame compiled at generation, until it is evaluated.
+    prepared: Option<Prepared>,
 }
 
 impl Neighbor {
@@ -3176,34 +3199,43 @@ struct Context<'a> {
     deadline: Instant,
 }
 
+/// A neighbor's frame layered on the seed's frame and compiled against the
+/// head, as `try --on <seed>` does, or the refusal that stopped it.
+enum Prepared {
+    Compiled(sley_id::CandidateNonce, crate::frame::Compiled),
+    Refused {
+        stage: &'static str,
+        symbol: &'static str,
+        detail: String,
+    },
+}
+
 /// The first line of a refusal (its headline problem).
 fn headline(error: &AgentError) -> String {
     error.detail().lines().next().unwrap_or("").to_owned()
 }
 
 impl Context<'_> {
-    /// Layers, compiles, assembles and validates one neighbor exactly as
-    /// `try --on <seed> <frame>` would, then runs the public cases on a
-    /// Valid one.
-    fn try_neighbor(&self, neighbor: &mut Neighbor) -> Result<()> {
-        let refused = |neighbor: &mut Neighbor, stage: &str, symbol: &str, detail: String| {
-            neighbor.status = Status::Refused;
-            neighbor.kernel =
-                Some(json!({"valid": false, "stage": stage, "symbol": symbol, "detail": detail}));
+    /// Layers a neighbor frame on the seed's frame and compiles it.
+    fn prepare(&self, frame: &Value) -> Prepared {
+        let refused = |error: &AgentError| Prepared::Refused {
+            stage: "frame",
+            symbol: error.code().symbol(),
+            detail: headline(error),
         };
         let layered = match self.seed_frame {
-            Some(base) => crate::layer::layer(base, &neighbor.frame),
-            None => Ok(neighbor.frame.clone()),
+            Some(base) => crate::layer::layer(base, frame),
+            None => Ok(frame.clone()),
         };
         let layered = match layered {
             Ok(layered) => layered,
-            Err(error) => {
-                refused(neighbor, "frame", error.code().symbol(), headline(&error));
-                return Ok(());
-            }
+            Err(error) => return refused(&error),
         };
-        let nonce = candidate::fresh_nonce()?;
-        let mut compiled = match crate::frame::compile(
+        let nonce = match candidate::fresh_nonce() {
+            Ok(nonce) => nonce,
+            Err(error) => return refused(&error),
+        };
+        match crate::frame::compile(
             self.head.program(),
             self.head_names,
             &self.authority.ceilings,
@@ -3211,36 +3243,48 @@ impl Context<'_> {
             nonce,
             &mut candidate::random32,
         ) {
-            Ok(compiled) => compiled,
-            Err(error) => {
-                refused(neighbor, "frame", error.code().symbol(), headline(&error));
-                return Ok(());
+            Ok(compiled) => Prepared::Compiled(nonce, compiled),
+            Err(error) => refused(&error),
+        }
+    }
+
+    /// Layers, compiles, assembles and validates one neighbor exactly as
+    /// `try --on <seed> <frame>` would, then runs the public cases on a
+    /// Valid one.
+    fn try_neighbor(&self, neighbor: &mut Neighbor) {
+        let refused = |neighbor: &mut Neighbor, stage: &str, symbol: &str, detail: String| {
+            neighbor.status = Status::Refused;
+            neighbor.kernel =
+                Some(json!({"valid": false, "stage": stage, "symbol": symbol, "detail": detail}));
+        };
+        let prepared = neighbor
+            .prepared
+            .take()
+            .unwrap_or_else(|| self.prepare(&neighbor.frame));
+        let (nonce, mut compiled) = match prepared {
+            Prepared::Compiled(nonce, compiled) => (nonce, compiled),
+            Prepared::Refused {
+                stage,
+                symbol,
+                detail,
+            } => {
+                refused(neighbor, stage, symbol, detail);
+                return;
             }
         };
-        if compiled.ops.is_empty() {
-            // As `try` refuses it: the layered frame restores the head.
-            refused(
-                neighbor,
-                "frame",
-                AgentErrorCode::FrameInvalid.symbol(),
-                "the frame changes nothing: everything it states is already live as stated"
-                    .to_owned(),
-            );
-            return Ok(());
-        }
         let ops = std::mem::take(&mut compiled.ops);
         let imported = match candidate::assemble(self.head, self.authority, nonce, ops) {
             Ok(imported) => imported,
             Err(error) => {
                 refused(neighbor, "record", error.code().symbol(), headline(&error));
-                return Ok(());
+                return;
             }
         };
         let output = match candidate::validate(self.head, self.authority, &imported.stored_bytes) {
             Ok(output) => output,
             Err(error) => {
                 refused(neighbor, "record", error.code().symbol(), headline(&error));
-                return Ok(());
+                return;
             }
         };
         if !output.is_valid() {
@@ -3248,12 +3292,12 @@ impl Context<'_> {
             neighbor.status = Status::Refused;
             neighbor.kernel = Some(json!({"valid": false, "stage": "kernel",
                 "decision": verdict.decision, "phase": verdict.phase, "symbol": verdict.symbol}));
-            return Ok(());
+            return;
         }
         neighbor.kernel = Some(json!({"valid": true}));
         let Some(program) = candidate::proposed_program(self.head, &output) else {
             neighbor.status = Status::Refused;
-            return Ok(());
+            return;
         };
         let mut map = self.map.clone();
         map.extend(&compiled.names);
@@ -3274,7 +3318,6 @@ impl Context<'_> {
             Status::Partial
         };
         neighbor.evaluation = Some(evaluation);
-        Ok(())
     }
 }
 
@@ -3289,11 +3332,42 @@ struct Counts {
     evaluated: usize,
     partial: usize,
     not_evaluated: usize,
+    /// Every skipped change: `unstated` plus `reverts`.
     skipped: usize,
+    /// Changes no frame layered on the seed can state.
+    unstated: usize,
+    /// Changes whose layered frame reverts the seed's change to the head.
+    reverts: usize,
     duplicates: usize,
 }
 
 impl Counts {
+    /// `; 3 change(s) skipped: 2 no frame layered on the seed states, 1
+    /// revert the seed's change to the head`, or nothing.
+    fn skipped_text(&self) -> String {
+        if self.skipped == 0 {
+            return String::new();
+        }
+        let mut reasons = Vec::new();
+        if self.unstated > 0 {
+            reasons.push(format!(
+                "{} no frame layered on the seed states",
+                self.unstated
+            ));
+        }
+        if self.reverts > 0 {
+            reasons.push(format!(
+                "{} revert the seed's change to the head",
+                self.reverts
+            ));
+        }
+        format!(
+            "; {} change(s) skipped: {}",
+            self.skipped,
+            reasons.join(", ")
+        )
+    }
+
     fn of(generated: &Generated) -> Self {
         let count = |status: Status| {
             generated
@@ -3318,7 +3392,9 @@ impl Counts {
             evaluated: count(Status::Evaluated),
             partial: count(Status::Partial),
             not_evaluated: count(Status::NotEvaluated),
-            skipped: generated.skipped,
+            skipped: generated.skipped + generated.reverts,
+            unstated: generated.skipped,
+            reverts: generated.reverts,
             duplicates: generated.duplicates,
         }
     }
@@ -3561,7 +3637,8 @@ impl Summary<'_> {
             "counts": {"generated": self.counts.generated, "valid": self.counts.valid,
                        "refused": self.counts.refused, "evaluated": self.counts.evaluated,
                        "partial": self.counts.partial, "not_evaluated": self.counts.not_evaluated,
-                       "skipped": self.counts.skipped, "duplicates": self.counts.duplicates},
+                       "skipped": self.counts.skipped, "skipped_unstated": self.counts.unstated,
+                       "skipped_reverts": self.counts.reverts, "duplicates": self.counts.duplicates},
             "limits": {"max_neighbors": self.request.max_neighbors, "max_millis": self.request.max_millis,
                        "neighbor_limit_reached": self.generated.more, "wall_limit_reached": self.wall_reached,
                        "searches_per_attempt": SEARCHES_PER_ATTEMPT,
@@ -3632,13 +3709,7 @@ impl Summary<'_> {
         if counts.not_evaluated > 0 {
             let _ = write!(text, ", {} not evaluated", counts.not_evaluated);
         }
-        if counts.skipped > 0 {
-            let _ = write!(
-                text,
-                "; {} change(s) skipped: no frame layered on the seed states them",
-                counts.skipped
-            );
-        }
+        text.push_str(&counts.skipped_text());
         text.push('\n');
         let _ = writeln!(text, "ranking: {RULE}");
         for position in self.ranked.iter().take(SHOWN) {

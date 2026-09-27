@@ -1101,7 +1101,10 @@ slots:
   route (`op?`), a call, an effect, a contract check, an observation or a
   cell operation, anywhere inside it, by a name;
 - `not x -> x` where `x` is an unnamed nested operation (writing it would
-  evaluate it twice).
+  evaluate it twice);
+- a change whose layered frame, compiled as `try --on <seed>` compiles it,
+  states exactly the head: it reverts the seed's change (counted apart as
+  a revert: `skipped_reverts`, beside `skipped_unstated`).
 
 A function that the seed frame's `ripple` intents rewrite while the frame
 does not define, patch or edit it (a caller that an `arity` intent
@@ -1114,9 +1117,9 @@ target. The output marks such a search `derived` and says how neighbors
 are written.
 
 Search then compiles exactly the layered frame, assembles the record and
-validates it with `validate_candidate_bytes`; a layered frame that changes
-nothing is refused as `try` refuses it. Only kernel-Valid neighbors run the
-cases.
+validates it with `validate_candidate_bytes` (the layered frame is
+compiled while neighbors are generated, so a revert never takes a slot).
+Only kernel-Valid neighbors run the cases.
 
 ### 13.3 Ranking, bounds and output
 

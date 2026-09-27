@@ -50,7 +50,9 @@ neighbor slot:
 - a substitution that would drop a nested operation with a failure route
   (`op?`), a call, an effect, a contract check, an observation or a cell;
 - `not x -> x` where `x` is a nested operation without a name (it would
-  run twice).
+  run twice);
+- a change whose layered frame states exactly the head: it reverts the
+  seed's change (counted as a revert).
 
 A function the seed's `arity` intent rewrites without its frame stating it
 (a caller of the changed function) is searched as the head states it: each
