@@ -5,7 +5,7 @@
 //! the installed unit before sending the worker's stdin start byte. This
 //! module only verifies an existing unit; it cannot launch or attest one.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{ErrorKind, Read};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -20,6 +20,8 @@ use crate::worker::WORKER_INPUT_CREDENTIAL;
 const SYSTEMD_BUS: &str = "org.freedesktop.systemd1";
 const SYSTEMD_MANAGER: &str = "/org/freedesktop/systemd1";
 const MAX_BUS_REPLY_BYTES: usize = 131_072;
+/// Startup reconciliation refuses an unbounded number of worker units.
+pub const MAX_NATIVE_UNITS: usize = 256;
 
 /// Refusal to trust the manager's installed transient-unit state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,14 +100,7 @@ pub fn verify_system_unit(
 ///
 /// Refuses malformed names, manager failures, or unreadable cgroup state.
 pub fn confirm_system_unit_reaped(unit_name: &str) -> Result<bool, ManagerError> {
-    let nonce = unit_name
-        .strip_prefix(UNIT_PREFIX)
-        .ok_or(ManagerError::PropertyMismatch)?;
-    if nonce.len() != 64
-        || !nonce
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
+    if !valid_native_unit_name(unit_name) {
         return Err(ManagerError::PropertyMismatch);
     }
     let service_name = format!("{unit_name}.service");
@@ -162,6 +157,66 @@ pub fn confirm_system_unit_reaped(unit_name: &str) -> Result<bool, ManagerError>
         Ok(_) => Ok(false),
         Err(_) => Err(ManagerError::Unavailable),
     }
+}
+
+/// Exact native transient-unit stem, excluding `.service`.
+#[must_use]
+pub fn valid_native_unit_name(unit_name: &str) -> bool {
+    unit_name.strip_prefix(UNIT_PREFIX).is_some_and(|nonce| {
+        nonce.len() == 64
+            && nonce
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    })
+}
+
+fn native_unit_names(value: &Value) -> Result<Vec<String>, ManagerError> {
+    let entries = listed_units(value)?;
+    if entries.len() > MAX_NATIVE_UNITS {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    let mut names = BTreeSet::new();
+    for entry in entries {
+        let fields = entry.as_array().ok_or(ManagerError::Unavailable)?;
+        let service_name = fields
+            .first()
+            .and_then(Value::as_str)
+            .ok_or(ManagerError::Unavailable)?;
+        let unit_name = service_name
+            .strip_suffix(".service")
+            .ok_or(ManagerError::PropertyMismatch)?;
+        if fields.len() != 10 || !valid_native_unit_name(unit_name) {
+            return Err(ManagerError::PropertyMismatch);
+        }
+        if !names.insert(unit_name.to_owned()) {
+            return Err(ManagerError::PropertyMismatch);
+        }
+    }
+    Ok(names.into_iter().collect())
+}
+
+/// Lists all loaded system transient units with the frozen native prefix.
+///
+/// The typed manager reply is bounded and every returned name must have an
+/// exact 64-character lowercase nonce. This includes inactive and failed
+/// loaded units; a separate cgroup enumeration covers manager-absent groups.
+///
+/// # Errors
+///
+/// Refuses unavailable or malformed manager replies or too many units.
+pub fn list_native_system_units() -> Result<Vec<String>, ManagerError> {
+    let listing = busctl(&[
+        "call",
+        SYSTEMD_BUS,
+        SYSTEMD_MANAGER,
+        "org.freedesktop.systemd1.Manager",
+        "ListUnitsByPatterns",
+        "asas",
+        "0",
+        "1",
+        "sley-native-test-*.service",
+    ])?;
+    native_unit_names(&listing)
 }
 
 fn listed_units(value: &Value) -> Result<&[Value], ManagerError> {
@@ -498,6 +553,32 @@ mod tests {
         );
         insert(&mut service, "MainPID", "u", json!(123));
         (unit_map, service, unit, config)
+    }
+
+    #[test]
+    fn native_unit_listing_accepts_only_exact_names() {
+        let name = format!("sley-native-test-{}.service", "a".repeat(64));
+        let listed = |service_name: &str| {
+            json!({
+                "type": "a(ssssssouso)",
+                "data": [[[
+                    service_name, "worker", "loaded", "failed", "failed", "",
+                    "/org/freedesktop/systemd1/unit/worker", 0, "", "/"
+                ]]]
+            })
+        };
+        assert_eq!(
+            native_unit_names(&listed(&name)),
+            Ok(vec![name.trim_end_matches(".service").to_owned()])
+        );
+        assert_eq!(
+            native_unit_names(&listed("sley-native-test-short.service")),
+            Err(ManagerError::PropertyMismatch)
+        );
+        assert_eq!(
+            native_unit_names(&listed(&name.to_uppercase())),
+            Err(ManagerError::PropertyMismatch)
+        );
     }
 
     #[test]

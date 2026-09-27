@@ -31,6 +31,7 @@
 //! handler remains an explicit refusal path; native admission still requires
 //! privileged qualification and transaction-owner verification.
 
+pub mod admin_config;
 pub mod attest;
 pub mod channel;
 pub mod client;
@@ -45,6 +46,7 @@ pub mod phase;
 pub mod probe;
 pub mod program;
 pub mod protocol;
+pub mod reconcile;
 pub mod response;
 pub mod service;
 pub mod stage;
