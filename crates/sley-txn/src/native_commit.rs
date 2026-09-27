@@ -51,6 +51,8 @@ pub const JOURNAL_MAGIC: [u8; 8] = *b"SLEYNAT1";
 pub const JOURNAL_VERSION: u64 = 1;
 /// Journal directory under the repository root, outside semantic roots.
 pub const ATTEMPTS_DIR: &str = "attempts";
+/// Settled records stay queryable but do not enter the recovery scan.
+pub const SETTLED_ATTEMPTS_DIR: &str = "settled";
 /// Journal filename suffix.
 pub const ATTEMPT_SUFFIX: &str = ".attempt";
 /// Staging filename prefix for atomic journal writes.
@@ -769,8 +771,40 @@ fn attempts_dir(root: &Path) -> io::Result<PathBuf> {
 /// Returns the journal path for one attempt without creating anything.
 #[must_use]
 pub fn attempt_path(root: &Path, attempt_id: NativeAttemptId) -> PathBuf {
+    let active = active_attempt_path(root, attempt_id);
+    if active.exists() {
+        active
+    } else {
+        let settled = settled_attempt_path(root, attempt_id);
+        if settled.exists() { settled } else { active }
+    }
+}
+
+fn active_attempt_path(root: &Path, attempt_id: NativeAttemptId) -> PathBuf {
     root.join(ATTEMPTS_DIR)
         .join(format!("{}{}", attempt_id.hex(), ATTEMPT_SUFFIX))
+}
+
+fn settled_attempt_path(root: &Path, attempt_id: NativeAttemptId) -> PathBuf {
+    root.join(ATTEMPTS_DIR)
+        .join(SETTLED_ATTEMPTS_DIR)
+        .join(format!("{}{}", attempt_id.hex(), ATTEMPT_SUFFIX))
+}
+
+fn settled_attempts_dir(root: &Path) -> io::Result<PathBuf> {
+    let directory = attempts_dir(root)?.join(SETTLED_ATTEMPTS_DIR);
+    match fs::create_dir(&directory) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            if !fs::symlink_metadata(&directory)?.is_dir() {
+                return Err(io::Error::other(
+                    "settled attempt journal is not a directory",
+                ));
+            }
+        }
+        Err(error) => return Err(error),
+    }
+    Ok(directory)
 }
 
 /// Reads one journal record without creating anything.
@@ -799,7 +833,22 @@ pub(crate) fn read_attempt_record(
 /// Atomically persists one journal record: stage, sync, rename, sync dir.
 pub(crate) fn write_attempt_record(root: &Path, record: &AttemptRecord) -> io::Result<()> {
     let directory = attempts_dir(root)?;
-    let final_path = directory.join(format!("{}{}", record.attempt_id.hex(), ATTEMPT_SUFFIX));
+    let settled_directory = settled_attempts_dir(root)?;
+    let final_path = active_attempt_path(root, record.attempt_id);
+    let settled_path = settled_attempt_path(root, record.attempt_id);
+    // A retry of an aborted attempt reactivates the same durable record.
+    // Moving it first makes a crash before the new write leave the old state
+    // queryable and safe to retry again.
+    if !final_path.exists() {
+        match fs::rename(&settled_path, &final_path) {
+            Ok(()) => {
+                sync_directory(&settled_directory)?;
+                sync_directory(&directory)?;
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
     let stage_path = directory.join(format!(
         "{}{}-{}",
         ATTEMPT_STAGE_PREFIX,
@@ -829,7 +878,28 @@ pub(crate) fn write_attempt_record(root: &Path, record: &AttemptRecord) -> io::R
     let final_bytes = fs::read(&final_path)?;
     AttemptRecord::parse(&final_bytes)
         .map_err(|_| io::Error::other("attempt journal final failed verification"))?;
+    if matches!(
+        record.state,
+        AttemptState::AbortedBeforePromotion
+            | AttemptState::Committed
+            | AttemptState::OutcomeUnknown
+    ) {
+        park_attempt_record(root, record.attempt_id)?;
+    }
     Ok(())
+}
+
+/// Removes a validated record from the recovery scan while retaining exact
+/// status and retry bindings under its attempt identity.
+pub(crate) fn park_attempt_record(root: &Path, attempt_id: NativeAttemptId) -> io::Result<()> {
+    let directory = attempts_dir(root)?;
+    let settled_directory = settled_attempts_dir(root)?;
+    fs::rename(
+        active_attempt_path(root, attempt_id),
+        settled_attempt_path(root, attempt_id),
+    )?;
+    sync_directory(&settled_directory)?;
+    sync_directory(&directory)
 }
 
 /// Syncs one directory without following symlinks.

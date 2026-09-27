@@ -2,13 +2,13 @@
 #![doc = include_str!("../README.md")]
 
 use core::fmt;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use sley_id::EntityId;
 use sley_ssmc::{
     BuiltinFailureKind, ConstData, ConstValue, IntegerWidth, MAX_CONSTANT_ELEMENTS,
     MAX_CONSTANT_PAYLOAD_BYTES, MAX_MEMBERS, MAX_TUPLE_ITEMS, MAX_TYPE_ARGUMENTS, MAX_TYPE_DEPTH,
-    ResultConst, TypeDefForm, TypeDefinition, TypeExpr,
+    NamedType, ResultConst, TypeDefForm, TypeDefinition, TypeExpr,
 };
 
 /// Bounded CFG and value-use validation.
@@ -19,6 +19,7 @@ pub mod contracts;
 pub mod effects;
 
 const MAX_DEFINITIONS: usize = 1_000_000;
+const MAX_TYPE_WALK_VISITS: usize = 1_048_576;
 const CANONICAL_F32_NAN: u32 = 0x7fc0_0000;
 const CANONICAL_F64_NAN: u64 = 0x7ff8_0000_0000_0000;
 
@@ -202,6 +203,29 @@ enum Visit {
     Complete,
 }
 
+/// One judgment's bounded walk. Depth is part of each cache key because a
+/// named expansion can succeed near the root and exceed the depth limit when
+/// the same definition appears deeper in another type.
+#[derive(Default)]
+struct TypeWalk {
+    visits: usize,
+    map_keys: HashSet<(NamedType, usize)>,
+    traits: HashMap<(NamedType, usize), TypeTraits>,
+}
+
+impl TypeWalk {
+    fn charge(&mut self) -> Result<()> {
+        self.visits = self
+            .visits
+            .checked_add(1)
+            .ok_or_else(|| TypeError::new(TypeErrorCode::ResourceLimit))?;
+        if self.visits > MAX_TYPE_WALK_VISITS {
+            return fail(TypeErrorCode::ResourceLimit);
+        }
+        Ok(())
+    }
+}
+
 /// Immutable, exactly keyed type-definition environment.
 #[derive(Clone, Debug)]
 pub struct TypeEnvironment {
@@ -232,8 +256,9 @@ impl TypeEnvironment {
             environment.check_definition_shape(definition)?;
         }
         environment.reject_definition_cycles()?;
+        let mut walk = TypeWalk::default();
         for definition in environment.definitions.values() {
-            environment.check_definition_map_keys(definition)?;
+            environment.check_definition_map_keys(definition, &mut walk)?;
         }
         Ok(environment)
     }
@@ -450,17 +475,21 @@ impl TypeEnvironment {
         Ok(())
     }
 
-    fn check_definition_map_keys(&self, definition: &TypeDefinition) -> Result<()> {
+    fn check_definition_map_keys(
+        &self,
+        definition: &TypeDefinition,
+        walk: &mut TypeWalk,
+    ) -> Result<()> {
         match &definition.form {
             TypeDefForm::Record(fields) => {
                 for field in fields {
-                    self.check_map_keys(&field.value_type, 1)?;
+                    self.check_map_keys_with(&field.value_type, 1, walk)?;
                 }
             }
             TypeDefForm::Variant(cases) => {
                 for case in cases {
                     if let Some(payload) = &case.payload_type {
-                        self.check_map_keys(payload, 1)?;
+                        self.check_map_keys_with(payload, 1, walk)?;
                     }
                 }
             }
@@ -534,19 +563,33 @@ impl TypeEnvironment {
     }
 
     fn check_map_keys(&self, value: &TypeExpr, depth: usize) -> Result<()> {
+        self.check_map_keys_with(value, depth, &mut TypeWalk::default())
+    }
+
+    fn check_map_keys_with(
+        &self,
+        value: &TypeExpr,
+        depth: usize,
+        walk: &mut TypeWalk,
+    ) -> Result<()> {
         check_depth(depth)?;
+        walk.charge()?;
         match value {
             TypeExpr::OrderedMap { key, value } => {
-                self.check_map_keys(key, depth + 1)?;
-                self.check_map_keys(value, depth + 1)?;
+                self.check_map_keys_with(key, depth + 1, walk)?;
+                self.check_map_keys_with(value, depth + 1, walk)?;
                 if contains_parameter(key) {
                     return fail(TypeErrorCode::NotOrderable);
                 }
-                require_map_key_traits(self.traits_inner(key, depth + 1)?)?;
+                require_map_key_traits(self.traits_inner_with(key, depth + 1, walk)?)?;
                 Ok(())
             }
             TypeExpr::Named(named) => {
                 if named.arguments.iter().any(contains_parameter) {
+                    return Ok(());
+                }
+                let key = (named.clone(), depth);
+                if walk.map_keys.contains(&key) {
                     return Ok(());
                 }
                 let definition = self.definition(named.definition)?;
@@ -555,45 +598,56 @@ impl TypeEnvironment {
                         for field in fields {
                             let field_type =
                                 substitute(&field.value_type, &named.arguments, depth + 1)?;
-                            self.check_map_keys(&field_type, depth + 1)?;
+                            self.check_map_keys_with(&field_type, depth + 1, walk)?;
                         }
                     }
                     TypeDefForm::Variant(cases) => {
                         for case in cases {
                             if let Some(payload) = &case.payload_type {
                                 let payload = substitute(payload, &named.arguments, depth + 1)?;
-                                self.check_map_keys(&payload, depth + 1)?;
+                                self.check_map_keys_with(&payload, depth + 1, walk)?;
                             }
                         }
                     }
                 }
+                walk.map_keys.insert(key);
                 Ok(())
             }
             TypeExpr::Tuple(elements) => {
                 for element in elements {
-                    self.check_map_keys(element, depth + 1)?;
+                    self.check_map_keys_with(element, depth + 1, walk)?;
                 }
                 Ok(())
             }
             TypeExpr::Vector(element)
             | TypeExpr::Option(element)
-            | TypeExpr::LocalCell(element) => self.check_map_keys(element, depth + 1),
+            | TypeExpr::LocalCell(element) => self.check_map_keys_with(element, depth + 1, walk),
             TypeExpr::Result { ok, error } => {
-                self.check_map_keys(ok, depth + 1)?;
-                self.check_map_keys(error, depth + 1)
+                self.check_map_keys_with(ok, depth + 1, walk)?;
+                self.check_map_keys_with(error, depth + 1, walk)
             }
             TypeExpr::FunctionRef(function) => {
                 for parameter in &function.parameters {
-                    self.check_map_keys(parameter, depth + 1)?;
+                    self.check_map_keys_with(parameter, depth + 1, walk)?;
                 }
-                self.check_map_keys(&function.result, depth + 1)
+                self.check_map_keys_with(&function.result, depth + 1, walk)
             }
             _ => Ok(()),
         }
     }
 
     fn traits_inner(&self, value: &TypeExpr, depth: usize) -> Result<TypeTraits> {
+        self.traits_inner_with(value, depth, &mut TypeWalk::default())
+    }
+
+    fn traits_inner_with(
+        &self,
+        value: &TypeExpr,
+        depth: usize,
+        walk: &mut TypeWalk,
+    ) -> Result<TypeTraits> {
         check_depth(depth)?;
+        walk.charge()?;
         match value {
             TypeExpr::Unit
             | TypeExpr::Bool
@@ -606,8 +660,12 @@ impl TypeEnvironment {
                 total_order: false,
                 ..TypeTraits::ALL
             }),
-            TypeExpr::Tuple(elements) => self.combine_traits(elements.iter(), depth + 1),
+            TypeExpr::Tuple(elements) => self.combine_traits(elements.iter(), depth + 1, walk),
             TypeExpr::Named(named) => {
+                let key = (named.clone(), depth);
+                if let Some(traits) = walk.traits.get(&key) {
+                    return Ok(*traits);
+                }
                 let definition = self.definition(named.definition)?;
                 let mut combined = TypeTraits::ALL;
                 match &definition.form {
@@ -615,41 +673,49 @@ impl TypeEnvironment {
                         for field in fields {
                             let field_type =
                                 substitute(&field.value_type, &named.arguments, depth + 1)?;
-                            combined = combined.combine(self.traits_inner(&field_type, depth + 1)?);
+                            combined = combined.combine(self.traits_inner_with(
+                                &field_type,
+                                depth + 1,
+                                walk,
+                            )?);
                         }
                     }
                     TypeDefForm::Variant(cases) => {
                         for case in cases {
                             if let Some(payload) = &case.payload_type {
                                 let payload = substitute(payload, &named.arguments, depth + 1)?;
-                                combined =
-                                    combined.combine(self.traits_inner(&payload, depth + 1)?);
+                                combined = combined.combine(self.traits_inner_with(
+                                    &payload,
+                                    depth + 1,
+                                    walk,
+                                )?);
                             }
                         }
                     }
                 }
+                walk.traits.insert(key, combined);
                 Ok(combined)
             }
             TypeExpr::Vector(element) => {
-                let element = self.traits_inner(element, depth + 1)?;
+                let element = self.traits_inner_with(element, depth + 1, walk)?;
                 Ok(TypeTraits {
                     total_order: false,
                     ..element
                 })
             }
             TypeExpr::OrderedMap { key, value } => {
-                let key = self.traits_inner(key, depth + 1)?;
+                let key = self.traits_inner_with(key, depth + 1, walk)?;
                 require_map_key_traits(key)?;
-                let combined = key.combine(self.traits_inner(value, depth + 1)?);
+                let combined = key.combine(self.traits_inner_with(value, depth + 1, walk)?);
                 Ok(TypeTraits {
                     total_order: false,
                     ..combined
                 })
             }
-            TypeExpr::Option(element) => self.traits_inner(element, depth + 1),
+            TypeExpr::Option(element) => self.traits_inner_with(element, depth + 1, walk),
             TypeExpr::Result { ok, error } => Ok(self
-                .traits_inner(ok, depth + 1)?
-                .combine(self.traits_inner(error, depth + 1)?)),
+                .traits_inner_with(ok, depth + 1, walk)?
+                .combine(self.traits_inner_with(error, depth + 1, walk)?)),
             TypeExpr::FunctionRef(_) => Ok(TypeTraits {
                 equality: true,
                 total_order: false,
@@ -676,10 +742,11 @@ impl TypeEnvironment {
         &self,
         values: impl Iterator<Item = &'a TypeExpr>,
         depth: usize,
+        walk: &mut TypeWalk,
     ) -> Result<TypeTraits> {
         let mut combined = TypeTraits::ALL;
         for value in values {
-            combined = combined.combine(self.traits_inner(value, depth)?);
+            combined = combined.combine(self.traits_inner_with(value, depth, walk)?);
         }
         Ok(combined)
     }
@@ -1241,6 +1308,38 @@ mod tests {
             TypeEnvironment::new(definitions).unwrap_err().code(),
             TypeErrorCode::DepthLimit
         );
+    }
+
+    #[test]
+    fn shared_named_subgraphs_do_not_expand_exponentially() {
+        let mut definitions = Vec::new();
+        for byte in 1_u8..=31 {
+            let next = if byte == 31 {
+                TypeExpr::Unit
+            } else {
+                TypeExpr::Named(NamedType {
+                    definition: id(byte + 1),
+                    arguments: Vec::new(),
+                })
+            };
+            let mut definition = record_definition(id(byte), next.clone());
+            let TypeDefForm::Record(fields) = &mut definition.form else {
+                unreachable!();
+            };
+            fields.push(RecordField {
+                member_id: member(2),
+                value_type: next,
+                visibility: Visibility::Private,
+            });
+            definitions.push(definition);
+        }
+        let environment = TypeEnvironment::new(definitions).unwrap();
+        let root = TypeExpr::Named(NamedType {
+            definition: id(1),
+            arguments: Vec::new(),
+        });
+        environment.check_closed_type(&root).unwrap();
+        assert_eq!(environment.traits(&root).unwrap(), TypeTraits::ALL);
     }
 
     #[test]

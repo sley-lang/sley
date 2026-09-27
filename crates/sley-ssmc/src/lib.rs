@@ -90,7 +90,7 @@ impl BuiltinFailureKind {
 }
 
 /// Named type instantiation.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct NamedType {
     /// Stable type-definition identity.
     pub definition: EntityId,
@@ -99,7 +99,7 @@ pub struct NamedType {
 }
 
 /// First-class function-reference type.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FunctionType {
     /// Ordered parameter types.
     pub parameters: Vec<TypeExpr>,
@@ -110,7 +110,7 @@ pub struct FunctionType {
 }
 
 /// Closed SSMC1 epoch-1 structural type.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum TypeExpr {
     /// Unit.
     Unit,
