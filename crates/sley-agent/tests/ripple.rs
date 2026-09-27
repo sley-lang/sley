@@ -823,6 +823,49 @@ fn calls_the_frame_writes_are_read_against_the_new_parameters() {
 }
 
 #[test]
+fn an_edit_that_calls_the_function_is_rewritten_in_place_or_left_as_a_hole() {
+    let temp = workspace("edits");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "fns": [
+          {"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+          {"fn": "one", "params": [["x", "i64"], ["y", "i64"]], "returns": "i64",
+           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", "y"]], "term": ["return", "r"]}]},
+          {"fn": "two", "params": [["x", "i64"], ["y", "i64"]], "returns": "i64",
+           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", "y"], ["s", "call", "f", "y", "x"]], "term": ["return", "r"]}]}]}),
+    );
+    // Dropping a parameter needs no new operation: the edit is rewritten.
+    let frame = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"]]}],
+      "edit": [{"fn": "one", "replace_op": "entry.r", "with": ["call", "f", "y", "x"]}],
+      "ripple": [{"arity": "f"}]});
+    let report = valid(&temp.path, &frame);
+    let expanded = artifact(
+        &temp.path,
+        report["draft"].as_str().unwrap(),
+        "expanded.json",
+    );
+    assert_eq!(expanded["edit"][0]["with"], json!(["call", "f", "y"]));
+    let mut after = Machine::candidate(&temp.path, &frame);
+    assert_eq!(after.call("one", &[json!(5), json!(9)]), json!(9));
+    assert_eq!(after.call("two", &[json!(5), json!(9)]), json!(5));
+    // A new argument needs an operation an edit cannot add; and another call
+    // in a function the frame edits is the author's to restate.
+    let obligations = assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"], ["c", "i64"]]}],
+          "edit": [{"fn": "one", "replace_op": "entry.r", "with": ["call", "f", "y", "x"]},
+                   {"fn": "two", "replace_op": "entry.r", "with": ["call", "f", "y", "x"]}],
+          "ripple": [{"arity": "f", "value": 1}]}),
+        "AGENT_RIPPLE_HOLE_UNFILLED",
+        &[
+            "/ripple/0: /edit/0/with (one) is an edit, which cannot add the operation for the new argument: restate its block with patch",
+            "/ripple/0: `two.entry.s` calls `f`, and this frame changes `two` with edit: restate block `entry` with patch",
+        ],
+    );
+    assert_eq!(obligations.len(), 3, "{obligations:#?}");
+}
+
+#[test]
 fn overloaded_names_and_reordered_parameters_are_resolved_by_identity_and_name() {
     let temp = workspace("ambiguity");
     let body = |name: &str| {
