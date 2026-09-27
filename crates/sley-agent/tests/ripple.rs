@@ -2009,3 +2009,128 @@ fn effects_before_a_check_keep_entry_from_moving_it() {
         "`after_call.entry.z` calls `boom`, but `after_call` declares effects, which a patch cannot restate: change the call yourself"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Generated checkers: preserve keeps behavior, entry checks first
+// ---------------------------------------------------------------------------
+
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+
+    fn pick<T: Copy>(&mut self, items: &[T]) -> T {
+        items[usize::try_from(self.next() % items.len() as u64).unwrap()]
+    }
+}
+
+/// One to three exits `["!Case", "if", [cmp, v, k]]` on the value `v`,
+/// sometimes over a combined condition.
+fn generated_exits(rng: &mut Rng, v: &str) -> Vec<Value> {
+    let count = 1 + rng.next() % 3;
+    (0..count)
+        .map(|_| {
+            let case = rng.pick(&["InvalidQuantity", "InvalidPrice", "Overflow"]);
+            let cmp = |rng: &mut Rng| {
+                json!([
+                    rng.pick(&["lt", "gt", "eq", "le", "ge", "ne"]),
+                    v,
+                    rng.pick(&[-2_i64, 0, 1, 7, 100])
+                ])
+            };
+            let cond = match rng.next() % 3 {
+                0 => json!(["and", cmp(rng), cmp(rng)]),
+                1 => json!(["or", cmp(rng), cmp(rng)]),
+                _ => cmp(rng),
+            };
+            json!([format!("!{case}"), "if", cond])
+        })
+        .collect()
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn generated_checks_keep_their_behavior_and_entry_checks_first() {
+    let temp = workspace("generated");
+    let mut rng = Rng(0x5eed_1234_abcd_0001);
+    let count = 16;
+    let mut live = Vec::new();
+    let mut checkers = Vec::new();
+    for index in 0..count {
+        let exits = generated_exits(&mut rng, "q");
+        // The function has the checker's exits written with its own names,
+        // after a price check, before its own work.
+        let own: Vec<Value> = exits
+            .iter()
+            .map(|exit| serde_json::from_str(&exit.to_string().replace("\"q\"", "\"n\"")).unwrap())
+            .collect();
+        let mut ops = vec![json!(["!InvalidPrice", "if", ["lt", "price", 0]])];
+        ops.extend(own);
+        ops.push(json!(["total", "mul?Overflow", "n", "price"]));
+        live.push(
+            json!({"fn": format!("f{index}"), "params": [["n", "i64"], ["price", "i64"]],
+                         "returns": "Result<i64,OrderError>",
+                         "blocks": [{"name": "entry", "ops": ops, "term": ["ok", "total"]}]}),
+        );
+        checkers.push(json!({"fn": format!("g{index}"), "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
+                             "blocks": [{"name": "entry", "ops": exits, "term": ["ok", "q"]}]}));
+    }
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [order_error()], "fns": live}),
+    );
+    let values: Vec<Value> = [i64::MIN, -3, -2, -1, 0, 1, 2, 7, 8, 99, 100, 101, i64::MAX]
+        .iter()
+        .map(|n| json!(n))
+        .collect();
+    let prices: Vec<Value> = [-1_i64, 0, 3, i64::MAX].iter().map(|n| json!(n)).collect();
+    let rows = grid(&[&values, &prices]);
+    for entry in [false, true] {
+        let intents: Vec<Value> = (0..count)
+            .map(|index| {
+                json!({"guard": format!("g{index}"), "arg": "n", "in": [format!("f{index}")],
+                       "mode": if entry { "entry" } else { "preserve" }})
+            })
+            .collect();
+        let frame = json!({"af1": 1, "afx": 1, "fns": checkers, "ripple": intents});
+        let report = valid(&temp.path, &frame);
+        let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
+        let edits: Vec<&str> = inventory["intents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|intent| intent["functions"][0]["edit"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            edits,
+            vec![if entry { "entry" } else { "replaced" }; count],
+            "{inventory:#}"
+        );
+        let mut before = Machine::head(&temp.path);
+        let mut after = Machine::candidate(&temp.path, &frame);
+        for index in 0..count {
+            let (f, g) = (format!("f{index}"), format!("g{index}"));
+            for row in &rows {
+                let old = before.call(&f, row);
+                let new = after.call(&f, row);
+                if entry {
+                    // The checker first; on success, the function as it was.
+                    let checked = after.call(&g, &row[..1]);
+                    let expected = if checked.get("Err").is_some() {
+                        checked
+                    } else {
+                        old
+                    };
+                    assert_eq!(new, expected, "entry {f}{row:?}");
+                } else {
+                    assert_eq!(new, old, "preserve {f}{row:?}");
+                }
+            }
+        }
+    }
+}
