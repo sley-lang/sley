@@ -8,7 +8,7 @@
 //! worker request envelope, bounded portable program artifact, pure native
 //! execution/report bridge, observed-report request binding, authenticated socket
 //! ingress boundary, fail-closed
-//! one-connection service boundary, and the
+//! one-connection service with prelaunch program checks, and the
 //! readiness probes. The root service loop and privileged transient-unit
 //! execution are not wired yet.
 //!
@@ -17,9 +17,10 @@
 //! [`outcome::Ed25519MeasurementSigner`] owns the concrete Ed25519 key, and
 //! privileged install/probe steps need the authenticated privilege handoff.
 //! The private worker now executes a portable selected `TestCase` and emits a
-//! canonical pure report. The owner now derives bounded worker input hashes
-//! from the validated selected `TestCase`. Measured launch and admission still
-//! belong to N5; the socket service remains refusal-only.
+//! canonical pure report. The owner derives bounded worker input hashes and
+//! supervisor request bindings from the validated selected `TestCase`; the
+//! socket service rechecks both before its explicit refusal. Measured launch
+//! and admission still belong to N5; the service remains refusal-only.
 
 pub mod config;
 pub mod enforce;

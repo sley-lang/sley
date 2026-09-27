@@ -176,6 +176,44 @@ fn read_option_candidate(value: &[u8]) -> Result<Option<CandidateId>, ScbError> 
 }
 
 impl RunRequest {
+    /// Constructs one complete supervisor request from a selected portable
+    /// Sley program. All semantic identities, limits, and ordered input hashes
+    /// come from the plan and statically validated `TestCase`; only the host
+    /// attempt nonce and a no-greater-than-declared wall budget are supplied.
+    ///
+    /// This does not authenticate the caller or authorize the plan. The
+    /// supervisor must still bind the request to kernel peer credentials.
+    ///
+    /// # Errors
+    ///
+    /// Refuses invalid source, zero or expanded wall budget, or oversized
+    /// worker and outer frames.
+    pub fn from_portable_program(
+        program: &PortableTestProgram,
+        wall_ms: u64,
+        nonce: [u8; 32],
+    ) -> Result<Self, ScbError> {
+        let selected = program.selected();
+        let plan = program.plan();
+        let worker_frame = program.derive_worker_request()?.encode_frame()?;
+        let request = Self {
+            workspace: plan.workspace(),
+            principal: plan.resource_policy().principal(),
+            candidate_id: plan.candidate_id(),
+            plan_id: plan.plan_id(),
+            test_object: selected.test_object,
+            test_entity: selected.test_entity,
+            target_function: selected.target_function,
+            policy_root: plan.policy_root(),
+            declared_limits: selected.declared_limits,
+            wall_ms,
+            nonce,
+            worker_frame,
+        };
+        request.encode_frame()?;
+        Ok(request)
+    }
+
     /// Verifies a worker's canonical observed report against authenticated
     /// request scope and the exact embedded worker input.
     ///

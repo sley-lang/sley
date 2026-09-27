@@ -591,26 +591,30 @@ mod tests {
         let (plan, root, objects, test) = fixture();
         let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
         let selected = program.selected();
-        let worker_frame = program
-            .derive_worker_request()
-            .expect("owner-derived worker request")
-            .encode_frame()
-            .expect("worker frame");
-        let mut request = RunRequest {
-            workspace: plan.workspace(),
-            principal: plan.resource_policy().principal(),
-            candidate_id: plan.candidate_id(),
-            plan_id: plan.plan_id(),
-            test_object: selected.test_object,
-            test_entity: selected.test_entity,
-            target_function: selected.target_function,
-            policy_root: plan.policy_root(),
-            declared_limits: selected.declared_limits,
-            wall_ms: selected.declared_limits.wall_timeout_millis,
-            nonce: [42; 32],
-            worker_frame: worker_frame.clone(),
-        };
+        let mut request = RunRequest::from_portable_program(
+            &program,
+            selected.declared_limits.wall_timeout_millis,
+            [42; 32],
+        )
+        .expect("owner-built supervisor request");
+        let worker_frame = request.worker_frame.clone();
         assert_eq!(request.verified_program().expect("bound"), program);
+        assert_eq!(request.workspace, plan.workspace());
+        assert_eq!(request.candidate_id, None);
+        assert_eq!(request.nonce, [42; 32]);
+        assert_eq!(
+            RunRequest::decode_frame(&request.encode_frame().expect("outer frame"))
+                .expect("outer roundtrip"),
+            request
+        );
+        for wall_ms in [0, selected.declared_limits.wall_timeout_millis + 1] {
+            assert_eq!(
+                RunRequest::from_portable_program(&program, wall_ms, [42; 32])
+                    .expect_err("invalid wall budget")
+                    .code(),
+                ScbErrorCode::ResourceLimit
+            );
+        }
         let mut substituted = WorkerRequest::decode_frame(&request.worker_frame).expect("worker");
         substituted.input_hashes[0] = [99; 32];
         request.worker_frame = substituted.encode_frame().expect("substituted worker");
@@ -772,20 +776,12 @@ mod tests {
                     .expect("canonical report"),
                 result.execution_report
             );
-            let mut run = RunRequest {
-                workspace: plan.workspace(),
-                principal: plan.resource_policy().principal(),
-                candidate_id: plan.candidate_id(),
-                plan_id: plan.plan_id(),
-                test_object: program.selected().test_object,
-                test_entity: program.selected().test_entity,
-                target_function: program.selected().target_function,
-                policy_root: plan.policy_root(),
-                declared_limits: program.selected().declared_limits,
-                wall_ms: program.selected().declared_limits.wall_timeout_millis,
-                nonce: [42; 32],
-                worker_frame: worker.encode_frame().expect("worker frame"),
-            };
+            let mut run = RunRequest::from_portable_program(
+                &program,
+                program.selected().declared_limits.wall_timeout_millis,
+                [42; 32],
+            )
+            .expect("owner-built supervisor request");
             assert_eq!(
                 run.verified_observed_worker_report(result.execution_report.stored_bytes())
                     .expect("authenticated report binding"),

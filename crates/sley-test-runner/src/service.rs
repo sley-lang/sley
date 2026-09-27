@@ -2,8 +2,9 @@
 //!
 //! This handles one connection on a caller-supplied Unix listener. The
 //! existing ingress authenticates kernel peer credentials, scope, framing,
-//! and deadline before a response is written. A valid request receives an
-//! explicit refusal. Invalid or unauthorized peers receive no response.
+//! and deadline before a response is written. The authenticated request's
+//! portable program and input hashes are checked before the current explicit
+//! execution refusal. Invalid or unauthorized ingress peers receive no response.
 //! No worker is launched, no measurement is signed, and no production daemon
 //! entry or systemd unit is supplied by this module.
 
@@ -17,6 +18,8 @@ use crate::protocol::{RunResponse, RunStatus};
 
 /// Stable refusal code while the selected-program handoff is absent.
 pub const RUN_REFUSAL_EXECUTION_NOT_WIRED: u32 = 1;
+/// Stable refusal for an authenticated request with invalid program bindings.
+pub const RUN_REFUSAL_PROGRAM_INVALID: u32 = 2;
 
 /// A socket service failure; none confers a test result or attestation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,10 +44,16 @@ pub fn handle_connection(
     config: &RunnerConfig,
     timeout: Duration,
 ) -> Result<(), ServiceError> {
-    let _request = authenticate_request(stream, config, timeout).map_err(ServiceError::Ingress)?;
+    let authenticated =
+        authenticate_request(stream, config, timeout).map_err(ServiceError::Ingress)?;
+    let code = if authenticated.request().verified_program().is_ok() {
+        RUN_REFUSAL_EXECUTION_NOT_WIRED
+    } else {
+        RUN_REFUSAL_PROGRAM_INVALID
+    };
     let response = RunResponse {
         status: RunStatus::Refused,
-        code: RUN_REFUSAL_EXECUTION_NOT_WIRED,
+        code,
         output: Vec::new(),
     };
     let frame = response
@@ -79,10 +88,8 @@ mod tests {
     use std::os::unix::fs::MetadataExt;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use sley_id::{CandidateId, EntityId, ObjectId, PolicyRootId, PrincipalId, WorkspaceId};
-    use sley_vm::native_execution::NativeDeclaredLimits;
-
     use crate::config::{AllowedCaller, default_config};
+    use crate::program::PortableTestProgram;
     use crate::protocol::RunRequest;
     use crate::worker::WorkerRequest;
 
@@ -98,6 +105,7 @@ mod tests {
     }
 
     fn config(uid: u32) -> RunnerConfig {
+        let scope = request();
         default_config(
             "/run/sley-test-supervisor",
             "/usr/lib/sley/sley-native-test-worker",
@@ -105,8 +113,8 @@ mod tests {
             [8; 32],
             vec![AllowedCaller {
                 uid,
-                workspace: WorkspaceId::from_bytes([1; 32]),
-                principal: PrincipalId::from_bytes([2; 32]),
+                workspace: scope.workspace,
+                principal: scope.principal,
             }],
             "/etc/sley-test-supervisor/measurement.key",
             "/etc/sley-test-supervisor/trust",
@@ -115,36 +123,12 @@ mod tests {
     }
 
     fn request() -> RunRequest {
-        let declared_limits = NativeDeclaredLimits {
-            fuel: 100,
-            memory_bytes: 4_096,
-            output_bytes: 64,
-            effect_count: 0,
-            call_depth: 8,
-            wall_timeout_millis: 1_000,
-        };
-        RunRequest {
-            workspace: WorkspaceId::from_bytes([1; 32]),
-            principal: PrincipalId::from_bytes([2; 32]),
-            candidate_id: Some(CandidateId::from_bytes([3; 32])),
-            plan_id: sley_id::NativeTestPlanId::from_bytes([4; 32]),
-            test_object: ObjectId::from_bytes([5; 32]),
-            test_entity: EntityId::from_bytes([6; 32]),
-            target_function: EntityId::from_bytes([7; 32]),
-            policy_root: PolicyRootId::from_bytes([8; 32]),
-            declared_limits,
-            wall_ms: 1_000,
-            nonce: [9; 32],
-            worker_frame: WorkerRequest {
-                program_bytes: vec![1, 2, 3],
-                input_hashes: vec![[10; 32]],
-                declared_limits,
-                implementation_limits:
-                    sley_vm::native_execution::NativeImplementationLimits::HARD_MAXIMA,
-            }
-            .encode_frame()
-            .expect("worker frame"),
-        }
+        let worker = WorkerRequest::decode_frame(include_bytes!(
+            "../../../conformance/native-worker/v1/observed-input.bin"
+        ))
+        .expect("canonical worker vector");
+        let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
+        RunRequest::from_portable_program(&program, 1_000, [9; 32]).expect("supervisor request")
     }
 
     #[test]
@@ -205,6 +189,45 @@ mod tests {
             Err(ServiceError::Ingress(IngressError::UnauthorizedPeer))
         );
         assert!(client.join().expect("client thread").is_empty());
+        std::fs::remove_file(path).expect("remove socket");
+    }
+
+    #[test]
+    fn authenticated_program_substitution_is_refused_before_execution() {
+        let (listener, path) = test_listener();
+        let uid = std::fs::symlink_metadata(&path)
+            .expect("socket metadata")
+            .uid();
+        let client = std::thread::spawn({
+            let path = path.clone();
+            move || {
+                let mut changed = request();
+                let mut worker = WorkerRequest::decode_frame(&changed.worker_frame)
+                    .expect("valid worker envelope");
+                worker.input_hashes[0] = [99; 32];
+                changed.worker_frame = worker.encode_frame().expect("substituted worker");
+                let mut stream = UnixStream::connect(path).expect("connect");
+                stream
+                    .write_all(&changed.encode_frame().expect("outer frame"))
+                    .expect("write request");
+                let mut bytes = Vec::new();
+                stream.read_to_end(&mut bytes).expect("read refusal");
+                bytes
+            }
+        });
+        assert_eq!(
+            serve_one(&listener, &config(uid), Duration::from_secs(1)),
+            Ok(())
+        );
+        let reply = client.join().expect("client thread");
+        assert_eq!(
+            RunResponse::decode_frame(&reply, MAX_WORKER_OUTPUT_BYTES).expect("closed response"),
+            RunResponse {
+                status: RunStatus::Refused,
+                code: RUN_REFUSAL_PROGRAM_INVALID,
+                output: Vec::new(),
+            }
+        );
         std::fs::remove_file(path).expect("remove socket");
     }
 }

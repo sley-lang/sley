@@ -19,8 +19,9 @@ encodes the exact plan, root, live object inventory, and selected native
 `TestCase`; its strict parser and `RunRequest::verified_program` reject
 cross-boundary identity, limit, or ordered input-hash substitution. The pure
 owner derives a bounded worker request from the statically validated selected
-`TestCase` before launch. The refusal-only service does
-not yet invoke that check. A pure `execute_portable_test` bridge now projects
+`TestCase` before launch, then constructs the complete outer request from that
+program and a host nonce. The refusal-only socket service rechecks the program
+and hash bindings after peer authentication. A pure `execute_portable_test` bridge now projects
 the bound objects, rechecks the selected native `TestCase`, executes the
 existing Sley VM, and compares VM-derived ordered input hashes. The pure
 `sley-tests` owner reserves the complete execution report before the VM runs
