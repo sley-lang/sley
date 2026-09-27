@@ -414,12 +414,14 @@ Two intents are enabled:
   continuation are then those of the original. A match is never inferred
   from tests; anything else is `AGENT_RIPPLE_GUARD_ORDER`. `"entry"`
   evaluates `g(p)` once when `f` starts, before its existing checks (which
-  can change error precedence), and routes every use of `p` that entry
-  dominates through the `Ok` payload. The error is returned unchanged when
-  `f` returns `Result<_,E>`, or goes to the one block of `f` that takes
-  `(e: E)`; with no such route, or more than one, it is a hole. Entry never
-  moves a check before an effect, never evaluates `g` twice on `p` and
-  never deletes an existing check.
+  can change error precedence), and routes every use of `p` that the `Ok`
+  payload dominates through it; a block the error route can also reach, or
+  an explicitly unreachable one, keeps `p`. The error is returned
+  unchanged when `f` returns `Result<_,E>`, or goes to the one block of `f`
+  that takes `(e: E)` (a block that only passes the error on counts as the
+  block it passes it to); with no such route, or more than one, it is a
+  hole. Entry never moves a check before an effect, never evaluates `g`
+  twice on `p` and never deletes an existing check.
 
 `effect`, `member`, `retype`, `move` and `prune` are not enabled in this
 build: they are refused with `AGENT_RIPPLE_INTENT_UNKNOWN`, as is any

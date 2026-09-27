@@ -162,9 +162,10 @@ replaces, in each live `f`, an inline check of parameter `p` that runs the
 same operations as `g` in the same order, at the end of a block, and fails
 with the same errors, by a call of `g` at that place; anything else is
 `AGENT_RIPPLE_GUARD_ORDER`. `"mode": "entry"` calls `g(p)` once when `f`
-starts, before its other checks, and every later use of `p` reads the
-checked value. The error is returned unchanged when `f` returns
-`Result<_,E>`, or goes to the one block of `f` that takes `(e: E)`.
+starts, before its other checks, and every use of `p` after a success reads
+the checked value (a block the error also reaches keeps `p`). The error is
+returned unchanged when `f` returns `Result<_,E>`, or goes to the one block
+of `f` that takes `(e: E)`.
 
 `effect`, `member`, `retype`, `move` and `prune` are not enabled in this
 build (`AGENT_RIPPLE_INTENT_UNKNOWN`).

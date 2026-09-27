@@ -25,8 +25,8 @@
 //!   `p` of each live function `f`. `preserve` (the default) replaces an
 //!   inline check of `p` that is the same pure check as `g`'s body, up to
 //!   names, at its own position; `entry` evaluates `g(p)` once when `f` is
-//!   entered and routes every use of `p` that entry dominates through the
-//!   `Ok` payload.
+//!   entered and routes every use of `p` that the `Ok` payload dominates
+//!   through it.
 //!
 //! `effect`, `member`, `retype`, `move` and `prune` are specified but not
 //! enabled in this build (`AGENT_RIPPLE_INTENT_UNKNOWN`).
