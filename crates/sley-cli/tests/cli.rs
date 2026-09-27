@@ -1909,6 +1909,50 @@ fn v3_serve_routes_live_attempt_status_past_reservation() {
 }
 
 #[test]
+fn native_authority_requires_explicit_v3_receiver_configuration_before_hello() {
+    let (_temp, path) = repository("cli-native-authority-gate");
+    let repo = path.to_str().unwrap();
+    let missing = path.parent().unwrap().join("missing-native-authority.json");
+    let config = missing.to_str().unwrap();
+    let hello = encode_hello_frame(&offered_v3()).unwrap().bytes;
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v3-capable",
+            "--native-authority-config",
+            config,
+        ],
+        &hello,
+    );
+    assert_eq!(status, 4);
+    assert!(stdout.is_empty());
+    let failure: Value = serde_json::from_str(&stderr).unwrap();
+    assert_eq!(failure["symbol"], "CLI_IO_FAILURE");
+    assert_eq!(failure["cause"], "NATIVE_CLI_CONFIG_UNAVAILABLE");
+
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--native-authority-config",
+            config,
+        ],
+        &hello,
+    );
+    assert_eq!(status, 2);
+    assert!(stdout.is_empty());
+    let failure: Value = serde_json::from_str(&stderr).unwrap();
+    assert_eq!(failure["symbol"], "CLI_USAGE_INVALID");
+    assert_eq!(failure["cause"], "--native-authority-config");
+}
+
+#[test]
 fn v3_frame_commands_enforce_the_expected_version() {
     // A version 3 request converts under expected 3, including a native
     // tag (conversion names, dispatch admits): naming is not admission.

@@ -413,6 +413,8 @@ name = "sley-protocol"
 version = "2.0.1"
 dependencies = [
  "blake3",
+ "nix",
+ "serde",
  "serde_json",
  "sley-check",
  "sley-conformance",
@@ -426,9 +428,11 @@ dependencies = [
  "sley-ssmc",
  "sley-state-root",
  "sley-store",
+ "sley-test-runner",
  "sley-tests",
  "sley-txn",
  "sley-vm",
+ "zeroize",
 ]
 
 [[package]]

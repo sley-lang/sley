@@ -12,9 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CRATE = ROOT / "crates/sley-cli"
 MANIFEST = CRATE / "Cargo.toml"
 PROTOCOL = ROOT / "crates/sley-protocol/src/lib.rs"
-# `sley-test-runner` is admitted only for the private native-test worker
-# entry (contract section 10): the production source may name it exactly
-# once, as the worker call below, and nowhere else.
+# `sley-test-runner` is admitted only for the two exact private worker
+# input bindings (contract section 10), and nowhere else.
 ALLOWED_DEPENDENCIES = {
     "sley-protocol",
     "sley-json-bridge",
@@ -22,6 +21,7 @@ ALLOWED_DEPENDENCIES = {
     "serde_json",
 }
 WORKER_CALL = "sley_test_runner::worker::run_input_path("
+WORKER_CREDENTIAL_CALL = "sley_test_runner::worker::run_credential_input("
 WORKER_COMMAND = '"__native-test-worker"'
 ALLOWED_DEV_DEPENDENCIES = {
     "sley-repo",
@@ -141,20 +141,24 @@ def audit_production_source(
         problems.append(f"transport-feature:{display}")
     # The worker exception is bounded (contract section 10): every mention
     # of the runner crate is the one worker call, and the private command
-    # word appears once, in the parser.
+    # word appears once per accepted private worker argument shape.
     runner_mentions = len(re.findall(r"\bsley_test_runner\b", production))
-    worker_calls = production.count(WORKER_CALL)
+    worker_calls = production.count(WORKER_CALL) + production.count(WORKER_CREDENTIAL_CALL)
     if runner_mentions != worker_calls:
         problems.append(f"worker-edge:{display}:{runner_mentions - worker_calls}")
     counters["worker_calls"] = counters.get("worker_calls", 0) + worker_calls
+    counters["path_worker_calls"] = counters.get("path_worker_calls", 0) + production.count(WORKER_CALL)
+    counters["credential_worker_calls"] = counters.get("credential_worker_calls", 0) + production.count(WORKER_CREDENTIAL_CALL)
     counters["worker_commands"] = counters.get("worker_commands", 0) + production.count(WORKER_COMMAND)
 
 
 def worker_problems(counters: dict, problems: list) -> None:
-    """Exactly one worker call and one private command word (section 10)."""
-    if counters.get("worker_calls", 0) != 1:
+    """Exactly the two bounded worker calls and argument shapes (section 10)."""
+    if (counters.get("worker_calls", 0) != 2
+            or counters.get("path_worker_calls", 0) != 1
+            or counters.get("credential_worker_calls", 0) != 1):
         problems.append(f"worker-calls:{counters.get('worker_calls', 0)}")
-    if counters.get("worker_commands", 0) != 1:
+    if counters.get("worker_commands", 0) != 2:
         problems.append(f"worker-commands:{counters.get('worker_commands', 0)}")
 
 

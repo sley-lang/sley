@@ -48,7 +48,7 @@ the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 ## 1. Commands
 
 ```text
-sley serve --repository <path> [--json] [--batch] [--report <path>] [--protocol-profile v2-capable|v3-capable]
+sley serve --repository <path> [--json] [--batch] [--report <path>] [--protocol-profile v2-capable|v3-capable] [--native-authority-config <absolute path>]
 sley frame decode [--protocol-profile v2-capable|v3-capable --expected-version 1|2|3]
                                         # stdin: frames as bytes; stdout: one Frame object per line
 sley frame encode [--protocol-profile v2-capable|v3-capable --expected-version 1|2|3]
@@ -69,7 +69,7 @@ sley version [--protocol-profile v2-capable|v3-capable]
 
 Arguments are exact: an unknown command, a repeated or unknown option, or
 a missing value is `CLI_USAGE_INVALID`. There are no abbreviations, no
-environment variables, no configuration files, and no prose output on any
+environment variables, no implicit configuration files, and no prose output on any
 stream. `--protocol-profile` takes exactly `v2-capable` or `v3-capable`;
 any other value is `CLI_USAGE_INVALID`. On the frame commands the profile
 requires `--expected-version` and `--expected-version` requires the
@@ -79,6 +79,9 @@ offer (3 under `v2-capable`) is `CLI_USAGE_INVALID` with cause
 `--expected-version`. `--expected-version` on any other command is
 `CLI_USAGE_INVALID`. The private `__native-test-worker` entry (section 10)
 is not a user command and is not listed above.
+`--native-authority-config` is the one explicit configuration exception,
+available only with `sley serve --protocol-profile v3-capable` (section 11).
+With legacy or v2 serving it is `CLI_USAGE_INVALID` before any handshake.
 
 ## 2. `serve`
 
@@ -154,6 +157,9 @@ features), derives the selection with the same version-aware negotiation,
 and answers through `Server::new_versioned`. The profile never forces
 selection 3: a version 2 client hello selects 2 and a legacy one selects
 1, each exactly as under `v2-capable` over the same hellos.
+An explicit receiver authority file can provision the v3 native commit
+route as described in section 11. Without it, native commit remains a
+closed `NATIVE_SIGNER_UNAVAILABLE` refusal.
 
 ## 3. Report
 
@@ -571,10 +577,12 @@ supervisor (`crates/sley-test-runner`, `docs/spec/NATIVE_TEST_ADMISSION_V1.md`)
 can run its worker from the installed `sley` binary inside a transient
 unit. It is not a user command, not a protocol method, and never appears
 in the method table, the command list of section 1, or any
-report. Its argv is exactly the one `render_transient_unit` renders after
-the worker path: the word `__native-test-worker` and one absolute path to
-the daemon-owned read-only input binding. Any other shape (no operand, a
-relative path, an extra word) is `CLI_USAGE_INVALID` under section 4.
+report. The direct absolute-path operand is retained for local vectors and
+diagnostics. The production transient unit instead uses the exact private
+`sley __native-test-worker --credential` shape: the manager installs the
+daemon-owned source as its `sley-input` credential. Any other shape (no
+operand, a relative path, an extra word) is `CLI_USAGE_INVALID` under
+section 4.
 
 The worker opens the input path read-only without following symlinks or
 blocking on non-regular files; an absent, symlinked, or non-regular input
@@ -586,6 +594,12 @@ evidence, at most 262,144 bytes. The report is unmeasured and cannot admit a
 test. A refusal writes one big-endian `u32` tag followed by its ASCII detail
 code. Neither form adds a newline or worker stderr. Exit status passes through
 unwrapped:
+
+Under `--credential`, the worker waits for the fixed start byte before it
+opens the manager credential, and waits for the fixed release byte after its
+report is flushed. This lets the daemon verify placement and collect live
+cgroup counters before exit. Missing or wrong bytes refuse; the credential
+is opened without symlinks and is unavailable to the caller.
 
 | Status | Tag | Detail | Meaning |
 |---:|---:|---|---|
@@ -601,3 +615,41 @@ failure after the worker ran is `CLI_IO_FAILURE` (status 4). The entry
 links `sley-test-runner` (and through it `sley-vm`, `sley-scb1`,
 `sley-tests`, `sley-id`), the one exception to the section 5 dependency
 rule; the rule audit bounds it to this one call and one command word.
+
+## 11. Explicit native commit authority (development revision 12)
+
+Only `sley serve --protocol-profile v3-capable` accepts
+`--native-authority-config <absolute path>`. This adds a receiver-controlled
+native commit authority to the existing v3 server without changing the
+default, v1, or v2 routes. The closed JSON file has exactly these fields:
+
+```json
+{
+  "version": 1,
+  "acceptance_key_path": "/private/path/acceptance.key",
+  "measurement_trust_path": "/private/path/measurement.sleyntr1",
+  "acceptance_trust_path": "/private/path/acceptance.sleyntr1"
+}
+```
+
+The configuration and exact 32-byte Ed25519 acceptance seed must be regular,
+single-link files owned by the serving UID, mode `0400` or `0600`. The two
+canonical `SLEYNTR1` manifests must be regular, single-link files owned by
+that UID or root, without group/world write. Every path is absolute and opened
+without following symlinks; configuration and manifests are bounded to 64 KiB
+and 8 MiB respectively. Duplicate or unknown JSON fields refuse. The
+acceptance manifest must name the loaded key with the acceptance role; the
+measurement manifest must contain a measurement role. Exact workspace,
+profile, signature, and historical-time grants are checked by the native
+commit owner when a run is attempted. No key or trust bytes come from SMP1
+requests or a program package.
+
+Startup loads this authority before reading a client hello. An unavailable or
+unsafe configuration yields `CLI_IO_FAILURE` with a stable `NATIVE_CLI_*`
+cause, writes no protocol stdout, and does not start serving. The configured
+commit executor connects only to
+`/run/sley-test-supervisor/supervisor.sock`; it still requires the separately
+installed, authenticated, qualified root supervisor. The `tests.selected`
+and `tests.affected` diagnostic routes remain unprovisioned in this profile.
+This development-core addition is not part of the selected 2.0.1 release and
+does not itself demonstrate native test admission.

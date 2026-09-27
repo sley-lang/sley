@@ -3,8 +3,8 @@
 //! This adapter derives each request from the protected plan and validated
 //! proposed Sley state, uses a fresh kernel-random nonce, and preserves only
 //! request-bound, receiver-trusted response evidence. Its socket peer must be
-//! root. The supervisor service is still refusal-only, so provisioning this
-//! adapter does not by itself enable native test admission.
+//! root. Provisioning this adapter does not by itself qualify the supervisor
+//! or enable native test admission on an untested host.
 
 use std::collections::BTreeSet;
 use std::fs::File;

@@ -17,6 +17,15 @@ claim follows from the local unit tests. The authenticated refusal-only
 handler remains available for negative protocol tests; the production daemon
 uses the root handler.
 
+The development `sley serve --protocol-profile v3-capable` command now accepts
+an explicit `--native-authority-config` file for the receiver's separate
+acceptance key and trust manifests. Its file shape and permission checks are
+in [the CLI contract](../../docs/spec/SLEY_CLI_V1.md#11-explicit-native-commit-authority-development-revision-12).
+It supplies the existing native commit route with a socket executor and signer;
+it does not qualify this root service or enable native tests on the selected
+2.0.1 release binary. Diagnostic `tests.selected` and `tests.affected` remain
+unprovisioned.
+
 ## Protected administrator configuration
 
 The daemon reads exactly `/etc/sley-test-supervisor/config.json`. It must be a
@@ -58,8 +67,9 @@ users.
    telemetry, peer authentication, daemon/worker kill handling, and restart
    orphan reconciliation. Verify complete response and signature against the
    exact selected test and supervisor configuration.
-5. Only then use the transaction owner's native test admission path and its
-   candidate/root binding checks. A static `TestCase` validation, a mock
+5. Only then use the transaction owner's native test admission path through a
+   receiver-provisioned v3 server and its candidate/root binding checks. A
+   static `TestCase` validation, a mock
    response, or a pure VM comparison does not grant admission.
 
 `sudo -n` currently requires a password on the primary host, so the root
