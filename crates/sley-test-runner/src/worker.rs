@@ -5,7 +5,7 @@
 //! the transient unit's (`<worker> __native-test-worker <input_path>`,
 //! [`crate::unit::render_transient_unit`]): it reads exactly one
 //! length-delimited [`WorkerRequest`] frame from `<input_path>` (the
-//! daemon-owned read-only input binding). Until N5 wires execution,
+//! daemon-owned read-only regular-file input binding). Until N5 wires execution,
 //! it writes one refusal tag and ASCII detail to stdout (the daemon-owned
 //! bounded channel). The eventual successful reply format is still pending.
 //! Its exit statuses ([`EXIT_MALFORMED`],
@@ -21,6 +21,10 @@
 
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_uvar};
 use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits, profile_id};
+use std::fs::File;
+use std::path::Component;
+
+use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
 
 fn read_id(value: &[u8]) -> Result<[u8; 32], ScbError> {
     <[u8; 32]>::try_from(value).map_err(|_| ScbError::new(ScbErrorCode::LengthOverflow))
@@ -319,12 +323,32 @@ pub fn dispatch(frame: &[u8]) -> Result<Vec<u8>, WorkerRefusal> {
 
 /// Private worker entry over its input binding.
 ///
-/// Opens `input_path` read-only and runs [`run_stdio`] over it; an input
-/// that cannot be opened refuses with tag 3 and [`EXIT_INPUT_UNREADABLE`].
+/// Opens `input_path` as one regular file without following symlinks or
+/// blocking on a FIFO, then runs [`run_stdio`] over it. An absent or
+/// non-regular binding refuses with tag 3 and [`EXIT_INPUT_UNREADABLE`].
 pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Write) -> i32 {
-    match std::fs::File::open(input_path) {
-        Ok(mut file) => run_stdio(&mut file, output),
-        Err(_) => write_refusal(output, WorkerRefusal::InputUnreadable),
+    let Ok(relative) = input_path.strip_prefix("/") else {
+        return write_refusal(output, WorkerRefusal::InputUnreadable);
+    };
+    if relative
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return write_refusal(output, WorkerRefusal::InputUnreadable);
+    }
+    let Ok(root) = File::open("/") else {
+        return write_refusal(output, WorkerRefusal::InputUnreadable);
+    };
+    let how = OpenHow::new()
+        .flags(OFlag::O_RDONLY | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC)
+        .resolve(ResolveFlag::RESOLVE_BENEATH | ResolveFlag::RESOLVE_NO_SYMLINKS);
+    let Ok(opened) = openat2(&root, relative, how) else {
+        return write_refusal(output, WorkerRefusal::InputUnreadable);
+    };
+    let mut file = File::from(opened);
+    match file.metadata() {
+        Ok(metadata) if metadata.is_file() => run_stdio(&mut file, output),
+        _ => write_refusal(output, WorkerRefusal::InputUnreadable),
     }
 }
 
@@ -486,6 +510,8 @@ mod tests {
 
     #[test]
     fn input_path_entry_reads_the_binding_and_refuses_an_absent_one() {
+        use std::os::unix::fs::symlink;
+
         let frame = request().encode_frame().expect("encodes");
         let dir = std::env::temp_dir().join(format!("sley-worker-input-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("dir");
@@ -500,6 +526,31 @@ mod tests {
             EXIT_INPUT_UNREADABLE
         );
         assert_eq!(u32::from_be_bytes(output[..4].try_into().unwrap()), 3);
+        assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+        let link = dir.join("linked.bin");
+        symlink(&path, &link).expect("create symlink");
+        let mut output = Vec::new();
+        assert_eq!(run_input_path(&link, &mut output), EXIT_INPUT_UNREADABLE);
+        assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+        let linked_directory = dir.join("linked-directory");
+        symlink(&dir, &linked_directory).expect("create parent symlink");
+        let mut output = Vec::new();
+        assert_eq!(
+            run_input_path(&linked_directory.join("input.bin"), &mut output),
+            EXIT_INPUT_UNREADABLE
+        );
+        assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+        let mut output = Vec::new();
+        assert_eq!(run_input_path(&dir, &mut output), EXIT_INPUT_UNREADABLE);
+        assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+        let fifo = dir.join("pipe.bin");
+        nix::unistd::mkfifo(
+            &fifo,
+            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+        )
+        .expect("create FIFO");
+        let mut output = Vec::new();
+        assert_eq!(run_input_path(&fifo, &mut output), EXIT_INPUT_UNREADABLE);
         assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
         std::fs::remove_dir_all(&dir).expect("cleanup");
     }

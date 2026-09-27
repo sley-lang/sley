@@ -475,6 +475,15 @@ pins are unchanged.
   rest of the line is never read, which is why the input ends rather than
   resynchronising.
 
+### Input-binding erratum to revision 10 (2026-09-27)
+
+The section 10 input binding is a daemon-owned read-only regular file. The
+worker now opens it without following symlinks and with nonblocking open,
+then verifies the opened file descriptor is regular before reading. This
+closes the prior symlink substitution and FIFO stall without changing the
+worker's argv, refusal tag, or exit-status table. An input path that cannot
+meet the regular-file binding returns `NATIVE_WORKER_INPUT_UNREADABLE`.
+
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 
 The capable endpoint adopts `--protocol-profile v2-capable` for `hello`,
@@ -549,7 +558,9 @@ the worker path: the word `__native-test-worker` and one absolute path to
 the daemon-owned read-only input binding. Any other shape (no operand, a
 relative path, an extra word) is `CLI_USAGE_INVALID` under section 4.
 
-The worker opens the input path, reads exactly one length-delimited
+The worker opens the input path read-only without following symlinks or
+blocking on non-regular files; an absent, symlinked, or non-regular input
+binding is unreadable. It reads exactly one length-delimited
 `SLEYWRK1` request envelope, and answers on standard output with raw
 refusal words: one big-endian `u32` refusal tag followed by the ASCII
 detail code, with no newline and nothing on standard error. Its exit
@@ -559,7 +570,7 @@ status passes through unwrapped:
 |---:|---:|---|---|
 | 1 | 1 | the SCB registry string | malformed envelope |
 | 6 | 2 | `NATIVE_WORKER_EXECUTION_NOT_WIRED` | well-formed envelope; execution is not wired (N5) |
-| 7 | 3 | `NATIVE_WORKER_INPUT_UNREADABLE` | the input binding cannot be opened |
+| 7 | 3 | `NATIVE_WORKER_INPUT_UNREADABLE` | the input binding cannot be opened as a regular file |
 | 8 | — | — | the refusal words cannot be written |
 
 These statuses are disjoint from the section 4 statuses (0, 2, 3, 4, 5),

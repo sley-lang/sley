@@ -2615,6 +2615,18 @@ fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
     let (status, stdout, _) = run_unit(&scratch.child("absent.bin"));
     assert_eq!(status, EXIT_INPUT_UNREADABLE);
     assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 3);
+    let linked = scratch.child("linked.bin");
+    std::os::unix::fs::symlink(&input, &linked).unwrap();
+    let (status, stdout, stderr) = run_unit(&linked);
+    assert_eq!(status, EXIT_INPUT_UNREADABLE);
+    assert_eq!(&stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+    assert!(stderr.is_empty());
+    let directory = scratch.child("directory");
+    std::fs::create_dir(&directory).unwrap();
+    let (status, stdout, stderr) = run_unit(&directory);
+    assert_eq!(status, EXIT_INPUT_UNREADABLE);
+    assert_eq!(&stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+    assert!(stderr.is_empty());
     // Worker statuses never collide with the CLI's own statuses 2..=5, and
     // any other argv shape is a CLI usage failure (exit 2, JSON on stderr).
     for words in [

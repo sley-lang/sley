@@ -2,7 +2,8 @@
 //!
 //! Probes are structured, evidence-carrying checks. The unprivileged subset
 //! runs anywhere (cgroup layout, controller availability, manager version,
-//! supervisor socket, page size) and is executed live by operators; the
+//! supervisor socket, page size, worker input path resolution) and is
+//! executed live by operators; the
 //! privileged subset (pre-exec placement, transient units, UID/key
 //! isolation, peer-death and daemon-crash cleanup, manager backstop) needs
 //! the authenticated privilege handoff and is reported as pending, never
@@ -12,6 +13,8 @@ use std::collections::BTreeSet;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+
+use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
 
 use crate::config::SOCKET_NAME;
 
@@ -170,6 +173,22 @@ pub fn probe_unprivileged(socket_dir: &str, page_size_override: Option<u64>) -> 
         name: "page-size",
         passed: page_size.is_some_and(u64::is_power_of_two),
         evidence: page_size.map_or_else(|| "unknown".to_owned(), |size| size.to_string()),
+    });
+    let openat2 = std::fs::File::open("/")
+        .map_err(|error| error.to_string())
+        .and_then(|root| {
+            let how = OpenHow::new()
+                .flags(OFlag::O_PATH | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC)
+                .resolve(ResolveFlag::RESOLVE_BENEATH | ResolveFlag::RESOLVE_NO_SYMLINKS);
+            openat2(&root, ".", how).map_err(|error| error.to_string())
+        });
+    checks.push(ProbeCheck {
+        name: "worker-input-openat2",
+        passed: openat2.is_ok(),
+        evidence: openat2.map_or_else(
+            |reason| format!("symlink-safe openat2 unavailable: {reason}"),
+            |_| "RESOLVE_BENEATH|RESOLVE_NO_SYMLINKS available".to_owned(),
+        ),
     });
     let socket = check_supervisor_socket(Path::new(socket_dir), 0);
     checks.push(ProbeCheck {

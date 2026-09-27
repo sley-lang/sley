@@ -47,8 +47,9 @@ still need to be wired before either mode can execute through the service.
    probe -- /run/sley-test-supervisor`) and keep the receipt. Its socket
    check requires a root-owned runtime directory without group/world write,
    a root-owned Unix socket, and a live listener. Every `fail` names a
-   platform prerequisite to implement; none may be waived with a documented
-   assumption.
+   platform prerequisite to implement, including the Linux `openat2` path
+   resolution used for worker input bindings; none may be waived with a
+   documented assumption.
 5. Run the privileged probe set (pre-exec placement, transient units,
    UID/key isolation, manager backstop, caller and daemon SIGKILL
    cleanup, orphan reconciliation) on **both** intended hosts and keep
