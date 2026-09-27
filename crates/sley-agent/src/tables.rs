@@ -18,6 +18,66 @@ use crate::names::{NAME_GRAMMAR, is_identifier};
 const TABLE_KEYS: &[&str] = &["name", "fn", "defaults", "cases", "comment"];
 const ROW_KEYS: &[&str] = &["name", "args", "expect", "limits", "comment"];
 
+/// The test name a row makes: its own `name`, or `<table>_<i>`; `None`
+/// for a `name` that is not a name.
+fn row_name(table: &str, index: usize, row: &Map<String, Value>) -> Option<String> {
+    match row.get("name") {
+        None => Some(format!("{table}_{index}")),
+        Some(Value::String(given)) if is_identifier(given) => Some(given.clone()),
+        Some(_) => None,
+    }
+}
+
+/// One test a table row makes.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RowTest {
+    /// The table's name.
+    pub table: String,
+    /// The test's name.
+    pub name: String,
+    /// Where the name is written: the row's `name`, or the row itself for a
+    /// derived name.
+    pub at: String,
+}
+
+/// The named tables of a frame's `test_tables`, and the test each of their
+/// rows makes (rows whose name is not a name are left to `lower`).
+pub(crate) fn row_tests(frame: &Value) -> (Vec<String>, Vec<RowTest>) {
+    let mut tables = Vec::new();
+    let mut rows = Vec::new();
+    let listed = frame.get("test_tables").and_then(Value::as_array);
+    for (t, table) in listed.into_iter().flatten().enumerate() {
+        let Some(name) = table
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|name| is_identifier(name))
+        else {
+            continue;
+        };
+        tables.push(name.to_owned());
+        let cases = table.get("cases").and_then(Value::as_array);
+        for (i, row) in cases.into_iter().flatten().enumerate() {
+            let Some(row) = row.as_object() else {
+                continue;
+            };
+            let Some(test) = row_name(name, i, row) else {
+                continue;
+            };
+            let at = if row.contains_key("name") {
+                format!("/test_tables/{t}/cases/{i}/name")
+            } else {
+                format!("/test_tables/{t}/cases/{i}")
+            };
+            rows.push(RowTest {
+                table: name.to_owned(),
+                name: test,
+                at,
+            });
+        }
+    }
+    (tables, rows)
+}
+
 /// Lowers `frame["test_tables"]` into `out["tests"]` (after the frame's own
 /// tests); returns the number of rows lowered.
 #[allow(clippy::too_many_lines)]
@@ -155,16 +215,12 @@ pub(crate) fn lower(
                 );
                 continue;
             }
-            let test_name = match row.get("name") {
-                None => format!("{name}_{i}"),
-                Some(Value::String(given)) if is_identifier(given) => given.clone(),
-                Some(_) => {
-                    invalid(
-                        &format!("{row_at}/name"),
-                        format!("a row name is a name ({NAME_GRAMMAR})"),
-                    );
-                    continue;
-                }
+            let Some(test_name) = row_name(name, i, row) else {
+                invalid(
+                    &format!("{row_at}/name"),
+                    format!("a row name is a name ({NAME_GRAMMAR})"),
+                );
+                continue;
             };
             let args = row.get("args").cloned().unwrap_or(Value::Array(Vec::new()));
             if let Some((first, _)) = seen_args.iter().find(|(_, seen)| *seen == args) {

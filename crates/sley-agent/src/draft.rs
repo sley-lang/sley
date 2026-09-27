@@ -27,6 +27,9 @@ use crate::workspace::Workspace;
 pub const DRAFTS_DIR: &str = "drafts";
 /// A draft's summary file.
 pub const DRAFT_FILE: &str = "draft.json";
+/// The workspace's recording order: `.order/<n>` names the n-th revision
+/// recorded, over every draft.
+pub const ORDER_DIR: &str = ".order";
 /// Obligation lines shown by default; the rest are counted.
 pub const SHOWN_OBLIGATIONS: usize = 8;
 
@@ -178,20 +181,70 @@ impl Drafts {
             .numbers()?
             .into_iter()
             .map(|number| format!("d{number}"))
-            .filter(|handle| self.dir.join(handle).join(DRAFT_FILE).is_file())
+            .filter(|handle| self.latest(handle).is_ok())
             .collect())
     }
 
-    /// The handle the next new draft takes.
+    /// Claims a new draft and its first revision. The draft directory is
+    /// created atomically, so concurrent commands never share a handle.
     ///
     /// # Errors
     ///
-    /// `AGENT_IO_FAILED` when the store cannot be listed.
-    pub fn allocate(&self) -> Result<String> {
-        Ok(format!(
-            "d{}",
-            self.numbers()?.last().copied().unwrap_or(0) + 1
-        ))
+    /// `AGENT_IO_FAILED` when the store cannot be written.
+    pub fn claim_new(&self) -> Result<Claim> {
+        let mut number = self.numbers()?.last().copied().unwrap_or(0) + 1;
+        loop {
+            let handle = format!("d{number}");
+            let dir = self.dir.join(&handle);
+            match fs::create_dir(&dir) {
+                Ok(()) => {
+                    let mut claim = self.claim_at(&handle, 1)?;
+                    claim.new_draft = true;
+                    return Ok(claim);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => number += 1,
+                Err(error) => return Err(io(&dir, &error)),
+            }
+        }
+    }
+
+    /// Claims the next revision of a draft: the first number after its
+    /// latest revision that no other command holds.
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_HANDLE_UNKNOWN` for an unknown draft, `AGENT_IO_FAILED` when
+    /// the store cannot be written.
+    pub fn claim_next(&self, handle: &str) -> Result<Claim> {
+        let latest = self.latest(handle)?;
+        self.claim_at(handle, latest + 1)
+    }
+
+    fn claim_at(&self, handle: &str, first: u64) -> Result<Claim> {
+        let draft_dir = self.dir.join(handle);
+        let mut number = first;
+        loop {
+            let scratch = draft_dir.join(format!(".r{number}.partial"));
+            match fs::create_dir(&scratch) {
+                // A number another command already recorded is taken too.
+                Ok(()) if self.revision_dir(handle, number).exists() => {
+                    let _ = fs::remove_dir(&scratch);
+                    number += 1;
+                }
+                Ok(()) => {
+                    return Ok(Claim {
+                        draft_dir,
+                        handle: handle.to_owned(),
+                        number,
+                        scratch,
+                        new_draft: false,
+                        recorded: false,
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => number += 1,
+                Err(error) => return Err(io(&scratch, &error)),
+            }
+        }
     }
 
     /// The directory of one revision.
@@ -200,23 +253,66 @@ impl Drafts {
         self.dir.join(handle).join(format!("r{revision}"))
     }
 
-    /// The latest revision of a draft.
+    fn recorded(&self, handle: &str) -> Vec<u64> {
+        let mut numbers: Vec<u64> = fs::read_dir(self.dir.join(handle))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|entry| {
+                let name = entry.file_name();
+                name.to_str()
+                    .and_then(|name| name.strip_prefix('r'))
+                    .and_then(positive)
+            })
+            .filter(|number| {
+                self.revision_dir(handle, *number)
+                    .join("status.json")
+                    .is_file()
+            })
+            .collect();
+        numbers.sort_unstable();
+        numbers
+    }
+
+    /// The latest recorded revision of a draft.
     ///
     /// # Errors
     ///
     /// `AGENT_HANDLE_UNKNOWN` when there is no such draft.
     pub fn latest(&self, handle: &str) -> Result<u64> {
-        let path = self.dir.join(handle).join(DRAFT_FILE);
-        fs::read_to_string(&path)
-            .ok()
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-            .and_then(|value| value.get("latest").and_then(Value::as_u64))
+        let known = DraftRef::parse(handle).is_some_and(|reference| reference.revision.is_none());
+        self.recorded(handle)
+            .last()
+            .copied()
+            .filter(|_| known)
             .ok_or_else(|| {
                 AgentError::new(
                     AgentErrorCode::HandleUnknown,
                     format!("no draft {handle} (sley-agent draft lists them)"),
                 )
             })
+    }
+
+    /// The revision recorded last in this workspace, over every draft.
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_IO_FAILED` when the store cannot be read.
+    pub fn last_recorded(&self) -> Result<Option<(String, u64)>> {
+        let dir = self.dir.join(ORDER_DIR);
+        let last = fs::read_dir(&dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|entry| entry.file_name().to_str().and_then(positive))
+            .max();
+        let Some(last) = last else {
+            return Ok(None);
+        };
+        let path = dir.join(last.to_string());
+        let text = fs::read_to_string(&path).map_err(|error| io(&path, &error))?;
+        Ok(DraftRef::parse(text.trim())
+            .and_then(|reference| Some((reference.handle, reference.revision?))))
     }
 
     /// The handle and revision a reference names (`d1` is the latest).
@@ -228,13 +324,13 @@ impl Drafts {
         let latest = self.latest(&reference.handle)?;
         match reference.revision {
             None => Ok((reference.handle.clone(), latest)),
-            Some(revision) if (1..=latest).contains(&revision) => {
+            Some(revision) if self.recorded(&reference.handle).contains(&revision) => {
                 Ok((reference.handle.clone(), revision))
             }
             Some(revision) => Err(AgentError::new(
                 AgentErrorCode::HandleUnknown,
                 format!(
-                    "{} has revisions r1 to r{latest}, not r{revision}",
+                    "{} has no revision r{revision} (its latest is r{latest})",
                     reference.handle
                 ),
             )),
@@ -302,21 +398,15 @@ impl Drafts {
         Ok(artifacts)
     }
 
-    /// Records one revision: its files land in a scratch directory that is
-    /// renamed into place, then `draft.json` names it as the latest.
+    /// Records a claimed revision: its files are written into the claimed
+    /// scratch directory, which is renamed into place; then the draft
+    /// summary and the workspace's recording order name it.
     ///
     /// # Errors
     ///
     /// `AGENT_IO_FAILED` when the files cannot be written.
-    pub fn write(&self, handle: &str, revision: &Revision<'_>) -> Result<()> {
-        let number = revision.status["revision"].as_u64().unwrap_or(1);
-        let draft_dir = self.dir.join(handle);
-        fs::create_dir_all(&draft_dir).map_err(|error| io(&draft_dir, &error))?;
-        let scratch = draft_dir.join(format!(".r{number}.partial"));
-        if scratch.exists() {
-            fs::remove_dir_all(&scratch).map_err(|error| io(&scratch, &error))?;
-        }
-        fs::create_dir_all(&scratch).map_err(|error| io(&scratch, &error))?;
+    pub fn record(&self, claim: &mut Claim, revision: &Revision<'_>) -> Result<()> {
+        let scratch = &claim.scratch;
         write_file(&scratch.join("input.txt"), revision.input)?;
         if let Some(frame) = revision.frame {
             write_json(&scratch.join("frame.json"), frame)?;
@@ -329,20 +419,71 @@ impl Drafts {
             }
         }
         write_json(&scratch.join("status.json"), revision.status)?;
-        let target = self.revision_dir(handle, number);
-        fs::rename(&scratch, &target).map_err(|error| io(&target, &error))?;
-        let base_head = if number == 1 {
-            revision.status["base_head"].clone()
-        } else {
-            read_json(&draft_dir.join(DRAFT_FILE))?
-                .and_then(|value| value.get("base_head").cloned())
-                .unwrap_or(Value::Null)
-        };
-        let summary = json!({"handle": handle, "latest": number, "base_head": base_head});
-        let temporary = draft_dir.join(".draft.json.partial");
-        write_json(&temporary, &summary)?;
-        let path = draft_dir.join(DRAFT_FILE);
-        fs::rename(&temporary, &path).map_err(|error| io(&path, &error))
+        let target = self.revision_dir(&claim.handle, claim.number);
+        fs::rename(scratch, &target).map_err(|error| io(&target, &error))?;
+        claim.recorded = true;
+        let base_head = read_json(&self.revision_dir(&claim.handle, 1).join("status.json"))?
+            .and_then(|status| status.get("base_head").cloned())
+            .unwrap_or(Value::Null);
+        let latest = self.latest(&claim.handle)?;
+        let summary = json!({"handle": claim.handle, "latest": latest, "base_head": base_head});
+        let mut text = serde_json::to_string_pretty(&summary).unwrap_or_default();
+        text.push('\n');
+        crate::candidate::replace_file(&claim.draft_dir.join(DRAFT_FILE), text.as_bytes())?;
+        let order = self.dir.join(ORDER_DIR);
+        fs::create_dir_all(&order).map_err(|error| io(&order, &error))?;
+        let first = fs::read_dir(&order)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|entry| entry.file_name().to_str().and_then(positive))
+            .max()
+            .unwrap_or(0)
+            + 1;
+        crate::candidate::claim_file(
+            &order,
+            first,
+            |number| number.to_string(),
+            spell(&claim.handle, claim.number).as_bytes(),
+        )?;
+        Ok(())
+    }
+}
+
+/// A claimed revision slot (`.rN.partial`): recording renames it into place;
+/// dropped unrecorded, it is removed with the draft directory it created.
+#[derive(Debug)]
+pub struct Claim {
+    draft_dir: PathBuf,
+    handle: String,
+    number: u64,
+    scratch: PathBuf,
+    new_draft: bool,
+    recorded: bool,
+}
+
+impl Claim {
+    /// The draft handle.
+    #[must_use]
+    pub fn handle(&self) -> &str {
+        &self.handle
+    }
+
+    /// The claimed revision number.
+    #[must_use]
+    pub const fn number(&self) -> u64 {
+        self.number
+    }
+}
+
+impl Drop for Claim {
+    fn drop(&mut self) {
+        if !self.recorded {
+            let _ = fs::remove_dir_all(&self.scratch);
+            if self.new_draft {
+                let _ = fs::remove_dir(&self.draft_dir);
+            }
+        }
     }
 }
 
@@ -728,9 +869,10 @@ pub fn text_obligation(detail: &str, line: usize, column: usize, byte: usize) ->
 
 /// The obligation of a kernel refusal: the kernel's symbol, phase and
 /// locator, never reinterpreted. When the verdict names authored frame
-/// positions, the first is `at` and the others `also_at`.
+/// positions, the first is `at` and the others `also_at`; otherwise `at` is
+/// the authored position the caller found for the refused entity.
 #[must_use]
-pub fn kernel_obligation(verdict: &Verdict) -> Value {
+pub fn kernel_obligation(verdict: &Verdict, at: Option<String>) -> Value {
     let symbol = verdict
         .symbol
         .clone()
@@ -743,13 +885,28 @@ pub fn kernel_obligation(verdict: &Verdict) -> Value {
         .flatten()
         .filter_map(|entry| entry.get("at").filter(|at| at.is_string()).cloned())
         .collect();
+    let at = authored.first().cloned().or_else(|| at.map(Value::from));
+    let mut decision = format!(
+        "{}: {}",
+        verdict.headline(),
+        verdict.hint.as_deref().unwrap_or("no hint")
+    );
+    if at
+        .as_ref()
+        .and_then(Value::as_str)
+        .is_some_and(|at| at.starts_with("/test_tables/"))
+    {
+        decision.push_str(
+            "; this test comes from a table row: change the limit in the row's \"limits\" or the table's \"defaults\", or leave it out",
+        );
+    }
     let mut record = json!({
         "id": "o1",
         "symbol": symbol,
-        "at": authored.first(),
+        "at": at,
         "expected": null,
         "available": null,
-        "decision": format!("{}: {}", verdict.headline(), verdict.hint.as_deref().unwrap_or("no hint")),
+        "decision": decision,
         "kernel": {
             "symbol": verdict.symbol,
             "phase": verdict.phase,
@@ -762,6 +919,70 @@ pub fn kernel_obligation(verdict: &Verdict) -> Value {
         record["also_at"] = json!(authored[1..]);
     }
     record
+}
+
+/// The nearest pointer at or above `pointer` that exists in `frame` (a text
+/// revision, `None`, has only `""`).
+#[must_use]
+pub fn existing_pointer(frame: Option<&Value>, pointer: &str) -> String {
+    let Some(frame) = frame else {
+        return String::new();
+    };
+    let mut current = pointer;
+    while !current.is_empty() && frame.pointer(current).is_none() {
+        current = current.rfind('/').map_or("", |cut| &current[..cut]);
+    }
+    current.to_owned()
+}
+
+/// Points every obligation at a pointer that exists in the revision's
+/// frame: a missing one moves to its nearest existing ancestor, and the
+/// original is kept as `missing`, so the fill an obligation suggests is
+/// one `fill` accepts.
+pub fn anchor(obligations: &mut [Value], frame: Option<&Value>) {
+    for record in obligations {
+        if let Some(at) = record["at"].as_str().map(str::to_owned) {
+            let existing = existing_pointer(frame, &at);
+            if existing != at {
+                record["at"] = json!(existing);
+                record["missing"] = json!(at);
+            }
+        }
+        if let Some(also) = record.get_mut("also_at").and_then(Value::as_array_mut) {
+            for at in also.iter_mut() {
+                if let Some(pointer) = at.as_str() {
+                    *at = json!(existing_pointer(frame, pointer));
+                }
+            }
+        }
+    }
+}
+
+/// The authored pointer of an expanded one, by a `sourcemap.json`: the
+/// entry with the longest expanded prefix; below it, the same path when the
+/// entry keeps the authored shape.
+#[must_use]
+pub fn authored_pointer(sourcemap: &Value, pointer: &str) -> Option<String> {
+    const CARRIES: [&str; 5] = ["block", "op", "term", "checked", "table-row"];
+    let mut best: Option<(&str, &str, &str)> = None;
+    for entry in sourcemap.get("entries")?.as_array()? {
+        let (Some(expanded), Some(authored)) =
+            (entry["expanded"].as_str(), entry["authored"].as_str())
+        else {
+            continue;
+        };
+        let covers = pointer == expanded
+            || (pointer.starts_with(expanded) && pointer[expanded.len()..].starts_with('/'));
+        if covers && best.is_none_or(|(known, _, _)| expanded.len() > known.len()) {
+            best = Some((expanded, authored, entry["role"].as_str().unwrap_or("")));
+        }
+    }
+    let (expanded, authored, role) = best?;
+    Some(if CARRIES.contains(&role) {
+        format!("{authored}{}", &pointer[expanded.len()..])
+    } else {
+        authored.to_owned()
+    })
 }
 
 /// The number of unresolved problems obligations stand for.

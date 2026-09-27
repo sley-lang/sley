@@ -738,7 +738,11 @@ impl Compiler<'_> {
                 .as_object()
                 .ok_or_else(|| frame(&pointer, "expected an object"))?;
             let target_name = name_of(decl, &["fn", "target", "function"], &pointer)?;
-            let target = self.resolve_top(target_name, 5, &pointer)?;
+            let key = ["fn", "target", "function"]
+                .into_iter()
+                .find(|key| decl.contains_key(*key))
+                .unwrap_or("fn");
+            let target = self.resolve_top(target_name, 5, &format!("{pointer}/{key}"))?;
             let name = match decl.get("name") {
                 Some(_) => name_of(decl, &["name"], &pointer)?.to_owned(),
                 None => self.fresh_test_name(target_name),
