@@ -66,6 +66,10 @@ pub fn default_test_limits(ceilings: &sley_policy::PolicyResourceCeilings) -> Re
     }
 }
 
+/// The limit keys a `TestCase` may declare (`sley-agent help tests`).
+pub const LIMIT_KEYS: &str =
+    "fuel, memory_bytes, output_bytes, effect_count, call_depth, wall_timeout_millis";
+
 /// The compiled frame.
 #[derive(Clone, Debug, Default)]
 pub struct Compiled {
@@ -2547,7 +2551,17 @@ impl Compiler<'_> {
             ),
         };
         let mut limits = default_test_limits(&self.ceilings);
-        if let Some(Value::Object(object)) = decl.get("limits") {
+        let object = match decl.get("limits") {
+            None => None,
+            Some(Value::Object(object)) => Some(object),
+            Some(_) => {
+                return Err(frame(
+                    &format!("{pointer}/limits"),
+                    format!("limits are an object of integers, keyed by {LIMIT_KEYS}"),
+                ));
+            }
+        };
+        if let Some(object) = object {
             for (key, value) in object {
                 let number = value.as_u64().ok_or_else(|| {
                     frame(&format!("{pointer}/limits/{key}"), "expected an integer")
@@ -2559,7 +2573,12 @@ impl Compiler<'_> {
                     "effect_count" => limits.effect_count = number,
                     "call_depth" => limits.call_depth = number,
                     "wall_timeout_millis" => limits.wall_timeout_millis = number,
-                    _ => return Err(frame(&format!("{pointer}/limits/{key}"), "unknown limit")),
+                    _ => {
+                        return Err(frame(
+                            &format!("{pointer}/limits/{key}"),
+                            format!("unknown limit `{key}`: the limits are {LIMIT_KEYS}"),
+                        ));
+                    }
                 }
             }
         }

@@ -36,7 +36,10 @@ pub enum AgentErrorCode {
     XScope,
     /// An AF1-X expansion or traversal bound was reached.
     XLimit,
-    /// An AF1-X rewrite cannot preserve evaluation order.
+    /// Reserved and never emitted: AF1-X expansion never reorders
+    /// evaluation, and a form that would run an operation on a path not
+    /// taken is an `AGENT_FRAME_INVALID` grammar refusal
+    /// (`SLEY_AGENT_V1.md` section 9).
     XEffectOrder,
     /// The given revision is not the draft's latest revision.
     DraftStale,

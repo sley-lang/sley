@@ -1603,8 +1603,9 @@ fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
     assert!(temp.path.join(".sley/layered.json").is_file());
     // Raw operations leave no frame to build on.
     let raw = json!([{"class": "CreateEntity", "kind": 9, "key": "limit",
-        "payload": {"value": {"type": "i64", "data": {"variant": "SInt", "value": 1}}}}]);
-    let (_, text) = run(&temp.path, &["try", &raw.to_string()]);
+        "payload": {"value": {"value_type": "i64", "data": {"variant": "SInt", "value": 1}}}}]);
+    let (status, text) = run(&temp.path, &["try", &raw.to_string()]);
+    assert_eq!(status, 0, "{text}");
     let handle = text.split(':').next().unwrap().to_owned();
     let (status, text) = run(&temp.path, &["try", "--on", &handle, &tests.to_string()]);
     assert_eq!(status, 2, "{text}");

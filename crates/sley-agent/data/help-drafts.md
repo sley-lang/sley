@@ -17,10 +17,13 @@ is a JSON pointer that exists in that revision's frame (`""` replaces the
 whole frame), and each `value` replaces that subtree. Targets may not
 repeat or contain each other; the replacements apply together or not at
 all. To insert into or delete from an array, replace the array. A frame
-that did not parse can only be replaced whole.
+that did not parse can only be replaced whole. A delta of another shape,
+or a target that is malformed, missing, repeated or inside another, is
+refused with `AGENT_DELTA_INVALID` and records nothing.
 
 `import --on d1` replaces a draft test of the same name only when it is an
-unchanged earlier import; it never replaces a test you wrote or changed.
+unchanged earlier import; it never replaces a test you wrote (in "tests"
+or as a table row) or changed, and records nothing then.
 
 A follow-up that is not JSON, or that cannot be layered, is kept as the
 next revision; `fill` repairs it and layers it on its base again. A
@@ -37,7 +40,10 @@ given. `submit d1` submits only a Valid candidate of that revision
 instead, but `submit d1@r2` names one explicitly. A bare `submit` takes
 the revision recorded last, over all drafts, and only when it is valid.
 
-`tests: X/Y passed [authored A, imported I, provided P]` counts every
-TestCase that ran once, by where its entry comes from. A live test the
-frame changes counts where its new entry comes from (`replaces provided`
-names it); a live test a ripple `arity` intent restates stays provided.
+In `tests: X/Y passed [authored A, imported I, provided P]`, X/Y counts
+the TestCases that ran. The bracket counts every TestCase of the
+candidate once, by where its entry comes from, whether it ran or not: a
+provided test of a function the candidate does not change is counted but
+does not run (`--all-tests` runs it). A live test the frame changes counts
+where its new entry comes from (`replaces provided` names it); a live
+test a ripple `arity` intent restates stays provided.

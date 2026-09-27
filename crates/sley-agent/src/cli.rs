@@ -38,6 +38,13 @@ pub const COMMANDS: &[&str] = &[
     "explain", "search", "init", "commit", "export", "help", "version",
 ];
 
+/// The commands that use a workspace, and so append an events-ledger line
+/// (`help`, `version` and `init` do not).
+const LEDGERED: &[&str] = &[
+    "view", "find", "try", "fill", "import", "draft", "submit", "status", "call", "test",
+    "explain", "search", "commit", "export",
+];
+
 /// Exit status for success.
 pub const EXIT_OK: i32 = 0;
 /// Exit status for a negative outcome (refused candidate, failing test).
@@ -123,6 +130,14 @@ pub fn run(args: &[String], out: &mut dyn Write) -> i32 {
     }
     let words: usize = rest.iter().map(String::len).sum();
     global.note("input_bytes", words + rest.len().saturating_sub(1));
+    // A command that uses a workspace appends its ledger line even when it
+    // is refused before it opens the workspace (an unreadable input, say).
+    if rest
+        .first()
+        .is_some_and(|command| LEDGERED.contains(&command.as_str()))
+    {
+        let _ = workspace(&global);
+    }
     let mut counted = Counted { out, bytes: 0 };
     let status = match dispatch(&global, &rest, &mut counted) {
         Ok(status) => status,
@@ -166,25 +181,33 @@ pub(crate) fn name_map(workspace: &Workspace) -> Result<NameMap> {
     Ok(map)
 }
 
+/// The lock concurrent commands take to merge into `.sley/names.json`.
+const NAMES_LOCK: &str = "names.lock";
+
+/// Merges the names a command created into `.sley/names.json`. The read,
+/// merge and replace run under an exclusive lock on `.sley/names.lock`, so
+/// concurrent commands never drop each other's entries; readers never lock,
+/// since the map is always replaced whole.
 fn remember_names(workspace: &Workspace, names: &NameMap) -> Result<()> {
     if names.is_empty() {
         return Ok(());
     }
-    // Concurrent commands each merge into the map; a merge another command
-    // overwrote is merged again.
-    let path = workspace.state_dir()?.join(NAMES_FILE);
-    for _ in 0..8 {
-        let mut map = NameMap::read(&path)?;
-        map.extend(names);
-        map.write(&path)?;
-        let written = NameMap::read(&path)?;
-        let mut merged = written.clone();
-        merged.extend(names);
-        if merged == written {
-            return Ok(());
-        }
-    }
-    Ok(())
+    let state = workspace.state_dir()?;
+    let path = state.join(NAMES_FILE);
+    let lock_path = state.join(NAMES_LOCK);
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&lock_path)
+        .map_err(|error| io(&lock_path, &error))?;
+    // Without the lock a merge could overwrite another command's names.
+    lock.lock().map_err(|error| io(&lock_path, &error))?;
+    let mut map = NameMap::read(&path)?;
+    map.extend(names);
+    let written = map.write(&path);
+    let _ = lock.unlock();
+    written
 }
 
 fn dispatch(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
@@ -783,11 +806,30 @@ fn layer_base(drafts: &Drafts, handle: &str, revision: u64) -> Result<(Value, Va
     let status = drafts.status(handle, revision)?;
     let frame = drafts.frame(handle, revision)?;
     let unlayered = status["unlayered"] == true;
-    if let (Some(frame), false) = (&frame, unlayered) {
-        return Ok((frame.clone(), status));
-    }
     let spelled = draft::spell(handle, revision);
     let repair = format!("sley-agent fill {handle} <delta.json> --revision {revision}");
+    match (&frame, unlayered) {
+        (Some(frame), false) if frame.is_object() => return Ok((frame.clone(), status)),
+        // No repair of a follow-up can fix its base: refused before
+        // anything is recorded, as `try --on` refuses a raw handle.
+        (Some(frame), false) if frame.is_array() => {
+            return Err(AgentError::new(
+                AgentErrorCode::Usage,
+                format!(
+                    "{spelled} was made from raw operations, not an AF1 frame, so nothing can be layered on it; nothing was recorded: try the follow-up on its own (sley-agent try <frame>)"
+                ),
+            ));
+        }
+        (Some(_), false) => {
+            return Err(AgentError::new(
+                AgentErrorCode::DraftIncomplete,
+                format!(
+                    "{spelled} holds JSON that is not an AF1 frame object, so nothing can be layered on it; replace it whole: {repair} with {{\"set\": [{{\"at\": \"\", \"value\": <the frame>}}]}}"
+                ),
+            ));
+        }
+        _ => {}
+    }
     let detail = match (status["on"].as_str().filter(|_| unlayered), frame) {
         (Some(on), None) => format!(
             "{spelled} holds a follow-up that is not JSON, so nothing can be layered on it; fix the JSON: {repair} with {{\"set\": [{{\"at\": \"\", \"value\": <the follow-up>}}]}} (it is layered on {on} again), or layer on {on} again: sley-agent try --on {on} <follow-up>"
@@ -829,6 +871,8 @@ fn base_frame(workspace: &Workspace, on: &str) -> Result<Value> {
     }
     let store = Store::open(workspace)?;
     let handle = store.resolve(Some(on))?;
+    // A reference that names no candidate is unknown, not frameless.
+    store.load(&handle)?;
     store
         .meta(&handle)
         .and_then(|meta| meta.get("frame").cloned())
@@ -1088,6 +1132,8 @@ fn import_cases(
 /// A case replaces a draft test of the same name only when that test is an
 /// earlier import unchanged since (or already equals the case): a test the
 /// author wrote, or changed after its import, is never replaced silently.
+/// A test a `test_tables` row makes (its given or derived name) is the
+/// author's too.
 fn import_conflicts(
     base_frame: &Value,
     status: &Value,
@@ -1098,12 +1144,16 @@ fn import_conflicts(
     let current = base_frame["tests"]
         .as_array()
         .map_or(&[][..], Vec::as_slice);
+    let rows = crate::tables::row_tests(base_frame).1;
     let conflicts: Vec<String> = tests["tests"]
         .as_array()
         .into_iter()
         .flatten()
         .filter_map(|case| {
             let name = case["name"].as_str()?;
+            if let Some(row) = rows.iter().find(|row| row.name == name) {
+                return Some(format!("`{name}` (made by a row of table `{}`)", row.table));
+            }
             let test = current
                 .iter()
                 .find(|test| test["name"].as_str() == Some(name))?;
@@ -1837,6 +1887,58 @@ fn provenance_text(provenance: &Value) -> String {
     }
 }
 
+/// Why a command on a draft's latest revision `parent` cannot record the
+/// revision it claimed, if it cannot: another command recorded a newer
+/// revision, or holds a claim between them (running, or not checkable). A
+/// claim whose command stopped is skipped and never blocks.
+fn stale_claim(
+    drafts: &Drafts,
+    handle: &str,
+    parent: u64,
+    claim: &draft::Claim,
+) -> Option<AgentError> {
+    let stale = |detail: String| Some(AgentError::new(AgentErrorCode::DraftStale, detail));
+    let recorded = drafts.latest(handle).unwrap_or(parent);
+    if recorded > parent {
+        return stale(format!(
+            "{handle} gained r{recorded} while this command ran on r{parent}: read it (sley-agent draft {handle}) and run the command again"
+        ));
+    }
+    let held = |wanted: draft::Holder| {
+        claim
+            .passed()
+            .iter()
+            .find(|(number, holder)| *number > parent && *holder == wanted)
+            .map(|(number, _)| *number)
+    };
+    if let Some(number) = held(draft::Holder::Running) {
+        return stale(format!(
+            "another command is recording {} on r{parent} right now: wait for it to finish, read the draft (sley-agent draft {handle}) and run this command again",
+            draft::spell(handle, number)
+        ));
+    }
+    if let Some(number) = held(draft::Holder::Unchecked) {
+        return stale(format!(
+            "{} is claimed by a command whose state cannot be checked ({STATE_DIR}/{}/{handle}/.r{number}.partial has no lockable owner file); if no other command is running on {handle}, remove that directory and run this command again",
+            draft::spell(handle, number),
+            draft::DRAFTS_DIR
+        ));
+    }
+    None
+}
+
+/// The revisions a claim skipped because their commands stopped before
+/// recording them: `d1@r2, d1@r3`, or empty.
+fn skipped_revisions(claim: &draft::Claim) -> String {
+    claim
+        .passed()
+        .iter()
+        .filter(|(_, holder)| *holder == draft::Holder::Abandoned)
+        .map(|(number, _)| draft::spell(claim.handle(), *number))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// Records one draft revision and tries it: compile, assemble, validate,
 /// store the candidate, run the tests, report. `try`, `fill` and `import`
 /// share it, so every revision goes through the same loop.
@@ -1849,6 +1951,12 @@ fn run_trial(
     options: &TrialOptions,
     out: &mut dyn Write,
 ) -> Result<i32> {
+    // The case file is checked before anything is recorded or stored.
+    let public_cases = options
+        .public
+        .as_deref()
+        .map(|path| read_public(Path::new(path)))
+        .transpose()?;
     let drafts = Drafts::open(workspace)?;
     let (mut claim, parent) = match &proposal.target {
         Target::New => (drafts.claim_new()?, None),
@@ -1858,14 +1966,8 @@ fn run_trial(
             latest,
         } => {
             let claim = drafts.claim_next(handle)?;
-            if *latest && claim.number() != parent + 1 {
-                return Err(AgentError::new(
-                    AgentErrorCode::DraftStale,
-                    format!(
-                        "{handle} gained r{} while this command ran on r{parent}: read it (sley-agent draft {handle}) and run the command again",
-                        claim.number() - 1
-                    ),
-                ));
+            if *latest && let Some(error) = stale_claim(&drafts, handle, *parent, &claim) {
+                return Err(error);
             }
             (claim, Some(draft::spell(handle, *parent)))
         }
@@ -1873,6 +1975,21 @@ fn run_trial(
     let handle = claim.handle().to_owned();
     let revision = claim.number();
     let reference = draft::spell(&handle, revision);
+    // Revision numbers whose commands stopped before recording them are
+    // skipped, never reused: the draft line says so.
+    let skipped = skipped_revisions(&claim);
+    let skipped_note = if skipped.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "{skipped} skipped: claimed by a command that stopped before recording it; the number is not reused"
+        )
+    };
+    let skip_suffix = if skipped_note.is_empty() {
+        String::new()
+    } else {
+        format!("; {skipped_note}")
+    };
     let frame_path = format!(
         "{STATE_DIR}/{}/{handle}/r{revision}/frame.json",
         draft::DRAFTS_DIR
@@ -1903,6 +2020,15 @@ fn run_trial(
     }
     if let Some(import) = &proposal.import {
         status["import"] = import.clone();
+    }
+    let abandoned: Vec<u64> = claim
+        .passed()
+        .iter()
+        .filter(|(_, holder)| *holder == draft::Holder::Abandoned)
+        .map(|(number, _)| *number)
+        .collect();
+    if !abandoned.is_empty() {
+        status["skipped"] = json!(abandoned);
     }
     global.note("draft", reference.as_str());
     global.note("input_bytes", proposal.input.len());
@@ -1943,7 +2069,7 @@ fn run_trial(
             )?;
             let error = crate::error::frame("", format!("not JSON: {}", failure.detail));
             let summary = format!(
-                "draft {reference}: text (not JSON at line {}, column {}, byte {}); the input is kept",
+                "draft {reference}: text (not JSON at line {}, column {}, byte {}); the input is kept{skip_suffix}",
                 failure.line, failure.column, failure.byte
             );
             let next = match relayer {
@@ -1986,7 +2112,7 @@ fn run_trial(
                 ),
             );
             let summary = format!(
-                "draft {reference}: incomplete, {} obligation(s) ({}); the follow-up is kept, not yet layered on {on}",
+                "draft {reference}: incomplete, {} obligation(s) ({}); the follow-up is kept, not yet layered on {on}{skip_suffix}",
                 draft::obligation_count(&obligations),
                 draft::obligation_symbols(&obligations)
             );
@@ -2092,7 +2218,7 @@ fn run_trial(
                 error
             };
             let summary = format!(
-                "draft {reference}: incomplete, {} obligation(s) ({}); list: sley-agent draft {handle} --obligations",
+                "draft {reference}: incomplete, {} obligation(s) ({}); list: sley-agent draft {handle} --obligations{skip_suffix}",
                 draft::obligation_count(&obligations),
                 draft::obligation_symbols(&obligations)
             );
@@ -2164,8 +2290,10 @@ fn run_trial(
         meta["sourcemap"] = sourcemap.clone();
     }
     let candidate_handle = store.save(&imported.stored_bytes, &meta)?;
-    let ran = (|| -> Result<(Vec<TestOutcome>, Vec<PublicOutcome>)> {
-        let (mut tests, mut public) = (Vec::new(), Vec::new());
+    // The candidate's own tests keep their results even when a public case
+    // cannot run; that refusal follows the trial's output.
+    let ran = (|| -> Result<(Vec<TestOutcome>, Result<Vec<PublicOutcome>>)> {
+        let (mut tests, mut public) = (Vec::new(), Ok(Vec::new()));
         if output.is_valid() && !options.no_test {
             let mut executor = Executor::new(&program)?;
             let chosen: Vec<_> = executor
@@ -2185,8 +2313,8 @@ fn run_trial(
             for test in &chosen {
                 tests.push(executor.run_test(test, &after_names));
             }
-            if let Some(path) = &options.public {
-                public = run_public(&mut executor, &program, &after_names, Path::new(path))?;
+            if let Some(cases) = &public_cases {
+                public = run_public(&mut executor, &program, &after_names, cases);
             }
         }
         Ok((tests, public))
@@ -2257,12 +2385,16 @@ fn run_trial(
         status["stats"] = afx_stats.clone();
     }
     if let Ok((tests, public)) = &ran {
+        let cases = public.as_deref().unwrap_or_default();
         status["results"] = json!({
             "ran": tests.len(),
             "passed": tests.iter().filter(|test| test.passed()).count(),
-            "public": public.len(),
-            "public_passed": public.iter().filter(|case| case.passed).count(),
+            "public": cases.len(),
+            "public_passed": cases.iter().filter(|case| case.passed).count(),
         });
+        if let Err(error) = public {
+            status["results"]["public_refusal"] = json!(error.code().symbol());
+        }
     }
     drafts.record(
         &mut claim,
@@ -2288,10 +2420,22 @@ fn run_trial(
         );
     }
     notes.splice(0..0, compiled.notes.iter().cloned());
+    if !skipped_note.is_empty() {
+        notes.push(skipped_note);
+    }
     let (tests, public) = ran?;
+    let (public, public_refusal) = match public {
+        Ok(public) => (public, None),
+        Err(error) => {
+            global.note("refusal", error.code().symbol());
+            (Vec::new(), Some(error))
+        }
+    };
     let failed =
         tests.iter().filter(|t| !t.passed()).count() + public.iter().filter(|p| !p.passed).count();
-    let exit = if verdict.valid && failed == 0 {
+    let exit = if public_refusal.is_some() {
+        EXIT_REFUSED
+    } else if verdict.valid && failed == 0 {
         EXIT_OK
     } else {
         EXIT_NEGATIVE
@@ -2329,6 +2473,10 @@ fn run_trial(
         });
         if let Some(raw) = &raw {
             value["stored_hex"] = json!(raw);
+        }
+        if let Some(error) = &public_refusal {
+            value["error"] = json!(error.code().symbol());
+            value["detail"] = json!(error.detail());
         }
         write_json(out, &value)?;
         return Ok(exit);
@@ -2371,6 +2519,13 @@ fn run_trial(
         );
     }
     text.push_str(&public_text(&public));
+    if let Some(error) = &public_refusal {
+        // The recorded revision and its tests are above; the public cases
+        // did not run, so no next step is proposed.
+        let _ = writeln!(text, "error {}: {}", error.code().symbol(), error.detail());
+        write_text(out, &text)?;
+        return Ok(exit);
+    }
     let layerable = frame_value.is_object();
     // A follow-up keeps the dialect of the frame it is layered on.
     let envelope = if frame_value.get("afx") == Some(&Value::from(1)) {
@@ -2732,51 +2887,83 @@ struct PublicOutcome {
     actual: Value,
 }
 
+/// A `--public` case file, read and checked for shape before a command
+/// records or stores anything: an unusable file is refused on its own.
+struct PublicCases {
+    path: PathBuf,
+    cases: Vec<Value>,
+}
+
+fn read_public(path: &Path) -> Result<PublicCases> {
+    let invalid = |detail: String| AgentError::new(AgentErrorCode::InputInvalid, detail);
+    let text = fs::read_to_string(path).map_err(|error| io(path, &error))?;
+    let cases: Value = serde_json::from_str(&text)
+        .map_err(|error| invalid(format!("{}: {error}", path.display())))?;
+    let Value::Array(cases) = cases else {
+        return Err(invalid(format!(
+            "{}: public cases are a JSON array",
+            path.display()
+        )));
+    };
+    for (index, case) in cases.iter().enumerate() {
+        if case.get("function").and_then(Value::as_str).is_none() {
+            return Err(invalid(format!(
+                "{}: case {index}: missing \"function\"",
+                path.display()
+            )));
+        }
+        if case.get("args").is_some_and(|args| !args.is_array()) {
+            return Err(invalid(format!(
+                "{}: case {index}: \"args\" is an array",
+                path.display()
+            )));
+        }
+    }
+    Ok(PublicCases {
+        path: path.to_path_buf(),
+        cases,
+    })
+}
+
+/// Runs checked public cases. A case that cannot run in this state (its
+/// function does not resolve, or its arguments do not fit) refuses the
+/// cases, naming the file and the case.
 fn run_public(
     executor: &mut Executor,
     program: &Program,
     names: &Names,
-    path: &Path,
+    public: &PublicCases,
 ) -> Result<Vec<PublicOutcome>> {
-    let text = fs::read_to_string(path).map_err(|error| io(path, &error))?;
-    let cases: Value = serde_json::from_str(&text).map_err(|error| {
-        AgentError::new(
-            AgentErrorCode::InputInvalid,
-            format!("{}: {error}", path.display()),
-        )
-    })?;
-    let cases = cases.as_array().ok_or_else(|| {
-        AgentError::new(
-            AgentErrorCode::InputInvalid,
-            "public cases are a JSON array",
-        )
-    })?;
     let mut outcomes = Vec::new();
-    for (index, case) in cases.iter().enumerate() {
+    for (index, case) in public.cases.iter().enumerate() {
         let name = case
             .get("name")
             .and_then(Value::as_str)
             .map_or_else(|| format!("case{index}"), str::to_owned);
-        let function = case
-            .get("function")
-            .and_then(Value::as_str)
-            .ok_or_else(|| {
-                AgentError::new(
-                    AgentErrorCode::InputInvalid,
-                    format!("case {index}: missing \"function\""),
-                )
-            })?;
+        let within = |error: AgentError| {
+            AgentError::new(
+                error.code(),
+                format!(
+                    "{}: case {index} ({name}): {}",
+                    public.path.display(),
+                    error.detail()
+                ),
+            )
+        };
+        let function = case.get("function").and_then(Value::as_str).unwrap_or("");
         let id = names
             .resolve(function)
-            .ok_or_else(|| unknown_name(function))?;
+            .ok_or_else(|| within(unknown_name(function)))?;
         let args = case
             .get("args")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
         let expected = case.get("expect").cloned().unwrap_or(Value::Null);
-        let inputs = typed_inputs(executor, program, names, &id, &args)?;
-        let outcome = executor.run(&id, inputs, exec::call_limits())?;
+        let inputs = typed_inputs(executor, program, names, &id, &args).map_err(within)?;
+        let outcome = executor
+            .run(&id, inputs, exec::call_limits())
+            .map_err(within)?;
         let actual = exec::termination_json(&outcome.termination, names);
         outcomes.push(PublicOutcome {
             passed: actual == canonical_expectation(&expected, program, names, &id),
@@ -3330,7 +3517,7 @@ fn test_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
             &mut executor,
             &selected.program,
             &selected.names,
-            Path::new(path),
+            &read_public(Path::new(path))?,
         )?,
         None => Vec::new(),
     };

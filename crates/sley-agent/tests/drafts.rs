@@ -1694,3 +1694,596 @@ fn explain_names_the_frame_a_layered_candidate_was_made_from() {
         assert!(frame.pointer(at).is_some(), "{at}: {value}");
     }
 }
+
+/// A function `name(a: i64) -> i64 = a`, without tests.
+fn identity_named(name: &str) -> String {
+    json!({"af1": 1, "fns": [{"fn": name, "params": [["a", "i64"]], "returns": "i64",
+        "blocks": [{"name": "entry", "ops": [], "term": ["return", "a"]}]}]})
+    .to_string()
+}
+
+#[test]
+fn concurrent_commands_keep_every_name_they_create() {
+    // Each command merges the names it created into .sley/names.json; none
+    // may drop another's, or a committed entity loses its authored name and
+    // a later frame naming it creates a second one.
+    let temp = workspace("names-race");
+    let dir = temp.path.clone();
+    let names: Vec<String> = (0..16).map(|index| format!("f{index}")).collect();
+    let outputs: Vec<(i32, String)> = std::thread::scope(|scope| {
+        let workers: Vec<_> = names
+            .iter()
+            .map(|name| {
+                let dir = dir.clone();
+                scope.spawn(move || run(&dir, &["try", &identity_named(name)]))
+            })
+            .collect();
+        workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect()
+    });
+    let map: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join(".sley/names.json")).unwrap()).unwrap();
+    let kept: Vec<&str> = map
+        .as_object()
+        .unwrap()
+        .values()
+        .filter_map(Value::as_str)
+        .collect();
+    for name in &names {
+        assert!(kept.contains(&name.as_str()), "{name} lost: {map}");
+    }
+    // Commit the candidate that made f7; a tests-only follow-up on its draft
+    // targets the committed f7 instead of creating another.
+    let (_, text) = outputs
+        .iter()
+        .find(|(_, text)| text.contains("changed: fn +f7\n"))
+        .unwrap();
+    let first = text.lines().next().unwrap();
+    let handle = first.split(':').next().unwrap();
+    let draft = first.rsplit(' ').next().unwrap().split('@').next().unwrap();
+    assert_eq!(run(&dir, &["commit", handle]).0, 0);
+    assert!(view_text(&dir, &["f7"]).contains("fn f7(a: i64) -> i64"));
+    let tests =
+        json!({"af1": 1, "tests": [{"name": "t_f7", "fn": "f7", "args": [5], "expect": 5}]});
+    let (status, text) = run(
+        &dir,
+        &["try", "--on", draft, "--rebase", &tests.to_string()],
+    );
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("changed: test +t_f7\n"), "{text}");
+    assert!(!text.contains("fn +f7"), "{text}");
+}
+
+/// Creates a leftover claim of `revision` in draft `handle`, as a command
+/// stopped while it ran leaves it; with `owner`, its owner file too.
+fn leftover_claim(dir: &Path, handle: &str, revision: u64, owner: bool) -> PathBuf {
+    let partial = dir
+        .join(".sley/drafts")
+        .join(handle)
+        .join(format!(".r{revision}.partial"));
+    fs::create_dir_all(&partial).unwrap();
+    fs::write(partial.join("input.txt"), "{}").unwrap();
+    if owner {
+        fs::write(partial.join(".owner"), "").unwrap();
+    }
+    partial
+}
+
+#[test]
+fn a_claim_left_by_a_stopped_command_never_blocks_the_draft() {
+    let temp = workspace("stopped-claim");
+    let dir = temp.path.clone();
+    assert_eq!(run(&dir, &["try", &identity_named("f")]).0, 0);
+    // A follow-up stopped while its tests ran (its owner lock is free).
+    let partial = leftover_claim(&dir, "d1", 2, true);
+    assert_eq!(status_of(&dir, "d1")["revision"], 1);
+    let fill = r#"{"set": [{"at": "/fns/0/blocks/0/ops", "value": [["b", "add", "a", "a"]]}]}"#;
+    let (status, text) = run(&dir, &["fill", "d1", fill, "--revision", "1"]);
+    assert!(status == 0 || status == 1, "{text}");
+    assert!(
+        text.lines().next().unwrap().ends_with(" draft d1@r3"),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            "  note: d1@r2 skipped: claimed by a command that stopped before recording it; the number is not reused\n"
+        ),
+        "{text}"
+    );
+    assert_eq!(status_of(&dir, "d1@r3")["skipped"], json!([2]));
+    assert_eq!(status_of(&dir, "d1@r3")["parent"], "d1@r1");
+    // The skipped number is never recorded later, and the leftover stays.
+    let tests = json!({"af1": 1, "tests": [{"name": "t", "fn": "f", "args": [1], "expect": 1}]});
+    let (status, text) = run(&dir, &["try", "--on", "d1", &tests.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.lines().next().unwrap().ends_with(" draft d1@r4"),
+        "{text}"
+    );
+    assert_eq!(revisions(&dir, "d1"), ["r1", "r3", "r4"]);
+    assert!(partial.is_dir());
+
+    // A claim another command holds right now: refused as stale, naming it.
+    let running = leftover_claim(&dir, "d1", 5, true);
+    let owner = fs::OpenOptions::new()
+        .write(true)
+        .open(running.join(".owner"))
+        .unwrap();
+    owner.lock().unwrap();
+    let (status, text) = run(&dir, &["try", "--on", "d1", &tests.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("error AGENT_DRAFT_STALE: another command is recording d1@r5 on r4 right now: wait for it to finish"),
+        "{text}"
+    );
+    let cases = dir.join("cases.json");
+    fs::write(
+        &cases,
+        r#"[{"name": "c", "function": "f", "args": [2], "expect": 2}]"#,
+    )
+    .unwrap();
+    let (status, text) = run(&dir, &["import", cases.to_str().unwrap(), "--on", "d1"]);
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("is recording d1@r5"), "{text}");
+    assert_eq!(revisions(&dir, "d1"), ["r1", "r3", "r4"]);
+    // Once that command stops, the number is skipped.
+    drop(owner);
+    let (status, text) = run(&dir, &["import", cases.to_str().unwrap(), "--on", "d1"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.lines().next().unwrap().ends_with(" draft d1@r6"),
+        "{text}"
+    );
+    assert!(text.contains("note: d1@r5 skipped"), "{text}");
+
+    // A claim without an owner file cannot be checked: refused, naming it
+    // and the way out; nothing is recorded.
+    let unchecked = leftover_claim(&dir, "d1", 7, false);
+    let (status, text) = run(&dir, &["fill", "d1", fill, "--revision", "6"]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("error AGENT_DRAFT_STALE: d1@r7 is claimed by a command whose state cannot be checked (.sley/drafts/d1/.r7.partial has no lockable owner file); if no other command is running on d1, remove that directory and run this command again"),
+        "{text}"
+    );
+    assert_eq!(revisions(&dir, "d1"), ["r1", "r3", "r4", "r6"]);
+    fs::remove_dir_all(&unchecked).unwrap();
+    let (status, text) = run(&dir, &["fill", "d1", fill, "--revision", "6"]);
+    assert!(status == 0 || status == 1, "{text}");
+    assert!(
+        text.lines().next().unwrap().ends_with(" draft d1@r7"),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_killed_follow_up_leaves_a_claim_the_next_command_skips() {
+    // The real process, stopped by a signal while it runs its tests.
+    let temp = workspace("killed-claim");
+    let dir = temp.path.clone();
+    assert_eq!(run(&dir, &["try", &identity_named("f")]).0, 0);
+    let tests: Vec<Value> = (0..400)
+        .map(|index| json!({"name": format!("ts{index}"), "fn": "spin", "args": [index], "expect": 0}))
+        .collect();
+    let slow = json!({"af1": 1, "fns": [{"fn": "spin", "params": [["n", "i64"]], "returns": "i64", "blocks": [
+        {"name": "entry", "ops": [], "term": ["br", "loop", "n"]},
+        {"name": "loop", "params": [["i", "i64"]], "ops": [["one", "const", {"type": "i64", "value": 1}], ["j", "add", "i", "one"]],
+         "term": ["switch", "j", ["Ok", "next", "$"], ["Err", "done"]]},
+        {"name": "next", "params": [["k", "i64"]], "ops": [], "term": ["br", "loop", "k"]},
+        {"name": "done", "ops": [["z", "const", {"type": "i64", "value": 0}]], "term": ["return", "z"]}]}],
+        "tests": tests});
+    let slow_path = dir.join("slow.json");
+    fs::write(&slow_path, slow.to_string()).unwrap();
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_sley-agent"))
+        .args(["--workspace", dir.to_str().unwrap(), "try", "--on", "d1"])
+        .arg(&slow_path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let owner = dir.join(".sley/drafts/d1/.r2.partial/.owner");
+    let started = std::time::Instant::now();
+    while !owner.exists() {
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(60),
+            "the follow-up never claimed its revision"
+        );
+        assert!(
+            child.try_wait().unwrap().is_none(),
+            "the follow-up finished before it could be stopped"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    child.kill().unwrap();
+    child.wait().unwrap();
+    assert_eq!(revisions(&dir, "d1"), ["r1"]);
+    let fill = r#"{"set": [{"at": "/fns/0/blocks/0/ops", "value": [["b", "add", "a", "a"]]}]}"#;
+    let (status, text) = run(&dir, &["fill", "d1", fill, "--revision", "1"]);
+    assert!(status == 0 || status == 1, "{text}");
+    assert!(
+        text.lines().next().unwrap().ends_with(" draft d1@r3"),
+        "{text}"
+    );
+    assert!(text.contains("note: d1@r2 skipped"), "{text}");
+}
+
+/// The contract, for the documentation checks below.
+const CONTRACT: &str = include_str!("../../../docs/spec/SLEY_AGENT_V1.md");
+
+/// One numbered section of the contract (`"7. "` up to the next).
+fn contract_section(number: u32) -> &'static str {
+    let start = CONTRACT
+        .find(&format!("\n## {number}. "))
+        .unwrap_or_else(|| panic!("section {number}"));
+    let rest = &CONTRACT[start + 1..];
+    let end = rest
+        .find(&format!("\n## {}. ", number + 1))
+        .unwrap_or(rest.len());
+    &rest[..end]
+}
+
+#[test]
+fn test_limit_keys_are_documented_and_named_by_their_refusal() {
+    let temp = workspace("limit-keys");
+    let keys = "fuel, memory_bytes, output_bytes, effect_count, call_depth, wall_timeout_millis";
+    let idf = json!({"fn": "idf", "params": [["a", "i64"]], "returns": "i64",
+        "blocks": [{"name": "entry", "term": ["return", "a"]}]});
+    let table = |key: &str| {
+        json!({"af1": 1, "afx": 1, "fns": [idf.clone()], "test_tables": [{"name": "t", "fn": "idf",
+            "defaults": {"limits": {key: 1_000_000}}, "cases": [{"args": [1], "expect": 1}]}]})
+    };
+    for key in ["memory", "output"] {
+        let (status, text) = run(&temp.path, &["try", &table(key).to_string()]);
+        assert_eq!(status, 2, "{text}");
+        assert!(
+            text.contains(&format!(
+                "/test_tables/0/defaults/limits/{key}: unknown limit `{key}`: the limits are {keys}"
+            )),
+            "{text}"
+        );
+    }
+    let (status, text) = run(&temp.path, &["try", &table("memory_bytes").to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let plain = |limits: Value| {
+        json!({"af1": 1, "fns": [idf.clone()],
+            "tests": [{"name": "tp", "fn": "idf", "args": [2], "expect": 2, "limits": limits}]})
+        .to_string()
+    };
+    let (status, text) = run(&temp.path, &["try", &plain(json!({"output": 10}))]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains(&format!(
+            "/tests/0/limits/output: unknown limit `output`: the limits are {keys}"
+        )),
+        "{text}"
+    );
+    // A `limits` that is not an object is refused, never ignored.
+    let (status, text) = run(&temp.path, &["try", &plain(json!(5000))]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains(&format!(
+            "/tests/0/limits: limits are an object of integers, keyed by {keys}"
+        )),
+        "{text}"
+    );
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &plain(json!({"output_bytes": 1000, "call_depth": 64})),
+        ],
+    );
+    assert_eq!(status, 0, "{text}");
+    // `help tests` and contract section 7 spell every key.
+    let section = contract_section(7);
+    for key in keys.split(", ") {
+        assert!(
+            sley_agent::help::TESTS.contains(&format!("`{key}`")),
+            "help tests: {key}"
+        );
+        assert!(section.contains(&format!("`{key}`")), "section 7: {key}");
+    }
+}
+
+#[test]
+fn every_refusal_symbol_is_in_the_contract_and_the_reserved_one_says_so() {
+    let table = contract_section(9);
+    let source = include_str!("../src/error.rs");
+    let symbols: Vec<&str> = source
+        .split('"')
+        .filter(|word| word.starts_with("AGENT_") && !word.contains(' '))
+        .collect();
+    assert!(symbols.len() >= 29, "{symbols:?}");
+    for symbol in &symbols {
+        assert!(
+            table.contains(&format!("| `{symbol}` |")),
+            "{symbol} is not in the contract's symbol table"
+        );
+    }
+    assert!(
+        table.contains("| `AGENT_X_EFFECT_ORDER` | reserved and never emitted:"),
+        "{table}"
+    );
+    // The one AF1-X form refused for evaluation order is a grammar refusal.
+    let temp = workspace("effect-order");
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Ov", "Z"]}],
+        "fns": [{"fn": "q", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry", "ops": [["c", "lt", "a", "b"]],
+                    "term": ["cond", "c", ["t", ["div?Z", "a", "b"]], ["e", "a"]]},
+                   {"name": "t", "params": [["x", "i64"]], "term": ["ok", "x"]},
+                   {"name": "e", "params": [["y", "i64"]], "term": ["ok", "y"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(text.starts_with("error AGENT_FRAME_INVALID: "), "{text}");
+    assert!(text.contains("one path only"), "{text}");
+    // `help drafts` names the delta refusal.
+    assert!(sley_agent::help::DRAFTS.contains("`AGENT_DELTA_INVALID`"));
+}
+
+#[test]
+fn the_provenance_bracket_counts_tests_that_did_not_run() {
+    // Live `ta` targets `a`; a candidate adding `b` and `tb` runs only `tb`
+    // but counts `ta` as provided, as `help drafts` says.
+    let temp = workspace("provenance-not-run");
+    assert_eq!(run(&temp.path, &["try", &identity_named("a")]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let ta = json!({"af1": 1, "tests": [{"name": "ta", "fn": "a", "args": [1], "expect": 1}]});
+    assert_eq!(run(&temp.path, &["try", &ta.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let b = json!({"af1": 1, "fns": [{"fn": "b", "params": [["x", "i64"]], "returns": "i64",
+        "blocks": [{"name": "entry", "ops": [], "term": ["return", "x"]}]}],
+        "tests": [{"name": "tb", "fn": "b", "args": [2], "expect": 2}]});
+    let (status, text) = run(&temp.path, &["try", &b.to_string(), "--verbose"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains("tests: 1/1 passed [authored 1, provided 1]\n"),
+        "{text}"
+    );
+    assert!(text.contains("  ok   tb"), "{text}");
+    assert!(!text.contains(" ta "), "{text}");
+    let help = sley_agent::help::DRAFTS;
+    assert!(!help.contains("TestCase that ran once"), "{help}");
+    assert!(
+        help.contains("X/Y counts\nthe TestCases that ran. The bracket counts every TestCase of the\ncandidate once, by where its entry comes from, whether it ran or not"),
+        "{help}"
+    );
+}
+
+#[test]
+fn an_import_never_replaces_a_test_a_table_row_makes() {
+    // A table row's test is the author's, like a `tests` entry: an import
+    // naming it is refused and records nothing.
+    let temp = neg_big_workspace("import-row");
+    let base = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t", "fn": "neg", "cases": [
+        {"args": [3], "expect": false}, {"name": "minus", "args": [-3], "expect": true}]}]});
+    let (status, text) = run(&temp.path, &["try", &base.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let cases = temp.path.join("cases.json");
+    fs::write(
+        &cases,
+        r#"[{"name": "t_0", "function": "neg", "args": [1], "expect": false},
+            {"name": "minus", "function": "neg", "args": [-1], "expect": true},
+            {"name": "other", "function": "neg", "args": [-2], "expect": true}]"#,
+    )
+    .unwrap();
+    let path = cases.to_str().unwrap();
+    let (status, text) = run(&temp.path, &["import", path, "--on", "d2"]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.starts_with("error AGENT_INPUT_INVALID: case(s) `t_0` (made by a row of table `t`), `minus` (made by a row of table `t`) would replace the test(s) of the same name in d2@r1, which the author wrote or changed after an import; nothing was recorded"),
+        "{text}"
+    );
+    assert_eq!(revisions(&temp.path, "d2"), ["r1"]);
+    let (status, text) = run(
+        &temp.path,
+        &["import", path, "--on", "d2", "--only", "other"],
+    );
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains(
+            "changed: test +minus +other +t_0\ntests: 3/3 passed [authored 2, imported 1]\n"
+        ),
+        "{text}"
+    );
+    assert_eq!(status_of(&temp.path, "d2")["state"], "valid");
+}
+
+#[test]
+fn try_on_an_unknown_handle_is_unknown() {
+    let temp = workspace("unknown-handle");
+    let frame = r#"{"af1": 1, "consts": [{"name": "x2", "type": "i64", "value": 2}]}"#;
+    let (status, text) = run(&temp.path, &["try", "--on", "c99", frame]);
+    assert_eq!(status, 2, "{text}");
+    assert_eq!(
+        text,
+        "error AGENT_HANDLE_UNKNOWN: `c99` is not a candidate handle, file, or stored hex\n"
+    );
+    assert_eq!(candidates(&temp.path), 0);
+    let (status, text) = run(&temp.path, &["try", "--on", "d99", frame]);
+    assert_eq!(status, 2, "{text}");
+    assert!(text.starts_with("error AGENT_HANDLE_UNKNOWN: "), "{text}");
+}
+
+#[test]
+fn a_follow_up_on_a_raw_operation_draft_is_refused_unrecorded() {
+    // No repair of the follow-up can fix a raw base: refused like a raw
+    // handle, nothing recorded, pointing to a standalone try.
+    let temp = workspace("raw-base");
+    let raw = r#"[{"class": "CreateEntity", "kind": 9, "key": "rawlimit", "payload": {"value": {"value_type": "i64", "data": {"variant": "SInt", "value": 1}}}}]"#;
+    let (status, text) = run(&temp.path, &["try", raw]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.ends_with("draft d1@r1\n") || text.contains(" draft d1@r1\n"),
+        "{text}"
+    );
+    let frame = r#"{"af1": 1, "consts": [{"name": "x2", "type": "i64", "value": 2}]}"#;
+    let (status, text) = run(&temp.path, &["try", "--on", "c1", frame]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.starts_with("error AGENT_USAGE_INVALID: c1 was not made from an AF1 frame"),
+        "{text}"
+    );
+    let expected = "error AGENT_USAGE_INVALID: d1@r1 was made from raw operations, not an AF1 frame, so nothing can be layered on it; nothing was recorded: try the follow-up on its own (sley-agent try <frame>)\n";
+    let (status, text) = run(&temp.path, &["try", "--on", "d1", frame]);
+    assert_eq!((status, text.as_str()), (2, expected));
+    let cases = temp.path.join("cases.json");
+    fs::write(
+        &cases,
+        r#"[{"name": "c", "function": "f", "args": [1], "expect": 1}]"#,
+    )
+    .unwrap();
+    let (status, text) = run(
+        &temp.path,
+        &["import", cases.to_str().unwrap(), "--on", "d1"],
+    );
+    assert_eq!((status, text.as_str()), (2, expected));
+    assert_eq!(revisions(&temp.path, "d1"), ["r1"]);
+    assert_eq!(status_of(&temp.path, "d1")["state"], "valid");
+}
+
+#[test]
+fn a_public_case_file_is_checked_before_anything_is_recorded() {
+    let temp = workspace("public-check");
+    let dir = temp.path.clone();
+    let failing = json!({"af1": 1, "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "i64",
+        "blocks": [{"name": "entry", "ops": [], "term": ["return", "a"]}]}],
+        "tests": [{"name": "t", "fn": "f", "args": [1], "expect": 2}]})
+    .to_string();
+    let missing = dir.join("missing.json");
+    let missing = missing.to_str().unwrap();
+    let (status, text) = run(&dir, &["try", &failing, "--public", missing]);
+    assert_eq!(status, 2, "{text}");
+    assert!(text.starts_with("error AGENT_IO_FAILED: "), "{text}");
+    assert_eq!(text.lines().count(), 1, "{text}");
+    assert_eq!(candidates(&dir), 0);
+    assert!(!dir.join(".sley/drafts/d1").exists());
+    let shapes = [
+        (r#"{"name": "p"}"#, "public cases are a JSON array"),
+        (
+            r#"[{"name": "p", "args": [1]}]"#,
+            "case 0: missing \"function\"",
+        ),
+        (
+            r#"[{"function": "f", "args": 1}]"#,
+            "case 0: \"args\" is an array",
+        ),
+    ];
+    for (content, detail) in shapes {
+        let path = dir.join("shape.json");
+        fs::write(&path, content).unwrap();
+        let path = path.to_str().unwrap();
+        let (status, text) = run(&dir, &["try", &failing, "--public", path]);
+        assert_eq!(status, 2, "{text}");
+        assert_eq!(
+            text,
+            format!("error AGENT_INPUT_INVALID: {path}: {detail}\n"),
+            "{content}"
+        );
+    }
+    assert_eq!(candidates(&dir), 0);
+    // A case that cannot run once the candidate exists: the result, the
+    // failing test and the recorded revision come first, then the refusal.
+    let unknown = dir.join("unknown.json");
+    fs::write(
+        &unknown,
+        r#"[{"name": "p", "function": "nope", "args": [1], "expect": 1}]"#,
+    )
+    .unwrap();
+    let unknown = unknown.to_str().unwrap();
+    let (status, text) = run(&dir, &["try", &failing, "--public", unknown]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.starts_with("c1: Valid (+4 created, 0 replaced, 0 deleted) draft d1@r1\n"),
+        "{text}"
+    );
+    assert!(text.contains("  FAIL t (f): expected 2, got 1\n"), "{text}");
+    assert!(
+        text.ends_with(&format!(
+            "error AGENT_NAME_UNKNOWN: {unknown}: case 0 (p): no entity named `nope`\n"
+        )),
+        "{text}"
+    );
+    assert!(!text.contains("next:"), "{text}");
+    let recorded = status_of(&dir, "d1@r1");
+    assert_eq!(recorded["state"], "valid");
+    assert_eq!(recorded["results"]["ran"], 1);
+    assert_eq!(recorded["results"]["passed"], 0);
+    assert_eq!(recorded["results"]["public_refusal"], "AGENT_NAME_UNKNOWN");
+    let (status, value) = run_json(&dir, &["try", &failing, "--public", unknown]);
+    assert_eq!(status, 2, "{value}");
+    assert_eq!(value["handle"], "c2");
+    assert_eq!(value["error"], "AGENT_NAME_UNKNOWN");
+    assert!(
+        value["detail"]
+            .as_str()
+            .unwrap()
+            .ends_with("case 0 (p): no entity named `nope`"),
+        "{value}"
+    );
+    // fill checks the file first too: nothing recorded.
+    let fill = r#"{"set": [{"at": "/tests/0/expect", "value": 1}]}"#;
+    let (status, text) = run(
+        &dir,
+        &["fill", "d1", fill, "--revision", "1", "--public", missing],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(text.starts_with("error AGENT_IO_FAILED: "), "{text}");
+    assert_eq!(revisions(&dir, "d1"), ["r1"]);
+    let (status, text) = run(&dir, &["fill", "d1", fill, "--revision", "1"]);
+    assert_eq!(status, 0, "{text}");
+}
+
+#[test]
+fn commands_refused_before_they_open_the_workspace_are_in_the_ledger() {
+    let temp = workspace("ledger-early");
+    let dir = temp.path.clone();
+    assert_eq!(run(&dir, &["try", &identity_named("f")]).0, 0);
+    let before = ledger(&dir).len();
+    let file = |name: &str, content: &str| {
+        let path = dir.join(name);
+        fs::write(&path, content).unwrap();
+        path.display().to_string()
+    };
+    let noexpect = file(
+        "noexpect.json",
+        r#"[{"name": "c", "function": "f", "args": [2]}]"#,
+    );
+    let ok = file(
+        "ok.json",
+        r#"[{"name": "c", "function": "f", "args": [2], "expect": 2}]"#,
+    );
+    let broken = file("broken.json", r#"[{"name":"#);
+    let missing = dir.join("missing.json").display().to_string();
+    let commands: Vec<(Vec<&str>, &str)> = vec![
+        (
+            vec!["import", &noexpect, "--on", "d1"],
+            "AGENT_INPUT_INVALID",
+        ),
+        (vec!["import", &ok, "--only", "zz"], "AGENT_INPUT_INVALID"),
+        (vec!["import", &broken], "AGENT_INPUT_INVALID"),
+        (vec!["try", &missing], "AGENT_IO_FAILED"),
+        (
+            vec!["fill", "d1", &missing, "--revision", "1"],
+            "AGENT_IO_FAILED",
+        ),
+        (vec!["import", &ok, "--on", "d9"], "AGENT_HANDLE_UNKNOWN"),
+        (vec!["try", "--bogus", "x"], "AGENT_USAGE_INVALID"),
+    ];
+    for (args, symbol) in &commands {
+        let (status, text) = run(&dir, args);
+        assert_eq!(status, 2, "{args:?}: {text}");
+        assert!(text.starts_with(&format!("error {symbol}: ")), "{text}");
+    }
+    let events = ledger(&dir);
+    assert_eq!(events.len(), before + commands.len());
+    for (event, (args, symbol)) in events[before..].iter().zip(&commands) {
+        assert_eq!(event["cmd"], args[0], "{event}");
+        assert_eq!(event["refusal"], *symbol, "{event}");
+    }
+    // help and version append nothing.
+    for args in [["help", "drafts"], ["version", "--json"]] {
+        run(&dir, &args);
+    }
+    assert_eq!(ledger(&dir).len(), before + commands.len());
+}

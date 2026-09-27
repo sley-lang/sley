@@ -209,7 +209,8 @@ impl Drafts {
     }
 
     /// Claims the next revision of a draft: the first number after its
-    /// latest revision that no other command holds.
+    /// latest revision that no other command holds. The numbers passed
+    /// over, and what held each, are kept with the claim.
     ///
     /// # Errors
     ///
@@ -220,18 +221,54 @@ impl Drafts {
         self.claim_at(handle, latest + 1)
     }
 
+    /// Claims the first free revision number at or after `first`. A claim
+    /// is the directory `.rN.partial` holding `.owner`, which the claiming
+    /// command keeps locked until it records or drops the claim; claims of
+    /// one draft are made under `.claims.lock`, so a claim directory is
+    /// never seen between its creation and its owner lock. A claim whose
+    /// owner lock is free belongs to a command that stopped: its number is
+    /// passed over and never reused, since a candidate that command stored
+    /// may name that revision.
     fn claim_at(&self, handle: &str, first: u64) -> Result<Claim> {
         let draft_dir = self.dir.join(handle);
+        let lock_path = draft_dir.join(CLAIMS_LOCK);
+        let lock = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&lock_path)
+            .map_err(|error| io(&lock_path, &error))?;
+        take_lock(&lock, &lock_path)?;
+        let claim = self.claim_locked(handle, draft_dir, first);
+        let _ = lock.unlock();
+        claim
+    }
+
+    fn claim_locked(&self, handle: &str, draft_dir: PathBuf, first: u64) -> Result<Claim> {
         let mut number = first;
+        let mut passed = Vec::new();
         loop {
+            if self.revision_dir(handle, number).exists() {
+                passed.push((number, Holder::Recorded));
+                number += 1;
+                continue;
+            }
             let scratch = draft_dir.join(format!(".r{number}.partial"));
             match fs::create_dir(&scratch) {
-                // A number another command already recorded is taken too.
+                // A number another command recorded meanwhile is taken too.
                 Ok(()) if self.revision_dir(handle, number).exists() => {
                     let _ = fs::remove_dir(&scratch);
+                    passed.push((number, Holder::Recorded));
                     number += 1;
                 }
                 Ok(()) => {
+                    let owner = match own(&scratch) {
+                        Ok(owner) => owner,
+                        Err(error) => {
+                            let _ = fs::remove_dir_all(&scratch);
+                            return Err(error);
+                        }
+                    };
                     return Ok(Claim {
                         draft_dir,
                         handle: handle.to_owned(),
@@ -239,9 +276,18 @@ impl Drafts {
                         scratch,
                         new_draft: false,
                         recorded: false,
+                        owner: Some(owner),
+                        passed,
                     });
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => number += 1,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let recorded = self.revision_dir(handle, number).exists();
+                    // A claim that went away meanwhile frees its number.
+                    if let Some(holder) = holder(&scratch, recorded) {
+                        passed.push((number, holder));
+                        number += 1;
+                    }
+                }
                 Err(error) => return Err(io(&scratch, &error)),
             }
         }
@@ -422,6 +468,8 @@ impl Drafts {
         let target = self.revision_dir(&claim.handle, claim.number);
         fs::rename(scratch, &target).map_err(|error| io(&target, &error))?;
         claim.recorded = true;
+        let _ = fs::remove_file(target.join(OWNER));
+        claim.owner.take();
         let base_head = read_json(&self.revision_dir(&claim.handle, 1).join("status.json"))?
             .and_then(|status| status.get("base_head").cloned())
             .unwrap_or(Value::Null);
@@ -450,8 +498,9 @@ impl Drafts {
     }
 }
 
-/// A claimed revision slot (`.rN.partial`): recording renames it into place;
-/// dropped unrecorded, it is removed with the draft directory it created.
+/// A claimed revision slot (`.rN.partial`, its `.owner` locked while the
+/// command runs): recording renames it into place; dropped unrecorded, it
+/// is removed with the draft directory it created.
 #[derive(Debug)]
 pub struct Claim {
     draft_dir: PathBuf,
@@ -460,6 +509,8 @@ pub struct Claim {
     scratch: PathBuf,
     new_draft: bool,
     recorded: bool,
+    owner: Option<fs::File>,
+    passed: Vec<(u64, Holder)>,
 }
 
 impl Claim {
@@ -474,6 +525,12 @@ impl Claim {
     pub const fn number(&self) -> u64 {
         self.number
     }
+
+    /// The revision numbers the claim passed over, and what held each.
+    #[must_use]
+    pub fn passed(&self) -> &[(u64, Holder)] {
+        &self.passed
+    }
 }
 
 impl Drop for Claim {
@@ -484,6 +541,64 @@ impl Drop for Claim {
                 let _ = fs::remove_dir(&self.draft_dir);
             }
         }
+        // Closing the owner file releases the claim's lock.
+        self.owner.take();
+    }
+}
+
+/// What held a revision number a claim passed over.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Holder {
+    /// Another command recorded the revision.
+    Recorded,
+    /// Another command holds the claim and is still running.
+    Running,
+    /// The claim's command stopped before recording it (its owner lock is
+    /// free): the number is skipped, never reused.
+    Abandoned,
+    /// A claim whose owner cannot be checked (it has no owner file, or the
+    /// file system cannot lock it): it may still be running.
+    Unchecked,
+}
+
+/// A draft's claim lock.
+const CLAIMS_LOCK: &str = ".claims.lock";
+/// The file a claim keeps locked while its command runs.
+const OWNER: &str = ".owner";
+
+/// Takes an exclusive lock, waiting for it; a file system that cannot lock
+/// goes ahead unlocked (its claims are then reported as unchecked).
+fn take_lock(file: &fs::File, path: &Path) -> Result<()> {
+    match file.lock() {
+        Err(error) if error.kind() != std::io::ErrorKind::Unsupported => Err(io(path, &error)),
+        _ => Ok(()),
+    }
+}
+
+/// Creates and locks a fresh claim's owner file.
+fn own(scratch: &Path) -> Result<fs::File> {
+    let path = scratch.join(OWNER);
+    let file = fs::File::create(&path).map_err(|error| io(&path, &error))?;
+    take_lock(&file, &path)?;
+    Ok(file)
+}
+
+/// What holds an existing claim directory; `None` when it went away.
+fn holder(scratch: &Path, recorded: bool) -> Option<Holder> {
+    if recorded {
+        return Some(Holder::Recorded);
+    }
+    match fs::File::open(scratch.join(OWNER)) {
+        Ok(file) => Some(match file.try_lock() {
+            Ok(()) => {
+                let _ = file.unlock();
+                Holder::Abandoned
+            }
+            Err(fs::TryLockError::WouldBlock) => Holder::Running,
+            Err(fs::TryLockError::Error(_)) => Holder::Unchecked,
+        }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && !scratch.exists() => None,
+        Err(_) => Some(Holder::Unchecked),
     }
 }
 

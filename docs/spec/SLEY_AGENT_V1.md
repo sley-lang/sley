@@ -116,7 +116,8 @@ rules:
 - `delete` entries are added, and `namespace` replaces.
 
 A handle made from raw operations has no frame, and `try --on` refuses it
-with `AGENT_USAGE_INVALID`.
+with `AGENT_USAGE_INVALID`; a reference that names no candidate is
+`AGENT_HANDLE_UNKNOWN`.
 
 The `next:` line of a Valid candidate proposes a layered follow-up. With no
 TestCase, it proposes the tests; with a failing TestCase, the fix. A
@@ -626,11 +627,16 @@ fnref`. AF1 also accepts the SSMC1 names and the numeric tags.
 
 ## 7. TestCase defaults and the workbench policy
 
-An AF1 test that declares no limits takes, per limit, the smaller of the
-workbench default and the grant: fuel 1,000,000; memory 16,777,216 bytes;
-output 65,536 bytes; effect count 0. Call depth is 256 and wall time is
-10,000 ms (these are context limits, not grant limits). A declared limit is
-used as written. For the TestCases a candidate selects (those that target
+An AF1 test (or a test table's `defaults` or row) declares its limits as
+`"limits"`, an object of non-negative integers whose keys are exactly
+`fuel`, `memory_bytes`, `output_bytes`, `effect_count`, `call_depth` and
+`wall_timeout_millis`. Another key, a value that is not an integer, or a
+`limits` that is not an object is refused with `AGENT_FRAME_INVALID` at its
+pointer, and the refusal names these keys. A limit a test does not declare
+takes the smaller of the workbench default and the grant: `fuel` 1,000,000;
+`memory_bytes` 16,777,216; `output_bytes` 65,536; `effect_count` 0.
+`call_depth` is 256 and `wall_timeout_millis` 10,000 (these are context
+limits, not grant limits). A declared limit is used as written. For the TestCases a candidate selects (those that target
 a function it changes), a limit above the grant is the kernel's
 `CANDIDATE_TEST_RESOURCE_LIMIT`; phase 12 does not check the limits of a
 TestCase it does not select.
@@ -705,13 +711,14 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_EXECUTION_REFUSED` | the dev loop cannot execute the function or state |
 | `AGENT_SUBMISSION_REFUSED` | the candidate is not Valid, changes a function no TestCase in it targets (without `--untested`), or the transaction engine refused a commit |
 | `AGENT_IO_FAILED` | a workspace file could not be read or written |
-| `AGENT_DRAFT_STALE` | the revision a `fill` names is not the draft's latest revision, or another command recorded a newer revision while this one ran |
+| `AGENT_DRAFT_STALE` | the revision a `fill` names is not the draft's latest revision, or another command recorded a newer revision while this one ran, holds a claim of one, or left a claim that cannot be checked |
 | `AGENT_DRAFT_HEAD_CHANGED` | the accepted head changed since the draft revision; build on the new head explicitly with `--rebase` |
 | `AGENT_DRAFT_INCOMPLETE` | the draft revision has no complete, Valid candidate for the request: a text revision or a follow-up not yet layered cannot be layered on, and only a `valid` revision is submitted |
 | `AGENT_DELTA_INVALID` | a delta has another shape, or a target that is malformed, missing, given twice or overlapping another |
 | `AGENT_X_PROPAGATION` | an AF1-X `?` or exit has no single, type-correct failure route |
 | `AGENT_X_SCOPE` | an AF1-X name is ambiguous, not available where it is used, or an omitted edge argument cannot be derived |
 | `AGENT_X_LIMIT` | an AF1-X expansion bound (depth, operations, generated blocks) was reached |
+| `AGENT_X_EFFECT_ORDER` | reserved and never emitted: AF1-X expansion never reorders evaluation; a form that would run an operation on a path not taken (a nested operation in a `cond` or `switch` target argument, or in an exit payload) is a grammar refusal, `AGENT_FRAME_INVALID`, and a guard that cannot keep the written order is `AGENT_RIPPLE_GUARD_ORDER` |
 | `AGENT_TEST_TABLE_INVALID` | a test table or row is malformed, duplicated, collides with another test, or names a live test its table did not make |
 | `AGENT_RIPPLE_INTENT_UNKNOWN` | a `ripple` intent is unknown, or not enabled in this build |
 | `AGENT_RIPPLE_TARGET_KIND` | an intent names something other than a live function it can change |
@@ -804,7 +811,7 @@ latest revision is the highest recorded `rN`. Each revision directory
 | `input.txt` | the exact input bytes (the frame, delta or case file given) |
 | `frame.json` | the complete authored frame of the revision (layered, or with the delta applied); absent when the input is not JSON |
 | other `*.json` | derived authoring artifacts of the compiled frame |
-| `status.json` | `revision`, `base_head`, `parent`, `made_by` (`try`, `try-on`, `fill`, `import` or `rebase`), `on`, `unlayered`, `delta`, `whole_frame`, `state`, `candidate`, `candidate_sha256`, `verdict`, `obligations`, `tests`, `sources`, `tables`, and `results` when tests ran |
+| `status.json` | `revision`, `base_head`, `parent`, `made_by` (`try`, `try-on`, `fill`, `import` or `rebase`), `on`, `unlayered`, `delta`, `whole_frame`, `state`, `candidate`, `candidate_sha256`, `verdict`, `obligations`, `tests`, `sources`, `tables`, `results` when tests ran, and `skipped` when claims of stopped commands were skipped |
 
 A revision's `state` is one of:
 
@@ -825,7 +832,17 @@ directory, a revision its `.rN.partial` directory, and a candidate its
 exists, then the next number), so two commands never report the same
 handle or revision, and a recorded revision always holds its own command's
 frame and candidate. Shared files (`names.json`, `layered.json`,
-`draft.json`, candidate metadata) are replaced whole. Every recorded
+`draft.json`, candidate metadata) are replaced whole, and `names.json` is
+read, merged and replaced under an exclusive lock on `.sley/names.lock`,
+so concurrent commands keep each other's names. A revision claim holds
+`.owner`, which its command keeps locked until it records the revision or
+drops the claim; the claims of a draft are made one at a time under
+`dN/.claims.lock`. A claim whose owner lock is free belongs to a command
+that stopped (killed, or out of time) before recording it: later commands
+skip its number and never reuse it, because a candidate that command
+stored may name that revision. A draft's revision numbers may therefore
+have gaps; the revision recorded next lists the skipped numbers
+(`skipped`) and its result says so in a `note:`. Every recorded
 revision also claims the next entry of `.sley/drafts/.order/`, the
 workspace's recording order over all drafts.
 
@@ -841,8 +858,8 @@ text revision cannot be layered on (`AGENT_DRAFT_INCOMPLETE`, with the
 
 A follow-up given to `try --on` or `import --on` is kept even when it
 cannot be layered: when it is not JSON (state `text`), or when layering
-refuses it (a frame without `"af1": 1`, raw operations, or a base that is
-not an AF1 object; state `incomplete`). Such a revision records
+refuses it (a frame without `"af1": 1`, or raw operations; state
+`incomplete`). Such a revision records
 `unlayered: true` and its base in `on`; its `frame.json` holds the
 follow-up as given. Nothing is layered on it (`AGENT_DRAFT_INCOMPLETE`,
 naming the repair), and `fill` repairs the follow-up and layers the result
@@ -851,8 +868,12 @@ on `on` again, so the base's definitions and tests stay in the draft. `try
 
 A follow-up refused before layering is not recorded: when the revision it
 names is a text revision or an `unlayered` one (`AGENT_DRAFT_INCOMPLETE`),
-or when the head changed since that revision (`AGENT_DRAFT_HEAD_CHANGED`,
-section 12.5). Recording it would either build on a revision without a
+when that revision was made from raw operations (`AGENT_USAGE_INVALID`,
+as `try --on` refuses a raw handle in section 2: no repair of the
+follow-up could fix its base, so the refusal points to a standalone
+`try`) or holds JSON that is not a frame object (`AGENT_DRAFT_INCOMPLETE`,
+with the `fill` that replaces it whole), or when the head changed since
+that revision (`AGENT_DRAFT_HEAD_CHANGED`, section 12.5). Recording it would either build on a revision without a
 complete frame, hiding that revision's repair behind a newer one, or build
 on a head the author did not choose. The refusal says the follow-up was
 not recorded and how to send it again: after the repair, with `--on` the
@@ -889,6 +910,18 @@ then lists:
 - `tests: 0 ran` when no TestCase ran, as section 2 describes;
 - the `next:` step, which layers on the draft (`try --on d1`), repairs it
   (`fill`) or submits it (`submit d1`).
+
+A `--public` case file is read and checked before anything is recorded or
+stored: a file that cannot be read (`AGENT_IO_FAILED`), is not a JSON
+array, or holds a case without a `function` or with `args` that are not
+an array (`AGENT_INPUT_INVALID`) is refused on its own. A case that cannot
+run against the candidate (its function does not resolve, or its
+arguments do not fit) is known only once the candidate exists: the
+revision, its candidate and its own test results are recorded
+(`results.public_refusal` in `status.json`), the result is printed as
+above without a `next:` line, and its last line is the refusal, `error
+AGENT_...: <file>: case <i> (<name>): <detail>` (in JSON, `error` and
+`detail` beside the result), with exit status 2.
 
 A kernel refusal about a TestCase, when the verdict names no authored
 positions itself (section 8), gets them from the test: `authored:` lists,
@@ -959,7 +992,12 @@ text revision, the whole follow-up) and layers the result on its `on`
 base again. When another command records a revision of the same draft
 while `fill` runs, the fill is refused with `AGENT_DRAFT_STALE` and writes
 nothing; `try --on <draft>` and `import --on <draft>` without an explicit
-revision are refused the same way.
+revision are refused the same way. They are also refused while another
+command holds a claim of the next revision (the refusal names the revision
+it is recording), and when a claim cannot be checked (a claim directory
+without a lockable owner file, which the refusal names, to be removed when
+no other command runs on the draft). A claim whose command stopped never
+refuses them: its number is skipped (section 12.1).
 
 ### 12.5 Head changes
 
@@ -1000,8 +1038,9 @@ handle.
 named by their cases: layered on the draft with `--on`, or as a new draft.
 `--only` selects cases by name. With `--on`, a case replaces a draft test
 of the same name only when that test is an earlier import unchanged since,
-or already equals the case; a test the author wrote, or changed after its
-import, is never replaced: the import is refused with
+or already equals the case; a test the author wrote (a `tests` entry, or
+the test a `test_tables` row makes under its given or derived name), or
+changed after its import, is never replaced: the import is refused with
 `AGENT_INPUT_INVALID`, naming those cases, and records nothing (`--only`
 leaves them out). A case without `expect` is refused with
 `AGENT_INPUT_INVALID`: expected values come from the case file, never from
@@ -1036,7 +1075,9 @@ Imported tests never satisfy a requirement to author a test.
 ### 12.8 Events ledger
 
 Every command that uses a workspace appends one JSON line to
-`.sley/events.jsonl`, with exactly these keys: `seq`, `cmd`, `draft`,
+`.sley/events.jsonl`, also when it is refused before it opens the
+workspace (an unreadable frame or delta, a malformed case file), with
+exactly these keys: `seq`, `cmd`, `draft`,
 `candidate`, `input_bytes` (the frame, delta or case file read, otherwise
 the command line), `output_bytes` (what the command printed),
 `whole_frame`, `rewrite` (a `try` of a whole new frame while drafts

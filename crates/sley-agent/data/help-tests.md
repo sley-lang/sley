@@ -9,9 +9,13 @@ A test is a TestCase entity that targets a function:
 
 `area` is the guide's example; `stub` is a function whose body is still
 `trap unreachable`. `name` defaults to `t_<fn>_<n>`. `expect` is read against
-the function's result type (`sley-agent help types`). The limits default to
-the smaller of the workbench defaults and the policy grant (fuel 1000000,
-memory 16 MiB, output 64 KiB). The kernel checks the limits of the tests a
+the function's result type (`sley-agent help types`). `limits` is an object
+of integers with exactly these keys: `fuel`, `memory_bytes`,
+`output_bytes`, `effect_count`, `call_depth`, `wall_timeout_millis`; any
+other key is refused. A limit not given takes the smaller of the workbench
+default and the policy grant (fuel 1000000, memory_bytes 16777216,
+output_bytes 65536, effect_count 0; call_depth 256 and
+wall_timeout_millis 10000). The kernel checks the limits of the tests a
 candidate selects (those that target a function it changes): a declared
 limit above the grant is refused with CANDIDATE_TEST_RESOURCE_LIMIT, naming
 the limit.

@@ -181,7 +181,10 @@ pub(crate) fn lower(
                     Some(_) => {
                         invalid(
                             &format!("{at}/defaults/limits"),
-                            "limits are an object, e.g. {\"fuel\": 10000}".to_owned(),
+                            format!(
+                                "limits are an object of integers, keyed by {}",
+                                crate::frame::LIMIT_KEYS
+                            ),
                         );
                         continue;
                     }
@@ -262,7 +265,10 @@ pub(crate) fn lower(
                 Some(_) => {
                     invalid(
                         &format!("{row_at}/limits"),
-                        "limits are an object, e.g. {\"fuel\": 10000}".to_owned(),
+                        format!(
+                            "limits are an object of integers, keyed by {}",
+                            crate::frame::LIMIT_KEYS
+                        ),
                     );
                     continue;
                 }
