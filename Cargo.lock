@@ -349,6 +349,8 @@ dependencies = [
  "sley-repo",
  "sley-scb1",
  "sley-test-runner",
+ "sley-tests",
+ "sley-txn",
  "sley-vm",
 ]
 

@@ -4,6 +4,7 @@
 
 use std::fmt::Write as _;
 use std::io::{Read as _, Write as _};
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -21,6 +22,11 @@ use sley_protocol::{
 };
 use sley_repo::test_support::{TempDir, complete_bodies, complete_dependency_root, genesis};
 use sley_scb1::encode_uvar;
+use sley_tests::{
+    HistoricalTrustPolicyParts, HistoricalTrustPolicyV1, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
+    TrustEntry,
+};
+use sley_txn::{Ed25519AcceptanceSigner, NativeAcceptanceSigner};
 
 const BRIDGE_FIXTURE: &str =
     include_str!("../../../conformance/smp1-json-bridge/v1/roundtrip.json");
@@ -1950,6 +1956,70 @@ fn native_authority_requires_explicit_v3_receiver_configuration_before_hello() {
     let failure: Value = serde_json::from_str(&stderr).unwrap();
     assert_eq!(failure["symbol"], "CLI_USAGE_INVALID");
     assert_eq!(failure["cause"], "--native-authority-config");
+}
+
+#[test]
+fn valid_receiver_configuration_serves_the_v3_hello() {
+    let (_temp, path) = repository("cli-native-authority-v3-hello");
+    let directory = path.parent().unwrap();
+    let key = directory.join("acceptance.key");
+    let measurement = directory.join("measurement.sleyntr1");
+    let acceptance = directory.join("acceptance.sleyntr1");
+    let config = directory.join("native-authority.json");
+    let signer = Ed25519AcceptanceSigner::from_secret_bytes([7; 32]);
+    let policy = |key_id: [u8; 32], role: u32| {
+        HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [u8::try_from(role).unwrap(); 32],
+            entries: vec![TrustEntry {
+                key_id,
+                role,
+                workspaces: vec![[4; 32]],
+                profiles: vec![[3; 32]],
+                valid_from_unix_millis: 1,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .unwrap()
+    };
+    std::fs::write(&key, [7; 32]).unwrap();
+    std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+    std::fs::write(
+        &measurement,
+        policy([8; 32], ROLE_MEASUREMENT).stored_bytes(),
+    )
+    .unwrap();
+    std::fs::write(
+        &acceptance,
+        policy(signer.key_id(), ROLE_ACCEPTANCE).stored_bytes(),
+    )
+    .unwrap();
+    std::fs::write(
+        &config,
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "acceptance_key_path": key,
+            "measurement_trust_path": measurement,
+            "acceptance_trust_path": acceptance,
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let hello = encode_hello_frame(&offered_v3()).unwrap().bytes;
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            path.to_str().unwrap(),
+            "--protocol-profile",
+            "v3-capable",
+            "--native-authority-config",
+            config.to_str().unwrap(),
+        ],
+        &hello,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(stdout, hello);
 }
 
 #[test]

@@ -30,6 +30,8 @@ ALLOWED_DEV_DEPENDENCIES = {
     "sley-protocol",
     "sley-json-bridge",
     "sley-test-runner",
+    "sley-tests",
+    "sley-txn",
     "sley-vm",
     "serde_json",
 }
