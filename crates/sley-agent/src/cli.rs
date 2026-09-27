@@ -3195,6 +3195,12 @@ fn search_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
     let (max_neighbors, max_millis) =
         crate::search::limits(words.value("--max-neighbors"), words.value("--max-millis"))?;
     let workspace = workspace(global)?;
+    // The case file is the input search reads first: its size, whether the
+    // search then runs or is refused (the command line when it is not a
+    // readable file).
+    if let Some(bytes) = crate::search::case_file_bytes(public) {
+        global.note("input_bytes", bytes);
+    }
     let report = crate::search::run(
         &workspace,
         &crate::search::Request {
@@ -3205,7 +3211,6 @@ fn search_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
             max_millis,
         },
     )?;
-    global.note("input_bytes", report.input_bytes);
     global.note("draft", report.draft.clone());
     global.note("candidate", report.candidate.clone());
     global.note("afx", Value::Object(report.stats.clone()));

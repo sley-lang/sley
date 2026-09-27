@@ -42,13 +42,21 @@ neighbor slot:
 - code the tool generated (AF1-X continuations, checked switches, shared
   exits), or any `__` name in a frame of the authoring dialect;
 - a block the seed's frame does not state whose code differs from the
-  head's (a ripple rewrite);
+  head's, unless an `arity` intent of the seed made the difference (below);
+- any change to a function a `guard` intent of the seed rewrites: the
+  intent refuses every frame that restates that function;
 - a permutation of two nested operations (it would reorder their
   evaluation), or a block change beside the seed's own `edit`;
 - a substitution that would drop a nested operation with a failure route
   (`op?`), a call, an effect, a contract check, an observation or a cell;
 - `not x -> x` where `x` is a nested operation without a name (it would
   run twice).
+
+A function the seed's `arity` intent rewrites without its frame stating it
+(a caller of the changed function) is searched as the head states it: each
+neighbor is a `patch` of one of its blocks, and the intent, layered in with
+the seed's frame, rewrites the calls in that patch again. The values an
+intent derives (its `value`) are not searched. The output says `derived:`.
 
 ## Ranking, bounds, output
 
