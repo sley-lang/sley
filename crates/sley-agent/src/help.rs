@@ -19,10 +19,12 @@ pub const AFX: &str = include_str!("../data/help-afx.md");
 pub const TYPES: &str = include_str!("../data/help-types.md");
 /// The `TestCase` reference.
 pub const TESTS: &str = include_str!("../data/help-tests.md");
+/// The verified search reference.
+pub const SEARCH: &str = include_str!("../data/help-search.md");
 
 /// Topic names.
 pub const TOPICS: &[&str] = &[
-    "guide", "af1", "afx", "opcodes", "types", "tests", "refusals",
+    "guide", "af1", "afx", "opcodes", "types", "tests", "search", "refusals",
 ];
 
 /// Returns a topic's text.
@@ -34,6 +36,7 @@ pub fn topic(name: &str) -> Option<String> {
         "afx" | "af1-x" | "dialect" => AFX.to_owned(),
         "types" => TYPES.to_owned(),
         "tests" | "testcase" => TESTS.to_owned(),
+        "search" => SEARCH.to_owned(),
         "opcodes" => opcodes(),
         "refusals" => refusals(),
         _ => return None,

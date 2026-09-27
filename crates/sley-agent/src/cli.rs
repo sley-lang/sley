@@ -176,6 +176,7 @@ fn dispatch(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32
         "call" => call_command(global, rest, out),
         "test" => test_command(global, rest, out),
         "explain" => explain_command(global, rest, out),
+        "search" => search_command(global, rest, out),
         "init" => init_command(global, rest, out),
         "commit" => commit_command(global, rest, out),
         "export" => export_command(global, rest, out),
@@ -2046,7 +2047,7 @@ fn public_text(outcomes: &[PublicOutcome]) -> String {
 /// the function's result type (as AF1 tests read it) and rendered back, and
 /// a trap by name or number as its code. An expectation that does not read
 /// is compared as written, and fails.
-fn canonical_expectation(
+pub(crate) fn canonical_expectation(
     expected: &Value,
     program: &Program,
     names: &Names,
@@ -2075,7 +2076,9 @@ fn canonical_expectation(
         .map_or_else(|_| expected.clone(), |value| values::to_json(&value, names))
 }
 
-fn typed_inputs(
+/// A call's or case's JSON arguments read against the function's parameter
+/// types.
+pub(crate) fn typed_inputs(
     executor: &Executor,
     program: &Program,
     names: &Names,
@@ -2535,6 +2538,40 @@ fn test_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
         write_text(out, &text)?;
     }
     Ok(if failed == 0 { EXIT_OK } else { EXIT_NEGATIVE })
+}
+
+fn search_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
+    let words = words(
+        args,
+        &["--public", "--from", "--max-neighbors", "--max-millis"],
+        &[],
+    )?;
+    let ([function], Some(public)) = (words.positional.as_slice(), words.value("--public")) else {
+        return Err(usage(crate::search::USAGE));
+    };
+    let (max_neighbors, max_millis) =
+        crate::search::limits(words.value("--max-neighbors"), words.value("--max-millis"))?;
+    let workspace = workspace(global)?;
+    let report = crate::search::run(
+        &workspace,
+        &crate::search::Request {
+            function,
+            public,
+            from: words.value("--from"),
+            max_neighbors,
+            max_millis,
+        },
+    )?;
+    global.note("input_bytes", report.input_bytes);
+    global.note("draft", report.draft.clone());
+    global.note("candidate", report.candidate.clone());
+    global.note("afx", Value::Object(report.stats.clone()));
+    if global.json {
+        write_json(out, &report.json)?;
+    } else {
+        write_text(out, &report.text)?;
+    }
+    Ok(report.exit)
 }
 
 fn explain_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
