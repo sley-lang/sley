@@ -621,6 +621,13 @@ fn expected_of(decision: &str) -> Option<String> {
     {
         return cut(ty);
     }
+    // "block `b` takes `c: i64`, and no value named `c` is available here"
+    if let Some((_, tail)) = decision.split_once(" takes `")
+        && let Some((param, _)) = tail.split_once('`')
+        && let Some((_, ty)) = param.split_once(": ")
+    {
+        return Some(ty.trim().to_owned());
+    }
     // "block `b` takes 1 argument(s) (j: i64); this edge passes 0"
     if let Some((_, tail)) = decision.split_once(" argument(s) (")
         && let Some((params, _)) = tail.split_once(')')
@@ -632,15 +639,28 @@ fn expected_of(decision: &str) -> Option<String> {
 
 /// The typed values a problem lists as available, when it lists them.
 fn available_of(decision: &str) -> Option<Vec<String>> {
-    let tail = ["available: ", "visible: ", "values of that type: "]
-        .iter()
-        .find_map(|marker| {
-            decision
-                .find(marker)
-                .map(|at| &decision[at + marker.len()..])
-        })?;
+    let tail = [
+        "available: ",
+        "visible: ",
+        "values of that type here: ",
+        "values of that type: ",
+    ]
+    .iter()
+    .find_map(|marker| {
+        decision
+            .find(marker)
+            .map(|at| &decision[at + marker.len()..])
+    })?;
     let end = tail.find(';').unwrap_or(tail.len());
-    let values: Vec<String> = tail[..end]
+    // A list closing a parenthesized remark ends with that remark's `)`;
+    // types may hold parentheses of their own, so only the last one goes.
+    let listed = tail[..end].trim_end();
+    let listed = if tail[..end].len() == tail.len() && decision.trim_end().ends_with(')') {
+        listed.strip_suffix(')').unwrap_or(listed)
+    } else {
+        listed
+    };
+    let values: Vec<String> = listed
         .split(", ")
         .map(|value| value.trim().trim_end_matches('.').to_owned())
         .filter(|value| !value.is_empty())
@@ -928,6 +948,19 @@ mod tests {
     use super::{DraftRef, apply_delta, obligations_of, parse_delta};
     use crate::error::{AgentError, AgentErrorCode};
     use serde_json::json;
+
+    #[test]
+    fn dialect_scope_problems_carry_their_type_and_values() {
+        let decision = "block `next` takes `c: (i64,i64)`, and no value named `c` is available here: pass it explicitly (values of that type here: b: (i64,i64), a: (i64,i64))";
+        assert_eq!(
+            crate::draft::expected_of(decision).as_deref(),
+            Some("(i64,i64)")
+        );
+        assert_eq!(
+            crate::draft::available_of(decision),
+            Some(vec!["b: (i64,i64)".to_owned(), "a: (i64,i64)".to_owned()])
+        );
+    }
 
     #[test]
     fn references_parse() {

@@ -2651,6 +2651,61 @@ impl<'c, 'a> FnExp<'c, 'a> {
         }))
     }
 
+    /// The problem when a checked operation's type is unknown: an operand
+    /// that names no value, else (unless a problem inside the operands
+    /// explains it) the unknown type itself.
+    fn unknown_check_type(&mut self, st: &Lower, node: &Node) {
+        let word = &node.word;
+        let inner = format!("{}/", node.pointer);
+        let unknown = self.unknown_names(st, node);
+        for (unknown, at) in &unknown {
+            self.oblige(
+                AgentErrorCode::XScope,
+                at,
+                format!("no value named `{unknown}` in this function"),
+            );
+        }
+        if unknown.is_empty()
+            && !self
+                .obligations
+                .iter()
+                .any(|obligation| obligation.at.starts_with(&inner))
+        {
+            self.oblige(
+                AgentErrorCode::XPropagation,
+                &node.pointer,
+                format!(
+                    "the result type of `{word}?` is not known here, so its failure route cannot be checked: give its operands known types (a typed literal is {{\"type\": \"i64\", \"value\": 3}})"
+                ),
+            );
+        }
+    }
+
+    /// Operand names of `node` (nested ones included) that no block of the
+    /// function, kept live block, or function parameter defines.
+    fn unknown_names(&self, st: &Lower, node: &Node) -> Vec<(String, String)> {
+        let mut found = Vec::new();
+        for arg in &node.args {
+            match &arg.operand {
+                Operand::Name(text) => {
+                    let (base, _) = split_suffix(text);
+                    let leaf = base.rsplit('.').next().unwrap_or(base);
+                    let known = text == "$"
+                        || st.defs.contains_key(leaf)
+                        || self.params.iter().any(|(param, _)| param == leaf)
+                        || self.defs.iter().any(|defs| defs.contains_key(leaf))
+                        || self.kept.iter().any(|kept| kept.value(leaf).is_some());
+                    if !known {
+                        found.push((text.clone(), arg.pointer.clone()));
+                    }
+                }
+                Operand::Nested(inner) => found.extend(self.unknown_names(st, inner)),
+                Operand::Literal { .. } | Operand::Raw(_) => {}
+            }
+        }
+        found
+    }
+
     /// Whether a type the frame names needs a stated type on a generated
     /// operation (the compiler infers it only from uses).
     fn stated_type(&self, node: &Node, types: &NodeTypes) -> Option<Value> {
@@ -2775,21 +2830,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 return;
             }
             None => {
-                // A problem inside the operands already explains it.
-                let inner = format!("{}/", node.pointer);
-                if !self
-                    .obligations
-                    .iter()
-                    .any(|obligation| obligation.at.starts_with(&inner))
-                {
-                    self.oblige(
-                        AgentErrorCode::XPropagation,
-                        &node.pointer,
-                        format!(
-                            "the result type of `{word}?` is not known here, so its failure route cannot be checked: give its operands known types (a typed literal is {{\"type\": \"i64\", \"value\": 3}})"
-                        ),
-                    );
-                }
+                self.unknown_check_type(st, node);
                 define(st);
                 return;
             }

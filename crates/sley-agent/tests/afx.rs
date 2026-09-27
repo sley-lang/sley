@@ -1769,3 +1769,33 @@ fn derived_arguments_are_threaded_and_literals_take_member_types() {
     assert_eq!(runner.call("circle", &[]), json!({"Circle": 5}));
     assert_eq!(runner.call("point", &[]), json!({"x": -2, "y": 200}));
 }
+
+#[test]
+fn an_undefined_operand_of_a_checked_operation_is_named() {
+    // `q` names nothing: the refusal says so at the operand, not that the
+    // checked operation's type is unknown; a missing edge argument lists
+    // the values of its type visible at the edge.
+    let temp = workspace("undefined-operand");
+    let frame = json!({"af1": 1, "afx": 1,
+        "fns": [{"fn": "g", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+          "blocks": [{"name": "entry", "ops": [["b", "add?", "a", 1]], "term": ["br", "next"]},
+                     {"name": "next", "params": [["c", "i64"], ["b", "i64"]],
+                      "ops": [["d", "mul?", "c", "q"]], "term": ["ok", "d"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.starts_with("error AGENT_X_SCOPE: /fns/0/blocks/1/ops/0/3: no value named `q`"),
+        "{text}"
+    );
+    assert!(!text.contains("is not known here"), "{text}");
+    let (_, draft) = run_json(&temp.path, &["draft", "d1", "--obligations"]);
+    let edge = draft["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|record| record["at"] == "/fns/0/blocks/0/term")
+        .unwrap()
+        .clone();
+    assert_eq!(edge["expected"], "i64", "{edge}");
+    assert_eq!(edge["available"], json!(["b: i64", "a: i64"]), "{edge}");
+}
