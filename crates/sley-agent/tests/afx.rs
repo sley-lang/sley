@@ -1513,3 +1513,189 @@ fn expansion_and_compilation_are_deterministic() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Patches, test tables, help
+// ---------------------------------------------------------------------------
+
+fn block_names(view: &str) -> Vec<String> {
+    view.lines()
+        .filter_map(|line| {
+            let line = line.trim_start();
+            let (name, _) = line.split_once(':')?;
+            (line.ends_with(':') || name.ends_with(')'))
+                .then(|| name.split('(').next().unwrap().to_owned())
+        })
+        .collect()
+}
+
+#[test]
+fn restating_a_block_deletes_the_pieces_it_no_longer_makes() {
+    let temp = workspace("patch");
+    let frame = json!({"af1": 1, "afx": 1, "types": [error_type()], "fns": [
+        {"fn": "pf", "params": params(&["a", "b"], "i64"), "returns": "Result<i64,E>", "blocks": [
+          {"name": "entry", "ops": [["s", "add?Ov", "a", "b"], ["t", "mul?Un", "s", 2]], "term": ["ok", "t"]}]},
+        {"fn": "kx", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+          {"name": "entry", "ops": [["k", "mul?Ov", "a", 3], ["m", "gt", "k", 10]], "term": ["cond", "m", "hi", "lo"]},
+          {"name": "hi", "term": ["ok", 1]},
+          {"name": "lo", "term": ["ok", 2]}]}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (_, view) = run(&temp.path, &["view", "pf"]);
+    assert_eq!(
+        block_names(&view),
+        ["entry", "entry__s", "entry__t", "__fail_Ov", "__fail_Un"],
+        "{view}"
+    );
+    // Restating `entry` with one checked operation: the second piece and
+    // the exit only it used are deleted; the rest keep their identities.
+    let patch = json!({"af1": 1, "afx": 1, "patch": [
+        {"fn": "pf", "blocks": {"entry": {"ops": [["s", "add?Ov", "a", "b"]], "term": ["ok", ["neg?Ov", "s"]]}}},
+        {"fn": "kx", "blocks": {
+            "hi": {"ops": [["x", "add?Ov", "a", 5]], "term": ["cond", "m", ["fin", "x"], "lo"]},
+            "fin": {"params": [["x", "i64"]], "term": ["ok", "x"]}}}]});
+    let expansion = expand(&temp.path, &patch);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let blocks = &expansion.frame["patch"][0]["blocks"];
+    assert_eq!(blocks["entry__t"], Value::Null, "{blocks}");
+    assert_eq!(blocks["__fail_Un"], Value::Null, "{blocks}");
+    assert!(blocks["entry__s"].is_object() && blocks["__fail_Ov"].is_object());
+    // X4 reaches into a kept live block that dominates the use.
+    let hi = &expansion.frame["patch"][1]["blocks"]["hi__x"];
+    assert_eq!(hi["term"][1], json!("entry__k.m"), "{hi}");
+    let (status, text) = run(&temp.path, &["try", &patch.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let (_, view) = run(&temp.path, &["view", "pf"]);
+    assert_eq!(
+        block_names(&view),
+        ["entry", "entry__s", "__fail_Ov", "entry__entry__t0"],
+        "{view}"
+    );
+    let (_, value) = run(&temp.path, &["call", "pf", "2", "3"]);
+    assert_eq!(value.trim(), "{\"Ok\":-5}");
+    let (_, value) = run(&temp.path, &["call", "kx", "5"]);
+    assert_eq!(value.trim(), "{\"Ok\":10}");
+    let (_, value) = run(&temp.path, &["call", "kx", "1"]);
+    assert_eq!(value.trim(), "{\"Ok\":2}");
+    // Deleting a block deletes its pieces too.
+    let delete = json!({"af1": 1, "afx": 1, "patch": [{"fn": "kx", "blocks": {
+        "hi": null, "fin": null, "entry": {"ops": [["k", "mul?Ov", "a", 3], ["m", "gt", "k", 10]], "term": ["cond", "m", "lo", "lo"]}}}]});
+    let expansion = expand(&temp.path, &delete);
+    let blocks = &expansion.frame["patch"][0]["blocks"];
+    assert_eq!(blocks["hi__x"], Value::Null, "{blocks}");
+    assert_eq!(blocks["hi"], Value::Null, "{blocks}");
+}
+
+#[test]
+fn test_tables_lower_to_tests_that_point_at_their_rows() {
+    let temp = workspace("tables");
+    let function = json!({"fn": "twice", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+        "blocks": [{"name": "entry", "term": ["ok", ["mul?", "a", 2]]}]});
+    let table = |cases: Value| {
+        json!({"af1": 1, "afx": 1, "fns": [function.clone()],
+               "test_tables": [{"name": "t_twice", "fn": "twice", "defaults": {"limits": {"fuel": 100_000}}, "cases": cases}]})
+    };
+    let frame = table(json!([
+        {"args": [2], "expect": {"Ok": 4}},
+        {"args": [-3], "expect": {"Ok": -6}},
+        {"name": "t_big", "args": [i64::MAX], "expect": {"Err": {"ArithmeticError": "Overflow"}}}]));
+    let (status, result) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{result}");
+    let tests: Vec<&str> = result["tests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|test| test["test"].as_str().unwrap())
+        .collect();
+    assert_eq!(tests, ["t_big", "t_twice_0", "t_twice_1"]);
+    // Layering replaces the table by name; it never accumulates rows.
+    let smaller = json!({"af1": 1, "afx": 1, "test_tables": [
+        {"name": "t_twice", "fn": "twice", "cases": [{"args": [5], "expect": {"Ok": 10}}]}]});
+    let (status, result) = run_json(&temp.path, &["try", "--on", "c1", &smaller.to_string()]);
+    assert_eq!(status, 0, "{result}");
+    assert_eq!(result["tests"].as_array().unwrap().len(), 1, "{result}");
+    assert_eq!(result["tests"][0]["test"], json!("t_twice_0"));
+    // An encoding error points at the row.
+    assert_refused(
+        &temp.path,
+        &table(json!([{"args": [1], "expect": {"Ok": 2}}, {"args": ["one"], "expect": {"Ok": 2}}])),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/test_tables/0/cases/1/args/0: ",
+            "[expanded /tests/1/args/0]",
+        ],
+    );
+    // Duplicate rows, colliding names, unknown keys and missing parts.
+    assert_refused(
+        &temp.path,
+        &table(json!([{"args": [1], "expect": {"Ok": 2}}, {"args": [1], "expect": {"Ok": 3}}])),
+        "AGENT_TEST_TABLE_INVALID",
+        &["/test_tables/0/cases/1: rows 0 and 1 of table `t_twice` have the same args: keep one"],
+    );
+    let mut colliding = table(json!([{"args": [1], "expect": {"Ok": 2}}]));
+    colliding["tests"] =
+        json!([{"name": "t_twice_0", "fn": "twice", "args": [7], "expect": {"Ok": 14}}]);
+    assert_refused(
+        &temp.path,
+        &colliding,
+        "AGENT_TEST_TABLE_INVALID",
+        &[
+            "/test_tables/0/cases/0: the row's test name `t_twice_0` is taken by another test of this frame",
+        ],
+    );
+    assert_refused(
+        &temp.path,
+        &table(json!([{"args": [1], "expect": {"Ok": 2}, "expected": 3}])),
+        "AGENT_TEST_TABLE_INVALID",
+        &["/test_tables/0/cases/0/expected: unknown row key"],
+    );
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t", "cases": []}, {"name": "u", "fn": "twice"}]}),
+        "AGENT_TEST_TABLE_INVALID",
+        &[
+            "/test_tables/0: missing \"fn\"",
+            "/test_tables/1: missing \"cases\"",
+        ],
+    );
+}
+
+#[test]
+fn every_example_in_help_afx_runs() {
+    let temp = workspace("help-afx");
+    let examples: Vec<&str> = sley_agent::help::AFX
+        .split("```json\n")
+        .skip(1)
+        .map(|rest| rest.split("```").next().unwrap())
+        .collect();
+    assert!(examples.len() >= 3);
+    for (index, example) in examples.iter().enumerate() {
+        let frame: Value = serde_json::from_str(example)
+            .unwrap_or_else(|error| panic!("example {index} is not JSON: {error}"));
+        let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+        assert_eq!(status, 0, "help afx example {index}: {text}");
+        let rows: usize = frame["test_tables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|table| table["cases"].as_array().unwrap().len())
+            .sum();
+        assert!(
+            text.contains(&format!("tests: {rows}/{rows} passed")),
+            "help afx example {index}: {text}"
+        );
+    }
+    assert_eq!(
+        sley_agent::help::topic("afx").as_deref(),
+        Some(sley_agent::help::AFX)
+    );
+    let (status, text) = run(&temp.path, &["help", "afx"]);
+    assert_eq!(status, 0);
+    assert!(text.starts_with("# AF1-X"), "{text}");
+}
