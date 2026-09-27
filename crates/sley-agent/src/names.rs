@@ -197,6 +197,9 @@ struct Named {
 pub struct Names {
     named: BTreeMap<EntityId, Named>,
     by_name: BTreeMap<String, EntityId>,
+    /// The name a block value was written with, when its leaf differs
+    /// (a block value never shadows a function parameter in rendering).
+    written: BTreeMap<EntityId, String>,
     members: BTreeMap<(EntityId, MemberId), String>,
     member_by_name: BTreeMap<String, (EntityId, MemberId)>,
 }
@@ -359,11 +362,13 @@ impl Names {
                     if self.named.contains_key(param) || !program.contains(param) {
                         continue;
                     }
-                    let leaf = unique_among(
-                        pick(param, &|| format!("v{position}")),
-                        param.as_bytes(),
-                        |name| taken(&values, name),
-                    );
+                    let picked = pick(param, &|| format!("v{position}"));
+                    let leaf = unique_among(picked.clone(), param.as_bytes(), |name| {
+                        taken(&values, name)
+                    });
+                    if leaf != picked {
+                        self.written.insert(*param, picked);
+                    }
                     values.insert(leaf.clone());
                     self.set(
                         *param,
@@ -376,11 +381,13 @@ impl Names {
                     if self.named.contains_key(operation) || !program.contains(operation) {
                         continue;
                     }
-                    let leaf = unique_among(
-                        pick(operation, &|| format!("op{position}")),
-                        operation.as_bytes(),
-                        |name| taken(&values, name),
-                    );
+                    let picked = pick(operation, &|| format!("op{position}"));
+                    let leaf = unique_among(picked.clone(), operation.as_bytes(), |name| {
+                        taken(&values, name)
+                    });
+                    if leaf != picked {
+                        self.written.insert(*operation, picked);
+                    }
                     values.insert(leaf.clone());
                     self.set(
                         *operation,
@@ -452,6 +459,17 @@ impl Names {
             || format!("#{}", hex::short(id.as_bytes())),
             |named| named.leaf.clone(),
         )
+    }
+
+    /// The name a block value was written with: its leaf, unless the leaf
+    /// was made unique against a function parameter (or another value of
+    /// its block) for rendering.
+    #[must_use]
+    pub fn written_leaf(&self, id: &EntityId) -> String {
+        self.written
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| self.leaf(id))
     }
 
     /// The scope an entity was named in.

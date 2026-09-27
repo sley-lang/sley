@@ -184,7 +184,19 @@ fn compile_extended(
 ) -> Result<Compiled> {
     let expansion = crate::afx::expand(program, names, frame_value)?;
     if !expansion.obligations.is_empty() {
-        return Err(crate::afx::refusal(&expansion.obligations));
+        // The rest of the frame is compiled too, so one refusal lists its
+        // problems beside the open decisions.
+        let rest = if expansion.discloses_the_rest() {
+            compile(program, names, ceilings, &expansion.frame, nonce, random)
+                .err()
+                .map(|error| expansion.map.rewrite(&error))
+        } else {
+            None
+        };
+        return Err(crate::afx::refusal_beside(
+            &expansion.obligations,
+            rest.as_ref(),
+        ));
     }
     let mut compiled = compile(program, names, ceilings, &expansion.frame, nonce, random)
         .map_err(|error| expansion.map.rewrite(&error))?;
@@ -3130,7 +3142,7 @@ fn unresolved(text: &str, base: &str, block: usize, scope: &FunctionScope) -> St
 }
 
 /// Why a switch case key is not a case of the scrutinee's type.
-fn not_a_case(key: &str, scrutinee: Option<&TypeExpr>) -> String {
+pub(crate) fn not_a_case(key: &str, scrutinee: Option<&TypeExpr>) -> String {
     match scrutinee {
         Some(TypeExpr::Result { .. }) => format!(
             "`{key}` is not a case of a Result; a Result switch lists [\"Ok\", block, args...] and [\"Err\", block, args...], and `$` passes the payload"

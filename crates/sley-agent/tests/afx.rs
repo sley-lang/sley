@@ -2749,3 +2749,361 @@ fn a_fail_case_refusal_names_the_function() {
         "/fns/0/blocks/0/term: `X` is not a case of the error type of `o2` (`o2` has no variant error type)"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Review regressions: names written like a function parameter
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_piece_whose_value_shadows_a_function_parameter_is_still_a_piece() {
+    // W5-AFX-6: the continuation `entry__x` takes `x`, which view renders
+    // `x_<hex>` beside the function parameter `x`; restating `entry` still
+    // recognizes and replaces it.
+    let temp = workspace("shadow-piece");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Big"]}],
+          "fns": [{"fn": "fx", "params": [["a", "i64"], ["x", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["x", "add?Big", "a", 1]], "term": ["ok", "x"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "fx"]);
+    assert!(view.contains("entry__x(x_"), "{view}");
+    for value in ["x", "z"] {
+        let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "fx", "blocks": {
+            "entry": {"ops": [[value, "add?Big", "a", 2]], "term": ["ok", value]}}}]});
+        let blocks = patch_blocks(&temp.path, &patch);
+        if value == "z" {
+            assert_eq!(blocks["entry__x"], Value::Null, "{blocks}");
+        }
+        let (status, text) = run(&temp.path, &["try", &patch.to_string(), "--no-test"]);
+        assert_eq!(status, 0, "{text}");
+        let (_, result) = run(&temp.path, &["call", "fx", "5", "100", "--on", "latest"]);
+        assert_eq!(result.trim(), "{\"Ok\":7}", "{value}");
+    }
+}
+
+#[test]
+fn a_kept_block_parameter_is_derived_by_the_name_it_was_written_with() {
+    // W5-AFX-3: after a commit, view renders the handler's `a` as `a_<hex>`
+    // (it shares the function parameter's name); an edge into the kept
+    // handler still derives `a`, as before the commit.
+    let temp = workspace("shadow-kept");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": [["Code", "i64"]]}],
+          "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["x", "mul?h", "a", "b"]], "term": ["ok", "x"]},
+            {"name": "h", "params": [["e", "ArithmeticError"], ["a", "i64"]], "term": ["fail", "Code", "a"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "f"]);
+    assert!(view.contains("h(e: ArithmeticError, a_"), "{view}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "blocks": {
+        "entry": {"ops": [["x", "mul?h", "a", "b"], ["y", "add?h", "x", 1]], "term": ["ok", "y"]}}}]});
+    let (status, text) = run(&temp.path, &["try", &patch.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    for (args, want) in [
+        (["3", "4"], "{\"Ok\":13}"),
+        (
+            ["4611686018427387904", "2"],
+            "{\"Err\":{\"Code\":4611686018427387904}}",
+        ),
+        (
+            ["9223372036854775807", "1"],
+            "{\"Err\":{\"Code\":9223372036854775807}}",
+        ),
+    ] {
+        let (_, result) = run(
+            &temp.path,
+            &["call", "f", args[0], args[1], "--on", "latest"],
+        );
+        assert_eq!(result.trim(), want, "{args:?}");
+    }
+    // A plain base: `loop(n, acc)` passes the function parameter `n` on.
+    let temp = workspace("shadow-loop");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "fns": [{"fn": "sum_to", "params": [["n", "i64"]], "returns": "i64", "blocks": [
+            {"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}]], "term": ["br", "loop", "n", "z"]},
+            {"name": "loop", "params": [["n", "i64"], ["acc", "i64"]], "ops": [["zero", "const", {"type": "i64", "value": 0}], ["more", "gt", "n", "zero"]],
+             "term": ["cond", "more", ["body", "n", "acc"], ["done", "acc"]]},
+            {"name": "body", "params": [["n", "i64"], ["acc", "i64"]], "ops": [["one", "const", {"type": "i64", "value": 1}], ["s", "add", "acc", "n"], ["m", "sub", "n", "one"]],
+             "term": ["switch", "s", ["Ok", "step", "$", "m"], ["Err", "ovf"]]},
+            {"name": "step", "params": [["acc2", "i64"], ["m", "Result<i64,ArithmeticError>"]], "term": ["switch", "m", ["Ok", "loop", "$", "acc2"], ["Err", "ovf"]]},
+            {"name": "ovf", "ops": [["k", "const", {"type": "i64", "value": -1}]], "term": ["return", "k"]},
+            {"name": "done", "params": [["acc", "i64"]], "term": ["return", "acc"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "sum_to"]);
+    assert!(view.contains("loop(n_"), "{view}");
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "sum_to", "blocks": {
+        "entry": {"ops": [["acc", "const", {"type": "i64", "value": 100}]], "term": ["br", "loop"]}}}]});
+    let (status, text) = run(&temp.path, &["try", &patch.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    let (_, result) = run(&temp.path, &["call", "sum_to", "4", "--on", "latest"]);
+    assert_eq!(result.trim(), "110");
+}
+
+// ---------------------------------------------------------------------------
+// Review regressions: the type of a name found in another block
+// ---------------------------------------------------------------------------
+
+/// A function whose `next` block uses `q`, the result `entry` defines,
+/// while `other` (reached on another path) defines a `q` of its own.
+fn far_q(name: &str, next_ops: &Value, next_term: &Value, other: &Value) -> Value {
+    json!({"fn": name, "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+        {"name": "entry", "ops": [["q", "const", {"type": "i64", "value": 5}]],
+         "term": ["cond", ["lt", "a", 0], "other", "next"]},
+        {"name": "next", "ops": next_ops, "term": next_term},
+        other]})
+}
+
+#[test]
+fn a_name_another_block_also_defines_keeps_the_type_of_its_definition() {
+    // W5-AFX-1: `q` in `next` is `entry.q` (X4). Another block's parameter
+    // or non-dominating result named `q` does not make its type unknown,
+    // so checked operations and literal partners using it are typed.
+    let temp = workspace("far-type");
+    let base = json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Neg", "Big"]}],
+        "fns": [{"fn": "hr", "params": [["x", "i64"]], "returns": "Result<i64,E>",
+                 "blocks": [{"name": "entry", "ops": [["!Neg", "if", ["lt", "x", 0]]], "term": ["ok", "x"]}]}]});
+    commit_frame(&temp.path, &base);
+    let param_q = json!({"name": "other", "params": [["q", "i64"]], "term": ["ok", "q"]});
+    let result_q = json!({"name": "other", "ops": [["q", "lt", "a", -10]], "term": ["cond", "q", ["done", 1], ["done", 2]]});
+    let done = json!({"name": "done", "params": [["v", "i64"]], "term": ["ok", "v"]});
+    let cases = [
+        (
+            "checked_add",
+            json!([["x", "add?Big", "q", "a"]]),
+            json!(["ok", "x"]),
+        ),
+        (
+            "checked_call",
+            json!([["x", "call?Neg", "hr", "q"]]),
+            json!(["ok", "x"]),
+        ),
+        (
+            "literal",
+            json!([["x", "mul?Big", "q", 3]]),
+            json!(["ok", ["sub?Big", "x", "q"]]),
+        ),
+    ];
+    let mut fns = Vec::new();
+    for (name, ops, term) in &cases {
+        fns.push(far_q(&format!("{name}_p"), ops, term, &param_q));
+        let mut shape = far_q(&format!("{name}_r"), ops, term, &result_q);
+        shape["blocks"].as_array_mut().unwrap().push(done.clone());
+        fns.push(shape);
+    }
+    // A handler that receives `q` by name, and a later block adding `q`.
+    fns.push(json!({"fn": "handler_shape", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+        {"name": "entry", "ops": [["q", "const", {"type": "i64", "value": 4}], ["x", "add?h", "a", 1]], "term": ["br", "j", "x"]},
+        {"name": "j", "params": [["x", "i64"]], "ops": [["z", "add?Big", "x", "q"]], "term": ["ok", "z"]},
+        {"name": "h", "params": [["e", "ArithmeticError"], ["q", "i64"]], "term": ["ok", "q"]}]}));
+    let frame = json!({"af1": 1, "afx": 1, "fns": fns});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    for (function, arg, want) in [
+        ("checked_add_p", "7", "{\"Ok\":12}"),
+        ("checked_add_p", "-1", "{\"Ok\":5}"),
+        ("checked_add_r", "7", "{\"Ok\":12}"),
+        ("checked_add_r", "-20", "{\"Ok\":1}"),
+        ("checked_add_r", "-1", "{\"Ok\":2}"),
+        ("checked_call_p", "7", "{\"Ok\":5}"),
+        ("checked_call_r", "7", "{\"Ok\":5}"),
+        ("literal_p", "7", "{\"Ok\":10}"),
+        ("literal_r", "7", "{\"Ok\":10}"),
+        ("handler_shape", "1", "{\"Ok\":6}"),
+        ("handler_shape", "9223372036854775807", "{\"Ok\":4}"),
+    ] {
+        let (_, result) = run(&temp.path, &["call", function, arg, "--on", "latest"]);
+        assert_eq!(result.trim(), want, "{function}({arg})");
+    }
+    // The hand-written plain equivalent of `checked_add_p` agrees.
+    let plain = json!({"af1": 1, "fns": [{"fn": "plain_add", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+        {"name": "entry", "ops": [["q", "const", {"type": "i64", "value": 5}], ["z", "const", {"type": "i64", "value": 0}], ["n", "lt", "a", "z"]],
+         "term": ["cond", "n", ["other", "q"], "next"]},
+        {"name": "next", "ops": [["x__r", "add", "entry.q", "a"]], "term": ["switch", "x__r", ["Ok", "next__x", "$"], ["Err", "fb"]]},
+        {"name": "next__x", "params": [["x", "i64"]], "ops": [["o", "ok", "x"]], "term": ["return", "o"]},
+        {"name": "fb", "ops": [["v", "variant", "E.Big"], ["e", "err", "v"]], "term": ["return", "e"]},
+        {"name": "other", "params": [["q", "i64"]], "ops": [["o", "ok", "q"]], "term": ["return", "o"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &plain.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    for (arg, want) in [("7", "{\"Ok\":12}"), ("-1", "{\"Ok\":5}")] {
+        let (_, result) = run(&temp.path, &["call", "plain_add", arg, "--on", "latest"]);
+        assert_eq!(result.trim(), want, "plain_add({arg})");
+    }
+}
+
+#[test]
+fn a_name_whose_definition_x4_cannot_fix_stays_refused() {
+    // The nearest definition decides: when blocks on joining paths define
+    // `q` with different types, nothing types it and X4 refuses the name.
+    let temp = workspace("far-type-join");
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Big"]}],
+      "fns": [{"fn": "j", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+        {"name": "entry", "term": ["cond", ["lt", "a", 0], "l", "r"]},
+        {"name": "l", "ops": [["q", "const", {"type": "i64", "value": 5}]], "term": ["br", "m"]},
+        {"name": "r", "ops": [["q", "lt", "a", 3]], "term": ["br", "m"]},
+        {"name": "m", "ops": [["x", "add?Big", "q", 1]], "term": ["ok", "x"]}]}]});
+    assert_refused(
+        &temp.path,
+        &frame,
+        "AGENT_X_SCOPE",
+        &["`q` is defined in blocks l, r, none of which dominates this point of `m`"],
+    );
+}
+
+#[test]
+fn a_value_defined_after_the_check_that_reaches_a_handler_is_named_as_such() {
+    // W5-AFX-8: every path to `h` passes through `entry`, but `r` exists
+    // only after the check that reaches `h`: say so, and how to fix it.
+    let temp = workspace("defined-after");
+    let frame = |ops: Value| {
+        json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": [["Code", "i64"]]}],
+          "fns": [{"fn": "da", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": ops, "term": ["ok", "y"]},
+            {"name": "h", "params": [["e", "ArithmeticError"]], "term": ["fail", "Code", "r"]}]}]})
+    };
+    let (symbol, detail) = refused(
+        &temp.path,
+        &frame(
+            json!([["x", "add?h", "a", 1], ["r", "const", {"type": "i64", "value": 2}], ["y", "mul?h", "x", "r"]]),
+        ),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert_eq!(
+        detail,
+        "/fns/0/blocks/1/term/2: `r` is defined in block `entry` only after /fns/0/blocks/0/ops/0, from which a failure or exit route reaches this point of `h`: define `r` before it"
+    );
+    // Following it is Valid.
+    let fixed = frame(
+        json!([["r", "const", {"type": "i64", "value": 2}], ["x", "add?h", "a", 1], ["y", "mul?h", "x", "r"]]),
+    );
+    let (status, text) = run(&temp.path, &["try", &fixed.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    let (_, result) = run(
+        &temp.path,
+        &["call", "da", "9223372036854775807", "--on", "latest"],
+    );
+    assert_eq!(result.trim(), "{\"Err\":{\"Code\":2}}");
+    // A block that does not dominate the use keeps its own message.
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "nd", "params": [["a", "i64"]], "returns": "i64", "blocks": [
+            {"name": "entry", "term": ["cond", ["lt", "a", 0], "l", "m"]},
+            {"name": "l", "ops": [["r", "const", {"type": "i64", "value": 2}]], "term": ["br", "m"]},
+            {"name": "m", "term": ["return", "r"]}]}]}),
+    );
+    assert!(
+        detail.contains("which does not dominate this point of `m` (another path reaches it without passing through `l`)"),
+        "{detail}"
+    );
+}
+
+#[test]
+fn a_switch_key_the_value_has_no_case_for_is_the_reported_cause() {
+    // W5-AFX-4: a case key the switched value's type has no case for is the
+    // problem, not the arguments its edge leaves to be derived.
+    let temp = workspace("switch-not-a-case");
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Big", ["Code", "i64"]]}],
+      "fns": [{"fn": "sw", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>", "blocks": [
+        {"name": "entry", "ops": [["x", "add?h", "a", "b"]], "term": ["ok", "x"]},
+        {"name": "h", "params": [["e", "ArithmeticError"], ["a", "i64"]],
+         "term": ["switch", "e", ["Overflow", "ho"], ["DivideByZero", ["hz"]], ["InvalidShift", "hz"]]},
+        {"name": "ho", "params": [["a", "i64"]], "term": ["fail", "Code", "a"]},
+        {"name": "hz", "params": [["a", "i64"]], "term": ["fail", "Big"]}]}]});
+    let (symbol, detail) = refused(&temp.path, &frame);
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    let lines: Vec<&str> = detail.lines().map(str::trim).collect();
+    assert_eq!(lines.len(), 3, "{detail}");
+    for (line, (at, key)) in lines.iter().zip([
+        ("/term/2", "Overflow"),
+        ("/term/3", "DivideByZero"),
+        ("/term/4", "InvalidShift"),
+    ]) {
+        assert!(
+            line.starts_with(&format!(
+                "/fns/0/blocks/1{at}: `{key}` needs a variant scrutinee"
+            )),
+            "{detail}"
+        );
+    }
+    assert!(!detail.contains("payload"), "{detail}");
+    // The same key written with explicit arguments: the same cause.
+    let mut explicit = frame.clone();
+    explicit["fns"][0]["blocks"][1]["term"] = json!([
+        "switch",
+        "e",
+        ["Overflow", "ho", "a"],
+        ["DivideByZero", "hz", "a"],
+        ["InvalidShift", "hz", "a"]
+    ]);
+    let (_, detail) = refused(&temp.path, &explicit);
+    assert!(
+        detail.starts_with("/fns/0/blocks/1/term/2: `Overflow` needs a variant scrutinee"),
+        "{detail}"
+    );
+    // A variant without that case, and Result keys on an Option.
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Big", ["Code", "i64"]]}],
+          "fns": [{"fn": "sv", "params": [["e", "E"], ["o", "Option<i64>"], ["a", "i64"]], "returns": "i64", "blocks": [
+            {"name": "entry", "term": ["cond", ["lt", "a", 0], "s", "t"]},
+            {"name": "s", "term": ["switch", "e", ["Bog", "u"], ["Code", "u", "$"]]},
+            {"name": "t", "term": ["switch", "o", ["Ok", "u"], ["Err", "u"]]},
+            {"name": "u", "params": [["a", "i64"]], "term": ["return", "a"]}]}]}),
+    );
+    let lines: Vec<&str> = detail.lines().map(str::trim).collect();
+    assert_eq!(
+        lines[0],
+        "/fns/0/blocks/1/term/2: `Bog` is not a case of E (its cases: Big, Code) (1 of 3 problems)"
+    );
+    assert!(
+        lines[1].starts_with("/fns/0/blocks/2/term/2: `Ok` is not a case of an Option"),
+        "{detail}"
+    );
+    assert!(
+        lines[2].starts_with("/fns/0/blocks/2/term/3: `Err` is not a case of an Option"),
+        "{detail}"
+    );
+}
+
+#[test]
+fn restating_a_block_never_removes_a_result_a_kept_block_reads() {
+    // W5-AFX-2: `next` (kept) reads `entry__x.r`, a piece restating `entry`
+    // deletes. The patch is refused at the restated block, naming the kept
+    // block to restate, instead of reaching the kernel with a dangling
+    // reference; restating both is Valid.
+    let temp = workspace("kept-reads");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Big"]}],
+          "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["q", "const", {"type": "i64", "value": 3}], ["x", "add?Big", "a", 1],
+                                      ["r", "const", {"type": "i64", "value": 7}]], "term": ["br", "next"]},
+            {"name": "next", "ops": [["y", "add?Big", "r", "q"]], "term": ["ok", "y"]}]}]}),
+    );
+    let (_, view) = run(&temp.path, &["view", "f"]);
+    assert!(view.contains("entry__x.r"), "{view}");
+    let entry = json!({"ops": [["q", "const", {"type": "i64", "value": 3}], ["r", "const", {"type": "i64", "value": 8}]], "term": ["br", "next"]});
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "blocks": {"entry": entry}}]}),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert_eq!(
+        detail,
+        "/patch/0/blocks/entry: block `next`, which this patch keeps, reads `entry__x.r`, which restating `entry` removes: restate `next` too, so its names are resolved again"
+    );
+    // A restatement that keeps the piece and its value is not affected.
+    let same = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "blocks": {"entry":
+        {"ops": [["q", "const", {"type": "i64", "value": 3}], ["x", "add?Big", "a", 2],
+                 ["r", "const", {"type": "i64", "value": 7}]], "term": ["br", "next"]}}}]});
+    let (status, text) = run(&temp.path, &["try", &same.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    let both = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "blocks": {"entry": entry,
+        "next": {"ops": [["y", "add?Big", "r", "q"]], "term": ["ok", "y"]}}}]});
+    let (status, text) = run(&temp.path, &["try", &both.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    let (_, result) = run(&temp.path, &["call", "f", "1", "--on", "latest"]);
+    assert_eq!(result.trim(), "{\"Ok\":11}");
+}

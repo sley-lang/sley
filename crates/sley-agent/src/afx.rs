@@ -58,7 +58,8 @@ pub struct Expansion {
     /// Feature use counts.
     pub stats: AfxStats,
     /// Decisions the frame leaves open; when any is present, `frame` is
-    /// incomplete and must not be compiled.
+    /// incomplete: its compilation only discloses the problems of the
+    /// entries without one ([`Self::discloses_the_rest`]).
     pub obligations: Vec<Obligation>,
     /// The affected-entity and boundary inventory of the frame's `ripple`
     /// intents (`ripple.json`), when it has any.
@@ -407,6 +408,74 @@ pub fn refusal(obligations: &[Obligation]) -> AgentError {
         let line = obligation.line(code);
         if !lines.contains(&line) {
             lines.push(line);
+        }
+    }
+    join_lines(code, lines)
+}
+
+impl Expansion {
+    /// Whether the compiler's problems in the parts of the frame without
+    /// obligations can be listed beside them: every function was expanded
+    /// (an unknown declared type stops that), and no `ripple` intent
+    /// derives edits the rest of the frame may depend on.
+    #[must_use]
+    pub fn discloses_the_rest(&self) -> bool {
+        self.ripple.is_none()
+            && self.obligations.iter().all(|obligation| {
+                matches!(
+                    scope(&obligation.at).split('/').nth(1),
+                    Some("fns" | "functions" | "patch" | "edit" | "test_tables")
+                )
+            })
+    }
+}
+
+/// The top-level entry a pointer is in (`/fns/2`, `/test_tables/0`).
+fn scope(pointer: &str) -> &str {
+    let mut ends = pointer.match_indices('/').map(|(at, _)| at);
+    ends.nth(2).map_or(pointer, |end| &pointer[..end])
+}
+
+/// The refusal of a frame with obligations, followed by the compiler's
+/// problems in the top-level entries (functions, patches, tests, table
+/// rows) that carry none: those problems are the frame's own, not
+/// consequences of an open decision, so one round lists them all.
+#[must_use]
+pub fn refusal_beside(obligations: &[Obligation], rest: Option<&AgentError>) -> AgentError {
+    let code = obligations
+        .first()
+        .map_or(AgentErrorCode::FrameInvalid, |first| first.symbol);
+    let mut lines: Vec<String> = Vec::new();
+    for obligation in obligations {
+        let line = obligation.line(code);
+        if !lines.contains(&line) {
+            lines.push(line);
+        }
+    }
+    if let Some(error) = rest {
+        let open: BTreeSet<&str> = obligations
+            .iter()
+            .map(|obligation| scope(&obligation.at))
+            .collect();
+        for line in crate::frame::problem_lines(error) {
+            let body = match line.strip_prefix('[') {
+                Some(rest) => rest.split_once("] ").map_or(line.as_str(), |(_, body)| body),
+                None => line.as_str(),
+            };
+            let Some((pointer, _)) = body.split_once(": ") else {
+                continue;
+            };
+            if !pointer.starts_with('/') || open.contains(scope(pointer)) {
+                continue;
+            }
+            let line = if line.starts_with('[') || error.code() == code {
+                line
+            } else {
+                format!("[{}] {line}", error.code().symbol())
+            };
+            if !lines.contains(&line) {
+                lines.push(line);
+            }
         }
     }
     join_lines(code, lines)
@@ -1025,6 +1094,16 @@ fn split_word(word: &str) -> (&str, Option<&str>) {
     }
 }
 
+/// Whether an operation splits its block: it, or an operation nested in
+/// its operands, is checked.
+fn splits(node: &Node) -> bool {
+    node.check.is_some()
+        || node
+            .args
+            .iter()
+            .any(|arg| matches!(&arg.operand, Operand::Nested(inner) if splits(inner)))
+}
+
 fn is_opcode_word(word: &str) -> bool {
     opcodes::by_word(split_word(word).0).is_some() && !word.is_empty()
 }
@@ -1491,6 +1570,8 @@ struct Expander<'c, 'a> {
 /// A live block a patch keeps.
 struct Kept {
     leaf: String,
+    /// Parameters by the names they were written with (the name edges
+    /// derive them by), not the leaves rendering made unique.
     params: Vec<(String, Option<TypeExpr>)>,
     ops: Vec<(String, Option<TypeExpr>)>,
     targets: Vec<String>,
@@ -1525,6 +1606,10 @@ enum Kind {
 #[derive(Clone, Debug)]
 struct ADef {
     ty: Option<TypeExpr>,
+    kind: Kind,
+    /// Defined before the block's first `?` or exit, so wherever the
+    /// block's start dominates, the definition does too.
+    first: bool,
 }
 
 /// A value defined while lowering a block: its piece, kind and type.
@@ -1657,10 +1742,12 @@ struct Lower {
     quiet: bool,
 }
 
-/// What a switch case passes on: nothing, or a payload (of a known type).
+/// What a switch case passes on: nothing, or a payload (of a known type);
+/// or why its key is not a case of the switched value's (known) type.
 enum CasePayload {
     Unit,
     Carries(Option<TypeExpr>),
+    NotACase(String),
 }
 
 struct NodeTypes {
@@ -1963,8 +2050,12 @@ impl Expander<'_, '_> {
         // not make is kept as it is, whatever its name.
         let live = LiveGraph::new(self.cx, &function.blocks);
         let mut pieces: BTreeSet<String> = BTreeSet::new();
+        let mut roots: BTreeMap<String, String> = BTreeMap::new();
         for key in patched.keys() {
-            pieces.extend(live.pieces_of(key));
+            for piece in live.pieces_of(key) {
+                roots.entry(piece.clone()).or_insert_with(|| key.clone());
+                pieces.insert(piece);
+            }
         }
         let mut live_order = Vec::new();
         for (leaf, block, body) in &live.blocks {
@@ -1986,7 +2077,12 @@ impl Expander<'_, '_> {
                 params: body
                     .parameters
                     .iter()
-                    .map(|param| (self.cx.names.leaf(param), self.cx.parameter_type(param)))
+                    .map(|param| {
+                        (
+                            self.cx.names.written_leaf(param),
+                            self.cx.parameter_type(param),
+                        )
+                    })
                     .collect(),
                 ops: body
                     .operations
@@ -2078,6 +2174,28 @@ impl Expander<'_, '_> {
         for (leaf, _) in &fx.live_exits {
             if !out_blocks.contains_key(leaf) && !referenced.contains(leaf) {
                 out_blocks.insert(leaf.clone(), Value::Null);
+            }
+        }
+        // A kept block still reads the results it was compiled with; one
+        // this patch removes (a deleted piece, or a restated block that no
+        // longer defines it) is never silently re-pointed.
+        let kept_leaves: Vec<String> = fx.kept.iter().map(|kept| kept.leaf.clone()).collect();
+        for kept_leaf in &kept_leaves {
+            for (owner, value) in live.removed_reads(kept_leaf, &out_blocks) {
+                let root = roots.get(&owner).unwrap_or(&owner);
+                let restating = if patched.get(root).is_some_and(Value::is_null) {
+                    "deleting"
+                } else {
+                    "restating"
+                };
+                let at = format!("{pointer}/blocks/{root}");
+                fx.oblige(
+                    AgentErrorCode::XScope,
+                    &at,
+                    format!(
+                        "block `{kept_leaf}`, which this patch keeps, reads `{owner}.{value}`, which {restating} `{root}` removes: restate `{kept_leaf}` too, so its names are resolved again"
+                    ),
+                );
             }
         }
         fx.check_bounds();
@@ -2234,12 +2352,14 @@ impl<'c, 'a> LiveGraph<'c, 'a> {
         }
     }
 
+    /// The name the first parameter was written with (a continuation's
+    /// unwrapped value may share a function parameter's name).
     fn first_param(&self, position: usize) -> Option<String> {
         self.blocks[position]
             .2
             .parameters
             .first()
-            .map(|param| self.cx.names.leaf(param))
+            .map(|param| self.cx.names.written_leaf(param))
     }
 
     /// The generated continuation pieces of the live block `root`, in
@@ -2302,6 +2422,76 @@ impl<'c, 'a> LiveGraph<'c, 'a> {
             current = position;
         }
         out
+    }
+
+    /// The results of other blocks that live block `leaf` reads and that
+    /// `out` (the patch's blocks by name, `null` for a deletion) removes:
+    /// its block is deleted, or restated without a value of that name.
+    fn removed_reads(&self, leaf: &str, out: &Map<String, Value>) -> Vec<(String, String)> {
+        let Some(&position) = self.index.get(leaf) else {
+            return Vec::new();
+        };
+        let body = self.blocks[position].2;
+        let mut reads: Vec<ValueRef> = Vec::new();
+        for operation in &body.operations {
+            if let Some(EntityBodyValue::Operation(op)) = self.cx.program.body(operation) {
+                reads.extend(op.operands.iter().copied());
+            }
+        }
+        match &body.terminator {
+            Terminator::Return(ret) => reads.push(ret.value),
+            Terminator::Branch(branch) => reads.extend(branch.edge.arguments.iter().copied()),
+            Terminator::CondBranch(cond) => {
+                reads.push(cond.condition);
+                reads.extend(cond.if_true.arguments.iter().copied());
+                reads.extend(cond.if_false.arguments.iter().copied());
+            }
+            Terminator::VariantSwitch(switch) => {
+                reads.push(switch.value);
+                for case in &switch.cases {
+                    for argument in &case.edge.arguments {
+                        if let SwitchArgument::Value(value) = argument {
+                            reads.push(*value);
+                        }
+                    }
+                }
+            }
+            Terminator::Trap(trap) => reads.extend(trap.payload),
+        }
+        let mut removed = Vec::new();
+        for read in reads {
+            let ValueRef::OperationResult(result) = read else {
+                continue;
+            };
+            let Some(EntityBodyValue::Operation(op)) = self.cx.program.body(&result.operation)
+            else {
+                continue;
+            };
+            let owner = self.cx.names.leaf(&op.block);
+            let value = self.cx.names.leaf(&result.operation);
+            let kept = match out.get(&owner) {
+                None => true,
+                Some(Value::Object(block)) => block
+                    .get("ops")
+                    .and_then(Value::as_array)
+                    .is_some_and(|ops| {
+                        ops.iter().any(|op| {
+                            let name = match op {
+                                Value::Array(items) => items.first(),
+                                Value::Object(object) => object.get("name"),
+                                _ => None,
+                            };
+                            name.and_then(Value::as_str) == Some(value.as_str())
+                        })
+                    }),
+                Some(_) => false,
+            };
+            let entry = (owner, value);
+            if entry.0 != leaf && !kept && !removed.contains(&entry) {
+                removed.push(entry);
+            }
+        }
+        removed
     }
 
     /// Whether a live block is a shared exit an expansion generated: the
@@ -2457,6 +2647,10 @@ struct FnExp<'c, 'a> {
     value_taken: BTreeSet<String>,
     block_taken: BTreeSet<String>,
     cfg: Option<Cfg>,
+    /// Immediate dominators of the authored graph (authored blocks, then
+    /// kept live blocks; `?` and exit edges into handlers included), for
+    /// typing; `None` when the graph is not fully known.
+    authored_idom: Option<Vec<Option<usize>>>,
     /// The authored signature types, with the pointers the compiler
     /// reads them at.
     signature: Vec<(String, Value)>,
@@ -2508,6 +2702,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             value_taken: BTreeSet::new(),
             block_taken: BTreeSet::new(),
             cfg: None,
+            authored_idom: None,
             signature: Vec::new(),
             block_at: BTreeMap::new(),
             def_index: BTreeMap::new(),
@@ -2532,6 +2727,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
         if !self.within_bounds() || !self.names_resolve() {
             return false;
         }
+        self.authored_idom = self.authored_dominators();
         self.infer_types();
         self.block_defs = vec![BTreeMap::new(); self.blocks.len()];
         self.block_pieces = vec![Vec::new(); self.blocks.len()];
@@ -2781,19 +2977,46 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 if dialect[b] && reserved(name) {
                     problems.push((format!("{}/params/{index}", block.pointer), name.clone()));
                 }
-                defs.insert(name.clone(), ADef { ty: ty.clone() });
+                defs.insert(
+                    name.clone(),
+                    ADef {
+                        ty: ty.clone(),
+                        kind: Kind::Param,
+                        first: true,
+                    },
+                );
             }
+            let mut split = false;
             for stmt in &block.stmts {
-                let (name, pointer) = match stmt {
-                    Stmt::Op(node) => (node.name.clone(), node.pointer.clone()),
-                    Stmt::Raw { name, pointer, .. } => (name.clone(), pointer.clone()),
-                    Stmt::Exit(_) => (None, String::new()),
+                let (name, pointer, kind, first) = match stmt {
+                    Stmt::Op(node) => {
+                        let kind = if node.check.is_some() {
+                            Kind::Unwrapped
+                        } else {
+                            Kind::Op
+                        };
+                        let first = !split && !splits(node);
+                        split |= splits(node);
+                        (node.name.clone(), node.pointer.clone(), kind, first)
+                    }
+                    Stmt::Raw { name, pointer, .. } => {
+                        (name.clone(), pointer.clone(), Kind::Op, !split)
+                    }
+                    Stmt::Exit(_) => {
+                        split = true;
+                        (None, String::new(), Kind::Op, false)
+                    }
                 };
                 let Some(name) = name else { continue };
                 if dialect[b] && reserved(&name) {
                     problems.push((pointer.clone(), name.clone()));
                 }
-                if defs.insert(name.clone(), ADef { ty: None }).is_some() {
+                let def = ADef {
+                    ty: None,
+                    kind,
+                    first,
+                };
+                if defs.insert(name.clone(), def).is_some() {
                     duplicates.push((pointer, name.clone(), block.name.clone()));
                 }
             }
@@ -2899,24 +3122,194 @@ impl<'c, 'a> FnExp<'c, 'a> {
         if let Some((_, ty)) = self.params.iter().find(|(name, _)| name == base) {
             return ty.clone();
         }
-        let mut found = Vec::new();
-        for &d in self.def_index.get(base).map_or(&[][..], Vec::as_slice) {
-            if d != b
-                && let Some(def) = self.defs[d].get(base)
-            {
-                found.push(def.ty.clone());
+        self.far_type(b, base)
+    }
+
+    /// The type of a plain name X4 looks up outside block `b`: the type
+    /// every result it can accept there has in common. When it can accept
+    /// none, the name is refused, and the type (the one definition's, as
+    /// the only one there is) only keeps that refusal the one reported.
+    fn far_type(&self, b: usize, name: &str) -> Option<TypeExpr> {
+        match self.far_results(b, name) {
+            Some(types) => {
+                let first = types.first()?.clone()?;
+                types
+                    .iter()
+                    .all(|ty| ty.as_ref() == Some(&first))
+                    .then_some(first)
+            }
+            None => {
+                let mut found = Vec::new();
+                for &d in self.def_index.get(name).map_or(&[][..], Vec::as_slice) {
+                    if d != b
+                        && let Some(def) = self.defs[d].get(name)
+                    {
+                        found.push(def.ty.clone());
+                    }
+                }
+                for &k in self.kept_index.get(name).map_or(&[][..], Vec::as_slice) {
+                    if let Some((_, ty)) = self.kept[k].value(name) {
+                        found.push(ty);
+                    }
+                }
+                if found.len() == 1 {
+                    found.remove(0)
+                } else {
+                    None
+                }
             }
         }
-        for &k in self.kept_index.get(base).map_or(&[][..], Vec::as_slice) {
-            if let Some((_, ty)) = self.kept[k].value(base) {
-                found.push(ty);
+    }
+
+    /// The types of the operation results X4 can accept for a plain name
+    /// outside block `b` (`None` when it can accept none). X4 takes the
+    /// nearest definition up the dominator tree, and accepts it only when
+    /// it is an operation result; a definition made before a block's first
+    /// `?` or exit is always reached. So every result X4 can accept is
+    /// among those the dominators define, up to the first such definition.
+    fn far_results(&self, b: usize, name: &str) -> Option<Vec<Option<TypeExpr>>> {
+        let Some(idom) = &self.authored_idom else {
+            // The graph is not fully known: every result of that name.
+            let mut out = Vec::new();
+            for &d in self.def_index.get(name).map_or(&[][..], Vec::as_slice) {
+                if d != b
+                    && let Some(def) = self.defs[d].get(name).filter(|def| def.kind == Kind::Op)
+                {
+                    out.push(def.ty.clone());
+                }
+            }
+            for &k in self.kept_index.get(name).map_or(&[][..], Vec::as_slice) {
+                if let Some((Kind::Op, ty)) = self.kept[k].value(name) {
+                    out.push(ty);
+                }
+            }
+            return (!out.is_empty()).then_some(out);
+        };
+        idom.get(b).copied().flatten()?;
+        let authored = self.blocks.len();
+        let mut candidates = Vec::new();
+        let mut node = b;
+        for _ in 0..idom.len() {
+            match idom[node] {
+                Some(up) if up != node => node = up,
+                _ => break,
+            }
+            let found = if node < authored {
+                self.defs[node]
+                    .get(name)
+                    .map(|def| (def.kind, def.ty.clone(), def.first))
+            } else {
+                self.kept[node - authored]
+                    .value(name)
+                    .map(|(kind, ty)| (kind, ty, true))
+            };
+            let Some((kind, ty, first)) = found else {
+                continue;
+            };
+            if kind == Kind::Op {
+                candidates.push(ty);
+            }
+            if first {
+                break;
             }
         }
-        if found.len() == 1 {
-            found.remove(0)
-        } else {
-            None
+        (!candidates.is_empty()).then_some(candidates)
+    }
+
+    /// Whether an operand of `node` (nested ones included) is a plain name
+    /// that some block defines but X4 refuses here: what it leaves untyped
+    /// is a consequence of that refusal, not a problem of its own.
+    fn refused_names(&self, st: &Lower, node: &Node) -> bool {
+        node.args.iter().any(|arg| match &arg.operand {
+            Operand::Name(text) => {
+                let (base, _) = split_suffix(text);
+                !base.contains('.')
+                    && text != "$"
+                    && !st.defs.contains_key(base)
+                    && !self.defs[st.b].contains_key(base)
+                    && !self.params.iter().any(|(param, _)| param == base)
+                    && (self.def_index.contains_key(base) || self.kept_index.contains_key(base))
+                    && self.far_results(st.b, base).is_none()
+            }
+            Operand::Nested(inner) => self.refused_names(st, inner),
+            Operand::Literal { .. } | Operand::Raw(_) => false,
+        })
+    }
+
+    /// The authored graph's immediate dominators: authored blocks, then
+    /// kept live blocks, with the edges of terminators and of `?` and
+    /// exits into handler blocks. `None` when a part of the graph is not
+    /// understood (the compiler then reports that part).
+    fn authored_dominators(&self) -> Option<Vec<Option<usize>>> {
+        fn handlers(node: &Node, out: &mut Vec<String>) {
+            if let Some(check) = &node.check {
+                out.push(check.clone());
+            }
+            for arg in &node.args {
+                if let Operand::Nested(inner) = &arg.operand {
+                    handlers(inner, out);
+                }
+            }
         }
+        fn nested(arg: &Arg, out: &mut Vec<String>) {
+            if let Operand::Nested(inner) = &arg.operand {
+                handlers(inner, out);
+            }
+        }
+        if self.degraded {
+            return None;
+        }
+        let authored = self.blocks.len();
+        let index = |name: &str| -> Option<usize> {
+            self.block_index(name).or_else(|| {
+                self.kept
+                    .iter()
+                    .position(|kept| kept.leaf == name)
+                    .map(|k| authored + k)
+            })
+        };
+        let routes = |name: &str| self.is_block(name) && self.error_case(name).is_none();
+        let mut succ = vec![Vec::new(); authored + self.kept.len()];
+        for (b, block) in self.blocks.iter().enumerate() {
+            let mut out = Vec::new();
+            for stmt in &block.stmts {
+                match stmt {
+                    Stmt::Op(node) => handlers(node, &mut out),
+                    Stmt::Exit(exit) => {
+                        nested(&exit.cond, &mut out);
+                        out.push(exit.target.clone());
+                    }
+                    Stmt::Raw { .. } => {}
+                }
+            }
+            for arg in term_args(&block.term) {
+                nested(arg, &mut out);
+            }
+            out.retain(|name| routes(name));
+            match &block.term {
+                Term::Br { target, .. } => out.push(target.block.clone()),
+                Term::Cond { then, other, .. } => {
+                    out.push(then.block.clone());
+                    out.push(other.block.clone());
+                }
+                Term::Switch { cases, .. } => {
+                    out.extend(cases.iter().map(|(_, target)| target.block.clone()));
+                }
+                Term::Raw(_) => return None,
+                Term::Return(_)
+                | Term::Trap { .. }
+                | Term::LenientTrap { .. }
+                | Term::Ok(_)
+                | Term::Fail { .. } => {}
+            }
+            succ[b] = out.iter().filter_map(|name| index(name)).collect();
+        }
+        for (k, kept) in self.kept.iter().enumerate() {
+            succ[authored + k] = kept.targets.iter().filter_map(|name| index(name)).collect();
+        }
+        let entry = index(&self.entry)?;
+        let (idom, settled) = immediate_dominators(&succ, entry);
+        settled.then_some(idom)
     }
 
     /// Result types of the authored operations, by a worklist: an operation
@@ -3209,8 +3602,14 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 .ok()
                 .and_then(|index| items.get(index).cloned());
         }
+        // A call's result is its callee's, a constructor's its immediate's,
+        // a comparison's `bool`: known whatever the operands are.
+        let fixed = matches!(
+            tag,
+            1 | 18 | 19 | 20 | 33 | 38 | 96..=104 | 112 | 144 | 145 | 178 | 192..=194
+        );
         let raw = explicit.or_else(|| {
-            if operand_types.iter().any(Option::is_none) {
+            if !fixed && operand_types.iter().any(Option::is_none) {
                 return None;
             }
             let known: Vec<TypeExpr> = operand_types.iter().flatten().cloned().collect();
@@ -3429,7 +3828,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     format!("no value named `{name}` in this function"),
                 );
             }
-            st.quiet |= !unknown.is_empty();
+            st.quiet |= !unknown.is_empty() || self.refused_names(st, node);
         }
         let mut out = Vec::with_capacity(node.args.len());
         for (position, arg) in node.args.iter().enumerate() {
@@ -3620,6 +4019,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             );
         }
         if unknown.is_empty()
+            && !self.refused_names(st, node)
             && !self
                 .obligations
                 .iter()
@@ -4387,6 +4787,21 @@ impl<'c, 'a> FnExp<'c, 'a> {
         if missing.is_empty() {
             return items;
         }
+        // A key the switched value has no case for: that is the problem,
+        // not the arguments of its edge.
+        if let Some((_, CasePayload::NotACase(problem))) = case {
+            let at = match target.shape {
+                Shape::Bracket => target
+                    .pointer
+                    .strip_suffix("/1")
+                    .unwrap_or(&target.pointer)
+                    .to_owned(),
+                Shape::Flat | Shape::Name => target.pointer.clone(),
+            };
+            self.oblige(AgentErrorCode::FrameInvalid, &at, problem.clone());
+            items.extend(missing.iter().map(|_| Tpl::Lit(Value::Null)));
+            return items;
+        }
         // A case payload never gives way to a value found by name: without
         // `$` the payload would be dropped unseen.
         let passes_payload = target
@@ -4420,28 +4835,60 @@ impl<'c, 'a> FnExp<'c, 'a> {
     }
 
     /// Whether a switch case passes a payload on, by its key and the type
-    /// of the switched value.
+    /// of the switched value (a key the known type has no case for is
+    /// the problem to report, whatever the edge passes).
     fn case_payload(&self, key: &Value, scrutinee: Option<&TypeExpr>) -> CasePayload {
         let Some(key) = key.as_str() else {
             return CasePayload::Unit;
         };
-        match (key, scrutinee) {
-            ("None", _) => CasePayload::Unit,
-            ("Ok", Some(TypeExpr::Result { ok, .. })) => CasePayload::Carries(Some((**ok).clone())),
-            ("Err", Some(TypeExpr::Result { error, .. })) => {
+        let Some(ty) = scrutinee else {
+            return if key == "None" {
+                CasePayload::Unit
+            } else {
+                CasePayload::Carries(None)
+            };
+        };
+        let builtin = matches!(key, "Ok" | "Err" | "Some" | "None");
+        match (key, ty) {
+            ("Ok", TypeExpr::Result { ok, .. }) => CasePayload::Carries(Some((**ok).clone())),
+            ("Err", TypeExpr::Result { error, .. }) => {
                 CasePayload::Carries(Some((**error).clone()))
             }
-            ("Some", Some(TypeExpr::Option(item))) => CasePayload::Carries(Some((**item).clone())),
-            ("Ok" | "Err" | "Some", _) => CasePayload::Carries(None),
-            (case, Some(TypeExpr::Named(named))) => {
+            ("Some", TypeExpr::Option(item)) => CasePayload::Carries(Some((**item).clone())),
+            ("None", TypeExpr::Option(_)) => CasePayload::Unit,
+            (case, TypeExpr::Named(named)) => {
                 let leaf = case.rsplit('.').next().unwrap_or(case);
-                match self.cx.member_type(&named.definition, leaf) {
+                let member = if builtin {
+                    None
+                } else {
+                    self.cx.member_type(&named.definition, leaf)
+                };
+                match member {
                     Some(None) => CasePayload::Unit,
                     Some(Some(payload)) => CasePayload::Carries(Some(payload)),
-                    None => CasePayload::Carries(None),
+                    None => {
+                        let cases = self
+                            .cx
+                            .members(&named.definition)
+                            .map(|(_, members)| {
+                                members
+                                    .iter()
+                                    .map(|(leaf, _)| leaf.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            })
+                            .unwrap_or_default();
+                        let rendered = self.cx.render(ty);
+                        CasePayload::NotACase(format!(
+                            "`{leaf}` is not a case of {rendered} (its cases: {cases})"
+                        ))
+                    }
                 }
             }
-            _ => CasePayload::Carries(None),
+            (case, _) => {
+                let leaf = case.rsplit('.').next().unwrap_or(case);
+                CasePayload::NotACase(crate::frame::not_a_case(leaf, Some(ty)))
+            }
         }
     }
 
@@ -4740,12 +5187,11 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     .collect()
             })
             .collect();
-        let mut idom: Vec<Option<usize>> = vec![None; count];
         let (owner, values, definers, node_names) = self.node_tables(&index, count);
         let Some(&entry) = index.get(&self.entry) else {
             return Cfg {
                 index,
-                idom,
+                idom: vec![None; count],
                 owner,
                 values,
                 definers,
@@ -4754,66 +5200,13 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 preds: Vec::new(),
             };
         };
-        // Reverse postorder by an explicit stack.
-        let mut order = Vec::new();
-        let mut seen = vec![false; count];
-        let mut stack: Vec<(usize, usize)> = vec![(entry, 0)];
-        seen[entry] = true;
-        while let Some((node, next)) = stack.pop() {
-            if let Some(&child) = succ[node].get(next) {
-                stack.push((node, next + 1));
-                if !seen[child] {
-                    seen[child] = true;
-                    stack.push((child, 0));
-                }
-            } else {
-                order.push(node);
-            }
-        }
-        order.reverse();
-        let mut rank = vec![usize::MAX; count];
-        for (position, node) in order.iter().enumerate() {
-            rank[*node] = position;
-        }
-        let mut preds: Vec<Vec<usize>> = vec![Vec::new(); count];
         let mut all_preds: Vec<Vec<usize>> = vec![Vec::new(); count];
         for (node, targets) in succ.iter().enumerate() {
             for target in targets {
                 all_preds[*target].push(node);
             }
         }
-        for (node, targets) in succ.iter().enumerate() {
-            if seen[node] {
-                for target in targets {
-                    preds[*target].push(node);
-                }
-            }
-        }
-        idom[entry] = Some(entry);
-        let mut settled = false;
-        for _ in 0..=count + 1 {
-            let mut changed = false;
-            for &node in order.iter().skip(1) {
-                let mut new = None;
-                for &pred in &preds[node] {
-                    if idom[pred].is_none() {
-                        continue;
-                    }
-                    new = Some(match new {
-                        None => pred,
-                        Some(current) => intersect(&idom, &rank, pred, current),
-                    });
-                }
-                if new.is_some() && idom[node] != new {
-                    idom[node] = new;
-                    changed = true;
-                }
-            }
-            if !changed {
-                settled = true;
-                break;
-            }
-        }
+        let (idom, settled) = immediate_dominators(&succ, entry);
         if !settled {
             let pointer = self.fn_pointer.clone();
             self.oblige(
@@ -5128,6 +5521,22 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     }
                     return Value::Null;
                 }
+                // The operations around this use were typed with the type
+                // X4 could give `name` here; it must be this result's.
+                if derive.is_none()
+                    && let (Some(found), Some(typed)) =
+                        (ty.as_ref(), self.far_type(self.pieces[piece].block, name))
+                    && *found != typed
+                {
+                    let (found, typed) = (self.cx.render(found), self.cx.render(&typed));
+                    fail(
+                        self,
+                        format!(
+                            "`{name}` here is the result of `{owner}`, a {found}, but the operations using it were typed with {typed}, the type another block's `{name}` has: write `{owner}.{name}`"
+                        ),
+                    );
+                    return fallback;
+                }
                 let role = if derive.is_some() {
                     self.stats.derived_args += 1;
                     Role::DerivedArg
@@ -5183,7 +5592,15 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     // The compiler names the unknown value as written.
                     return fallback;
                 }
+                let after = match (others.as_slice(), derive) {
+                    ([owner], None) => self.defined_after(cfg, use_node, owner),
+                    _ => None,
+                };
                 let detail = match (others.as_slice(), derive) {
+                    ([owner], None) if after.is_some() => format!(
+                        "`{name}` is defined in block `{owner}` only after {}, from which a failure or exit route reaches this point of `{here}`: define `{name}` before it",
+                        after.unwrap_or_default()
+                    ),
                     ([owner], None) => format!(
                         "`{name}` is defined in block `{owner}`, which does not dominate this point of `{here}` (another path reaches it without passing through `{owner}`): declare `{name}` as a parameter of `{here}` and pass it on each edge"
                     ),
@@ -5204,6 +5621,25 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 }
             }
         }
+    }
+
+    /// When every path to `use_node` passes through the start of `owner`
+    /// but leaves it at a `?` or exit before `owner`'s later values exist:
+    /// the authored pointer of that `?` or exit (the last one of `owner`
+    /// that dominates the use).
+    fn defined_after(&self, cfg: &Cfg, use_node: Option<usize>, owner: &str) -> Option<String> {
+        let mut node = use_node?;
+        for _ in 0..=cfg.idom.len() {
+            match cfg.idom.get(node).copied().flatten() {
+                Some(up) if up != node => node = up,
+                _ => return None,
+            }
+            if cfg.owner[node].as_deref() == Some(owner) {
+                let piece = self.pieces.get(node)?;
+                return (piece.name == cfg.node_names[node]).then(|| piece.term_authored.clone());
+            }
+        }
+        None
     }
 
     /// The node holding the only operation result named `name` outside
@@ -5416,6 +5852,66 @@ impl<'c, 'a> FnExp<'c, 'a> {
             );
         }
     }
+}
+
+/// The immediate dominator of each node reachable from `entry` (the entry
+/// is its own), and whether the iteration settled within its bound.
+fn immediate_dominators(succ: &[Vec<usize>], entry: usize) -> (Vec<Option<usize>>, bool) {
+    let count = succ.len();
+    let mut idom: Vec<Option<usize>> = vec![None; count];
+    // Reverse postorder by an explicit stack.
+    let mut order = Vec::new();
+    let mut seen = vec![false; count];
+    let mut stack: Vec<(usize, usize)> = vec![(entry, 0)];
+    seen[entry] = true;
+    while let Some((node, next)) = stack.pop() {
+        if let Some(&child) = succ[node].get(next) {
+            stack.push((node, next + 1));
+            if !seen[child] {
+                seen[child] = true;
+                stack.push((child, 0));
+            }
+        } else {
+            order.push(node);
+        }
+    }
+    order.reverse();
+    let mut rank = vec![usize::MAX; count];
+    for (position, node) in order.iter().enumerate() {
+        rank[*node] = position;
+    }
+    let mut preds: Vec<Vec<usize>> = vec![Vec::new(); count];
+    for (node, targets) in succ.iter().enumerate() {
+        if seen[node] {
+            for target in targets {
+                preds[*target].push(node);
+            }
+        }
+    }
+    idom[entry] = Some(entry);
+    for _ in 0..=count + 1 {
+        let mut changed = false;
+        for &node in order.iter().skip(1) {
+            let mut new = None;
+            for &pred in &preds[node] {
+                if idom[pred].is_none() {
+                    continue;
+                }
+                new = Some(match new {
+                    None => pred,
+                    Some(current) => intersect(&idom, &rank, pred, current),
+                });
+            }
+            if new.is_some() && idom[node] != new {
+                idom[node] = new;
+                changed = true;
+            }
+        }
+        if !changed {
+            return (idom, true);
+        }
+    }
+    (idom, false)
 }
 
 fn intersect(idom: &[Option<usize>], rank: &[usize], mut a: usize, mut b: usize) -> usize {
