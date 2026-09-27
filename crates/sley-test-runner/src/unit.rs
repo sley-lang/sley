@@ -162,8 +162,10 @@ pub fn render_transient_unit(
     wall_ms: u64,
 ) -> Result<TransientUnit, EnforceError> {
     config.validate().map_err(|_| EnforceError::InvalidBudget)?;
-    if unit_nonce_hex.is_empty()
-        || !unit_nonce_hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+    if unit_nonce_hex.len() != 64
+        || !unit_nonce_hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
         || !valid_admin_path(worker_input_path)
     {
         return Err(EnforceError::InvalidBudget);
@@ -172,7 +174,7 @@ pub fn render_transient_unit(
     let runtime_max = runtime_max_usec(wall_ms)?;
     let unit_name = format!("{UNIT_PREFIX}{unit_nonce_hex}");
     let mut argv = vec![
-        "systemd-run".to_owned(),
+        "/usr/bin/systemd-run".to_owned(),
         "--system".to_owned(),
         format!("--unit={unit_name}"),
         "--pipe".to_owned(),
@@ -184,7 +186,7 @@ pub fn render_transient_unit(
     argv.push(format!("--property=RuntimeMaxUSec={runtime_max}"));
     // Fixed launch_profile1 mapping: the manager copies the root-only input
     // into the dynamic worker's private credential directory. The worker
-    // path stays read-only; scratch and lifetime bindings are fixed.
+    // path stays read-only; the lifetime binding is fixed.
     argv.push(format!(
         "--property=LoadCredential={WORKER_INPUT_CREDENTIAL}:{worker_input_path}"
     ));
@@ -192,7 +194,6 @@ pub fn render_transient_unit(
         "--property=BindReadOnlyPaths={}",
         config.worker_path
     ));
-    argv.push("--property=TemporaryFileSystem=/run/sley-scratch:ro".to_owned());
     argv.push("--property=Slice=system.slice".to_owned());
     argv.push("--property=BindsTo=sley-test-supervisor.service".to_owned());
     argv.push(config.worker_path.clone());
@@ -279,7 +280,7 @@ mod tests {
             .expect("expected attested projection");
         let unit = render_transient_unit(
             &config,
-            "9f2c",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "/run/sley-test-supervisor/input/9f2c.bin",
             request.declared_limits.memory_bytes,
             request.wall_ms,
@@ -310,23 +311,24 @@ mod tests {
 
     #[test]
     fn rendered_argv_pins_every_property_in_order() {
+        const NONCE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let unit = render_transient_unit(
             &runner_config(),
-            "9f2c",
+            NONCE,
             "/run/sley-test-supervisor/input/9f2c.bin",
             8_193,
             1_000,
         )
         .expect("renders");
-        assert_eq!(unit.unit_name, "sley-native-test-9f2c");
+        assert_eq!(unit.unit_name, format!("sley-native-test-{NONCE}"));
         assert_eq!(unit.requested_memory, 8_193);
         assert_eq!(unit.installed_memory, 8_192);
         assert_eq!(unit.runtime_max_usec, 3_000_000);
         let argv = unit.argv.join("\n");
         let expected = [
-            "systemd-run",
+            "/usr/bin/systemd-run",
             "--system",
-            "--unit=sley-native-test-9f2c",
+            "--unit=sley-native-test-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "--pipe",
             "--property=CapabilityBoundingSet=",
             "--property=DynamicUser=yes",
@@ -346,7 +348,6 @@ mod tests {
             "--property=RuntimeMaxUSec=3000000",
             "--property=LoadCredential=sley-input:/run/sley-test-supervisor/input/9f2c.bin",
             "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker",
-            "--property=TemporaryFileSystem=/run/sley-scratch:ro",
             "--property=Slice=system.slice",
             "--property=BindsTo=sley-test-supervisor.service",
             "/usr/lib/sley/sley-native-test-worker",
@@ -359,6 +360,7 @@ mod tests {
 
     #[test]
     fn rendering_refuses_before_any_unit_exists() {
+        const NONCE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let config = runner_config();
         assert_eq!(
             render_transient_unit(&config, "zz", "/run/input.bin", 8_192, 1_000)
@@ -367,25 +369,25 @@ mod tests {
             EnforceError::InvalidBudget.tag()
         );
         assert_eq!(
-            render_transient_unit(&config, "9f2c", "relative.bin", 8_192, 1_000)
+            render_transient_unit(&config, NONCE, "relative.bin", 8_192, 1_000)
                 .expect_err("input")
                 .tag(),
             EnforceError::InvalidBudget.tag()
         );
         assert_eq!(
-            render_transient_unit(&config, "9f2c", "/run/input:bad.bin", 8_192, 1_000)
+            render_transient_unit(&config, NONCE, "/run/input:bad.bin", 8_192, 1_000)
                 .expect_err("credential source property injection")
                 .tag(),
             EnforceError::InvalidBudget.tag()
         );
         assert_eq!(
-            render_transient_unit(&config, "9f2c", "/run/input.bin", 100, 1_000)
+            render_transient_unit(&config, NONCE, "/run/input.bin", 100, 1_000)
                 .expect_err("cap")
                 .tag(),
             EnforceError::UnaccommodatingCap.tag()
         );
         assert_eq!(
-            render_transient_unit(&config, "9f2c", "/run/input.bin", 8_192, 0)
+            render_transient_unit(&config, NONCE, "/run/input.bin", 8_192, 0)
                 .expect_err("wall")
                 .tag(),
             EnforceError::InvalidBudget.tag()

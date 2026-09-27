@@ -31,6 +31,7 @@ pub mod config;
 pub mod enforce;
 pub mod execution;
 pub mod ingress;
+pub mod manager;
 pub mod outcome;
 pub mod probe;
 pub mod program;

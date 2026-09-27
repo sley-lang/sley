@@ -515,6 +515,7 @@ version = "2.0.1"
 dependencies = [
  "ed25519-dalek",
  "nix",
+ "serde_json",
  "sha2",
  "sley-id",
  "sley-mutate",
