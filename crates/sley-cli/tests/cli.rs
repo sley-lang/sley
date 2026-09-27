@@ -2657,7 +2657,10 @@ fn native_test_worker_credential_entry_runs_the_rendered_unit_argv() {
     use sley_id::{PrincipalId, WorkspaceId};
     use sley_test_runner::config::{AllowedCaller, default_config};
     use sley_test_runner::unit::render_transient_unit;
-    use sley_test_runner::worker::{EXIT_INPUT_UNREADABLE, WORKER_INPUT_CREDENTIAL};
+    use sley_test_runner::worker::{
+        EXIT_INPUT_UNREADABLE, EXIT_OUTPUT_FAILED, WORKER_INPUT_CREDENTIAL, WORKER_RELEASE_GATE,
+        WORKER_START_GATE,
+    };
 
     let scratch = TempDir::new("native-worker-credential");
     let source = scratch.child("input.bin");
@@ -2691,24 +2694,42 @@ fn native_test_worker_credential_entry_runs_the_rendered_unit_argv() {
         source.display()
     )));
     let at = unit.argv.iter().position(|word| word == worker).unwrap();
-    let run = |credential_dir: Option<&std::path::Path>| {
+    let run = |credential_dir: Option<&std::path::Path>, control: &[u8]| {
         let mut command = Command::new(worker);
-        command.args(&unit.argv[at + 1..]).stdin(Stdio::null());
+        command
+            .args(&unit.argv[at + 1..])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         if let Some(directory) = credential_dir {
             command.env("CREDENTIALS_DIRECTORY", directory);
         } else {
             command.env_remove("CREDENTIALS_DIRECTORY");
         }
-        command.output().unwrap()
+        let mut child = command.spawn().unwrap();
+        child.stdin.take().unwrap().write_all(control).unwrap();
+        child.wait_with_output().unwrap()
     };
-    let output = run(Some(&credentials));
+    let output = run(
+        Some(&credentials),
+        &[WORKER_START_GATE, WORKER_RELEASE_GATE],
+    );
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         output.stdout,
         include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
     );
     assert!(output.stderr.is_empty());
-    let output = run(None);
+    let output = run(Some(&credentials), &[WORKER_START_GATE]);
+    assert_eq!(output.status.code(), Some(EXIT_OUTPUT_FAILED));
+    assert_eq!(
+        output.stdout,
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    let output = run(Some(&credentials), &[0]);
+    assert_eq!(output.status.code(), Some(EXIT_INPUT_UNREADABLE));
+    assert_eq!(&output.stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+    let output = run(None, &[WORKER_START_GATE, WORKER_RELEASE_GATE]);
     assert_eq!(output.status.code(), Some(EXIT_INPUT_UNREADABLE));
     assert_eq!(&output.stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
 }

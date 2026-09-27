@@ -390,12 +390,30 @@ bytes, with no prefix, newline, or stderr. Both Observed and VM-owned Rejected
 evidence are complete reports; Rejected cannot pass admission. A report
 proves canonical bytes, not that the host enforced memory or wall limits.
 
+The production worker waits for one fixed stdin start byte (`0xa5`) before
+opening the credential or executing Sley. The daemon sends it only after it
+has identified the live transient unit and opened its cgroup telemetry. After
+writing and flushing the raw report, the worker waits for one fixed release
+byte (`0x5a`) so the daemon can read final live memory counters. Missing or
+wrong start refuses with input-unreadable tag 3 and exit 7; missing or wrong
+release exits 8 after the report, which cannot be admitted. The gate adds no
+bytes to stdout. The manager runtime backstop still bounds a lost daemon.
+The fixed launch mapping explicitly sets `Slice=system.slice`. The daemon
+accepts only the manager's exact
+`/system.slice/sley-native-test-<nonce>.service` control group and its sole
+`MainPID`. It reads bounded `memory.max`, `memory.swap.max`, `memory.peak`,
+`memory.events`, and `cgroup.procs` files through symlink-free directory
+handles while the report-holding worker is still alive. Missing files,
+substituted limits or PID, or any nonzero limit/OOM/group-kill event refuse.
+After release, the daemon must still confirm worker exit and an empty group;
+the live sample alone is not a successful attestation.
+
 Before report output, a malformed frame or portable artifact exits 1 with
 big-endian refusal tag 1 and the exact SCB registry symbol. A decoded frame
 whose program, envelope bindings, or source execution is invalid exits 6 with
 tag 2 and `NATIVE_WORKER_SOURCE_INVALID`. An absent, symlinked, or non-regular
 input binding exits 7 with tag 3 and `NATIVE_WORKER_INPUT_UNREADABLE`. A write
-failure exits 8; a later CLI stdout flush failure remains `CLI_IO_FAILURE`
+or release-handshake failure exits 8; a later CLI stdout flush failure remains `CLI_IO_FAILURE`
 (exit 4). Refusal words contain no paths, arbitrary stderr, or source text.
 The daemon must bind a complete report to its authenticated request and
 measure the isolated worker independently before any owner admission.

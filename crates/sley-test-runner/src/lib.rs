@@ -11,16 +11,17 @@
 //! report/measurement/configuration response transport, bounded root-peer
 //! socket client, authenticated socket
 //! ingress boundary, fail-closed
-//! one-connection service with prelaunch program checks, and the
-//! readiness probes. The root service loop and privileged transient-unit
+//! one-connection service with prelaunch program checks, live cgroup telemetry,
+//! and readiness probes. The root service loop and privileged transient-unit
 //! execution are not wired yet.
 //!
 //! It performs no policy selection, grants no commit authority, and holds no
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
 //! [`outcome::Ed25519MeasurementSigner`] owns the concrete Ed25519 key, and
 //! privileged install/probe steps need the authenticated privilege handoff.
-//! The private worker now executes a portable selected `TestCase` and emits a
-//! canonical pure report. The owner derives bounded worker input hashes and
+//! The private worker now waits on stdin start/release gates around executing
+//! a portable selected `TestCase` and emitting one canonical pure report.
+//! The owner derives bounded worker input hashes and
 //! supervisor request bindings from the validated selected `TestCase`; the
 //! socket service rechecks both before its explicit refusal. Measured launch
 //! and admission still belong to N5; the service remains refusal-only.
@@ -37,5 +38,6 @@ pub mod protocol;
 pub mod response;
 pub mod service;
 pub mod stage;
+pub mod telemetry;
 pub mod unit;
 pub mod worker;

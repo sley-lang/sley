@@ -193,6 +193,7 @@ pub fn render_transient_unit(
         config.worker_path
     ));
     argv.push("--property=TemporaryFileSystem=/run/sley-scratch:ro".to_owned());
+    argv.push("--property=Slice=system.slice".to_owned());
     argv.push("--property=BindsTo=sley-test-supervisor.service".to_owned());
     argv.push(config.worker_path.clone());
     argv.push("__native-test-worker".to_owned());
@@ -346,6 +347,7 @@ mod tests {
             "--property=LoadCredential=sley-input:/run/sley-test-supervisor/input/9f2c.bin",
             "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker",
             "--property=TemporaryFileSystem=/run/sley-scratch:ro",
+            "--property=Slice=system.slice",
             "--property=BindsTo=sley-test-supervisor.service",
             "/usr/lib/sley/sley-native-test-worker",
             "__native-test-worker",

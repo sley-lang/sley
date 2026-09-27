@@ -46,6 +46,10 @@ pub const WORKER_VERSION: u64 = 1;
 pub const MAX_WORKER_FRAME: usize = 262_144;
 /// Fixed systemd credential name for the private worker request.
 pub const WORKER_INPUT_CREDENTIAL: &str = "sley-input";
+/// Daemon byte permitting execution after it verifies the live unit.
+pub const WORKER_START_GATE: u8 = 0xa5;
+/// Daemon byte permitting worker exit after it captures live telemetry.
+pub const WORKER_RELEASE_GATE: u8 = 0x5a;
 
 /// Closed worker request: opaque program artifact plus enforced ceilings.
 ///
@@ -359,16 +363,36 @@ pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Wr
 /// Reads the fixed service credential installed by systemd for the worker.
 ///
 /// The environment supplies only the service-owned credential directory;
-/// the credential name is fixed here. The path uses the same symlink-free,
-/// regular-file check as the direct path entry used by tests.
-pub fn run_credential_input(output: &mut dyn std::io::Write) -> i32 {
+/// the credential name is fixed here. The daemon sends one start byte on
+/// stdin after checking the live unit, then one release byte after receiving
+/// the flushed report and capturing telemetry while the cgroup still exists.
+/// A missing start refuses before execution; a missing release makes the
+/// already-written report non-successful through the worker exit status.
+pub fn run_credential_input(
+    control: &mut dyn std::io::Read,
+    output: &mut dyn std::io::Write,
+) -> i32 {
     let Some(directory) = std::env::var_os("CREDENTIALS_DIRECTORY") else {
         return write_refusal(output, WorkerRefusal::InputUnreadable);
     };
-    run_input_path(
+    let mut gate = [0_u8; 1];
+    if control.read_exact(&mut gate).is_err() || gate[0] != WORKER_START_GATE {
+        return write_refusal(output, WorkerRefusal::InputUnreadable);
+    }
+    let status = run_input_path(
         &std::path::PathBuf::from(directory).join(WORKER_INPUT_CREDENTIAL),
         output,
-    )
+    );
+    if status != 0 {
+        return status;
+    }
+    if output.flush().is_err() {
+        return EXIT_OUTPUT_FAILED;
+    }
+    if control.read_exact(&mut gate).is_err() || gate[0] != WORKER_RELEASE_GATE {
+        return EXIT_OUTPUT_FAILED;
+    }
+    0
 }
 
 /// Private worker entry over a byte stream.

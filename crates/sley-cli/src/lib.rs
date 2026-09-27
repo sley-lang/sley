@@ -489,7 +489,7 @@ pub fn run(
     if let Command::NativeTestWorker { input } = &command {
         let status = match input {
             Some(path) => sley_test_runner::worker::run_input_path(path, stdout),
-            None => sley_test_runner::worker::run_credential_input(stdout),
+            None => sley_test_runner::worker::run_credential_input(stdin, stdout),
         };
         if let Err(error) = stdout.flush() {
             let failure = stream_failure(error);
