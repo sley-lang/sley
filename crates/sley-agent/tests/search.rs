@@ -678,6 +678,7 @@ fn the_neighbor_and_wall_limits_are_labeled() {
         ("--max-neighbors", "5000"),
         ("--max-neighbors", "x"),
         ("--max-millis", "-1"),
+        ("--max-millis", "3600001"),
     ] {
         let (status, text) = run(
             &temp.path,
@@ -819,6 +820,7 @@ fn the_head_is_the_default_seed() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn unusable_seeds_are_refused_and_cost_no_search() {
     let temp = workspace("seeds");
     let public = cases(&temp.path, "cases.json", &diff_cases());
@@ -888,6 +890,32 @@ fn unusable_seeds_are_refused_and_cost_no_search() {
             "{text}"
         );
     }
+    // A Valid candidate kept without a frame (submitted from its bytes).
+    let bytes = temp.path.join("light.hex");
+    fs::copy(
+        temp.path
+            .join(".sley/candidates")
+            .join(format!("{valid}.hex")),
+        &bytes,
+    )
+    .unwrap();
+    let (status, text) = run(
+        &temp.path,
+        &["submit", &bytes.display().to_string(), "--untested"],
+    );
+    assert_eq!(status, 0, "{text}");
+    let frameless = text.split_whitespace().nth(1).unwrap().to_owned();
+    let (status, text) = run(
+        &temp.path,
+        &["search", "go", "--public", &public, "--from", &frameless],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains(&format!(
+            "AGENT_SEARCH_SEED_INVALID: {frameless} was not made from an AF1 frame"
+        )),
+        "{text}"
+    );
     let (status, text) = run(
         &temp.path,
         &["search", "go", "--public", &public, "--from", "c99"],
@@ -1139,4 +1167,127 @@ fn the_search_help_example_runs() {
     let (status, text) = run(&temp.path, &["help", "search"]);
     assert_eq!(status, 0);
     assert!(text.starts_with("# search"), "{text}");
+}
+
+/// Every file under a directory with its bytes, but the given names.
+fn snapshot(dir: &Path, skip: &[&str]) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut out = Vec::new();
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&next) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if !skip.iter().any(|name| path.ends_with(name)) {
+                out.push((path.clone(), fs::read(&path).unwrap()));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+#[test]
+fn search_changes_nothing_but_its_record_and_only_the_searched_function() {
+    let temp = workspace("boundary");
+    // `twice` calls `diff`; search on `diff` never proposes a change to
+    // `twice`, and the repository, candidates and drafts stay as they were.
+    let frame = json!({"af1": 1, "fns": [
+        {"fn": "diff", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,ArithmeticError>",
+         "blocks": [{"name": "entry", "ops": [["r", "add", "a", "b"]], "term": ["return", "r"]}]},
+        {"fn": "twice", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+         "blocks": [{"name": "entry", "ops": [["k", "const", 2], ["r", "call", "diff", "a", "k"]],
+                     "term": ["return", "r"]}]}]});
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"function": "diff", "args": [5, 3], "expect": {"Ok": 2}},
+                {"function": "twice", "args": [5], "expect": {"Ok": 3}}]),
+    );
+    let c1 = seed(&temp.path, &frame);
+    let before = snapshot(&temp.path, &["events.jsonl", "search.json"]);
+    let (status, report) = search(&temp.path, &["diff", "--public", &public, "--from", &c1]);
+    assert_eq!(status, 0, "{report:#}");
+    assert_eq!(
+        before,
+        snapshot(&temp.path, &["events.jsonl", "search.json"])
+    );
+    // The caller's case runs too: the top neighbor fixes both.
+    assert_eq!(neighbors(&report)[0]["public"]["passed"], 2);
+    for neighbor in neighbors(&report) {
+        let frame = &neighbor["frame"];
+        let entries = frame
+            .get("edit")
+            .or_else(|| frame.get("patch"))
+            .and_then(Value::as_array)
+            .unwrap();
+        assert_eq!(entries.len(), 1, "{neighbor:#}");
+        assert_eq!(entries[0]["fn"], "diff", "{neighbor:#}");
+        let keys: Vec<&String> = frame.as_object().unwrap().keys().collect();
+        assert!(
+            keys.len() == 2 && keys.contains(&&"af1".to_owned()),
+            "{frame}"
+        );
+    }
+}
+
+#[test]
+fn constant_nudges_stay_in_their_type_range() {
+    let temp = workspace("ranges");
+    let frame = json!({"af1": 1, "fns": [
+        {"fn": "top", "params": [], "returns": "i64",
+         "blocks": [{"name": "entry", "ops": [["k", "const", i64::MAX]], "term": ["return", "k"]}]}]});
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"function": "top", "args": [], "expect": 0}]),
+    );
+    let (_, report) = search(
+        &temp.path,
+        &[
+            "top",
+            "--public",
+            &public,
+            "--from",
+            &seed(&temp.path, &frame),
+        ],
+    );
+    let changes: Vec<&str> = neighbors(&report)
+        .iter()
+        .filter(|n| n["generator"] == "constant nudge")
+        .map(|n| n["change"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        changes,
+        [
+            "9223372036854775807 -> 9223372036854775806",
+            "9223372036854775807 -> -9223372036854775807"
+        ]
+    );
+    let frame = json!({"af1": 1, "fns": [
+        {"fn": "bottom", "params": [], "returns": "i64",
+         "blocks": [{"name": "entry", "ops": [["k", "const", i64::MIN]], "term": ["return", "k"]}]}]});
+    let public = cases(
+        &temp.path,
+        "bottom.json",
+        &json!([{"function": "bottom", "args": [], "expect": 0}]),
+    );
+    let (_, report) = search(
+        &temp.path,
+        &[
+            "bottom",
+            "--public",
+            &public,
+            "--from",
+            &seed(&temp.path, &frame),
+        ],
+    );
+    let changes: Vec<&str> = neighbors(&report)
+        .iter()
+        .map(|n| n["change"].as_str().unwrap())
+        .collect();
+    assert_eq!(changes, ["-9223372036854775808 -> -9223372036854775807"]);
 }

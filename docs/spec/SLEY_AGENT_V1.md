@@ -728,8 +728,8 @@ cases.
 
 ### 13.2 Generators and neighbor frames
 
-Six typed generators run over the function's reachable blocks. No model is
-called.
+Six typed generators run over the function's reachable blocks. Generation
+is local and deterministic.
 
 | Generator | Proposal | Edit size |
 |---|---|---|
@@ -752,12 +752,14 @@ block, written so that `try --on <seed>` layers it on the seed's frame.
 When the seed's frame states the function, the neighbor restates what the
 author wrote, in the frame's dialect; for an AF1-X frame the source map
 leads each operation back to its authored statement, nested operation or
-literal. Otherwise it restates the live function. A change to code the
-tool generated (AF1-X continuations, checked switches, shared exits) has no
-such frame and is skipped; so is a permutation of two nested operations,
-which would reorder their evaluation. Search then compiles exactly the
-layered frame, assembles the record and validates it with
-`validate_candidate_bytes`. Only kernel-Valid neighbors run the cases.
+literal. Otherwise it restates the live function. A change no such frame can state
+is skipped and counted: a change to code the tool generated (AF1-X
+continuations, checked switches, shared exits), a permutation of two
+nested operations (it would reorder their evaluation), and a block change
+beside the seed's own `edit` of the function. Search then compiles exactly
+the layered frame, assembles the record and validates it with
+`validate_candidate_bytes`; a layered frame that changes nothing is refused
+as `try` refuses it. Only kernel-Valid neighbors run the cases.
 
 ### 13.3 Ranking, bounds and output
 
@@ -768,7 +770,7 @@ rule is printed with every result.
 | Bound | Default |
 |---|---|
 | neighbors generated per command (`--max-neighbors`, at most 4096) | 64 |
-| wall time per command (`--max-millis`) | 10,000 ms |
+| wall time per command (`--max-millis`, at most 3,600,000) | 10,000 ms |
 | searches per seed lineage | 2 |
 | fuel of a seed's case | 10,000,000 |
 | fuel of a neighbor's case | ten times the seed's on that case, within 1,000,000 and 10,000,000; 1,000,000 when the seed ran out |

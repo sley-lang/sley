@@ -4,7 +4,8 @@
 //! Six typed generators propose neighbors of a function as a seed program
 //! states it (the head, a Valid candidate made from a frame, or a draft
 //! revision in state `valid`): opcode swap, operand permutation, operand
-//! substitution, constant nudge, edge swap and negation. No model is called.
+//! substitution, constant nudge, edge swap and negation. Generation is local
+//! and deterministic.
 //! Each neighbor is written as an ordinary `edit` or `patch` frame that
 //! `try --on <seed>` layers on the seed's frame, and search compiles exactly
 //! that layered frame through the normal path: frame compilation, record
@@ -49,6 +50,8 @@ pub const MAX_NEIGHBORS: usize = 64;
 pub const MAX_MILLIS: u64 = 10_000;
 /// The most `--max-neighbors` may ask for.
 pub const NEIGHBOR_CEILING: usize = 4096;
+/// The most `--max-millis` may ask for (one hour).
+pub const MILLIS_CEILING: u64 = 3_600_000;
 /// Search commands per seed lineage.
 pub const SEARCHES_PER_SEED: u64 = 2;
 /// Fuel a seed's public case may use.
@@ -205,7 +208,13 @@ pub fn limits(neighbors: Option<&str>, millis: Option<&str>) -> Result<(usize, u
         None => MAX_MILLIS,
         Some(text) => text
             .parse::<u64>()
-            .map_err(|_| crate::error::usage("--max-millis takes a number of milliseconds"))?,
+            .ok()
+            .filter(|ms| *ms <= MILLIS_CEILING)
+            .ok_or_else(|| {
+                crate::error::usage(format!(
+                    "--max-millis takes 0 to {MILLIS_CEILING} milliseconds"
+                ))
+            })?,
     };
     Ok((neighbors, millis))
 }
@@ -1354,7 +1363,9 @@ struct Generated {
     more: bool,
     /// The wall limit stopped generation.
     wall: bool,
-    /// Changes at positions no frame can state (generated code).
+    /// Changes no frame layered on the seed can state: generated code, a
+    /// permutation of two nested operations, a block beside the seed's
+    /// edits of the function.
     skipped: usize,
     /// Changes whose frame equals an earlier neighbor's.
     duplicates: usize,
@@ -2891,6 +2902,17 @@ impl Context<'_> {
                 return Ok(());
             }
         };
+        if compiled.ops.is_empty() {
+            // As `try` refuses it: the layered frame restores the head.
+            refused(
+                neighbor,
+                "frame",
+                AgentErrorCode::FrameInvalid.symbol(),
+                "the frame changes nothing: everything it states is already live as stated"
+                    .to_owned(),
+            );
+            return Ok(());
+        }
         let ops = std::mem::take(&mut compiled.ops);
         let imported = match candidate::assemble(self.head, self.authority, nonce, ops) {
             Ok(imported) => imported,
@@ -3224,7 +3246,7 @@ impl Summary<'_> {
         if counts.skipped > 0 {
             let _ = write!(
                 text,
-                "; {} change(s) to generated code have no frame",
+                "; {} change(s) skipped: no frame layered on the seed states them",
                 counts.skipped
             );
         }

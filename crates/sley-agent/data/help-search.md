@@ -31,9 +31,11 @@ A visible value is a function parameter, a result of a dominating block,
 or a parameter or earlier result of the same block. Each neighbor is an
 `edit` (one operation) or a `patch` (one block) written in the seed's
 dialect, so `try --on <seed>` layers it on the seed's frame. Search
-compiles, assembles and validates exactly that layered frame. Changes to
-code the tool generated (AF1-X continuations and shared exits) have no
-frame, so they are skipped and counted.
+compiles, assembles and validates exactly that layered frame. A change no
+such frame can state is skipped and counted: code the tool generated
+(AF1-X continuations, checked switches, shared exits), a permutation of
+two nested operations (it would reorder their evaluation), or a block
+change beside the seed's own `edit` of the function.
 
 ## Ranking, bounds, output
 
@@ -44,7 +46,7 @@ generation index. Neighbors are generated one generator at a time, with
 operand substitution last, each in program order.
 
 Bounds per command: 64 neighbors (`--max-neighbors`, up to 4096) and
-10000 ms of wall time (`--max-millis`). A seed case may use 10000000 fuel.
+10000 ms of wall time (`--max-millis`, up to 3600000). A seed case may use 10000000 fuel.
 A neighbor's case may use ten times the seed's fuel on it, at least 1000000
 and at most 10000000 (1000000 when the seed ran out). A case that runs
 out is labeled `resource limit`. A reached limit, a partial evaluation and
