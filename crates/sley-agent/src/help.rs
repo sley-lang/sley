@@ -21,10 +21,12 @@ pub const TYPES: &str = include_str!("../data/help-types.md");
 pub const TESTS: &str = include_str!("../data/help-tests.md");
 /// The drafts and delta-repair reference.
 pub const DRAFTS: &str = include_str!("../data/help-drafts.md");
+/// The verified search reference.
+pub const SEARCH: &str = include_str!("../data/help-search.md");
 
 /// Topic names.
 pub const TOPICS: &[&str] = &[
-    "guide", "af1", "afx", "drafts", "opcodes", "types", "tests", "refusals",
+    "guide", "af1", "afx", "drafts", "opcodes", "types", "tests", "search", "refusals",
 ];
 
 /// Returns a topic's text.
@@ -37,6 +39,7 @@ pub fn topic(name: &str) -> Option<String> {
         "types" => TYPES.to_owned(),
         "tests" | "testcase" => TESTS.to_owned(),
         "drafts" | "draft" | "fill" => DRAFTS.to_owned(),
+        "search" => SEARCH.to_owned(),
         "opcodes" => opcodes(),
         "refusals" => refusals(),
         _ => return None,

@@ -12,6 +12,8 @@
 //! - An advisory dev loop: in-process candidate validation with decoded
 //!   refusals and locators, and lower-once execution of functions and
 //!   `TestCases` ([`exec`]).
+//! - Verified search: bounded, typed local repair proposals checked by the
+//!   kernel and the author's public cases, never submitted ([`search`]).
 //!
 //! The kernel alone judges candidates. Nothing here is admission evidence;
 //! nothing here commits, signs, or parses Sley source.
@@ -39,6 +41,7 @@ pub mod locate;
 pub mod names;
 pub mod opcodes;
 pub mod raw;
+pub mod search;
 pub mod tables;
 pub mod types;
 pub mod values;
