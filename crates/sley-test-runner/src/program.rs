@@ -270,9 +270,10 @@ mod tests {
     };
     use sley_state_root::StateRootBuilder;
     use sley_tests::{
-        GrantCeilings, NativeAggregateLimits, NativeExecutionReportV1, NativeResourcePolicyParts,
-        NativeResourcePolicyV1, NativeTestPlanParts, NativeTestReportV1, TestComparison,
-        ValidationLimits, plan::SELECTION_MODE_EXPLICIT_ROOT,
+        GrantCeilings, NativeAggregateLimits, NativeExecutionEvidence, NativeExecutionReportParts,
+        NativeExecutionReportV1, NativeResourcePolicyParts, NativeResourcePolicyV1,
+        NativeTestPlanParts, NativeTestReportV1, REJECT_PHASE_EXECUTION, RejectedEvidence,
+        TestComparison, ValidationLimits, plan::SELECTION_MODE_EXPLICIT_ROOT,
     };
     use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
 
@@ -659,6 +660,57 @@ mod tests {
                 NativeExecutionReportV1::parse(result.execution_report.stored_bytes())
                     .expect("canonical report"),
                 result.execution_report
+            );
+            let mut run = RunRequest {
+                workspace: plan.workspace(),
+                principal: plan.resource_policy().principal(),
+                candidate_id: plan.candidate_id(),
+                plan_id: plan.plan_id(),
+                test_object: program.selected().test_object,
+                test_entity: program.selected().test_entity,
+                target_function: program.selected().target_function,
+                policy_root: plan.policy_root(),
+                declared_limits: program.selected().declared_limits,
+                wall_ms: program.selected().declared_limits.wall_timeout_millis,
+                nonce: [42; 32],
+                worker_frame: worker.encode_frame().expect("worker frame"),
+            };
+            assert_eq!(
+                run.verified_observed_worker_report(result.execution_report.stored_bytes())
+                    .expect("authenticated report binding"),
+                result.execution_report
+            );
+            let rejected = NativeExecutionReportV1::build(NativeExecutionReportParts {
+                plan_id: plan.plan_id(),
+                test_entity: program.selected().test_entity,
+                test_object: program.selected().test_object,
+                target_object: program.selected().target_object,
+                evidence: NativeExecutionEvidence::Rejected(
+                    RejectedEvidence::from_parts(
+                        REJECT_PHASE_EXECUTION,
+                        27_002,
+                        "VM_EXEC_RESOURCE_LIMIT",
+                    )
+                    .expect("rejection evidence"),
+                ),
+            })
+            .expect("rejected report");
+            assert_eq!(
+                run.verified_observed_worker_report(rejected.stored_bytes())
+                    .expect_err("rejected report is not observed")
+                    .code(),
+                ScbErrorCode::ContractUnknown
+            );
+            let mut substituted_worker = worker.clone();
+            substituted_worker.input_hashes[0] = [99; 32];
+            run.worker_frame = substituted_worker
+                .encode_frame()
+                .expect("substituted frame");
+            assert_eq!(
+                run.verified_observed_worker_report(result.execution_report.stored_bytes())
+                    .expect_err("input hash substitution")
+                    .code(),
+                ScbErrorCode::ContractUnknown
             );
             let report = NativeTestReportV1::build(&plan, vec![result.entry])
                 .expect("single selected test report");

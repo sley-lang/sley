@@ -13,9 +13,13 @@
 
 use sley_id::{CandidateId, EntityId, ObjectId, PolicyRootId, PrincipalId, WorkspaceId};
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_union, encode_uvar};
-use sley_vm::native_execution::NativeDeclaredLimits;
+use sley_tests::{NativeExecutionEvidence, NativeExecutionReportV1};
+use sley_vm::{
+    SSMC1_DECODER_LIMITS_HASH, SSMC1_FIELD_SCHEMA_HASH,
+    native_execution::{NativeDeclaredLimits, NativeExecutionObservationV1},
+};
 
-use crate::config::MAX_REQUEST_BYTES;
+use crate::config::{MAX_REQUEST_BYTES, MAX_WORKER_OUTPUT_BYTES};
 use crate::program::PortableTestProgram;
 use crate::worker::WorkerRequest;
 
@@ -172,6 +176,58 @@ fn read_option_candidate(value: &[u8]) -> Result<Option<CandidateId>, ScbError> 
 }
 
 impl RunRequest {
+    /// Verifies a worker's canonical observed report against authenticated
+    /// request scope and the exact embedded worker input.
+    ///
+    /// This checks report/observation identity, root, epoch, function, input
+    /// hashes, execution profile, and limits. It does not prove that the VM
+    /// ran, measure the host, or admit the test; those are later owners.
+    ///
+    /// # Errors
+    ///
+    /// Refuses malformed, oversized, rejected, or cross-boundary substituted
+    /// report bytes.
+    pub fn verified_observed_worker_report(
+        &self,
+        output: &[u8],
+    ) -> Result<NativeExecutionReportV1, ScbError> {
+        if output.len() > MAX_WORKER_OUTPUT_BYTES {
+            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+        }
+        let program = self.verified_program()?;
+        let worker = self.worker_request()?;
+        let report = NativeExecutionReportV1::parse(output)?;
+        let selected = program.selected();
+        if report.plan_id() != self.plan_id
+            || report.test_entity() != selected.test_entity
+            || report.test_object() != selected.test_object
+            || report.target_object() != selected.target_object
+        {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        }
+        let NativeExecutionEvidence::Observed { stored, .. } = report.evidence() else {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        };
+        let observation = NativeExecutionObservationV1::parse_stored(stored)?;
+        if observation.schema_epoch() != program.plan().semantic_epoch()
+            || observation.field_schema_hash() != &SSMC1_FIELD_SCHEMA_HASH
+            || observation.decoder_limits_hash() != &SSMC1_DECODER_LIMITS_HASH
+            || observation.state_root() != program.plan().proposed_root()
+            || observation.function() != selected.target_function
+            || observation.declared_limits() != selected.declared_limits
+            || observation.implementation_limits() != worker.implementation_limits
+            || observation.input_hashes().len() != worker.input_hashes.len()
+            || observation
+                .input_hashes()
+                .iter()
+                .zip(&worker.input_hashes)
+                .any(|(actual, declared)| actual.as_bytes() != declared)
+        {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        }
+        Ok(report)
+    }
+
     /// Parses the portable program and binds its owner plan, test, policy,
     /// and limits to this authenticated request and the worker envelope.
     ///
