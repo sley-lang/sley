@@ -1064,14 +1064,15 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
             "name the operation in the target block",
         ],
     );
-    // `__` is reserved for generated names.
+    // `__` is reserved for generated names in blocks that use the
+    // dialect's forms (here a literal operand).
     assert_refused(
         &temp.path,
         &one_function(
-            "i64",
+            "Result<i64,ArithmeticError>",
             &json!([["a__b", "i64"]]),
             &json!([
-            {"name": "entry__x", "ops": [["y__z", "const", 1]], "term": ["return", "a__b"]}]),
+            {"name": "entry__x", "ops": [["y__z", "add", "a__b", 1]], "term": ["return", "y__z"]}]),
         ),
         "AGENT_FRAME_INVALID",
         &[
@@ -1080,6 +1081,19 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
             "/fns/0/blocks/0/ops/0: `y__z` contains `__`",
         ],
     );
+    // W3-D2: a plain block keeps the names AF1 allows, next to a block that
+    // uses the dialect.
+    let frame = one_function(
+        "Result<i64,ArithmeticError>",
+        &json!([["a", "i64"]]),
+        &json!([
+            {"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}], ["c", "lt", "a", "z"]], "term": ["cond", "c", "is__neg", "sum"]},
+            {"name": "is__neg", "ops": [["n__v", "neg", "a"]], "term": ["return", "n__v"]},
+            {"name": "sum", "term": ["ok", ["add?", "a", 1]]}]),
+    );
+    let mut runner = Runner::new(&temp.path, &frame);
+    assert_eq!(runner.call("f", &[json!(-2)]), json!({"Ok": 2}));
+    assert_eq!(runner.call("f", &[json!(2)]), json!({"Ok": 3}));
     // `edit.with` stays plain AF1; an unknown ripple intent is refused;
     // "afx" is 1.
     assert_refused(
@@ -2582,4 +2596,22 @@ fn a_trap_never_hides_content_or_relaxes_the_loop_edge_rule() {
         ],
     );
     assert_ne!(status, 2, "{text}");
+}
+
+#[test]
+fn a_dialect_follow_up_keeps_the_plain_names_of_its_base() {
+    // W3-D2: tests added as a table on top of a plain draft whose blocks
+    // are named `is__neg` and `not__neg`.
+    let temp = workspace("plain-base");
+    let plain = json!({"af1": 1, "fns": [{"fn": "neg", "params": [["a", "i64"]], "returns": "bool", "blocks": [
+        {"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}], ["c", "lt", "a", "z"]], "term": ["cond", "c", "is__neg", "not__neg"]},
+        {"name": "is__neg", "ops": [["t", "eq", "entry.z", "entry.z"]], "term": ["return", "t"]},
+        {"name": "not__neg", "ops": [["f", "ne", "entry.z", "entry.z"]], "term": ["return", "f"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &plain.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let follow_up = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t", "fn": "neg",
+        "cases": [{"args": [-1], "expect": true}, {"args": [1], "expect": false}]}]});
+    let (status, text) = run(&temp.path, &["try", "--on", "d1", &follow_up.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 2/2 passed"), "{text}");
 }

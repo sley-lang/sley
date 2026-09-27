@@ -2700,10 +2700,22 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// Authored names: the `__` reservation, duplicates, and the tables the
     /// typing and use-before-definition checks read.
     fn declare(&mut self) {
+        for (b, block) in self.blocks.iter().enumerate() {
+            self.block_at.entry(block.name.clone()).or_insert(b);
+        }
+        // `__` is reserved in the names of blocks that use the dialect's
+        // forms (and their function's parameters): a plain block, such as
+        // one restated from a plain base frame, keeps the names AF1 allows.
+        let dialect: Vec<bool> = self
+            .blocks
+            .iter()
+            .map(|block| self.uses_dialect(block))
+            .collect();
+        let any_dialect = dialect.iter().any(|uses| *uses);
         let reserved = |name: &str| name.contains("__");
         let mut problems = Vec::new();
         for (index, (name, _)) in self.params.iter().enumerate() {
-            if reserved(name) && !self.patch {
+            if reserved(name) && !self.patch && any_dialect {
                 problems.push((format!("{}/params/{index}", self.fn_pointer), name.clone()));
             }
         }
@@ -2711,8 +2723,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
             self.value_taken.insert(name.clone());
             self.block_taken.insert(name.clone());
         }
-        for block in &self.blocks {
-            if reserved(&block.name) {
+        for (b, block) in self.blocks.iter().enumerate() {
+            if dialect[b] && reserved(&block.name) {
                 problems.push((block.pointer.clone(), block.name.clone()));
             }
             // A block named twice is the compiler's to report.
@@ -2727,10 +2739,10 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
         }
         let mut duplicates = Vec::new();
-        for block in &self.blocks {
+        for (b, block) in self.blocks.iter().enumerate() {
             let mut defs: BTreeMap<String, ADef> = BTreeMap::new();
             for (index, (name, ty, _)) in block.params.iter().enumerate() {
-                if reserved(name) {
+                if dialect[b] && reserved(name) {
                     problems.push((format!("{}/params/{index}", block.pointer), name.clone()));
                 }
                 defs.insert(name.clone(), ADef { ty: ty.clone() });
@@ -2742,7 +2754,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     Stmt::Exit(_) => (None, String::new()),
                 };
                 let Some(name) = name else { continue };
-                if reserved(&name) {
+                if dialect[b] && reserved(&name) {
                     problems.push((pointer.clone(), name.clone()));
                 }
                 if defs.insert(name.clone(), ADef { ty: None }).is_some() {
@@ -2754,8 +2766,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
             self.defs.push(defs);
         }
-        for (b, block) in self.blocks.iter().enumerate() {
-            self.block_at.entry(block.name.clone()).or_insert(b);
+        for b in 0..self.blocks.len() {
             for name in self.defs[b].keys() {
                 self.def_index.entry(name.clone()).or_default().push(b);
             }
@@ -2781,6 +2792,45 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 format!("value `{name}` is defined twice in block `{block}`: rename one"),
             );
         }
+    }
+
+    /// Whether a block uses any of the dialect's forms: a checked
+    /// operation, an exit, a nested operation or literal operand, `ok` or
+    /// `fail`, or an edge that leaves trailing arguments to be derived.
+    fn uses_dialect(&self, block: &ABlock) -> bool {
+        fn node(node: &Node) -> bool {
+            node.check.is_some()
+                || node
+                    .args
+                    .iter()
+                    .any(|arg| matches!(arg.operand, Operand::Nested(_) | Operand::Literal { .. }))
+        }
+        let extended_arg =
+            |arg: &Arg| matches!(arg.operand, Operand::Nested(_) | Operand::Literal { .. });
+        let short = |target: &Target| {
+            let params = match self.block_at.get(&target.block) {
+                Some(&b) => self.blocks[b].params.len(),
+                None => self
+                    .kept
+                    .iter()
+                    .find(|kept| kept.leaf == target.block)
+                    .map_or(0, |kept| kept.params.len()),
+            };
+            target.args.len() < params
+        };
+        let stmts = block.stmts.iter().any(|stmt| match stmt {
+            Stmt::Op(op) => node(op),
+            Stmt::Exit(_) => true,
+            Stmt::Raw { .. } => false,
+        });
+        let term = match &block.term {
+            Term::Ok(_) | Term::Fail { .. } => true,
+            Term::Br { target, .. } => short(target),
+            Term::Cond { then, other, .. } => short(then) || short(other),
+            Term::Switch { cases, .. } => cases.iter().any(|(_, target)| short(target)),
+            Term::Return(_) | Term::Trap { .. } | Term::Raw(_) => false,
+        };
+        stmts || term || term_args(&block.term).into_iter().any(extended_arg)
     }
 
     // --- typing -----------------------------------------------------------

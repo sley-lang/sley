@@ -144,8 +144,10 @@ row's live test.
     <b>__ok          the value an ok terminator returns
     __fail_<Case>, __err, __none    exits shared by a function
 
-A name that is taken gets `_2`, `_3`, ... Do not use `__` in your own
-names. A refusal names the authored position, with the expanded one in
+A name that is taken gets `_2`, `_3`, ... `__` is reserved for generated
+names in blocks that use these forms (and in their function's parameters):
+a plain block, for example one a plain frame defined and a follow-up
+restates, keeps the names AF1 allows. A refusal names the authored position, with the expanded one in
 brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
 
 ## Ripple
