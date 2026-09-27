@@ -70,9 +70,19 @@ only judge.
 9. **Local attribution counters.** Each command appends one line of counts
    (sizes, feature use, refusal symbols) to `.sley/events.jsonl`. The line
    holds no program content and no clock.
-10. **Transformations and search stay off.** Typed graph transformations
-    and neighbour search are specified but not enabled in this version;
-    `ripple` is refused as not enabled.
+10. **Two transformations and a bounded search are enabled; the rest stay
+    off.** `ripple` enables `arity` (a signature change carried to the
+    calls and tests of the function by parameter name) and `guard` (a
+    checker routed through the uses of one parameter, in a preserving or
+    an entry mode). Each derives ordinary edits that the unchanged compiler
+    and kernel judge; a decision a derivation cannot make exactly, an
+    exported boundary, or a bound is an explicit obligation, never a guess.
+    The intents `effect`, `member`, `retype`, `move` and `prune` are refused
+    as not enabled. `search` proposes neighbours of one function from six
+    typed generators, validates each through the kernel, evaluates only the
+    public cases the author passes, and never submits; it is bounded per
+    command and per accepted head. Neither is admission evidence
+    (`SLEY_AGENT_V1.md` sections 5.3 and 13).
 
 ## Consequences
 
