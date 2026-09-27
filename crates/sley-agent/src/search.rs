@@ -223,6 +223,17 @@ pub fn limits(neighbors: Option<&str>, millis: Option<&str>) -> Result<(usize, u
     Ok((neighbors, millis))
 }
 
+/// The size of a public case file, when it is a readable file: the
+/// events ledger's `input_bytes` of a search, run or refused.
+#[must_use]
+pub fn case_file_bytes(path: &str) -> Option<u64> {
+    fs::File::open(path)
+        .and_then(|file| file.metadata())
+        .ok()
+        .filter(fs::Metadata::is_file)
+        .map(|metadata| metadata.len())
+}
+
 fn seed_invalid(detail: impl Into<String>) -> AgentError {
     AgentError::new(AgentErrorCode::SearchSeedInvalid, detail)
 }
@@ -277,8 +288,22 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
     runnable(&seed, &function, &function_name, &file, request.public)?;
     let uses = claim_use(workspace, &head, &seed.label, &function_name)?;
 
-    let model = Model::build(&seed.program, &seed.names, body);
-    let place = Place::of(seed.frame.as_ref(), &function_name);
+    let mut place = Place::of(seed.frame.as_ref(), &function_name);
+    // A function the seed's `ripple` intents rewrite without its frame
+    // stating it: neighbors change it as the head states it, and the
+    // intents, layered in with the seed's frame, derive it again.
+    let guarded = guarded_by_intents(&seed, place, &function_name);
+    let derived = !guarded && derived_by_intents(&seed, &head, place, &function);
+    if guarded {
+        place = Place::Guarded;
+    }
+    let model = match (derived, head.program().body(&function)) {
+        (true, Some(EntityBodyValue::Function(before))) => {
+            place = Place::Derived;
+            Model::build(head.program(), &head_names, before)
+        }
+        _ => Model::build(&seed.program, &seed.names, body),
+    };
     let statement = match place {
         Place::Defined | Place::Patched => seed
             .frame
@@ -389,6 +414,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
         &seed,
         request.public,
         &function_name,
+        guarded,
         &seed_run,
         &generated,
         &ranked,
@@ -396,6 +422,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
     let summary = Summary {
         request,
         uses,
+        derived,
         function: &function_name,
         seed: &seed,
         file: &file,
@@ -1778,6 +1805,13 @@ enum Place {
     Patched,
     /// The seed frame defines the function in `fns`.
     Defined,
+    /// The seed frame does not state the function, and its `ripple`
+    /// intents rewrite it: every change is a `patch` of the block as the
+    /// head states it, which the intents derive again.
+    Derived,
+    /// The seed frame's `guard` intent rewrites the function and refuses
+    /// any frame that restates it: no neighbor can be stated.
+    Guarded,
 }
 
 /// A frame entry's function name.
@@ -1785,6 +1819,62 @@ fn entry_name(entry: &Value) -> Option<&str> {
     ["fn", "function", "name"]
         .iter()
         .find_map(|key| entry.get(*key).and_then(Value::as_str))
+}
+
+/// Whether a `guard` intent of the seed's frame names the function (it
+/// then refuses every frame that restates the function).
+fn guarded_by_intents(seed: &Seed, place: Place, function: &str) -> bool {
+    matches!(place, Place::Unstated { .. })
+        && seed
+            .frame
+            .as_ref()
+            .and_then(|frame| frame.get("ripple"))
+            .and_then(Value::as_array)
+            .is_some_and(|intents| {
+                intents.iter().any(|intent| {
+                    intent.get("guard").is_some()
+                        && intent
+                            .get("in")
+                            .and_then(Value::as_array)
+                            .is_some_and(|names| names.iter().any(|name| name == function))
+                })
+            })
+}
+
+/// Whether the seed's `ripple` intents rewrite a function its frame does
+/// not state: the frame lists intents, does not define, patch or edit the
+/// function, and the seed's function differs from the head's.
+fn derived_by_intents(seed: &Seed, head: &Head, place: Place, function: &EntityId) -> bool {
+    let intents = seed
+        .frame
+        .as_ref()
+        .and_then(|frame| frame.get("ripple"))
+        .and_then(Value::as_array)
+        .is_some_and(|intents| !intents.is_empty());
+    if !intents || place != (Place::Unstated { edits: false }) {
+        return false;
+    }
+    let (now, before) = (&seed.program, head.program());
+    let Some(EntityBodyValue::Function(body)) = before.body(function) else {
+        return false;
+    };
+    let mut owned: Vec<EntityId> = vec![*function];
+    owned.extend(body.parameters.iter().copied());
+    for block in &body.blocks {
+        owned.push(*block);
+        if let Some(EntityBodyValue::Block(block)) = before.body(block) {
+            owned.extend(block.parameters.iter().chain(&block.operations).copied());
+        }
+    }
+    if let Some(EntityBodyValue::Function(after)) = now.body(function) {
+        for block in &after.blocks {
+            owned.push(*block);
+            if let Some(EntityBodyValue::Block(block)) = now.body(block) {
+                owned.extend(block.parameters.iter().chain(&block.operations).copied());
+            }
+        }
+    }
+    owned.iter().any(|id| now.body(id) != before.body(id))
 }
 
 impl Place {
@@ -2278,7 +2368,7 @@ impl Writer<'_> {
             .filter(|stated| stated.blocks.contains_key(&block.leaf));
         let written = match (stated, self.place) {
             (Some(stated), _) => self.write_stated(stated, change)?,
-            (None, Place::Defined) => return None,
+            (None, Place::Defined | Place::Guarded) => return None,
             // An edit layers beside the seed's own edits of the function.
             (None, Place::Unstated { edits: true }) if change.op().is_some() => {
                 self.write_program(change)?
@@ -2924,7 +3014,8 @@ impl Writer<'_> {
             };
             let leaf = names.leaf(id);
             let at = format!("{}.{leaf}", block.leaf);
-            let frame = if self.place == Place::Patched {
+            // An intent refuses an edit of a function it rewrites.
+            let frame = if matches!(self.place, Place::Patched | Place::Derived) {
                 let mut ops = self.restated_ops(index)?;
                 ops[op] = self.render_op(index, &changed, Some(&leaf), literal)?;
                 let term = self.render_term(index, &block.term, None);
@@ -3296,6 +3387,7 @@ fn next_step(
     seed: &Seed,
     public: &str,
     function: &str,
+    guarded: bool,
     seed_run: &Evaluation,
     generated: &Generated,
     ranked: &[usize],
@@ -3323,6 +3415,12 @@ fn next_step(
         .first()
         .map(|position| &generated.neighbors[*position])
     else {
+        if guarded {
+            return format!(
+                "no neighbor was evaluated: the guard intent of {} rewrites {function} and refuses any frame that restates it, so no neighbor layered on it can change {function}; {by_hand} (or apply the guard in its own frame)",
+                seed.label
+            );
+        }
         if generated.neighbors.is_empty() && generated.skipped > 0 {
             return format!(
                 "no neighbor was evaluated: none of the {} changes found can be stated as a frame layered on {} (generated or derived code); restate the blocks of {function} with patch in a frame, then search that; or {by_hand}",
@@ -3367,6 +3465,8 @@ struct Summary<'a> {
     request: &'a Request<'a>,
     /// This search's slot among the attempt's searches.
     uses: u64,
+    /// The function is derived by the seed's `ripple` intents.
+    derived: bool,
     function: &'a str,
     seed: &'a Seed,
     file: &'a CaseFile,
@@ -3449,7 +3549,7 @@ impl Summary<'_> {
             .collect();
         json!({
             "search": {"fn": self.function, "seed": self.seed.label, "use": self.uses,
-                       "searches_per_attempt": SEARCHES_PER_ATTEMPT},
+                       "searches_per_attempt": SEARCHES_PER_ATTEMPT, "derived": self.derived},
             "public": {"file": self.request.public, "sha256": self.file.sha256,
                        "cases": self.file.cases.len(), "for_fn": self.for_function,
                        "unusable": self.file.unusable},
@@ -3487,6 +3587,13 @@ impl Summary<'_> {
         text.push_str(&seed.partial(&self.file.cases));
         text.push_str(&seed.misses(&self.file.cases));
         text.push('\n');
+        if self.derived {
+            let _ = writeln!(
+                text,
+                "derived: the ripple intents of {} rewrite {}; each neighbor is a patch of {} as the head states it, and the intents derive it again",
+                self.seed.label, self.function, self.function
+            );
+        }
         let _ = write!(
             text,
             "public: {}, sha256 {}, {} case(s), {} for {}",

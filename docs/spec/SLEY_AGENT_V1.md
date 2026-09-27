@@ -1019,7 +1019,11 @@ slots:
   switches, shared exits), and any neighbor of an AF1-X seed whose frame
   would name a generated (`__`) entity;
 - a change to a block the seed's frame does not state whose code differs
-  from the head's (code a ripple derivation rewrote);
+  from the head's, except where an `arity` intent made the difference
+  (below);
+- any change to a function a `guard` intent of the seed's frame names: the
+  intent refuses every frame that restates that function, so no neighbor
+  layered on the seed can change it (the `next:` line says so);
 - a permutation of two nested operations (it would reorder their
   evaluation), and a block change beside the seed's own `edit`;
 - a substitution that would replace a nested operation carrying a failure
@@ -1027,6 +1031,16 @@ slots:
   cell operation, anywhere inside it, by a name;
 - `not x -> x` where `x` is an unnamed nested operation (writing it would
   evaluate it twice).
+
+A function that the seed frame's `ripple` intents rewrite while the frame
+does not define, patch or edit it (a caller that an `arity` intent
+rewrites) is searched as the head states it: the generators run over the
+head's function, every change is written as a `patch` of the block, and
+the neighbor is layered on the seed's authored frame with its intents, so
+the derivation runs again on the patch exactly as `try --on <seed>` runs
+it. A value an intent derives (the `value` of `arity`) is not a search
+target. The output marks such a search `derived` and says how neighbors
+are written.
 
 Search then compiles exactly the layered frame, assembles the record and
 validates it with `validate_candidate_bytes`; a layered frame that changes
@@ -1086,7 +1100,9 @@ function, else 1.
 
 The events ledger line of a search carries `search_neighbors`,
 `search_valid`, `search_evaluated` and `search_exhausted` among its `afx`
-counters.
+counters. Its `input_bytes` is the size of the public case file whenever
+that is a readable file, whether the search runs or is refused; otherwise
+it is the command line, as for every command (section 12.8).
 
 `crates/sley-agent/tests/search.rs` executes this section: each generator
 on a small program, a value without a same-typed substitute, the neighbor
@@ -1096,6 +1112,8 @@ refusals, runnable-case checks, determinism, the ranking rule, the
 per-attempt use limit (repeated frames, long `try --on` chains, concurrent
 searches), repeated flags, unstateable and derived code skipped before the
 budget, nested failure routes kept, negations that would duplicate
-evaluation skipped, the wall limit's granularity, `TestCase` evidence, the
-ledger counters, the `search` help example, and wrong opcode, constant,
+evaluation skipped, the wall limit's granularity, `TestCase` evidence,
+callers an `arity` intent rewrites searched and repaired through the
+intent, functions a `guard` intent rewrites skipped, the ledger counters
+and `input_bytes`, the `search` help example, and wrong opcode, constant,
 return value and switch edge repairs applied with `try --on`.

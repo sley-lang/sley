@@ -1549,7 +1549,7 @@ fn changes_no_frame_can_state_are_skipped_before_the_budget() {
             && text.contains("restate the blocks of score with patch"),
         "{text}"
     );
-    // Code a ripple derivation rewrote has no frame of its own.
+    // Code a ripple derivation rewrote: stated as the head states it.
     let temp = workspace("rippled");
     let live = json!({"af1": 1,
      "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "i64",
@@ -1568,9 +1568,15 @@ fn changes_no_frame_can_state_are_skipped_before_the_budget() {
         &json!([{"name": "g1", "function": "g", "args": [5, 3], "expect": 3}]),
     );
     let (_, report) = search(&temp.path, &["g", "--public", &g_public, "--from", "d2"]);
-    assert_eq!(report["counts"]["generated"], 0, "{report:#}");
-    assert_eq!(report["counts"]["refused"], 0);
-    assert!(report["counts"]["skipped"].as_u64().unwrap() > 0);
+    // A caller the arity intent rewrites is searched as the head states it,
+    // in patches the intent derives again: none is refused.
+    assert_eq!(report["search"]["derived"], true, "{report:#}");
+    assert!(
+        report["counts"]["generated"].as_u64().unwrap() > 0,
+        "{report:#}"
+    );
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert_eq!(report["counts"]["skipped"], 0, "{report:#}");
 }
 
 #[test]
@@ -1879,4 +1885,205 @@ fn the_functions_test_cases_run_as_evidence_beside_the_public_cases() {
         text.contains("tests: no TestCase targets diff in the seed; only the public cases ran\n"),
         "{text}"
     );
+}
+
+#[test]
+fn an_arity_seed_searches_the_callers_it_rewrites_and_the_intent_derives_again() {
+    let temp = workspace("arity-seed");
+    // Live callers written in plain AF1; `ship` subtracts where it should add.
+    let live = json!({"af1": 1, "fns": [
+     {"fn": "line_total", "params": [["quantity", "i64"], ["price", "i64"]], "returns": "Result<i64,ArithmeticError>",
+      "blocks": [{"name": "entry", "ops": [["t", "mul", "quantity", "price"]], "term": ["return", "t"]}]},
+     {"fn": "order_total", "params": [["quantity", "i64"], ["price", "i64"]], "returns": "Result<i64,ArithmeticError>",
+      "blocks": [{"name": "entry", "ops": [["t", "call", "line_total", "quantity", "price"]],
+                  "term": ["switch", "t", ["Ok", "ship", "$"], ["Err", "fail", "$"]]},
+                 {"name": "ship", "params": [["v", "i64"]], "ops": [["s", "const", 3], ["r", "sub", "v", "s"]], "term": ["return", "r"]},
+                 {"name": "fail", "params": [["e", "ArithmeticError"]], "ops": [["r", "err", "e"]], "term": ["return", "r"]}]}]});
+    let c1 = seed(&temp.path, &live);
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    // The seed adds a fee parameter; its arity intent passes 1 at every call.
+    let arity = json!({"af1": 1, "afx": 1,
+     "patch": [{"fn": "line_total", "params": [["quantity", "i64"], ["price", "i64"], ["fee", "i64"]],
+                "blocks": {"entry": {"ops": [["t", "mul?", "quantity", "price"]], "term": ["return", ["add", "t", "fee"]]}}}],
+     "ripple": [{"arity": "line_total", "value": 1}]});
+    seed(&temp.path, &arity);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "o1", "function": "order_total", "args": [2, 5], "expect": {"Ok": 14}},
+                {"name": "o2", "function": "order_total", "args": [1, 1], "expect": {"Ok": 5}}]),
+    );
+    let (status, text) = run(
+        &temp.path,
+        &["search", "order_total", "--public", &public, "--from", "d2"],
+    );
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains("derived: the ripple intents of d2@r1 rewrite order_total; each neighbor is a patch of order_total as the head states it, and the intents derive it again\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains(" 1. #1 opcode swap at ship.r: sub -> add (size 1): public 2/2\n"),
+        "{text}"
+    );
+    let (_, report) = search(
+        &temp.path,
+        &["order_total", "--public", &public, "--from", "d2"],
+    );
+    assert_eq!(report["search"]["derived"], true);
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert_eq!(report["counts"]["skipped"], 0, "{report:#}");
+    // Every neighbor is a patch in the seed's dialect; one of the call
+    // block is derived again (the fee still passed).
+    for neighbor in neighbors(&report) {
+        assert!(
+            neighbor["frame"].get("patch").is_some() && neighbor["frame"]["afx"] == 1,
+            "{neighbor:#}"
+        );
+    }
+    let call = find(
+        &report,
+        "operand substitution",
+        "entry.t",
+        "operand 1: price -> quantity",
+    );
+    assert_eq!(call["status"], "evaluated");
+    assert_eq!(
+        call["public"]["outcomes"][0]["actual"],
+        json!({"Ok": 2}),
+        "2*2 + 1 - 3: {call:#}"
+    );
+    let top = &neighbors(&report)[0];
+    let (status, text) = apply(&temp.path, Some("d2@r1"), &top["frame"], &public);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("public: 2/2 passed"), "{text}");
+    // A guard intent refuses every frame that restates the guarded function:
+    // its changes are skipped, and the output says why.
+    let temp = workspace("guard-seed");
+    let base = json!({"af1": 1, "types": [{"name": "SE", "variant": ["Neg", "Big"]}],
+     "fns": [
+     {"fn": "nonneg", "params": [["v", "i64"]], "returns": "Result<i64,SE>",
+      "blocks": [{"name": "entry", "ops": [["zero", "const", 0], ["neg", "lt", "v", "zero"]], "term": ["cond", "neg", "no", "yes"]},
+                 {"name": "no", "ops": [["e", "variant", "SE.Neg"], ["r", "err", "e"]], "term": ["return", "r"]},
+                 {"name": "yes", "ops": [["r", "ok", "v"]], "term": ["return", "r"]}]},
+     {"fn": "f", "params": [["n", "i64"]], "returns": "i64",
+      "blocks": [{"name": "entry", "ops": [["x", "call", "nonneg", "n"]], "term": ["switch", "x", ["Ok", "done", "$"], ["Err", "bad", "$"]]},
+                 {"name": "done", "params": [["v", "i64"]], "term": ["return", "v"]},
+                 {"name": "bad", "params": [["e", "SE"]], "ops": [["m", "const", -1]], "term": ["return", "m"]}]}]});
+    let c1 = seed(&temp.path, &base);
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    let guard = json!({"af1": 1, "afx": 1,
+     "fns": [{"fn": "small", "params": [["n", "i64"]], "returns": "Result<i64,SE>",
+              "blocks": [{"name": "entry", "ops": [["!Big", "if", ["gt", "n", 100]]], "term": ["ok", "n"]}]}],
+     "ripple": [{"guard": "small", "arg": "n", "in": ["f"], "mode": "entry"}]});
+    seed(&temp.path, &guard);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"function": "f", "args": [12], "expect": 13}]),
+    );
+    let (status, text) = run(
+        &temp.path,
+        &["search", "f", "--public", &public, "--from", "d2"],
+    );
+    assert_eq!(status, 1, "{text}");
+    assert!(
+        text.contains("neighbors: 0 generated, 0 kernel-valid, 0 refused, 0 evaluated; "),
+        "{text}"
+    );
+    assert!(
+        text.contains("next: no neighbor was evaluated: the guard intent of d2@r1 rewrites f and refuses any frame that restates it"),
+        "{text}"
+    );
+}
+
+#[test]
+fn an_af1x_seed_leaving_live_af1x_code_unstated_counts_skips_not_refusals() {
+    let temp = workspace("unstated-live");
+    let base = json!({"af1": 1, "afx": 1,
+     "types": [{"name": "E", "variant": ["Neg", "Overflow"]}],
+     "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>",
+       "blocks": [{"name": "entry",
+         "ops": [["!Neg", "if", ["lt", "a", 0]], ["x", "mul?Overflow", "a", "b"], ["y", "add?Overflow", "x", 3]],
+         "term": ["ok", "y"]}]}]});
+    let c1 = seed(&temp.path, &base);
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    let other = json!({"af1": 1, "afx": 1,
+     "fns": [{"fn": "g", "params": [["a", "i64"]], "returns": "Result<i64,E>",
+       "blocks": [{"name": "entry", "ops": [["r", "call?", "f", "a", 2]], "term": ["ok", "r"]}]}]});
+    let c2 = seed(&temp.path, &other);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "q1", "function": "f", "args": [2, 3], "expect": {"Ok": 7}},
+                {"name": "q2", "function": "f", "args": [-1, 3], "expect": {"Err": "Neg"}}]),
+    );
+    let (_, report) = search(&temp.path, &["f", "--public", &public, "--from", &c2]);
+    assert_eq!(report["counts"]["refused"], 0, "{report:#}");
+    assert_eq!(report["counts"]["generated"], 0, "{report:#}");
+    assert!(report["counts"]["skipped"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn a_search_ledger_line_counts_the_case_file_whether_it_runs_or_is_refused() {
+    let temp = workspace("input-bytes");
+    let public = cases(&temp.path, "cases.json", &diff_cases());
+    let size = fs::metadata(&public).unwrap().len();
+    let c1 = seed(&temp.path, &diff_frame());
+    for _ in 0..3 {
+        run(
+            &temp.path,
+            &[
+                "search",
+                "diff",
+                "--public",
+                &public,
+                "--from",
+                &c1,
+                "--max-neighbors",
+                "1",
+            ],
+        );
+    }
+    let (status, _) = run(
+        &temp.path,
+        &["search", "nothing", "--public", &public, "--from", &c1],
+    );
+    assert_eq!(status, 2);
+    let events = fs::read_to_string(temp.path.join(".sley/events.jsonl")).unwrap();
+    let lines: Vec<Value> = events
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .filter(|line| line["cmd"] == "search")
+        .collect();
+    assert_eq!(lines.len(), 4);
+    assert_eq!(lines[2]["refusal"], "AGENT_SEARCH_SEED_INVALID");
+    for line in &lines {
+        assert_eq!(line["input_bytes"], size, "{line}");
+    }
+    // Without a readable case file, the command line.
+    let (status, _) = run(
+        &temp.path,
+        &[
+            "search",
+            "diff",
+            "--public",
+            "/nonexistent.json",
+            "--from",
+            &c1,
+        ],
+    );
+    assert_eq!(status, 2);
+    let events = fs::read_to_string(temp.path.join(".sley/events.jsonl")).unwrap();
+    let last: Value = serde_json::from_str(events.lines().last().unwrap()).unwrap();
+    let words = [
+        "search",
+        "diff",
+        "--public",
+        "/nonexistent.json",
+        "--from",
+        &c1,
+    ];
+    let line_bytes = words.iter().map(|word| word.len()).sum::<usize>() + words.len() - 1;
+    assert_eq!(last["input_bytes"], line_bytes);
 }
