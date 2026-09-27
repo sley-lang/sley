@@ -5,9 +5,10 @@
 //! the transient unit's (`<worker> __native-test-worker <input_path>`,
 //! [`crate::unit::render_transient_unit`]): it reads exactly one
 //! length-delimited [`WorkerRequest`] frame from `<input_path>` (the
-//! daemon-owned read-only input binding) and writes exactly one
-//! length-delimited [`WorkerReply`] frame on stdout (the daemon-owned
-//! bounded channel). Its exit statuses ([`EXIT_MALFORMED`],
+//! daemon-owned read-only input binding). Until N5 wires execution,
+//! it writes one refusal tag and ASCII detail to stdout (the daemon-owned
+//! bounded channel). The eventual successful reply format is still pending.
+//! Its exit statuses ([`EXIT_MALFORMED`],
 //! [`EXIT_NOT_WIRED`], [`EXIT_INPUT_UNREADABLE`], [`EXIT_OUTPUT_FAILED`])
 //! are disjoint from the CLI's own statuses 2 through 5, so the launcher
 //! can tell a worker refusal from a CLI usage or input failure.
@@ -341,11 +342,15 @@ pub fn run_stdio(input: &mut dyn std::io::Read, output: &mut dyn std::io::Write)
         return write_refusal(output, WorkerRefusal::Malformed("SCB_MAGIC_INVALID"));
     }
     let len = u32::from_be_bytes(header[8..12].try_into().unwrap_or([0; 4]));
-    if len as usize > MAX_WORKER_FRAME {
+    if len as usize > MAX_WORKER_FRAME - header.len() {
         return write_refusal(output, WorkerRefusal::Malformed("SCB_RESOURCE_LIMIT"));
     }
     let mut body = vec![0_u8; len as usize];
     if input.read_exact(&mut body).is_err() {
+        return write_refusal(output, WorkerRefusal::Malformed("SCB_LENGTH_OVERFLOW"));
+    }
+    let mut trailing = [0_u8; 1];
+    if !matches!(input.read(&mut trailing), Ok(0)) {
         return write_refusal(output, WorkerRefusal::Malformed("SCB_LENGTH_OVERFLOW"));
     }
     let mut frame = header.to_vec();
@@ -450,6 +455,19 @@ mod tests {
         let mut bad = std::io::Cursor::new(vec![0x00; 4]);
         let mut output = Vec::new();
         assert_eq!(run_stdio(&mut bad, &mut output), EXIT_MALFORMED);
+    }
+
+    #[test]
+    fn stdio_entry_refuses_trailing_bytes_after_one_frame() {
+        let mut frame = request().encode_frame().expect("encodes");
+        frame.push(0x42);
+        let mut output = Vec::new();
+        assert_eq!(
+            run_stdio(&mut std::io::Cursor::new(frame), &mut output),
+            EXIT_MALFORMED
+        );
+        assert_eq!(u32::from_be_bytes(output[..4].try_into().unwrap()), 1);
+        assert_eq!(&output[4..], b"SCB_LENGTH_OVERFLOW");
     }
 
     #[test]
