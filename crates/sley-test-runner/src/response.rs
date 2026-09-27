@@ -155,7 +155,9 @@ impl RunRequest {
     ///
     /// # Errors
     ///
-    /// Refuses absent or cross-boundary substituted evidence.
+    /// Refuses absent or cross-boundary substituted evidence. Successful-run
+    /// cap and deadline checks apply only to `Complete`; a signed diagnostic
+    /// refusal may have no installed cap or worker output.
     pub fn verified_response_evidence<'a>(
         &self,
         response: &'a RunResponse,
@@ -166,21 +168,6 @@ impl RunRequest {
         let report = evidence.report();
         let attestation = evidence.attestation();
         let config = evidence.supervisor_config();
-        let config_parts = config.parts();
-        if !config_parts.page_size.is_power_of_two() {
-            return Err(mismatch());
-        }
-        let (_, expected_cap) =
-            floor_page_cap(self.declared_limits.memory_bytes, config_parts.page_size)
-                .map_err(|_| mismatch())?;
-        let expected_runtime = runtime_max_usec(self.wall_ms).map_err(|_| mismatch())?;
-        let property = |name: &str| {
-            config
-                .properties()
-                .iter()
-                .find(|property| property.name == name)
-                .map(|property| property.value.as_str())
-        };
         if report.plan_id() != self.plan_id
             || report.test_entity() != self.test_entity
             || report.test_object() != self.test_object
@@ -192,9 +179,6 @@ impl RunRequest {
             || attestation.principal() != self.principal
             || attestation.parts().caller_uid != caller_uid
             || attestation.declared_limits() != self.declared_limits
-            || attestation.installed_memory_cap() != expected_cap
-            || property("MemoryMax") != Some(expected_cap.to_string().as_str())
-            || property("RuntimeMaxUSec") != Some(expected_runtime.to_string().as_str())
             || !config.callers().iter().any(|caller| {
                 caller.uid == caller_uid
                     && caller.workspace == self.workspace
@@ -205,6 +189,29 @@ impl RunRequest {
         }
         if response.status == RunStatus::Complete {
             if !attestation.claims_success() || attestation.execution_report_id().is_none() {
+                return Err(mismatch());
+            }
+            let config_parts = config.parts();
+            if !config_parts.page_size.is_power_of_two() {
+                return Err(mismatch());
+            }
+            let (_, expected_cap) =
+                floor_page_cap(self.declared_limits.memory_bytes, config_parts.page_size)
+                    .map_err(|_| mismatch())?;
+            let expected_runtime = runtime_max_usec(self.wall_ms).map_err(|_| mismatch())?;
+            let expected_cap_text = expected_cap.to_string();
+            let expected_runtime_text = expected_runtime.to_string();
+            let property = |name: &str| {
+                config
+                    .properties()
+                    .iter()
+                    .find(|property| property.name == name)
+                    .map(|property| property.value.as_str())
+            };
+            if attestation.installed_memory_cap() != expected_cap
+                || property("MemoryMax") != Some(expected_cap_text.as_str())
+                || property("RuntimeMaxUSec") != Some(expected_runtime_text.as_str())
+            {
                 return Err(mismatch());
             }
             let events = attestation.memory_events();
@@ -235,8 +242,9 @@ mod tests {
     use crate::unit::REQUIRED_PROPERTIES;
     use crate::worker::WorkerRequest;
     use sley_tests::{
-        Caller, MeasuredTestAttestationParts, MemoryEvents, Property, SupervisorConfigParts,
-        TERMINATION_COMPLETE, measurement_signature_preimage, unsigned_record_prefix,
+        Caller, MeasuredTestAttestationParts, MemoryEvents, NativeExecutionReportParts, Property,
+        REJECT_PHASE_EXECUTION, RejectedEvidence, SupervisorConfigParts, TERMINATION_COMPLETE,
+        TERMINATION_PRELAUNCH_REFUSED, measurement_signature_preimage, unsigned_record_prefix,
     };
 
     fn complete_fixture() -> (RunRequest, RunResponse) {
@@ -345,6 +353,60 @@ mod tests {
             Some(RunEvidence::build(report, attestation, config).expect("evidence"));
     }
 
+    fn diagnostic_fixture() -> (RunRequest, RunResponse) {
+        let (request, complete) = complete_fixture();
+        let old = complete.evidence.expect("complete evidence");
+        let selected = request.verified_program().expect("program").selected();
+        let report = NativeExecutionReportV1::build(NativeExecutionReportParts {
+            plan_id: request.plan_id,
+            test_entity: request.test_entity,
+            test_object: request.test_object,
+            target_object: selected.target_object,
+            evidence: NativeExecutionEvidence::Rejected(
+                RejectedEvidence::from_parts(
+                    REJECT_PHASE_EXECUTION,
+                    29_211,
+                    "NATIVE_TEST_EXECUTION_REJECTED",
+                )
+                .expect("rejection"),
+            ),
+        })
+        .expect("rejected report");
+        let mut config_parts = old.supervisor_config().parts().clone();
+        config_parts
+            .properties
+            .iter_mut()
+            .find(|property| property.name == "MemoryMax")
+            .expect("memory property")
+            .value = "8192".to_owned();
+        let config = SupervisorConfigV1::build(config_parts).expect("diagnostic config");
+        let mut parts = old.attestation().parts().clone();
+        parts.supervisor_config_id = *config.id().as_bytes();
+        parts.execution_report_id = None;
+        parts.installed_memory_cap = 0;
+        parts.elapsed_ns = 0;
+        parts.measured_memory_peak = 0;
+        parts.termination = TERMINATION_PRELAUNCH_REFUSED;
+        parts.complete_output = false;
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned attestation");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signing preimage");
+        parts.signature = Ed25519MeasurementSigner::from_secret_bytes([3; 32])
+            .sign(&preimage)
+            .expect("test signature");
+        let attestation = MeasuredTestAttestationV1::build(parts).expect("attestation");
+        let evidence =
+            RunEvidence::build(report, attestation, config).expect("diagnostic evidence");
+        (
+            request,
+            RunResponse {
+                status: RunStatus::Refused,
+                code: 7,
+                evidence: Some(evidence),
+            },
+        )
+    }
+
     #[test]
     fn complete_response_carries_three_bound_artifacts() {
         let (request, response) = complete_fixture();
@@ -440,5 +502,21 @@ mod tests {
                 .code(),
             ScbErrorCode::ContractUnknown
         );
+    }
+
+    #[test]
+    fn signed_prelaunch_refusal_preserves_diagnostics_without_an_installed_cap() {
+        let (request, response) = diagnostic_fixture();
+        let frame = response.encode_frame().expect("diagnostic response");
+        let parsed = RunResponse::decode_frame(&frame).expect("parsed diagnostics");
+        let evidence = request
+            .verified_response_evidence(&parsed, 1_000)
+            .expect("request-bound diagnostic evidence");
+        assert!(!evidence.attestation().claims_success());
+        assert_eq!(evidence.attestation().execution_report_id(), None);
+        assert!(matches!(
+            evidence.report().evidence(),
+            NativeExecutionEvidence::Rejected(_)
+        ));
     }
 }

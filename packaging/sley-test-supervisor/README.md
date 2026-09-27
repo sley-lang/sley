@@ -43,7 +43,8 @@ wall budget, and staged path. This path is locally tested without launching a
 privileged unit. The internal response now carries a bounded canonical report,
 measured attestation, and supervisor configuration together, with exact
 identity, nonce, caller, memory, and deadline consistency checks; parsing does
-not verify signature trust. The current service still returns only a refusal.
+not verify signature trust. Signed prelaunch diagnostics remain representable
+without an installed memory cap. The current service still returns only a refusal.
 Replay/diagnostic artifact sourcing,
 measured launch, and admission still need to be wired before either mode can
 execute through the service.
