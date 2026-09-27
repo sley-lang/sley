@@ -626,3 +626,890 @@ fn every_construct_matches_its_explicit_equivalent() {
         assert_eq!(extended.call(function, &args), want, "{function}{args:?}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Generated expressions against a reference evaluator
+// ---------------------------------------------------------------------------
+
+/// xorshift64: a small deterministic generator (no external crates).
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+
+    fn below(&mut self, n: usize) -> usize {
+        usize::try_from(self.next() % n as u64).unwrap()
+    }
+
+    fn pick<T: Copy>(&mut self, items: &[T]) -> T {
+        items[self.below(items.len())]
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Arith {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+#[derive(Clone, Debug)]
+enum Expr {
+    Param(usize),
+    Lit(i64, bool),
+    /// Operation, failure case (`None`: bare `?`), operands.
+    Op(Arith, Option<usize>, Box<Expr>, Box<Expr>),
+}
+
+const LITERALS: [i64; 14] = [
+    0,
+    1,
+    -1,
+    2,
+    3,
+    -7,
+    1000,
+    1 << 62,
+    -(1 << 62),
+    3_037_000_500,
+    i64::MAX,
+    i64::MIN,
+    i64::MAX - 1,
+    i64::MIN + 1,
+];
+const INPUTS: [i64; 10] = [
+    i64::MIN,
+    i64::MAX,
+    0,
+    -1,
+    1,
+    2,
+    -2,
+    1 << 32,
+    3_037_000_500,
+    1 << 62,
+];
+
+fn generate(rng: &mut Rng, depth: usize, bare: bool) -> Expr {
+    let leaf = depth == 0 || (depth < 4 && rng.below(3) == 0);
+    if leaf {
+        return if rng.below(2) == 0 {
+            Expr::Param(rng.below(3))
+        } else {
+            Expr::Lit(rng.pick(&LITERALS), rng.below(4) == 0)
+        };
+    }
+    let op = rng.pick(&[Arith::Add, Arith::Sub, Arith::Mul, Arith::Div]);
+    let case = (!bare).then(|| rng.below(4));
+    let left = generate(rng, depth - 1, bare);
+    let right = generate(rng, depth - 1, bare);
+    Expr::Op(op, case, Box::new(left), Box::new(right))
+}
+
+/// Whether anything in the tree fixes the integer type.
+fn anchored(expr: &Expr) -> bool {
+    match expr {
+        Expr::Param(_) | Expr::Lit(_, true) => true,
+        Expr::Lit(_, false) => false,
+        Expr::Op(_, _, left, right) => anchored(left) || anchored(right),
+    }
+}
+
+/// Types the leftmost literal, so the tree has a known type.
+fn anchor(expr: &mut Expr) -> bool {
+    match expr {
+        Expr::Lit(_, typed) => {
+            *typed = true;
+            true
+        }
+        Expr::Param(_) => false,
+        Expr::Op(_, _, left, right) => anchor(left) || anchor(right),
+    }
+}
+
+fn operand_json(expr: &Expr) -> Value {
+    match expr {
+        Expr::Param(index) => json!(["a", "b", "c"][*index]),
+        Expr::Lit(value, false) => json!(value),
+        Expr::Lit(value, true) => json!({"type": "i64", "value": value}),
+        Expr::Op(op, case, left, right) => {
+            let mut items = vec![json!(op_word(*op, *case))];
+            items.push(operand_json(left));
+            items.push(operand_json(right));
+            Value::Array(items)
+        }
+    }
+}
+
+fn op_word(op: Arith, case: Option<usize>) -> String {
+    let word = match op {
+        Arith::Add => "add",
+        Arith::Sub => "sub",
+        Arith::Mul => "mul",
+        Arith::Div => "div",
+    };
+    match case {
+        None => format!("{word}?"),
+        Some(3) => format!("{word}?P"),
+        Some(case) => format!("{word}?C{case}"),
+    }
+}
+
+/// Left to right, depth first; the first failure takes its operation's
+/// route.
+fn evaluate(expr: &Expr, args: &[i64; 3]) -> Result<i64, (Option<usize>, &'static str)> {
+    match expr {
+        Expr::Param(index) => Ok(args[*index]),
+        Expr::Lit(value, _) => Ok(*value),
+        Expr::Op(op, case, left, right) => {
+            let left = evaluate(left, args)?;
+            let right = evaluate(right, args)?;
+            let result = match op {
+                Arith::Add => left.checked_add(right).ok_or("Overflow"),
+                Arith::Sub => left.checked_sub(right).ok_or("Overflow"),
+                Arith::Mul => left.checked_mul(right).ok_or("Overflow"),
+                Arith::Div if right == 0 => Err("DivideByZero"),
+                Arith::Div => left.checked_div(right).ok_or("Overflow"),
+            };
+            result.map_err(|kind| (*case, kind))
+        }
+    }
+}
+
+fn expected_json(result: Result<i64, (Option<usize>, &'static str)>) -> Value {
+    match result {
+        Ok(value) => json!({"Ok": value}),
+        Err((None, kind)) => json!({"Err": {"ArithmeticError": kind}}),
+        Err((Some(3), kind)) => json!({"Err": {"P": {"ArithmeticError": kind}}}),
+        Err((Some(case), _)) => json!({"Err": format!("C{case}")}),
+    }
+}
+
+/// One generated function in one of three written forms.
+fn generated_function(name: &str, expr: &Expr, bare: bool, form: usize) -> Value {
+    let returns = if bare {
+        "Result<i64,ArithmeticError>"
+    } else {
+        "Result<i64,E>"
+    };
+    // Forms 3 and 4 name the operands' operations in the block (their
+    // results are referenced across the generated pieces); form 4 runs in a
+    // second block whose parameters are derived edge arguments and are
+    // threaded through every piece.
+    let named = |block: &str| -> Value {
+        let Expr::Op(op, case, left, right) = expr else {
+            unreachable!("the root is an operation")
+        };
+        let mut ops = Vec::new();
+        let mut operand = |label: &str, side: &Expr| match side {
+            Expr::Op(op, case, l, r) => {
+                ops.push(json!([
+                    label,
+                    op_word(*op, *case),
+                    operand_json(l),
+                    operand_json(r)
+                ]));
+                json!(label)
+            }
+            other => operand_json(other),
+        };
+        let left = operand("l", left);
+        let right = operand("m", right);
+        ops.push(json!(["r", op_word(*op, *case), left, right]));
+        json!({"name": block, "params": if block == "entry" { json!([]) } else { params(&["a", "b", "c"], "i64") },
+               "ops": ops, "term": ["ok", "r"]})
+    };
+    let blocks = match (form, expr) {
+        (0, Expr::Op(op, case, left, right)) => json!([{"name": "entry",
+            "ops": [["r", op_word(*op, *case), operand_json(left), operand_json(right)]],
+            "term": ["ok", "r"]}]),
+        (1, _) => json!([{"name": "entry", "term": ["ok", operand_json(expr)]}]),
+        (2, _) => json!([{"name": "entry", "term": ["return", ["ok", operand_json(expr)]]}]),
+        (3, _) => json!([named("entry")]),
+        _ => json!([{"name": "entry", "term": ["br", "work"]}, named("work")]),
+    };
+    json!({"fn": name, "params": params(&["a", "b", "c"], "i64"), "returns": returns, "blocks": blocks})
+}
+
+#[test]
+fn generated_expressions_match_a_reference_evaluator() {
+    let temp = workspace("generated");
+    let mut rng = Rng(0x5eed_2026_0927_af1d);
+    let mut cases = 0;
+    let mut failures = std::collections::BTreeMap::new();
+    for _frame in 0..8 {
+        let mut functions = Vec::new();
+        let mut trees = Vec::new();
+        for index in 0..40 {
+            let bare = rng.below(4) == 0;
+            let depth = 1 + rng.below(5);
+            let mut expr = generate(&mut rng, depth, bare);
+            if !matches!(expr, Expr::Op(..)) {
+                expr = Expr::Op(
+                    Arith::Add,
+                    (!bare).then_some(0),
+                    Box::new(expr),
+                    Box::new(Expr::Param(0)),
+                );
+            }
+            let form = rng.below(5);
+            if form >= 3
+                && let Expr::Op(_, _, left, right) = &mut expr
+            {
+                // A named operation takes no type from its user: each named
+                // subtree needs its own anchor.
+                for side in [left, right] {
+                    if matches!(**side, Expr::Op(..)) && !anchored(side) {
+                        anchor(side);
+                    }
+                }
+            }
+            if !anchored(&expr) {
+                anchor(&mut expr);
+            }
+            let name = format!("g{index}");
+            functions.push(generated_function(&name, &expr, bare, form));
+            trees.push((name, expr));
+        }
+        let frame = json!({"af1": 1, "afx": 1,
+            "types": [{"name": "E", "variant": ["C0", "C1", "C2", ["P", "ArithmeticError"]]}],
+            "fns": functions});
+        let mut runner = Runner::new(&temp.path, &frame);
+        for (name, expr) in &trees {
+            for _ in 0..12 {
+                let args = [
+                    rng.pick(&INPUTS),
+                    rng.pick(&INPUTS),
+                    if rng.below(2) == 0 {
+                        rng.pick(&INPUTS)
+                    } else {
+                        i64::from_ne_bytes(rng.next().to_ne_bytes())
+                    },
+                ];
+                let want = expected_json(evaluate(expr, &args));
+                let got = runner.call(name, &args.map(Value::from));
+                assert_eq!(got, want, "{name} {args:?}: {}", operand_json(expr));
+                *failures.entry(want.get("Err").is_some()).or_insert(0) += 1;
+                cases += 1;
+            }
+        }
+    }
+    assert_eq!(cases, 8 * 40 * 12);
+    // Both outcomes are well represented.
+    assert!(
+        failures[&true] > 300 && failures[&false] > 300,
+        "{failures:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Refusals: ambiguity, scope, bounds
+// ---------------------------------------------------------------------------
+
+fn one_function(returns: &str, fn_params: &Value, blocks: &Value) -> Value {
+    json!({"af1": 1, "afx": 1, "types": [error_type()],
+           "fns": [{"fn": "f", "params": fn_params, "returns": returns, "blocks": blocks}]})
+}
+
+fn assert_refused(dir: &Path, frame: &Value, symbol: &str, needles: &[&str]) {
+    let (got, detail) = refused(dir, frame);
+    assert_eq!(got, symbol, "{detail}");
+    for needle in needles {
+        assert!(detail.contains(needle), "missing `{needle}` in: {detail}");
+    }
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn ambiguous_or_unsupported_failure_routes_are_refused() {
+    let temp = workspace("routes");
+    let ab = params(&["a", "b"], "i64");
+    let result = "Result<i64,E>";
+    // A name that is both a block and a case.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add?A", "a", "b"]], "term": ["ok", "x"]},
+            {"name": "A", "term": ["ok", "a"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &["/fns/0/blocks/0/ops/0: `A` names both a block of `f` and a case of E"],
+    );
+    // A handler whose first parameter is not the failure payload.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add?h", "a", "b"]], "term": ["ok", "x"]},
+            {"name": "h", "params": [["n", "i64"]], "term": ["ok", "n"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &["handler `h` starts with `n: i64`, but the failure payload is ArithmeticError"],
+    );
+    // A payload case of another type, and None into a payload case.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add?Code", "a", "b"]], "term": ["ok", "x"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &["case `Code` carries a i64, but the failure payload here is ArithmeticError"],
+    );
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &json!([["i", "u64"]]),
+            &json!([
+            {"name": "entry", "ops": [["v", "vec", {"type": "i64", "value": 1}], ["x", "vec_get?Code", "v", "i"]], "term": ["ok", "x"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &["a None has no payload to pass"],
+    );
+    // `?` on a value that is not a Result or an Option.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["c", "lt?A", "a", "b"]], "term": ["ok", "a"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &["`lt?` propagates the failure of a Result or an Option, but `lt` gives bool"],
+    );
+    // A bare `?` whose failure type is not the function's.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add?", "a", "b"]], "term": ["ok", "x"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &["name a case: op?Case, or a handler block"],
+    );
+    // Neither a case nor a block; `fail` of a block; exit payload rules.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add?Nope", "a", "b"], ["!A", "if", ["lt", "a", 0], "a"],
+                                      ["!Code", "if", ["gt", "a", 9]]],
+             "term": ["cond", ["lt", "a", "b"], "l", "m"]},
+            {"name": "l", "term": ["fail", "m"]},
+            {"name": "m", "term": ["fail", "Code"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &[
+            "`Nope` is neither a block of `f` nor a case of its error type (cases of E: Ov, Un, Dz, A, B, C, Arith, Code)",
+            "/fns/0/blocks/0/ops/1: case `A` carries no payload",
+            "/fns/0/blocks/0/ops/2: case `Code` carries a i64: add it",
+            "/fns/0/blocks/1/term: `m` is not a case of the error type of `f`",
+            "to go to block `m`, use [\"br\", \"m\"]",
+            "/fns/0/blocks/2/term: case `Code` carries a i64: write [\"fail\", \"Code\", payload]",
+        ],
+    );
+    // `ok` needs a Result function.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Option<i64>",
+            &ab,
+            &json!([{"name": "entry", "term": ["ok", "a"]}]),
+        ),
+        "AGENT_X_PROPAGATION",
+        &["[\"ok\", v] returns a Result, but `f` does not return one"],
+    );
+}
+
+#[test]
+fn literals_nesting_and_names_follow_the_dialect_rules() {
+    let temp = workspace("forms");
+    let ab = params(&["a", "b"], "i64");
+    // A literal nothing types.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,E>",
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add?A", 1, 2]], "term": ["ok", "x"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/fns/0/blocks/0/ops/0/2: nothing here fixes the type of the literal 1: state it, e.g. {\"type\": \"i64\", \"value\": 1}",
+        ],
+    );
+    // A nested operation where it would run on one path only.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,E>",
+            &ab,
+            &json!([
+            {"name": "entry", "term": ["cond", ["lt", "a", "b"], ["t", ["add?A", "a", "b"]], ["t", 0]]},
+            {"name": "t", "params": [["v", "i64"]], "term": ["ok", "v"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/fns/0/blocks/0/term/2/1: only names and literals may appear here",
+            "name the operation in the target block",
+        ],
+    );
+    // `__` is reserved for generated names.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "i64",
+            &json!([["a__b", "i64"]]),
+            &json!([
+            {"name": "entry__x", "ops": [["y__z", "const", 1]], "term": ["return", "a__b"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/fns/0/params/0: `a__b` contains `__`, which is reserved for generated names",
+            "/fns/0/blocks/0: `entry__x` contains `__`",
+            "/fns/0/blocks/0/ops/0: `y__z` contains `__`",
+        ],
+    );
+    // `edit.with` stays plain AF1; `ripple` is not enabled; "afx" is 1.
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "edit": [{"fn": "f", "replace_op": "entry.x", "with": ["add", "a", 1]}]}),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/edit/0/with: an edit replaces one operation with plain AF1",
+            "use patch to restate the block",
+        ],
+    );
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "ripple": [{"intent": "arity"}]}),
+        "AGENT_RIPPLE_INTENT_UNKNOWN",
+        &["/ripple: ripple is not enabled in this build"],
+    );
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 2}),
+        "AGENT_FRAME_INVALID",
+        &["/afx: declare \"afx\": 1"],
+    );
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "bogus": []}),
+        "AGENT_FRAME_INVALID",
+        &["/bogus: unknown frame key"],
+    );
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn names_resolve_only_to_unique_available_values() {
+    let temp = workspace("scope");
+    let ab = params(&["a", "b"], "i64");
+    let result = "Result<i64,E>";
+    // Several definers at a join.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "term": ["cond", ["lt", "a", "b"], "left", "right"]},
+            {"name": "left", "ops": [["t", "sub", "b", "a"]], "term": ["br", "done"]},
+            {"name": "right", "ops": [["t", "sub", "a", "b"]], "term": ["br", "done"]},
+            {"name": "done", "ops": [["r", "add", "t", "a"]], "term": ["return", "t"]}]),
+        ),
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/3/ops/0/2: several blocks define `t` (left, right), so a plain `t` is ambiguous in `done`",
+        ],
+    );
+    // A definer that does not dominate.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "term": ["cond", ["lt", "a", "b"], "left", "done"]},
+            {"name": "left", "ops": [["t", "lt", "b", "a"]], "term": ["br", "done"]},
+            {"name": "done", "term": ["cond", "t", ["fin", "a"], ["fin", "b"]]},
+            {"name": "fin", "params": [["v", "i64"]], "term": ["ok", "v"]}]),
+        ),
+        "AGENT_X_SCOPE",
+        &["`t` is defined in block `left`, which does not dominate this point of `done`"],
+    );
+    // A definer where the name is a parameter or an unwrapped value.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["s", "add?Ov", "a", "b"]], "term": ["br", "next", "a"]},
+            {"name": "next", "params": [["q", "i64"]], "term": ["br", "last"]},
+            {"name": "last", "ops": [["x", "add?Ov", "q", "s"]], "term": ["ok", "x"]}]),
+        ),
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/2/ops/0/2: `q` is a parameter of block `next`",
+            "declare `q` as a parameter of `last`; its edge argument is derived",
+            "/fns/0/blocks/2/ops/0/3: `s` is a parameter of block `entry` (or the value a checked operation unwraps there)",
+        ],
+    );
+    // Use before definition in the same block.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["y", "add?Ov", "x", "a"], ["x", "add?Ov", "a", "b"]], "term": ["ok", "y"]}]),
+        ),
+        "AGENT_X_SCOPE",
+        &["/fns/0/blocks/0/ops/0/2: `x` is used before its definition in block `entry`"],
+    );
+    // A missing predecessor value: an obligation naming the parameter, its
+    // type and the values of that type available there.
+    let frame = one_function(
+        result,
+        &ab,
+        &json!([
+        {"name": "entry", "ops": [["s", "add?Ov", "a", "b"], ["flag", "lt", "a", "b"]], "term": ["br", "next"]},
+        {"name": "next", "params": [["total", "i64"]], "term": ["ok", "total"]}]),
+    );
+    assert_refused(
+        &temp.path,
+        &frame,
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/0/term: block `next` takes `total: i64`, and no value named `total` is available here: pass it explicitly (values of that type here: s: i64, a: i64, b: i64)",
+        ],
+    );
+    let expansion = expand(&temp.path, &frame);
+    let obligation = &expansion.obligations[0];
+    assert_eq!(obligation.expected.as_deref(), Some("i64"));
+    assert_eq!(
+        obligation.available.clone().unwrap(),
+        ["s: i64", "a: i64", "b: i64"]
+    );
+    // A loop edge never passes a value back to the block that defines it.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &json!([["n", "i64"]]),
+            &json!([
+            {"name": "entry", "term": ["br", "spin", 0]},
+            {"name": "spin", "params": [["i", "i64"]], "ops": [["j", "add?Ov", "i", 1]],
+             "term": ["cond", ["gt", "j", "n"], ["fin", "j"], "spin"]},
+            {"name": "fin", "params": [["v", "i64"]], "term": ["ok", "v"]}]),
+        ),
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/1/term: the edge back to `spin` would pass `i` from `spin` itself (a loop edge)",
+        ],
+    );
+    // An explicit `b.x` of another block's parameter.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "term": ["br", "next", "a"]},
+            {"name": "next", "params": [["q", "i64"]], "term": ["br", "last"]},
+            {"name": "last", "term": ["ok", "next.q"]}]),
+        ),
+        "AGENT_X_SCOPE",
+        &["/fns/0/blocks/2/term/1: `next.q` is a parameter of block `next`"],
+    );
+    // Problems of several symbols: the first decides the refusal, the
+    // others carry their own symbol.
+    let (symbol, detail) = refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["y", "add?Ov", "x", "a"], ["x", "add?Ov", "a", 1], ["z", "sub?Un", 1, 2]], "term": ["ok", "y"]}]),
+        ),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE");
+    assert!(detail.contains("(1 of 3 problems)"), "{detail}");
+    assert!(
+        detail.contains(
+            "\n  [AGENT_FRAME_INVALID] /fns/0/blocks/0/ops/2/2: nothing here fixes the type"
+        ),
+        "{detail}"
+    );
+}
+
+#[test]
+fn qualification_threading_and_generated_names_are_visible_in_the_expansion() {
+    let temp = workspace("naming");
+    let frame = json!({"af1": 1, "afx": 1, "types": [error_type()], "fns": [
+      {"fn": "b__t0", "params": [], "returns": "i64", "blocks": [{"name": "entry", "ops": [["z", "const", 0]], "term": ["return", "z"]}]},
+      {"fn": "f", "params": params(&["x", "y"], "i64"), "returns": "Result<i64,E>", "blocks": [
+        {"name": "b", "params": [], "ops": [["k", "lt", "x", "y"], ["if0", "add?Ov", "x", 1], ["big", "gt", "if0", 100],
+                                           ["!A", "if", ["lt", "if0", 0]]],
+         "term": ["br", "next", ["add?Ov", "if0", 2]]},
+        {"name": "next", "params": [["w", "i64"]], "term": ["cond", "k", ["fin", "w"], ["other", "w"]]},
+        {"name": "other", "params": [["w", "i64"]], "term": ["cond", "big", ["fin", 7], ["fin", "w"]]},
+        {"name": "fin", "params": [["v", "i64"]], "term": ["ok", "v"]}]}]});
+    let expansion = expand(&temp.path, &frame);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let blocks = &expansion.frame["fns"][1]["blocks"];
+    let names: Vec<&str> = blocks
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|block| block["name"].as_str().unwrap())
+        .collect();
+    // Authored blocks keep their places; generated pieces follow; a
+    // collision takes the next suffix.
+    assert_eq!(
+        names,
+        [
+            "b",
+            "next",
+            "other",
+            "fin",
+            "b__if0",
+            "b__if0_2",
+            "b__b__t0_2",
+            "__fail_Ov",
+            "__fail_A"
+        ]
+    );
+    // The terminator's nested value would collide with the function `b__t0`.
+    let last = &blocks[5];
+    assert_eq!(last["ops"][1][0], json!("b__t0_2__r"), "{last}");
+    assert_eq!(
+        last["ops"][0],
+        json!(["b__t0_2__a1", "const", {"type": "i64", "value": 2}])
+    );
+    // X4: `k` from the first piece, `big` from the piece that holds it.
+    assert_eq!(blocks[1]["term"][1], json!("b.k"));
+    assert_eq!(blocks[2]["term"][1], json!("b__if0.big"));
+    // The unwrapped value is threaded into the next piece.
+    assert_eq!(blocks[5]["params"], json!([["if0", "i64"]]));
+    assert_eq!(
+        expansion.map.origin("f", "b__if0_2"),
+        Some("/fns/1/blocks/0/ops/3")
+    );
+    assert_eq!(expansion.stats.qualified, 2);
+    let mut runner = Runner::new(&temp.path, &frame);
+    assert_eq!(runner.call("f", &[json!(1), json!(5)]), json!({"Ok": 4}));
+    assert_eq!(runner.call("f", &[json!(500), json!(5)]), json!({"Ok": 7}));
+    assert_eq!(runner.call("f", &[json!(9), json!(5)]), json!({"Ok": 12}));
+    assert_eq!(
+        runner.call("f", &[json!(-9), json!(5)]),
+        json!({"Err": "A"})
+    );
+    assert_eq!(
+        runner.call("f", &[json!(i64::MAX), json!(5)]),
+        json!({"Err": "Ov"})
+    );
+    assert_eq!(runner.call("b__t0", &[]), json!(0));
+}
+
+#[test]
+fn explicit_edges_are_never_repaired() {
+    let temp = workspace("edges");
+    let ab = params(&["a", "b"], "i64");
+    let result = "Result<i64,E>";
+    // Too many arguments: refused as authored, with the expanded pointer.
+    let frame = one_function(
+        result,
+        &ab,
+        &json!([
+        {"name": "entry", "ops": [["s", "add?Ov", "a", "b"]], "term": ["br", "done", "s", "a"]},
+        {"name": "done", "params": [["v", "i64"]], "term": ["ok", "v"]}]),
+    );
+    assert_eq!(
+        expand(&temp.path, &frame).frame["fns"][0]["blocks"][2]["term"],
+        json!(["br", "done", "s", "a"])
+    );
+    assert_refused(
+        &temp.path,
+        &frame,
+        "AGENT_FRAME_INVALID",
+        &[
+            "/fns/0/blocks/0/term: block `done` takes 1 argument(s) (v: i64); this edge passes 2 [expanded /fns/0/blocks/2/term]",
+        ],
+    );
+    // A wrongly typed explicit argument is not replaced by a fitting value.
+    let frame = one_function(
+        result,
+        &ab,
+        &json!([
+        {"name": "entry", "ops": [["s", "add?Ov", "a", "b"], ["c", "lt", "a", "b"]], "term": ["br", "done", "c"]},
+        {"name": "done", "params": [["s", "i64"]], "term": ["ok", "s"]}]),
+    );
+    assert_refused(
+        &temp.path,
+        &frame,
+        "AGENT_FRAME_INVALID",
+        &["/fns/0/blocks/0/term: `c` is bool but parameter `s` of block `done` is i64"],
+    );
+    // A list-wrapped argument keeps its refusal.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            result,
+            &ab,
+            &json!([
+            {"name": "entry", "term": ["br", ["done", ["a"]]]},
+            {"name": "done", "params": [["v", "i64"]], "term": ["ok", "v"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &["edge arguments are value names"],
+    );
+}
+
+#[test]
+fn diagnostics_point_at_the_authored_frame() {
+    let temp = workspace("diagnostics");
+    let ab = params(&["a", "b"], "i64");
+    // A problem in a hoisted nested operation names the nested operand.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,ArithmeticError>",
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add", "a", ["field", "Nope.x", "a"]]], "term": ["return", "x"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &["/fns/0/blocks/0/ops/0/3: no type `Nope` [expanded /fns/0/blocks/0/ops/0]"],
+    );
+    // A problem in a checked operation names the authored operation.
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,E>",
+            &ab,
+            &json!([
+            {"name": "entry", "ops": [["x", "add?Ov", "a", ["lt", "a", "b"]]], "term": ["ok", "x"]}]),
+        ),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/fns/0/blocks/0/ops/0: the operands of `add` must have one type: `a` is i64, `x__a1` is bool [expanded /fns/0/blocks/0/ops/1]",
+        ],
+    );
+}
+
+#[test]
+fn bounds_are_refused_never_truncated() {
+    let temp = workspace("bounds");
+    let mut nested = json!("a");
+    for _ in 0..40 {
+        nested = json!(["add?", nested, 1]);
+    }
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,ArithmeticError>",
+            &json!([["a", "i64"]]),
+            &json!([
+            {"name": "entry", "term": ["ok", nested]}]),
+        ),
+        "AGENT_X_LIMIT",
+        &["operations nest more than 32 levels deep"],
+    );
+    let ops: Vec<Value> = (0..2100)
+        .map(|index| json!([format!("x{index}"), "add", "a", 1]))
+        .collect();
+    assert_refused(
+        &temp.path,
+        &one_function(
+            "Result<i64,ArithmeticError>",
+            &json!([["a", "i64"]]),
+            &json!([
+            {"name": "entry", "ops": ops, "term": ["return", "x0"]}]),
+        ),
+        "AGENT_X_LIMIT",
+        &["/fns/0: the expanded function has 4200 operations, more than the bound of 4096"],
+    );
+}
+
+#[test]
+fn expansion_and_compilation_are_deterministic() {
+    let temp = workspace("determinism");
+    let frame = constructs_afx();
+    let first = expand(&temp.path, &frame);
+    let second = expand(&temp.path, &frame);
+    assert_eq!(first.frame, second.frame);
+    assert_eq!(first.map, second.map);
+    assert_eq!(first.stats, second.stats);
+    assert_eq!(
+        first.map.to_json().to_string(),
+        second.map.to_json().to_string()
+    );
+    assert_eq!(
+        compile_digest(&temp.path, &frame),
+        compile_digest(&temp.path, &frame)
+    );
+    // The compiled frame carries the expansion, its map and the counts.
+    let head = Workspace::at(&temp.path).head().unwrap();
+    let names = names_of(&temp.path, head.program());
+    let authority = sley_agent::candidate::Authority::of(&head).unwrap();
+    let compiled = sley_agent::frame::compile(
+        head.program(),
+        &names,
+        &authority.ceilings,
+        &frame,
+        sley_id::CandidateNonce::from_bytes([3; 32]),
+        &mut || Ok([4; 32]),
+    )
+    .unwrap();
+    let artifacts: Vec<&str> = compiled
+        .artifacts
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert_eq!(artifacts, ["expanded.json", "sourcemap.json"]);
+    assert_eq!(compiled.artifacts[0].1, first.frame);
+    assert_eq!(compiled.artifacts[1].1, first.map.to_json());
+    let keys: Vec<&str> = compiled.stats.keys().map(String::as_str).collect();
+    for key in [
+        "nested",
+        "literals",
+        "checked",
+        "exits",
+        "ok_fail",
+        "derived_args",
+        "qualified",
+        "table_rows",
+        "generated_blocks",
+    ] {
+        assert!(keys.contains(&key), "{key}");
+        if key != "table_rows" {
+            assert!(compiled.stats[key].as_u64().unwrap() > 0, "{key}");
+        }
+    }
+}

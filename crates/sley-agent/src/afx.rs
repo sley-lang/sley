@@ -2767,13 +2767,21 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 return;
             }
             None => {
-                self.oblige(
-                    AgentErrorCode::XPropagation,
-                    &node.pointer,
-                    format!(
-                        "the result type of `{word}?` is not known here, so its failure route cannot be checked: give its operands known types (a typed literal is {{\"type\": \"i64\", \"value\": 3}})"
-                    ),
-                );
+                // A problem inside the operands already explains it.
+                let inner = format!("{}/", node.pointer);
+                if !self
+                    .obligations
+                    .iter()
+                    .any(|obligation| obligation.at.starts_with(&inner))
+                {
+                    self.oblige(
+                        AgentErrorCode::XPropagation,
+                        &node.pointer,
+                        format!(
+                            "the result type of `{word}?` is not known here, so its failure route cannot be checked: give its operands known types (a typed literal is {{\"type\": \"i64\", \"value\": 3}})"
+                        ),
+                    );
+                }
                 define(st);
                 return;
             }
@@ -2986,7 +2994,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     format!("the operation gives an Option, but `{function}` does not return one")
                 }
                 (Some(TypeExpr::Result { error, .. }), false, Some(payload)) => format!(
-                    "the operation fails with {}, but `{function}` fails with {}",
+                    "the operation fails with {} where `{function}` fails with {}",
                     self.cx.render(payload),
                     self.cx.render(error)
                 ),
@@ -3799,11 +3807,17 @@ impl<'c, 'a> FnExp<'c, 'a> {
         let fallback = Value::from(format!("{name}{}", far.suffix));
         let mut definers: Vec<Definer> = Vec::new();
         let cfg = self.cfg.as_ref().expect("dominators before emission");
+        // A derived argument fills a parameter of its target: that parameter
+        // is not a value to pass to it.
+        let target = far.derive.as_ref().map(|derive| derive.target.as_str());
         for (d, defs) in self.block_defs.iter().enumerate() {
             if d == b {
                 continue;
             }
             if let Some(def) = defs.get(name) {
+                if target == Some(self.blocks[d].name.as_str()) && def.kind == Kind::Param {
+                    continue;
+                }
                 let holder = self.pieces[def.piece].name.clone();
                 definers.push(Definer {
                     owner: self.blocks[d].name.clone(),
@@ -3816,6 +3830,9 @@ impl<'c, 'a> FnExp<'c, 'a> {
         }
         for kept in &self.kept {
             if let Some((kind, ty)) = kept.value(name) {
+                if target == Some(kept.leaf.as_str()) && kind == Kind::Param {
+                    continue;
+                }
                 definers.push(Definer {
                     owner: kept.leaf.clone(),
                     kind,
