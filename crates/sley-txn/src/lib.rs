@@ -6,6 +6,7 @@ mod diagnostic;
 mod maintenance;
 mod native_codec;
 mod native_commit;
+mod native_executor;
 mod repository;
 
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
@@ -57,6 +58,7 @@ pub use native_commit::{
     verified_supervisor_execution, verify_acceptance_statement, verify_acceptance_trust,
     verify_measurement_attestation, verify_measurement_trust,
 };
+pub use native_executor::SocketNativeCommitExecutor;
 pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,
     RecoveryAncestryHeadReport, RecoveryAncestryReport, RecoveryAncestryRequest, RecoveryReport,

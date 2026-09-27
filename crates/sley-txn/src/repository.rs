@@ -3307,12 +3307,22 @@ impl TransactionRepository {
         let executions = match executor.execute(&plan, validated) {
             Ok(executions) => executions,
             Err(error) => {
-                let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+                let state = if matches!(
+                    error,
+                    NativeCommitError::OutcomeUnknown
+                        | NativeCommitError::TrustUnavailable
+                        | NativeCommitError::TrustRejected
+                ) {
+                    AttemptState::OutcomeUnknown
+                } else {
+                    AttemptState::AbortedBeforePromotion
+                };
+                let _ = self.transition_attempt(&admitted, state);
                 return Err(CommitError::Native(error));
             }
         };
         if let Err(code) = check_execution_coverage(&plan, &executions) {
-            let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+            let _ = self.transition_attempt(&admitted, AttemptState::OutcomeUnknown);
             return Err(txn_commit_error(code));
         }
         let evidence = match Self::assemble_native_evidence(
@@ -3328,7 +3338,7 @@ impl TransactionRepository {
         ) {
             Ok(evidence) => evidence,
             Err(error) => {
-                let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+                let _ = self.transition_attempt(&admitted, AttemptState::OutcomeUnknown);
                 return Err(error);
             }
         };
@@ -23951,6 +23961,23 @@ mod native_commit_tests {
         }
     }
 
+    /// Test-only executor modeling a launched run whose supervisor response
+    /// was lost before a qualified outcome could be preserved.
+    struct UnknownExecutor {
+        invocations: Cell<usize>,
+    }
+
+    impl NativeTestExecutor for UnknownExecutor {
+        fn execute(
+            &self,
+            _plan: &NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            self.invocations.set(self.invocations.get() + 1);
+            Err(NativeCommitError::OutcomeUnknown)
+        }
+    }
+
     /// Test-only executor producing synthetic rejected diagnostics per
     /// selected test: coherent no-result pairs (rejected report, attestation
     /// without an execution report) that never claim a real run.
@@ -24624,6 +24651,109 @@ mod native_commit_tests {
     }
 
     #[test]
+    fn lost_supervisor_outcome_stays_unknown_in_attempt_journal() {
+        let fixture = Fixture::new("native-lost-supervisor-outcome");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            43,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let executor = UnknownExecutor {
+            invocations: Cell::new(0),
+        };
+        let input = harness.input(
+            fixture.genesis_transaction_id,
+            &candidate.stored_bytes,
+            fixture.principal_id,
+            attempt(43),
+            Some(&executor),
+        );
+        let error = fixture
+            .repository
+            .commit_native(&input)
+            .expect_err("unknown run");
+        assert_eq!(error.code(), NativeCommitError::OutcomeUnknown.symbol());
+        assert_eq!(executor.invocations.get(), 1);
+        assert_eq!(
+            AttemptRecord::parse(
+                &std::fs::read(attempt_path(fixture.repository.root(), attempt(43))).unwrap()
+            )
+            .unwrap()
+            .state,
+            AttemptState::OutcomeUnknown
+        );
+        assert!(matches!(
+            fixture
+                .repository
+                .native_attempt_status(attempt(43))
+                .unwrap(),
+            AttemptStatus::OutcomeUnknown { .. }
+        ));
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+        let retry = fixture
+            .repository
+            .commit_native(&input)
+            .expect_err("no blind retry");
+        assert_eq!(retry.code(), NativeCommitError::OutcomeUnknown.symbol());
+        assert_eq!(executor.invocations.get(), 1);
+    }
+
+    #[test]
+    fn configured_socket_executor_refuses_missing_root_service() {
+        let fixture = Fixture::new("native-socket-service-missing");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            44,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let executor = crate::SocketNativeCommitExecutor::new(
+            fixture.repository.root().join("missing/supervisor.sock"),
+            0,
+            harness.measurement_trust.clone(),
+        )
+        .expect("fixed socket endpoint");
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(44),
+                Some(&executor),
+            ))
+            .expect_err("missing root supervisor refuses");
+        assert_eq!(
+            error.code(),
+            NativeCommitError::ExecutorUnavailable.symbol()
+        );
+        assert_eq!(
+            AttemptRecord::parse(
+                &std::fs::read(attempt_path(fixture.repository.root(), attempt(44))).unwrap()
+            )
+            .unwrap()
+            .state,
+            AttemptState::AbortedBeforePromotion
+        );
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+    }
+
+    #[test]
     fn native_commit_without_executor_refuses_before_any_write() {
         let fixture = Fixture::new("native-no-executor");
         let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
@@ -24901,6 +25031,14 @@ mod native_commit_tests {
             .expect_err("untrusted measurement refuses");
         assert_eq!(error.code(), "HISTORICAL_TRUST_UNAVAILABLE");
         assert_eq!(
+            AttemptRecord::parse(
+                &std::fs::read(attempt_path(fixture.repository.root(), attempt(9))).unwrap()
+            )
+            .unwrap()
+            .state,
+            AttemptState::OutcomeUnknown
+        );
+        assert_eq!(
             fixture.repository.accepted_head().unwrap().transaction_id(),
             fixture.genesis_transaction_id
         );
@@ -24942,6 +25080,14 @@ mod native_commit_tests {
             ))
             .expect_err("invalid measurement signature refuses");
         assert_eq!(error.code(), "HISTORICAL_TRUST_REJECTED");
+        assert_eq!(
+            AttemptRecord::parse(
+                &std::fs::read(attempt_path(fixture.repository.root(), attempt(19))).unwrap()
+            )
+            .unwrap()
+            .state,
+            AttemptState::OutcomeUnknown
+        );
         assert_eq!(
             fixture.repository.accepted_head().unwrap().transaction_id(),
             fixture.genesis_transaction_id
