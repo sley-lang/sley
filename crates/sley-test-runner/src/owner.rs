@@ -11,7 +11,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::channel::check_peer_connected;
-use crate::config::{RunnerConfig, UNIT_PREFIX};
+use crate::config::{BinaryPinError, RunnerConfig, UNIT_PREFIX};
 use crate::enforce::{REAP_BUDGET_USEC, check_elapsed};
 use crate::manager::confirm_system_unit_reaped;
 use crate::phase::{GatedWorkerResult, PhaseError, run_system_unit_phase};
@@ -26,6 +26,8 @@ pub enum OwnerError {
     Unprivileged,
     /// The caller supplied a unit that differs from the frozen renderer.
     UnitMismatch,
+    /// An installed worker or supervisor binary failed its root-owned digest pin.
+    BinaryPin(BinaryPinError),
     /// Zero, overflowing, or already expired wall budget.
     InvalidDeadline,
     /// The fixed `systemd-run` process could not be spawned or piped.
@@ -47,6 +49,7 @@ impl core::fmt::Display for OwnerError {
         formatter.write_str(match self {
             Self::Unprivileged => "NATIVE_OWNER_UNPRIVILEGED",
             Self::UnitMismatch => "NATIVE_OWNER_UNIT_MISMATCH",
+            Self::BinaryPin(_) => "NATIVE_OWNER_BINARY_PIN_REFUSED",
             Self::InvalidDeadline => "NATIVE_OWNER_INVALID_DEADLINE",
             Self::LaunchFailure => "NATIVE_OWNER_LAUNCH_FAILED",
             Self::Phase(_) => "NATIVE_OWNER_PHASE_REFUSED",
@@ -216,9 +219,10 @@ impl Drop for UnitGuard {
 
 /// Owns one system transient unit from launch through confirmed exit/reap.
 ///
-/// This does not stage the request, pin installed binary digests, bind a
-/// report to the request, or sign a measurement. The root daemon must do
-/// those checks around this call and degrade on `CleanupUnconfirmed`.
+/// This does not stage the request, bind a report to the request, or sign a
+/// measurement. The root daemon must do those checks around this call and
+/// degrade on `CleanupUnconfirmed`. Installed binary digests are pinned
+/// before launch.
 ///
 /// # Errors
 ///
@@ -237,6 +241,9 @@ pub fn run_owned_system_unit(
     if !exact_rendered_unit(unit, config, worker_input_path, wall_ms) {
         return Err(OwnerError::UnitMismatch);
     }
+    config
+        .verify_installed_binaries()
+        .map_err(OwnerError::BinaryPin)?;
     let started = Instant::now();
     let deadline = started
         .checked_add(Duration::from_millis(wall_ms))

@@ -7,7 +7,12 @@
 //! attested records.
 
 use std::collections::BTreeSet;
+use std::fs::File;
+use std::io::Read;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path::{Component, Path};
 
+use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
 use sha2::{Digest, Sha256};
 use sley_id::{PrincipalId, WorkspaceId};
 
@@ -25,6 +30,40 @@ pub const SOCKET_NAME: &str = "supervisor.sock";
 pub const MAX_REQUEST_BYTES: usize = MAX_WORKER_FRAME + 4_096;
 /// Maximum daemon-owned worker output bytes per run.
 pub const MAX_WORKER_OUTPUT_BYTES: usize = 262_144;
+/// Maximum installed binary bytes hashed at daemon startup.
+pub const MAX_PINNED_BINARY_BYTES: u64 = 134_217_728;
+
+/// A configured executable cannot be trusted as the pinned installed binary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BinaryPinError {
+    /// The preflight was attempted outside the root daemon.
+    Unprivileged,
+    /// The executable path is nonabsolute, ambiguous, or crosses a symlink.
+    UnsafePath,
+    /// The path could not be opened or read as a regular file.
+    Unavailable,
+    /// The executable is not owned by root or is writable by another UID.
+    UnsafeMetadata,
+    /// The file is empty or exceeds the bounded hash ceiling.
+    InvalidSize,
+    /// The installed bytes differ from the administrator's pinned digest.
+    DigestMismatch,
+}
+
+impl core::fmt::Display for BinaryPinError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str(match self {
+            Self::Unprivileged => "NATIVE_BINARY_PIN_UNPRIVILEGED",
+            Self::UnsafePath => "NATIVE_BINARY_PIN_UNSAFE_PATH",
+            Self::Unavailable => "NATIVE_BINARY_PIN_UNAVAILABLE",
+            Self::UnsafeMetadata => "NATIVE_BINARY_PIN_UNSAFE_METADATA",
+            Self::InvalidSize => "NATIVE_BINARY_PIN_INVALID_SIZE",
+            Self::DigestMismatch => "NATIVE_BINARY_PIN_DIGEST_MISMATCH",
+        })
+    }
+}
+
+impl std::error::Error for BinaryPinError {}
 
 /// Local daemon configuration error with a stable machine tag.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -141,6 +180,82 @@ impl RunnerConfig {
     pub fn caller_for_uid(&self, uid: u32) -> Option<&AllowedCaller> {
         self.allowed_callers.iter().find(|caller| caller.uid == uid)
     }
+
+    /// Pins the installed worker and running supervisor executables before
+    /// any privileged test unit is launched.
+    ///
+    /// # Errors
+    ///
+    /// Refuses unprivileged use, unsafe files, missing bytes, or digest
+    /// mismatch. The root-owned binaries must remain immutable to nonroot
+    /// users between this check and manager exec.
+    pub fn verify_installed_binaries(&self) -> Result<(), BinaryPinError> {
+        if !nix::unistd::geteuid().is_root() {
+            return Err(BinaryPinError::Unprivileged);
+        }
+        self.validate().map_err(|_| BinaryPinError::UnsafePath)?;
+        verify_binary_for_owner(Path::new(&self.worker_path), self.worker_sha256, 0)?;
+        let current = std::env::current_exe().map_err(|_| BinaryPinError::Unavailable)?;
+        verify_binary_for_owner(&current, self.supervisor_sha256, 0)
+    }
+}
+
+fn verify_binary_for_owner(
+    path: &Path,
+    expected_digest: [u8; 32],
+    expected_uid: u32,
+) -> Result<(), BinaryPinError> {
+    let relative = path
+        .strip_prefix("/")
+        .map_err(|_| BinaryPinError::UnsafePath)?;
+    if relative
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(BinaryPinError::UnsafePath);
+    }
+    let root = File::open("/").map_err(|_| BinaryPinError::Unavailable)?;
+    let how = OpenHow::new()
+        .flags(OFlag::O_RDONLY | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC)
+        .resolve(ResolveFlag::RESOLVE_BENEATH | ResolveFlag::RESOLVE_NO_SYMLINKS);
+    let opened = openat2(&root, relative, how).map_err(|_| BinaryPinError::UnsafePath)?;
+    let mut file = File::from(opened);
+    let metadata = file.metadata().map_err(|_| BinaryPinError::Unavailable)?;
+    if !metadata.is_file()
+        || metadata.uid() != expected_uid
+        || metadata.permissions().mode() & 0o022 != 0
+        || metadata.nlink() != 1
+    {
+        return Err(BinaryPinError::UnsafeMetadata);
+    }
+    if metadata.len() == 0 || metadata.len() > MAX_PINNED_BINARY_BYTES {
+        return Err(BinaryPinError::InvalidSize);
+    }
+    let mut hasher = Sha256::new();
+    let mut total = 0_u64;
+    let mut buffer = [0_u8; 8_192];
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .map_err(|_| BinaryPinError::Unavailable)?;
+        if count == 0 {
+            break;
+        }
+        total = total
+            .checked_add(count as u64)
+            .ok_or(BinaryPinError::InvalidSize)?;
+        if total > MAX_PINNED_BINARY_BYTES {
+            return Err(BinaryPinError::InvalidSize);
+        }
+        hasher.update(&buffer[..count]);
+    }
+    if total != metadata.len() {
+        return Err(BinaryPinError::Unavailable);
+    }
+    if hasher.finalize().as_slice() != expected_digest {
+        return Err(BinaryPinError::DigestMismatch);
+    }
+    Ok(())
 }
 
 /// Restricts administrator paths to unambiguous absolute ASCII components.
@@ -199,9 +314,13 @@ pub fn default_config(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use sley_id::{PrincipalId, WorkspaceId};
 
     use super::*;
+
+    static NEXT_BINARY: AtomicU64 = AtomicU64::new(0);
 
     fn caller(uid: u32) -> AllowedCaller {
         AllowedCaller {
@@ -234,6 +353,45 @@ mod tests {
         );
         assert_eq!(config.caller_for_uid(1000), Some(&caller(1000)));
         assert_eq!(config.caller_for_uid(0), None);
+    }
+
+    #[test]
+    fn installed_binary_pin_checks_bytes_owner_mode_and_symlinks() {
+        let root = std::env::temp_dir().join(format!(
+            "sley-binary-pin-{}-{}",
+            std::process::id(),
+            NEXT_BINARY.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("worker");
+        let bytes = b"verified native worker executable";
+        std::fs::write(&path, bytes).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let uid = std::fs::metadata(&path).unwrap().uid();
+        let digest = sha256_bytes(bytes);
+        assert_eq!(verify_binary_for_owner(&path, digest, uid), Ok(()));
+        assert_eq!(
+            verify_binary_for_owner(&path, [7; 32], uid),
+            Err(BinaryPinError::DigestMismatch)
+        );
+        assert_eq!(
+            verify_binary_for_owner(&path, digest, uid.wrapping_add(1)),
+            Err(BinaryPinError::UnsafeMetadata)
+        );
+        let linked = root.join("linked");
+        std::os::unix::fs::symlink(&path, &linked).unwrap();
+        assert_eq!(
+            verify_binary_for_owner(&linked, digest, uid),
+            Err(BinaryPinError::UnsafePath)
+        );
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o777)).unwrap();
+        assert_eq!(
+            verify_binary_for_owner(&path, digest, uid),
+            Err(BinaryPinError::UnsafeMetadata)
+        );
+        std::fs::remove_file(linked).unwrap();
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(root).unwrap();
     }
 
     #[test]
