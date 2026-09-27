@@ -20,6 +20,7 @@ use crate::error::{AgentError, AgentErrorCode, Result, io, unknown_name, usage};
 use crate::exec::{self, Executor, TestOutcome};
 use crate::frame;
 use crate::help;
+use crate::locate::Source;
 use crate::names::{NameMap, Names, Scope};
 use crate::values::{self, ProgramTypes};
 use crate::view::{self, ViewOptions};
@@ -236,7 +237,9 @@ fn select(
         })
         .unwrap_or_else(|| head.program().clone());
     let names = Names::build(&program, map);
-    let verdict = Verdict::of(&output, &program, &names);
+    let mut verdict = Verdict::of(&output, &program, &names);
+    let meta = store.meta(&reference).unwrap_or_default();
+    verdict.locate(&output, &Source::of_meta(&meta), &program, &names);
     Ok(Selected {
         valid: output.is_valid(),
         chosen_tests: output.result().record.selected_tests.clone(),
@@ -563,7 +566,9 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
         .or_else(|| candidate::applied_program(&head, &imported))
         .unwrap_or_else(|| head.program().clone());
     let after_names = Names::build(&program, &map);
-    let verdict = Verdict::of(&output, &program, &after_names);
+    let mut verdict = Verdict::of(&output, &program, &after_names);
+    let source = Source::of_try(&frame_value, &compiled.artifacts);
+    verdict.locate(&output, &source, &program, &after_names);
     let store = Store::open(&workspace)?;
     let handle = store.save(
         &imported.stored_bytes,

@@ -318,6 +318,25 @@ program and prints each further finding as an `also:` line (`"also"` in
 JSON), so one round discloses every structural problem the analysis sees
 rather than the kernel's first.
 
+A phase 7 locator names a whole function. When the refused candidate was
+made from a frame, `try` and `explain` add an `authored:` line (`"authored"`
+in the JSON verdict, a list of `{"at", "what"}`): JSON pointers into that
+frame (for `try --on`, the layered frame in `.sley/layered.json`) of the
+blocks, operations, terminators, signatures (`params`, `returns`) and
+constant types the analysis ties to the kernel's symbol. Besides the
+structural checks, the analysis compares declared types exactly as the
+kernel does for a returned value against the function's result
+(`CFG_RETURN_TYPE`), and for a `call` or `const` against the callee's
+signature or the constant's type (`VM_LOWER_SIGNATURE_MISMATCH`), so the
+refusal of a caller the frame does not contain points at the signature or
+constant the frame changed. When the analysis ties nothing to the symbol,
+the line gives the function's own entry marked `(function-wide; the kernel
+names no smaller location)`, with its authored parameters and result for a
+signature refusal, or says that the function is not in the frame. Names the
+frame does not spell are looked up in the candidate's source-map names table
+when it has one. The line never changes the kernel's judgment and never
+narrows a function-wide cause to one operation.
+
 ## 9. Workbench refusal symbols
 
 Symbol-only (numeric `0`, the SMP1 section 8 convention):
