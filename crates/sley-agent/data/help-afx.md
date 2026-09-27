@@ -49,13 +49,19 @@ Option: checked arithmetic, `call`, `vec_get`, `map_get`, `map`.
 ## Names across blocks
 
 A plain name is an earlier value of the same block, else a function
-parameter, else the one operation result of that name in a block that
-dominates this point (it is qualified for you). Parameters of other blocks
-and checked values of other blocks are not visible: declare a parameter.
+parameter, else the nearest definition of that name among the blocks every
+path to this point passes through; when that is an operation result it is
+qualified for you. Parameters and checked values of other blocks are not
+visible: declare a parameter (and when one shadows an earlier result of the
+same name, write `block.name` to mean that result). `b.x` is block `b`'s
+own `x`, exactly as in plain AF1.
+
 When an edge passes fewer arguments than its target takes, each missing
 trailing argument is the value of the parameter's name visible at the edge,
-when its type fits. An edge back into a loop never passes the loop block's
-own value: write that argument.
+when its type fits. Two exceptions: an edge back into a loop (into a block
+the edge is inside of) takes no argument by name, so write them all; and a
+switch case whose value carries a payload passes it only with `$`, so
+write `$` where the target takes it.
 
 ```json
 {"af1": 1, "afx": 1,

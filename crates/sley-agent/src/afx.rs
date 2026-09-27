@@ -874,6 +874,9 @@ struct Target {
     block: String,
     args: Vec<Arg>,
     shape: Shape,
+    /// Where the edge is written (the target, or the list holding a flat
+    /// target and its arguments).
+    pointer: String,
 }
 
 #[derive(Clone, Debug)]
@@ -1166,6 +1169,7 @@ impl Parser<'_> {
                 block: block.clone(),
                 args: Vec::new(),
                 shape: Shape::Name,
+                pointer: pointer.to_owned(),
             }),
             Value::Array(items) if !items.is_empty() => Some(Target {
                 block: items[0].as_str()?.to_owned(),
@@ -1175,6 +1179,7 @@ impl Parser<'_> {
                     .map(|(index, arg)| self.arg(arg, format!("{pointer}/{}", index + 1)))
                     .collect(),
                 shape: Shape::Bracket,
+                pointer: pointer.to_owned(),
             }),
             _ => None,
         }
@@ -1219,6 +1224,7 @@ impl Parser<'_> {
                             .map(|(index, arg)| self.arg(arg, at(index + 2)))
                             .collect(),
                         shape: Shape::Flat,
+                        pointer: pointer.to_owned(),
                     }
                 };
                 Term::Br {
@@ -1261,6 +1267,7 @@ impl Parser<'_> {
                                 })
                                 .collect(),
                             shape: Shape::Flat,
+                            pointer: case_pointer.clone(),
                         },
                         _ => return raw(),
                     };
@@ -1412,12 +1419,16 @@ struct Far {
     derive: Option<Derive>,
 }
 
-/// A derived trailing edge argument still to find.
+/// A derived trailing edge argument, decided once the expanded graph is
+/// known (an edge back into a loop never takes one).
 #[derive(Clone, Debug)]
 struct Derive {
     ty: Option<TypeExpr>,
     target: String,
     available: Vec<String>,
+    /// The value of that name the edge's own block (or the function's
+    /// parameters) holds, with its type.
+    local: Option<(Box<Sym>, Option<TypeExpr>)>,
 }
 
 /// A terminator template.
@@ -1482,15 +1493,6 @@ struct SharedExit {
     authored: String,
 }
 
-/// One block that defines a name an X4 reference looks for.
-struct Definer {
-    owner: String,
-    kind: Kind,
-    node: Option<usize>,
-    holder: String,
-    ty: Option<TypeExpr>,
-}
-
 enum Route {
     Handler(String),
     Case(String, Option<TypeExpr>),
@@ -1503,6 +1505,15 @@ struct Lower {
     defs: BTreeMap<String, LDef>,
     exits: usize,
     term_k: usize,
+    /// A root cause (an unknown name, a surplus edge argument) is already
+    /// reported: untyped literals it leaves without context add nothing.
+    quiet: bool,
+}
+
+/// What a switch case passes on: nothing, or a payload (of a known type).
+enum CasePayload {
+    Unit,
+    Carries(Option<TypeExpr>),
 }
 
 struct NodeTypes {
@@ -1511,13 +1522,91 @@ struct NodeTypes {
     contexts: Vec<Option<TypeExpr>>,
 }
 
-/// The dominator tree of an expanded function.
+/// The dominator tree of an expanded function, with what each node
+/// defines.
+#[derive(Default)]
 struct Cfg {
     index: BTreeMap<String, usize>,
     idom: Vec<Option<usize>>,
+    /// The authored block (or kept live block) each node belongs to;
+    /// `None` for shared exits, which X4 never reads from.
+    owner: Vec<Option<String>>,
+    /// The values each node defines, by name.
+    values: Vec<BTreeMap<String, (Kind, Option<TypeExpr>)>>,
+    /// Every block defining a name (authored and kept), in block order.
+    definers: BTreeMap<String, Vec<String>>,
+    /// The name of each node.
+    node_names: Vec<String>,
+}
+
+/// What a plain name means at a point, by the nearest block above it on
+/// the dominator tree that defines the name.
+enum Nearest {
+    /// An operation result of `owner`, held by the node named `holder`.
+    Op {
+        owner: String,
+        holder: String,
+        ty: Option<TypeExpr>,
+    },
+    /// A parameter (or unwrapped value) of `owner`, which a plain name
+    /// cannot reach outside it; `outer` is an operation result further up
+    /// that it shadows.
+    Hidden {
+        owner: String,
+        kind: Kind,
+        outer: Option<String>,
+    },
+    /// No dominating block defines it.
+    None,
 }
 
 impl Cfg {
+    /// The nearest definition of `name` above `node` on the dominator tree,
+    /// skipping the nodes of `own` (the using block, resolved in order).
+    /// Bounded by the tree depth.
+    fn nearest(&self, node: usize, own: &str, name: &str) -> Nearest {
+        let mut current = node;
+        let mut hidden: Option<(String, Kind)> = None;
+        for _ in 0..=self.idom.len() {
+            if self.owner[current].as_deref() != Some(own)
+                && let Some((kind, ty)) = self.values[current].get(name)
+            {
+                let owner = self.owner[current].clone().unwrap_or_default();
+                match (&hidden, kind) {
+                    (None, Kind::Op) => {
+                        let holder = self.node_names[current].clone();
+                        return Nearest::Op {
+                            owner,
+                            holder,
+                            ty: ty.clone(),
+                        };
+                    }
+                    (None, kind) => hidden = Some((owner, *kind)),
+                    (Some((hider, kind)), Kind::Op) => {
+                        return Nearest::Hidden {
+                            owner: hider.clone(),
+                            kind: *kind,
+                            outer: Some(owner),
+                        };
+                    }
+                    (Some(_), _) => {}
+                }
+            }
+            match self.idom.get(current).copied().flatten() {
+                Some(up) if up != current => current = up,
+                _ => break,
+            }
+        }
+        match hidden {
+            Some((owner, kind)) => Nearest::Hidden {
+                owner,
+                kind,
+                outer: None,
+            },
+            None => Nearest::None,
+        }
+    }
+
     fn reachable(&self, node: usize) -> bool {
         self.idom.get(node).is_some_and(Option::is_some)
     }
@@ -2436,6 +2525,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             defs: BTreeMap::new(),
             exits: 0,
             term_k: 0,
+            quiet: false,
         };
         for (name, ty, json) in &block.params {
             st.defs.insert(
@@ -2499,6 +2589,24 @@ impl<'c, 'a> FnExp<'c, 'a> {
         base: &str,
         depth: usize,
     ) -> Vec<Sym> {
+        // An operand that names no value leaves its partner literal
+        // untyped: report the name, not the literal.
+        let untyped = node.args.iter().enumerate().any(|(position, arg)| {
+            matches!(&arg.operand, Operand::Literal { typed: None, value } if !value.is_boolean())
+                && types.contexts.get(position).is_none_or(Option::is_none)
+        });
+        let quiet = st.quiet;
+        if untyped {
+            let unknown = self.unknown_names(st, node);
+            for (name, at) in &unknown {
+                self.oblige(
+                    AgentErrorCode::XScope,
+                    at,
+                    format!("no value named `{name}` in this function"),
+                );
+            }
+            st.quiet |= !unknown.is_empty();
+        }
         let mut out = Vec::with_capacity(node.args.len());
         for (position, arg) in node.args.iter().enumerate() {
             let context = types.contexts.get(position).cloned().flatten();
@@ -2511,6 +2619,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 true,
             ));
         }
+        st.quiet = quiet;
         out
     }
 
@@ -2563,6 +2672,9 @@ impl<'c, 'a> FnExp<'c, 'a> {
             (None, Value::Bool(_)) => (Value::from("bool"), Some(TypeExpr::Bool)),
             (None, _) => {
                 let Some(ty) = context else {
+                    if st.quiet {
+                        return Sym::Raw(value.clone());
+                    }
                     self.oblige(
                         AgentErrorCode::FrameInvalid,
                         pointer,
@@ -2611,7 +2723,25 @@ impl<'c, 'a> FnExp<'c, 'a> {
         let (base, suffix) = split_suffix(text);
         if let Some((block, leaf)) = base.split_once('.') {
             return match self.block_index(block) {
-                Some(target) if target == st.b => self.resolve_plain(st, leaf, suffix, pointer),
+                // `B.x` in B names B's own `x`, as in plain AF1: never a
+                // value of another block.
+                Some(target) if target == st.b => {
+                    if st.defs.contains_key(leaf) {
+                        Sym::Local(leaf.to_owned(), suffix.to_owned())
+                    } else if self.defs[st.b].contains_key(leaf) {
+                        let block = self.blocks[st.b].name.clone();
+                        self.oblige(
+                            AgentErrorCode::XScope,
+                            pointer,
+                            format!(
+                                "`{text}` is used before its definition in block `{block}`: a block's values are defined in order, so move the use after it"
+                            ),
+                        );
+                        Sym::Plain(text.to_owned())
+                    } else {
+                        Sym::Plain(text.to_owned())
+                    }
+                }
                 Some(target) => Sym::Qualified {
                     block: target,
                     leaf: leaf.to_owned(),
@@ -3176,7 +3306,10 @@ impl<'c, 'a> FnExp<'c, 'a> {
         self.obligations.push(obligation);
     }
 
-    /// X4: a derived trailing edge argument, found by name.
+    /// X4: a derived trailing edge argument, found by name. The edge's own
+    /// block and the function's parameters are looked at here; whether the
+    /// edge goes back into a loop, and values of dominating blocks, are
+    /// decided on the expanded graph ([`Self::resolve_far`]).
     fn derive(
         &mut self,
         st: &Lower,
@@ -3185,60 +3318,17 @@ impl<'c, 'a> FnExp<'c, 'a> {
         target: &str,
         pointer: &str,
     ) -> Sym {
-        let mismatch =
-            |found: Option<&TypeExpr>| matches!((found, ty), (Some(a), Some(b)) if a != b);
-        if let Some(def) = st.defs.get(param) {
-            if self.block_index(target) == Some(st.b) {
-                self.oblige(
-                    AgentErrorCode::XScope,
-                    pointer,
-                    format!(
-                        "the edge back to `{target}` would pass `{param}` from `{target}` itself (a loop edge): state the argument explicitly"
-                    ),
-                );
-                return Sym::Raw(Value::Null);
-            }
-            if mismatch(def.ty.as_ref()) {
-                let available = self.visible_of_type(st, ty);
-                let found = def
-                    .ty
-                    .as_ref()
-                    .map(|t| self.cx.render(t))
-                    .unwrap_or_default();
-                self.missing_argument(
-                    pointer,
-                    target,
-                    param,
-                    ty,
-                    available,
-                    &format!("the `{param}` here is {found}"),
-                );
-                return Sym::Raw(Value::Null);
-            }
-            self.stats.derived_args += 1;
-            return Sym::Local(param.to_owned(), String::new());
-        }
-        if let Some((_, param_ty)) = self.params.iter().find(|(name, _)| name == param) {
-            if mismatch(param_ty.as_ref()) {
-                let available = self.visible_of_type(st, ty);
-                let found = param_ty
-                    .as_ref()
-                    .map(|t| self.cx.render(t))
-                    .unwrap_or_default();
-                self.missing_argument(
-                    pointer,
-                    target,
-                    param,
-                    ty,
-                    available,
-                    &format!("the parameter `{param}` is {found}"),
-                );
-                return Sym::Raw(Value::Null);
-            }
-            self.stats.derived_args += 1;
-            return Sym::Plain(param.to_owned());
-        }
-        if self.defs[st.b].contains_key(param) {
+        let local = if let Some(def) = st.defs.get(param) {
+            Some((
+                Box::new(Sym::Local(param.to_owned(), String::new())),
+                def.ty.clone(),
+            ))
+        } else if let Some((_, param_ty)) = self.params.iter().find(|(name, _)| name == param) {
+            Some((Box::new(Sym::Plain(param.to_owned())), param_ty.clone()))
+        } else {
+            None
+        };
+        if local.is_none() && self.defs[st.b].contains_key(param) {
             let block = self.blocks[st.b].name.clone();
             self.oblige(
                 AgentErrorCode::XScope,
@@ -3258,6 +3348,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 ty: ty.cloned(),
                 target: target.to_owned(),
                 available,
+                local,
             }),
         }))
     }
@@ -3421,8 +3512,38 @@ impl<'c, 'a> FnExp<'c, 'a> {
         target: &Target,
         nest: bool,
         pointer: &str,
+        case: Option<(&Value, &CasePayload)>,
     ) -> Vec<Tpl> {
         let params = self.target_params(&target.block);
+        // More arguments than parameters is the problem to report: the
+        // surplus ones have no parameter to type a literal from.
+        let surplus = params
+            .as_ref()
+            .is_some_and(|params| target.args.len() > params.len());
+        if let (true, Some(params)) = (surplus, &params) {
+            let listed = params
+                .iter()
+                .map(|(name, ty)| {
+                    format!(
+                        "{name}: {}",
+                        ty.as_ref().map_or("?".to_owned(), |ty| self.cx.render(ty))
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.oblige(
+                AgentErrorCode::FrameInvalid,
+                &target.pointer,
+                format!(
+                    "block `{}` takes {} argument(s) ({listed}); this edge passes {}",
+                    target.block,
+                    params.len(),
+                    target.args.len()
+                ),
+            );
+        }
+        let quiet = st.quiet;
+        st.quiet |= surplus;
         let mut items = Vec::new();
         for (position, arg) in target.args.iter().enumerate() {
             let generated = self.term_name(st);
@@ -3433,18 +3554,82 @@ impl<'c, 'a> FnExp<'c, 'a> {
             let sym = self.lower_operand(st, arg, context.as_ref(), &generated, 0, nest);
             items.push(Tpl::Sym(sym));
         }
-        if let Some(params) = params {
-            for (param, ty) in params.iter().skip(target.args.len()) {
-                let sym = self.derive(st, param, ty.as_ref(), &target.block, pointer);
-                items.push(Tpl::Sym(sym));
-            }
+        st.quiet = quiet;
+        let Some(params) = params.filter(|_| !surplus) else {
+            return items;
+        };
+        let missing = &params[target.args.len()..];
+        if missing.is_empty() {
+            return items;
+        }
+        // A case payload never gives way to a value found by name: without
+        // `$` the payload would be dropped unseen.
+        let passes_payload = target
+            .args
+            .iter()
+            .any(|arg| matches!(&arg.operand, Operand::Name(text) if text == "$"));
+        if let Some((key, CasePayload::Carries(payload))) = case
+            && !passes_payload
+        {
+            let key = key.as_str().unwrap_or("?");
+            let carried = payload.as_ref().map_or_else(
+                || "a payload".to_owned(),
+                |ty| format!("a payload ({})", self.cx.render(ty)),
+            );
+            let block = &target.block;
+            self.oblige(
+                AgentErrorCode::XScope,
+                &target.pointer,
+                format!(
+                    "case `{key}` carries {carried} that this edge does not pass, and `{block}` takes more arguments than the edge gives: pass the payload with \"$\" where `{block}` takes it (e.g. [\"{key}\", \"{block}\", \"$\"]), or write every argument"
+                ),
+            );
+            items.extend(missing.iter().map(|_| Tpl::Lit(Value::Null)));
+            return items;
+        }
+        for (param, ty) in missing {
+            let sym = self.derive(st, param, ty.as_ref(), &target.block, pointer);
+            items.push(Tpl::Sym(sym));
         }
         items
     }
 
+    /// Whether a switch case passes a payload on, by its key and the type
+    /// of the switched value.
+    fn case_payload(&self, key: &Value, scrutinee: Option<&TypeExpr>) -> CasePayload {
+        let Some(key) = key.as_str() else {
+            return CasePayload::Unit;
+        };
+        match (key, scrutinee) {
+            ("None", _) => CasePayload::Unit,
+            ("Ok", Some(TypeExpr::Result { ok, .. })) => CasePayload::Carries(Some((**ok).clone())),
+            ("Err", Some(TypeExpr::Result { error, .. })) => {
+                CasePayload::Carries(Some((**error).clone()))
+            }
+            ("Some", Some(TypeExpr::Option(item))) => CasePayload::Carries(Some((**item).clone())),
+            ("Ok" | "Err" | "Some", _) => CasePayload::Carries(None),
+            (case, Some(TypeExpr::Named(named))) => {
+                let leaf = case.rsplit('.').next().unwrap_or(case);
+                match self.cx.member_type(&named.definition, leaf) {
+                    Some(None) => CasePayload::Unit,
+                    Some(Some(payload)) => CasePayload::Carries(Some(payload)),
+                    None => CasePayload::Carries(None),
+                }
+            }
+            _ => CasePayload::Carries(None),
+        }
+    }
+
     /// A `cond` target or a bracketed `br`/switch target.
-    fn target_tpl(&mut self, st: &mut Lower, target: &Target, nest: bool, pointer: &str) -> Tpl {
-        let args = self.edge_args(st, target, nest, pointer);
+    fn target_tpl(
+        &mut self,
+        st: &mut Lower,
+        target: &Target,
+        nest: bool,
+        pointer: &str,
+        case: Option<(&Value, &CasePayload)>,
+    ) -> Tpl {
+        let args = self.edge_args(st, target, nest, pointer, case);
         if args.is_empty() && target.shape == Shape::Name {
             return Tpl::Lit(Value::from(target.block.clone()));
         }
@@ -3501,7 +3686,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 self.lower_fail(st, case.as_deref(), payload.as_ref(), &pointer);
             }
             Term::Br { word, target } => {
-                let args = self.edge_args(st, target, true, &pointer);
+                let args = self.edge_args(st, target, true, &pointer, None);
                 let term = match target.shape {
                     Shape::Flat => {
                         let mut items =
@@ -3526,8 +3711,8 @@ impl<'c, 'a> FnExp<'c, 'a> {
             Term::Cond { cond, then, other } => {
                 let generated = self.term_name(st);
                 let cond = self.lower_operand(st, cond, Some(&TypeExpr::Bool), &generated, 0, true);
-                let first = self.target_tpl(st, then, false, &pointer);
-                let second = self.target_tpl(st, other, false, &pointer);
+                let first = self.target_tpl(st, then, false, &pointer, None);
+                let second = self.target_tpl(st, other, false, &pointer, None);
                 let term = Tpl::List(vec![lit("cond"), Tpl::Sym(cond), first, second]);
                 self.set_term(
                     st.piece,
@@ -3538,18 +3723,33 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 );
             }
             Term::Switch { value, cases } => {
+                let scrutinee = match &value.operand {
+                    Operand::Name(text) => {
+                        let (base, _) = split_suffix(text);
+                        st.defs
+                            .get(base)
+                            .and_then(|def| def.ty.clone())
+                            .or_else(|| self.value_type(st.b, text))
+                    }
+                    Operand::Nested(node) => self.node_types(st.b, node, None).value,
+                    _ => None,
+                };
                 let generated = self.term_name(st);
                 let value = self.lower_operand(st, value, None, &generated, 0, true);
                 let mut items = vec![lit("switch"), Tpl::Sym(value)];
                 let mut succ = Vec::new();
                 for (key, target) in cases {
+                    let payload = self.case_payload(key, scrutinee.as_ref());
+                    let case_rule = Some((key, &payload));
                     let mut case = vec![Tpl::Lit(key.clone())];
                     match target.shape {
                         Shape::Flat | Shape::Name => {
                             case.push(Tpl::Lit(Value::from(target.block.clone())));
-                            case.extend(self.edge_args(st, target, false, &pointer));
+                            case.extend(self.edge_args(st, target, false, &pointer, case_rule));
                         }
-                        Shape::Bracket => case.push(self.target_tpl(st, target, false, &pointer)),
+                        Shape::Bracket => {
+                            case.push(self.target_tpl(st, target, false, &pointer, case_rule));
+                        }
                     }
                     items.push(Tpl::List(case));
                     succ.push(target.block.clone());
@@ -3668,6 +3868,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// Immediate dominators over the expanded blocks (pieces, shared exits,
     /// kept live blocks), computed by the iterative algorithm and bounded by
     /// the block count.
+    #[allow(clippy::too_many_lines)]
     fn dominators(&mut self) -> Cfg {
         let mut index: BTreeMap<String, usize> = BTreeMap::new();
         let mut succ_names: Vec<Vec<String>> = Vec::new();
@@ -3700,8 +3901,16 @@ impl<'c, 'a> FnExp<'c, 'a> {
             })
             .collect();
         let mut idom: Vec<Option<usize>> = vec![None; count];
+        let (owner, values, definers, node_names) = self.node_tables(&index, count);
         let Some(&entry) = index.get(&self.entry) else {
-            return Cfg { index, idom };
+            return Cfg {
+                index,
+                idom,
+                owner,
+                values,
+                definers,
+                node_names,
+            };
         };
         // Reverse postorder by an explicit stack.
         let mut order = Vec::new();
@@ -3765,7 +3974,69 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 format!("dominance did not settle within {count} passes over the expanded blocks"),
             );
         }
-        Cfg { index, idom }
+        Cfg {
+            index,
+            idom,
+            owner,
+            values,
+            definers,
+            node_names,
+        }
+    }
+
+    /// Per expanded node: its owner block, the values it defines and its
+    /// name; and every block defining each name.
+    #[allow(clippy::type_complexity)]
+    fn node_tables(
+        &self,
+        index: &BTreeMap<String, usize>,
+        count: usize,
+    ) -> (
+        Vec<Option<String>>,
+        Vec<BTreeMap<String, (Kind, Option<TypeExpr>)>>,
+        BTreeMap<String, Vec<String>>,
+        Vec<String>,
+    ) {
+        let mut owner: Vec<Option<String>> = vec![None; count];
+        let mut values: Vec<BTreeMap<String, (Kind, Option<TypeExpr>)>> =
+            vec![BTreeMap::new(); count];
+        let mut definers: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let mut node_names = vec![String::new(); count];
+        for (name, node) in index {
+            node_names[*node].clone_from(name);
+        }
+        for (b, defs) in self.block_defs.iter().enumerate() {
+            let block = &self.blocks[b].name;
+            for &piece in &self.block_pieces[b] {
+                owner[piece] = Some(block.clone());
+            }
+            for (name, def) in defs {
+                values[def.piece].insert(name.clone(), (def.kind, def.ty.clone()));
+                definers
+                    .entry(name.clone())
+                    .or_default()
+                    .push(block.clone());
+            }
+        }
+        for kept in &self.kept {
+            let node = index[&kept.leaf];
+            owner[node] = Some(kept.leaf.clone());
+            for (name, ty) in &kept.params {
+                values[node].insert(name.clone(), (Kind::Param, ty.clone()));
+                definers
+                    .entry(name.clone())
+                    .or_default()
+                    .push(kept.leaf.clone());
+            }
+            for (name, ty) in &kept.ops {
+                values[node].insert(name.clone(), (Kind::Op, ty.clone()));
+                definers
+                    .entry(name.clone())
+                    .or_default()
+                    .push(kept.leaf.clone());
+            }
+        }
+        (owner, values, definers, node_names)
     }
 
     /// Threads block parameters and unwrapped values into the continuation
@@ -3847,173 +4118,230 @@ impl<'c, 'a> FnExp<'c, 'a> {
         }
     }
 
-    /// X4: a plain name no earlier value of the block and no function
-    /// parameter defines: the unique result of a dominating block.
+    /// X4: a plain name that no earlier value of the block and no function
+    /// parameter defines means the nearest definition above this point on
+    /// the dominator tree of the expanded graph, when that is an operation
+    /// result; a derived edge argument is also never taken on an edge back
+    /// into a loop.
     #[allow(clippy::too_many_lines)]
     fn resolve_far(&mut self, piece: usize, far: &Far, pointer: &str) -> Value {
         let b = self.pieces[piece].block;
         let here = self.blocks[b].name.clone();
         let name = &far.name;
         let fallback = Value::from(format!("{name}{}", far.suffix));
-        let mut definers: Vec<Definer> = Vec::new();
-        let cfg = self.cfg.as_ref().expect("dominators before emission");
-        // A derived argument fills a parameter of its target: that parameter
-        // is not a value to pass to it.
-        let target = far.derive.as_ref().map(|derive| derive.target.as_str());
-        for (d, defs) in self.block_defs.iter().enumerate() {
-            if d == b {
-                continue;
+        let cfg = self.cfg.take().unwrap_or_default();
+        let use_node = cfg.index.get(&self.pieces[piece].name).copied();
+        let value = self.resolve_far_in(&cfg, use_node, &here, far, piece, pointer, fallback);
+        self.cfg = Some(cfg);
+        value
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    fn resolve_far_in(
+        &mut self,
+        cfg: &Cfg,
+        use_node: Option<usize>,
+        here: &str,
+        far: &Far,
+        piece: usize,
+        pointer: &str,
+        fallback: Value,
+    ) -> Value {
+        let name = &far.name;
+        let derive = far.derive.as_ref();
+        let fail = |this: &mut Self, detail: String| match derive {
+            Some(derive) => this.missing_argument(
+                &far.pointer,
+                &derive.target,
+                name,
+                derive.ty.as_ref(),
+                derive.available.clone(),
+                &detail,
+            ),
+            None => this.oblige(AgentErrorCode::XScope, &far.pointer, detail),
+        };
+        let mismatch = |found: Option<&TypeExpr>| {
+            derive
+                .and_then(|derive| derive.ty.as_ref())
+                .zip(found)
+                .is_some_and(|(want, found)| want != found)
+        };
+        let reachable = use_node.is_some_and(|node| cfg.reachable(node));
+        if let Some(derive) = derive {
+            // An edge into a block that dominates the edge's own block is an
+            // edge back into a loop: the loop's values are passed explicitly.
+            let back = cfg
+                .index
+                .get(&derive.target)
+                .zip(use_node)
+                .is_some_and(|(target, node)| cfg.dominates(*target, node));
+            if back && !self.degraded {
+                let target = &derive.target;
+                fail(
+                    self,
+                    format!(
+                        "this edge goes back into `{target}`, which it is inside of (a loop edge), and a loop edge never takes an omitted argument by name"
+                    ),
+                );
+                return Value::Null;
             }
-            if let Some(def) = defs.get(name) {
-                if target == Some(self.blocks[d].name.as_str()) && def.kind == Kind::Param {
-                    continue;
+            if let Some((local, ty)) = &derive.local {
+                if mismatch(ty.as_ref()) && !self.degraded {
+                    let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
+                    fail(self, format!("the `{name}` here is {found}"));
+                    return Value::Null;
                 }
-                let holder = self.pieces[def.piece].name.clone();
-                definers.push(Definer {
-                    owner: self.blocks[d].name.clone(),
-                    kind: def.kind,
-                    node: cfg.index.get(&holder).copied(),
-                    holder,
-                    ty: def.ty.clone(),
+                self.stats.derived_args += 1;
+                return self.resolve_sym(piece, local, pointer);
+            }
+        }
+        if self.degraded
+            && let Some(holder) = self.unique_op_holder(name, here)
+            && !matches!(
+                cfg.nearest(use_node.unwrap_or_default(), here, name),
+                Nearest::Op { .. }
+            )
+        {
+            // The graph is incomplete: the compiler reports the malformed
+            // part; a unique result keeps this name from hiding it.
+            return Value::from(format!("{holder}.{name}{}", far.suffix));
+        }
+        if !reachable {
+            if self.degraded {
+                return fallback;
+            }
+            fail(
+                self,
+                format!(
+                    "block `{here}` is not reachable from the entry, so no value named `{name}` is available here"
+                ),
+            );
+            return if derive.is_some() {
+                Value::Null
+            } else {
+                fallback
+            };
+        }
+        let nearest = cfg.nearest(use_node.unwrap_or_default(), here, name);
+        let others: Vec<String> = cfg
+            .definers
+            .get(name)
+            .map(|owners| {
+                let target = derive.map(|derive| derive.target.as_str());
+                let mut owners: Vec<String> = owners
+                    .iter()
+                    .filter(|owner| owner.as_str() != here && Some(owner.as_str()) != target)
+                    .cloned()
+                    .collect();
+                owners.dedup();
+                owners
+            })
+            .unwrap_or_default();
+        match nearest {
+            Nearest::Op { owner, holder, ty } => {
+                if mismatch(ty.as_ref()) && !self.degraded {
+                    let found = ty.as_ref().map(|t| self.cx.render(t)).unwrap_or_default();
+                    fail(self, format!("the `{name}` of `{owner}` is {found}"));
+                    return Value::Null;
+                }
+                let role = if derive.is_some() {
+                    self.stats.derived_args += 1;
+                    Role::DerivedArg
+                } else {
+                    self.stats.qualified += 1;
+                    Role::Qualified
+                };
+                self.entries.push(MapEntry {
+                    expanded: pointer.to_owned(),
+                    authored: far.pointer.clone(),
+                    role,
+                    name: format!("{holder}.{name}"),
                 });
+                Value::from(format!("{holder}.{name}{}", far.suffix))
+            }
+            _ if self.degraded => {
+                if derive.is_some() {
+                    Value::from(name.clone())
+                } else {
+                    fallback
+                }
+            }
+            Nearest::Hidden { owner, kind, outer } => {
+                let what = if kind == Kind::Unwrapped {
+                    format!("the value a checked operation of block `{owner}` unwraps")
+                } else {
+                    format!("a parameter of block `{owner}`")
+                };
+                let detail = match (&outer, derive) {
+                    (Some(outer), None) => format!(
+                        "`{name}` here is shadowed: the nearest `{name}` above `{here}` is {what}, visible only there; write `{outer}.{name}` for the value `{outer}` defines, or declare `{name}` as a parameter of `{here}` and pass it on each edge"
+                    ),
+                    (None, None) => format!(
+                        "`{name}` is {what}, visible only in its own block: declare `{name}` as a parameter of `{here}`; its edge argument is derived"
+                    ),
+                    (_, Some(_)) => format!(
+                        "the nearest `{name}` above this edge is {what}, visible only there"
+                    ),
+                };
+                fail(self, detail);
+                if derive.is_some() {
+                    Value::Null
+                } else {
+                    fallback
+                }
+            }
+            Nearest::None => {
+                if others.is_empty() {
+                    if derive.is_some() {
+                        fail(self, format!("no value named `{name}` is available here"));
+                        return Value::Null;
+                    }
+                    // The compiler names the unknown value as written.
+                    return fallback;
+                }
+                let detail = match (others.as_slice(), derive) {
+                    ([owner], None) => format!(
+                        "`{name}` is defined in block `{owner}`, which does not dominate this point of `{here}` (another path reaches it without passing through `{owner}`): declare `{name}` as a parameter of `{here}` and pass it on each edge"
+                    ),
+                    (owners, None) => format!(
+                        "`{name}` is defined in blocks {}, none of which dominates this point of `{here}` (paths join here): declare `{name}` as a parameter of `{here}`; each edge then derives its own",
+                        owners.join(", ")
+                    ),
+                    (owners, Some(_)) => format!(
+                        "no value named `{name}` is available on every path here (blocks {} define one, but none dominates this edge)",
+                        owners.join(", ")
+                    ),
+                };
+                fail(self, detail);
+                if derive.is_some() {
+                    Value::Null
+                } else {
+                    fallback
+                }
+            }
+        }
+    }
+
+    /// The node holding the only operation result named `name` outside
+    /// block `here`, when exactly one block defines it (degraded mode).
+    fn unique_op_holder(&self, name: &str, here: &str) -> Option<String> {
+        let mut found = Vec::new();
+        for (b, defs) in self.block_defs.iter().enumerate() {
+            if self.blocks[b].name != here
+                && let Some(def) = defs.get(name)
+            {
+                found.push((def.kind, self.pieces[def.piece].name.clone()));
             }
         }
         for kept in &self.kept {
-            if let Some((kind, ty)) = kept.value(name) {
-                if target == Some(kept.leaf.as_str()) && kind == Kind::Param {
-                    continue;
-                }
-                definers.push(Definer {
-                    owner: kept.leaf.clone(),
-                    kind,
-                    node: cfg.index.get(&kept.leaf).copied(),
-                    holder: kept.leaf.clone(),
-                    ty,
-                });
+            if let Some((kind, _)) = kept.value(name) {
+                found.push((kind, kept.leaf.clone()));
             }
         }
-        let use_node = cfg.index.get(&self.pieces[piece].name).copied();
-        let derive = far.derive.clone();
-        if self.degraded {
-            // Emitted as written: the compiler reports the malformed block
-            // or terminator, and this name with it when it is unresolved.
-            if let [definer] = definers.as_slice()
-                && definer.kind == Kind::Op
-            {
-                return Value::from(format!("{}.{name}{}", definer.holder, far.suffix));
-            }
-            return fallback;
+        match found.as_slice() {
+            [(Kind::Op, holder)] => Some(holder.clone()),
+            _ => None,
         }
-        let fail = |this: &mut Self, detail: String| match &derive {
-            Some(derive) => {
-                this.missing_argument(
-                    &far.pointer,
-                    &derive.target,
-                    name,
-                    derive.ty.as_ref(),
-                    derive.available.clone(),
-                    &detail,
-                );
-            }
-            None => this.oblige(AgentErrorCode::XScope, &far.pointer, detail),
-        };
-        if definers.is_empty() {
-            if derive.is_some() {
-                fail(self, format!("no value named `{name}` is available here"));
-                return Value::Null;
-            }
-            // The compiler names the unknown value as written.
-            return fallback;
-        }
-        if definers.len() > 1 {
-            let blocks: Vec<&str> = definers
-                .iter()
-                .map(|definer| definer.owner.as_str())
-                .collect();
-            let detail = if derive.is_some() {
-                format!("several blocks define `{name}` ({})", blocks.join(", "))
-            } else {
-                format!(
-                    "several blocks define `{name}` ({}), so a plain `{name}` is ambiguous in `{here}`: declare `{name}` as a parameter of `{here}` (each edge then derives its own) or write `block.{name}`",
-                    blocks.join(", ")
-                )
-            };
-            fail(self, detail);
-            return fallback;
-        }
-        let Definer {
-            owner,
-            kind,
-            node,
-            holder,
-            ty,
-        } = definers.remove(0);
-        if let Some(derive) = &derive
-            && derive.target == owner
-        {
-            fail(
-                self,
-                format!(
-                    "the `{name}` here is defined by `{owner}` itself, and a loop edge never passes a value back to the block that defines it"
-                ),
-            );
-            return Value::Null;
-        }
-        if kind != Kind::Op {
-            fail(
-                self,
-                format!(
-                    "`{name}` is a parameter of block `{owner}` (or the value a checked operation unwraps there), visible only in its own block: declare `{name}` as a parameter of `{here}`; its edge argument is derived"
-                ),
-            );
-            return fallback;
-        }
-        let cfg = self.cfg.as_ref().expect("dominators before emission");
-        let reachable = use_node.is_some_and(|node| cfg.reachable(node));
-        if !reachable {
-            fail(
-                self,
-                format!(
-                    "block `{here}` is not reachable from the entry, so `{name}` from `{owner}` is not available here"
-                ),
-            );
-            return fallback;
-        }
-        let dominates = matches!((node, use_node), (Some(a), Some(u)) if cfg.dominates(a, u));
-        if !dominates {
-            fail(
-                self,
-                format!(
-                    "`{name}` is defined in block `{owner}`, which does not dominate this point of `{here}` (another path reaches it without passing through `{owner}`): declare `{name}` as a parameter of `{here}` and pass it on each edge"
-                ),
-            );
-            return fallback;
-        }
-        if let Some(derive) = &derive {
-            if let (Some(found), Some(want)) = (&ty, &derive.ty)
-                && found != want
-            {
-                let found = self.cx.render(found);
-                fail(self, format!("the `{name}` from `{owner}` is {found}"));
-                return Value::Null;
-            }
-            self.stats.derived_args += 1;
-            self.entries.push(MapEntry {
-                expanded: pointer.to_owned(),
-                authored: far.pointer.clone(),
-                role: Role::DerivedArg,
-                name: format!("{holder}.{name}"),
-            });
-        } else {
-            self.stats.qualified += 1;
-            self.entries.push(MapEntry {
-                expanded: pointer.to_owned(),
-                authored: far.pointer.clone(),
-                role: Role::Qualified,
-                name: format!("{holder}.{name}"),
-            });
-        }
-        Value::from(format!("{holder}.{name}{}", far.suffix))
     }
 
     fn emit_tpl(&mut self, piece: usize, tpl: &Tpl, pointer: &str) -> Value {
@@ -4230,6 +4558,16 @@ fn intersect(idom: &[Option<usize>], rank: &[usize], mut a: usize, mut b: usize)
 fn collect_uses(tpl: &Tpl, out: &mut Vec<String>) {
     match tpl {
         Tpl::Sym(Sym::Local(name, _)) => out.push(name.clone()),
+        Tpl::Sym(Sym::Far(far)) => {
+            if let Some(Derive {
+                local: Some((local, _)),
+                ..
+            }) = &far.derive
+                && let Sym::Local(name, _) = &**local
+            {
+                out.push(name.clone());
+            }
+        }
         Tpl::List(items) => items.iter().for_each(|item| collect_uses(item, out)),
         _ => {}
     }

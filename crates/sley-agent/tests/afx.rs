@@ -1130,7 +1130,7 @@ fn names_resolve_only_to_unique_available_values() {
         ),
         "AGENT_X_SCOPE",
         &[
-            "/fns/0/blocks/3/ops/0/2: several blocks define `t` (left, right), so a plain `t` is ambiguous in `done`",
+            "/fns/0/blocks/3/ops/0/2: `t` is defined in blocks left, right, none of which dominates this point of `done` (paths join here)",
         ],
     );
     // A definer that does not dominate.
@@ -1163,7 +1163,7 @@ fn names_resolve_only_to_unique_available_values() {
         &[
             "/fns/0/blocks/2/ops/0/2: `q` is a parameter of block `next`",
             "declare `q` as a parameter of `last`; its edge argument is derived",
-            "/fns/0/blocks/2/ops/0/3: `s` is a parameter of block `entry` (or the value a checked operation unwraps there)",
+            "/fns/0/blocks/2/ops/0/3: `s` is the value a checked operation of block `entry` unwraps, visible only in its own block",
         ],
     );
     // Use before definition in the same block.
@@ -1216,7 +1216,7 @@ fn names_resolve_only_to_unique_available_values() {
         ),
         "AGENT_X_SCOPE",
         &[
-            "/fns/0/blocks/1/term: the edge back to `spin` would pass `i` from `spin` itself (a loop edge)",
+            "/fns/0/blocks/1/term: block `spin` takes `i: i64`, and this edge goes back into `spin`, which it is inside of (a loop edge), and a loop edge never takes an omitted argument by name",
         ],
     );
     // An explicit `b.x` of another block's parameter.
@@ -1348,9 +1348,7 @@ fn explicit_edges_are_never_repaired() {
         &temp.path,
         &frame,
         "AGENT_FRAME_INVALID",
-        &[
-            "/fns/0/blocks/0/term: block `done` takes 1 argument(s) (v: i64); this edge passes 2 [expanded /fns/0/blocks/2/term]",
-        ],
+        &["/fns/0/blocks/0/term: block `done` takes 1 argument(s) (v: i64); this edge passes 2"],
     );
     // A wrongly typed explicit argument is not replaced by a fitting value.
     let frame = one_function(
@@ -1798,4 +1796,188 @@ fn an_undefined_operand_of_a_checked_operation_is_named() {
         .clone();
     assert_eq!(edge["expected"], "i64", "{edge}");
     assert_eq!(edge["available"], json!(["b: i64", "a: i64"]), "{edge}");
+}
+
+// ---------------------------------------------------------------------------
+// Review regressions: loops, payloads, explicit qualification
+// ---------------------------------------------------------------------------
+
+/// `sum_evens(n)`: the sum of the even numbers up to `n`; `skip` ends with
+/// `skip_term` (reproducer W2-A1).
+fn sum_evens(skip_params: &Value, skip_edge: &Value, skip_term: &Value) -> Value {
+    json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": ["Overflow"]}],
+      "fns": [{"fn": "sum_evens", "params": [["n", "i64"]], "returns": "Result<i64,E>", "blocks": [
+        {"name": "entry", "ops": [["acc", "const", {"type": "i64", "value": 0}], ["i", "const", {"type": "i64", "value": 1}]],
+         "term": ["br", "loop"]},
+        {"name": "loop", "params": [["i", "i64"], ["acc", "i64"]], "ops": [["more", "le", "i", "n"]],
+         "term": ["cond", "more", ["body", "i", "acc"], ["done", "acc"]]},
+        {"name": "body", "params": [["k", "i64"], ["a", "i64"]], "ops": [["even", "eq", ["rem?Overflow", "k", 2], 0]],
+         "term": ["cond", "even", ["addit", "k", "a"], skip_edge]},
+        {"name": "addit", "params": [["j", "i64"], ["b", "i64"]], "ops": [["s", "add?Overflow", "b", "j"]],
+         "term": ["br", "loop", ["add?Overflow", "j", 1], "s"]},
+        {"name": "skip", "params": skip_params, "term": skip_term},
+        {"name": "done", "params": [["r", "i64"]], "term": ["ok", "r"]}]}]})
+}
+
+#[test]
+fn a_loop_edge_never_takes_a_shadowed_or_passed_through_value() {
+    let temp = workspace("loops");
+    let skip = json!(["skip", "k"]);
+    // W2-A1: the omitted `acc` must not become the pre-loop `entry.acc`.
+    assert_refused(
+        &temp.path,
+        &sum_evens(
+            &json!([["m", "i64"]]),
+            &skip,
+            &json!(["br", "loop", ["add?Overflow", "m", 1]]),
+        ),
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/4/term: block `loop` takes `acc: i64`, and this edge goes back into `loop`, which it is inside of (a loop edge), and a loop edge never takes an omitted argument by name: pass it explicitly",
+        ],
+    );
+    // Written by name, `acc` is shadowed by the loop's own parameter: the
+    // refusal names the exact alternatives instead of calling it ambiguous.
+    let (symbol, detail) = refused(
+        &temp.path,
+        &sum_evens(
+            &json!([["m", "i64"]]),
+            &skip,
+            &json!(["br", "loop", ["add?Overflow", "m", 1], "acc"]),
+        ),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    assert!(
+        detail.contains("/fns/0/blocks/4/term/3: `acc` here is shadowed: the nearest `acc` above `skip` is a parameter of block `loop`, visible only there; write `entry.acc` for the value `entry` defines, or declare `acc` as a parameter of `skip` and pass it on each edge"),
+        "{detail}"
+    );
+    assert!(!detail.contains("ambiguous"), "{detail}");
+    // Passing the loop's value on explicitly is the working program.
+    let fixed = sum_evens(
+        &json!([["m", "i64"], ["acc", "i64"]]),
+        &json!(["skip", "k", "a"]),
+        &json!(["br", "loop", ["add?Overflow", "m", 1], "acc"]),
+    );
+    let mut runner = Runner::new(&temp.path, &fixed);
+    for (n, sum) in [(1, 0), (2, 2), (3, 2), (5, 6), (6, 12)] {
+        assert_eq!(
+            runner.call("sum_evens", &[json!(n)]),
+            json!({"Ok": sum}),
+            "{n}"
+        );
+    }
+    // W2-A3: a body edge back to the loop header does not pass the body's
+    // own copy of the header's value (which would never advance).
+    let frame = json!({"af1": 1, "afx": 1, "types": [{"name": "SumError", "variant": ["Negative", "Overflow"]}],
+      "fns": [{"fn": "sum_to2", "params": [["n", "i64"]], "returns": "Result<i64,SumError>", "blocks": [
+        {"name": "entry", "ops": [["!Negative", "if", ["lt", "n", 0]]], "term": ["br", "loop", 0, 1]},
+        {"name": "loop", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["more", "le", "i", "n"]], "term": ["cond", "more", "body", "done"]},
+        {"name": "body", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["next", "add?Overflow", "acc", "i"]], "term": ["br", "loop", "next"]},
+        {"name": "done", "params": [["acc", "i64"]], "term": ["ok", "acc"]}]}]});
+    assert_refused(
+        &temp.path,
+        &frame,
+        "AGENT_X_SCOPE",
+        &[
+            "/fns/0/blocks/2/term: block `loop` takes `i: i64`, and this edge goes back into `loop`, which it is inside of (a loop edge)",
+        ],
+    );
+}
+
+#[test]
+fn a_plain_name_means_the_nearest_dominating_definition() {
+    // `t` is defined by `entry` (which dominates `right`) and by `left`
+    // (which does not): at `right` the name is unambiguous.
+    let temp = workspace("nearest");
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "i64", "blocks": [
+        {"name": "entry", "ops": [["t", "lt", "a", "b"]], "term": ["cond", "t", "left", "right"]},
+        {"name": "left", "ops": [["t", "gt", "a", 0]], "term": ["cond", "t", ["out", "a"], ["out", "b"]]},
+        {"name": "right", "term": ["cond", "t", ["out", 1], ["out", 2]]},
+        {"name": "out", "params": [["v", "i64"]], "term": ["return", "v"]}]}]});
+    let expansion = expand(&temp.path, &frame);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.frame["fns"][0]["blocks"][2]["term"][1],
+        json!("entry.t")
+    );
+    let mut runner = Runner::new(&temp.path, &frame);
+    assert_eq!(runner.call("f", &[json!(5), json!(1)]), json!(2));
+    assert_eq!(runner.call("f", &[json!(3), json!(4)]), json!(3));
+}
+
+#[test]
+fn a_case_payload_is_never_replaced_by_a_value_found_by_name() {
+    // W2-A2: without `$` the Err or Some payload would be dropped unseen.
+    let temp = workspace("payload-cases");
+    let frame = |err_case: Value, some_case: Value| {
+        json!({"af1": 1, "afx": 1, "types": [{"name": "E", "variant": [["Math", "ArithmeticError"]]}], "fns": [
+          {"fn": "ratio", "params": [["a", "i64"], ["b", "i64"], ["e", "ArithmeticError"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "term": ["switch", ["div", "a", "b"], ["Ok", "done", "$"], err_case]},
+            {"name": "done", "params": [["q", "i64"]], "term": ["ok", "q"]},
+            {"name": "bad", "params": [["e", "ArithmeticError"]], "term": ["fail", "Math", "e"]}]},
+          {"fn": "lookup", "params": [["m", "Map<i64,i64>"], ["k", "i64"], ["v", "i64"]], "returns": "i64", "blocks": [
+            {"name": "entry", "term": ["switch", ["map_get", "m", "k"], some_case, ["None", "done"]]},
+            {"name": "done", "params": [["v", "i64"]], "term": ["return", "v"]}]}]})
+    };
+    let (symbol, detail) = refused(
+        &temp.path,
+        &frame(json!(["Err", "bad"]), json!(["Some", "done"])),
+    );
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
+    for needle in [
+        "/fns/0/blocks/0/term/3: case `Err` carries a payload (ArithmeticError) that this edge does not pass, and `bad` takes more arguments than the edge gives: pass the payload with \"$\" where `bad` takes it (e.g. [\"Err\", \"bad\", \"$\"]), or write every argument",
+        "/fns/1/blocks/0/term/2: case `Some` carries a payload (i64) that this edge does not pass",
+    ] {
+        assert!(detail.contains(needle), "{needle}\n{detail}");
+    }
+    // With `$` the payload is passed; the None case still derives `v`.
+    let mut runner = Runner::new(
+        &temp.path,
+        &frame(json!(["Err", "bad", "$"]), json!(["Some", "done", "$"])),
+    );
+    assert_eq!(
+        runner.call(
+            "ratio",
+            &[json!(1), json!(0), json!({"ArithmeticError": "Overflow"})]
+        ),
+        json!({"Err": {"Math": {"ArithmeticError": "DivideByZero"}}})
+    );
+    assert_eq!(
+        runner.call("lookup", &[json!([[1, 5]]), json!(1), json!(0)]),
+        json!(5)
+    );
+    assert_eq!(
+        runner.call("lookup", &[json!([[1, 5]]), json!(2), json!(9)]),
+        json!(9)
+    );
+}
+
+#[test]
+fn an_explicit_block_qualification_resolves_as_in_plain_af1() {
+    // W2-A4: `mid.lo` inside `mid`, where `mid` defines no `lo`, is refused
+    // as plain AF1 refuses it; it is never re-qualified to `entry.lo`.
+    let temp = workspace("self-qualified");
+    let blocks = json!([
+        {"name": "entry", "ops": [["lo", "lt", "a", "b"]], "term": ["cond", "lo", "left", "right"]},
+        {"name": "left", "ops": [["m", "add", "a", "a"]], "term": ["br", "mid"]},
+        {"name": "right", "term": ["br", "mid"]},
+        {"name": "mid", "term": ["br", "fin", "mid.lo"]},
+        {"name": "fin", "params": [["flag", "bool"]], "term": ["cond", "flag", ["out", "a"], ["out", "b"]]},
+        {"name": "out", "params": [["v", "i64"]], "term": ["return", "v"]}]);
+    let plain = json!({"af1": 1, "fns": [{"fn": "pick", "params": [["a", "i64"], ["b", "i64"]], "returns": "i64", "blocks": blocks}]});
+    let mut extended = plain.clone();
+    extended["afx"] = json!(1);
+    assert_eq!(
+        expand(&temp.path, &extended).frame["fns"][0]["blocks"][3]["term"],
+        json!(["br", "fin", "mid.lo"])
+    );
+    let (_, plain_detail) = refused(&temp.path, &plain);
+    let (symbol, detail) = refused(&temp.path, &extended);
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert_eq!(detail, plain_detail);
+    assert!(detail.contains("mid.lo` in scope"), "{detail}");
 }
