@@ -1139,7 +1139,9 @@ pub fn table_rows(frame: &Value) -> u64 {
         .sum()
 }
 
-fn is_imported(entry: &Value, sources: &[Value]) -> bool {
+/// Whether a frame test is an imported test unchanged since its import.
+#[must_use]
+pub fn is_imported(entry: &Value, sources: &[Value]) -> bool {
     let Some(name) = entry.get("name").and_then(Value::as_str) else {
         return false;
     };

@@ -279,7 +279,7 @@ fn structural_findings_map_to_their_authored_blocks_and_layered_frames() {
         &["--on", &base],
         &patch,
         "CFG_RETURN_TYPE",
-        "/fns/1/blocks/0/term (terminator of h.entry), /fns/1/returns (result of h); pointers refer to .sley/layered.json",
+        "/fns/1/blocks/0/term (terminator of h.entry), /fns/1/returns (result of h); pointers refer to .sley/drafts/d4/r1/frame.json",
     );
 }
 
