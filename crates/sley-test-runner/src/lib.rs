@@ -5,7 +5,8 @@
 //! `RunNativeTest` IPC protocol, the frozen systemd transient-unit rendering,
 //! the checked enforcement math (page-aligned memory caps, monotonic
 //! deadlines, peak/event admission), the measurement-admission predicate, the
-//! worker request envelope, bounded portable program artifact, pure native
+//! worker request envelope, bounded portable program artifact, root-owned
+//! worker-input staging, pure native
 //! execution/report bridge, observed-report request binding, authenticated socket
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, and the
@@ -31,5 +32,6 @@ pub mod probe;
 pub mod program;
 pub mod protocol;
 pub mod service;
+pub mod stage;
 pub mod unit;
 pub mod worker;

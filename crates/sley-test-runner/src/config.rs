@@ -108,7 +108,7 @@ impl RunnerConfig {
             &self.measurement_key_path,
             &self.trust_manifest_dir,
         ] {
-            if !path.starts_with('/') || path.is_empty() {
+            if !valid_admin_path(path) {
                 return Err(ConfigError::InvalidField);
             }
         }
@@ -141,6 +141,24 @@ impl RunnerConfig {
     pub fn caller_for_uid(&self, uid: u32) -> Option<&AllowedCaller> {
         self.allowed_callers.iter().find(|caller| caller.uid == uid)
     }
+}
+
+/// Restricts administrator paths to unambiguous absolute ASCII components.
+/// These paths enter systemd property values as well as filesystem calls;
+/// whitespace, escapes, empty components, and dot traversal are refused.
+#[must_use]
+pub(crate) fn valid_admin_path(path: &str) -> bool {
+    path.strip_prefix('/').is_some_and(|rest| {
+        !rest.is_empty()
+            && rest.split('/').all(|part| {
+                !part.is_empty()
+                    && part != "."
+                    && part != ".."
+                    && part.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+                    })
+            })
+    })
 }
 
 /// Computes SHA-256 over exact worker binary bytes for config pinning.
@@ -224,6 +242,22 @@ mod tests {
         let mut relative = config();
         relative.runtime_dir = "run/relative".to_owned();
         assert_eq!(relative.validate(), Err(ConfigError::InvalidField));
+        for path in [
+            "/run/sley test",
+            "/run/sley\n--property=NoNewPrivileges=no",
+            "/run/../etc",
+            "/run//input",
+            "/run/input/",
+            "/run/input:other",
+        ] {
+            let mut unsafe_path = config();
+            unsafe_path.worker_path = path.to_owned();
+            assert_eq!(
+                unsafe_path.validate(),
+                Err(ConfigError::InvalidField),
+                "{path}"
+            );
+        }
         let mut zero_digest = config();
         zero_digest.worker_sha256 = [0; 32];
         assert_eq!(zero_digest.validate(), Err(ConfigError::InvalidField));

@@ -36,7 +36,11 @@ worker report and binds its plan, selected test, root, function, ordered input
 hashes, schema hashes, profile, and limits to the authenticated request. It
 checks data consistency only; the refusal-only service does not call it yet.
 The private worker now dispatches a valid portable program to the pure VM
-and writes a bounded canonical report. Replay/diagnostic artifact sourcing,
+and writes a bounded canonical report. The runner can stage a checked worker
+frame as an exclusive regular file under a root-owned, symlink-free private
+runtime directory, then render a unit tied to its exact nonce, memory cap,
+wall budget, and staged path. This path is locally tested without launching a
+privileged unit. Replay/diagnostic artifact sourcing,
 measured launch, and admission still need to be wired before either mode can
 execute through the service.
 
