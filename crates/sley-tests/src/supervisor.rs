@@ -267,6 +267,12 @@ impl SupervisorConfigV1 {
         self.id
     }
 
+    /// Validated configuration facts for receiver-side request binding.
+    #[must_use]
+    pub const fn parts(&self) -> &SupervisorConfigParts {
+        &self.parts
+    }
+
     /// Normalized unit properties in name order.
     #[must_use]
     pub fn properties(&self) -> &[Property] {

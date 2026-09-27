@@ -12,7 +12,7 @@ use std::io::Write;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::time::Duration;
 
-use crate::config::{MAX_WORKER_OUTPUT_BYTES, RunnerConfig};
+use crate::config::RunnerConfig;
 use crate::ingress::{IngressError, authenticate_request};
 use crate::protocol::{RunResponse, RunStatus};
 
@@ -54,10 +54,10 @@ pub fn handle_connection(
     let response = RunResponse {
         status: RunStatus::Refused,
         code,
-        output: Vec::new(),
+        evidence: None,
     };
     let frame = response
-        .encode_frame(MAX_WORKER_OUTPUT_BYTES)
+        .encode_frame()
         .map_err(|_| ServiceError::ResponseEncoding)?;
     stream
         .write_all(&frame)
@@ -155,11 +155,11 @@ mod tests {
         );
         let reply = client.join().expect("client thread");
         assert_eq!(
-            RunResponse::decode_frame(&reply, MAX_WORKER_OUTPUT_BYTES).expect("closed response"),
+            RunResponse::decode_frame(&reply).expect("closed response"),
             RunResponse {
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_EXECUTION_NOT_WIRED,
-                output: Vec::new(),
+                evidence: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");
@@ -221,11 +221,11 @@ mod tests {
         );
         let reply = client.join().expect("client thread");
         assert_eq!(
-            RunResponse::decode_frame(&reply, MAX_WORKER_OUTPUT_BYTES).expect("closed response"),
+            RunResponse::decode_frame(&reply).expect("closed response"),
             RunResponse {
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_PROGRAM_INVALID,
-                output: Vec::new(),
+                evidence: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");

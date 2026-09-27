@@ -40,7 +40,11 @@ and writes a bounded canonical report. The runner can stage a checked worker
 frame as an exclusive regular file under a root-owned, symlink-free private
 runtime directory, then render a unit tied to its exact nonce, memory cap,
 wall budget, and staged path. This path is locally tested without launching a
-privileged unit. Replay/diagnostic artifact sourcing,
+privileged unit. The internal response now carries a bounded canonical report,
+measured attestation, and supervisor configuration together, with exact
+identity, nonce, caller, memory, and deadline consistency checks; parsing does
+not verify signature trust. The current service still returns only a refusal.
+Replay/diagnostic artifact sourcing,
 measured launch, and admission still need to be wired before either mode can
 execute through the service.
 

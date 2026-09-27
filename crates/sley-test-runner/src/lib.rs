@@ -7,7 +7,8 @@
 //! deadlines, peak/event admission), the measurement-admission predicate, the
 //! worker request envelope, bounded portable program artifact, root-owned
 //! worker-input staging, pure native
-//! execution/report bridge, observed-report request binding, authenticated socket
+//! execution/report bridge, observed-report request binding, typed bounded
+//! report/measurement/configuration response transport, authenticated socket
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, and the
 //! readiness probes. The root service loop and privileged transient-unit
@@ -31,6 +32,7 @@ pub mod outcome;
 pub mod probe;
 pub mod program;
 pub mod protocol;
+pub mod response;
 pub mod service;
 pub mod stage;
 pub mod unit;

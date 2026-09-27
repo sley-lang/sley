@@ -9,7 +9,10 @@
 //! Field 4 is an optional candidate identity because explicit-root plans
 //! have no candidate. Field 13 carries the exact bounded worker frame so
 //! the daemon can stage it read-only after authenticating the outer scope.
-//! This internal format has not shipped with a daemon.
+//! Response version 2 carries a bounded optional triple: canonical worker
+//! report, measured attestation, and exact supervisor configuration. Parsing
+//! the triple never grants signature trust or native test admission. This
+//! internal format has not shipped with a daemon.
 
 use sley_id::{CandidateId, EntityId, ObjectId, PolicyRootId, PrincipalId, WorkspaceId};
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_union, encode_uvar};
@@ -21,12 +24,15 @@ use sley_vm::{
 
 use crate::config::{MAX_REQUEST_BYTES, MAX_WORKER_OUTPUT_BYTES};
 use crate::program::PortableTestProgram;
+use crate::response::{MAX_RESPONSE_FRAME_BYTES, RunEvidence};
 use crate::worker::WorkerRequest;
 
 /// IPC magic for the closed run protocol.
 pub const RUN_MAGIC: &[u8; 8] = b"SLEYRUN1";
 /// IPC record version.
 pub const RUN_VERSION: u64 = 1;
+/// Internal measured-response record version; request framing stays v1.
+pub const RUN_RESPONSE_VERSION: u64 = 2;
 
 /// Daemon-owned closed run request. The worker executable, unit properties,
 /// and signing keys come from administrator configuration, never from these
@@ -92,15 +98,17 @@ impl RunStatus {
     }
 }
 
-/// Daemon-owned closed run response with daemon-bounded output bytes.
+/// Daemon-owned closed run response with bounded canonical evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RunResponse {
     /// Terminal status of the run.
     pub status: RunStatus,
     /// Stable refusal/failure code; zero for `Complete`.
     pub code: u32,
-    /// Daemon-owned bounded worker output; empty unless `Complete`.
-    pub output: Vec<u8>,
+    /// Canonical report, measurement claim, and configuration when available.
+    /// A `Complete` response requires this triple; diagnostic refusals may
+    /// have none. Parsing it never verifies measurement trust.
+    pub evidence: Option<RunEvidence>,
 }
 
 fn declared_record(limits: NativeDeclaredLimits) -> Result<Vec<u8>, ScbError> {
@@ -407,26 +415,48 @@ impl RunRequest {
 }
 
 impl RunResponse {
+    fn validate_shape(&self) -> Result<(), ScbError> {
+        match self.status {
+            RunStatus::Complete
+                if self.code == 0
+                    && self
+                        .evidence
+                        .as_ref()
+                        .is_some_and(|evidence| evidence.attestation().claims_success()) =>
+            {
+                Ok(())
+            }
+            RunStatus::Refused | RunStatus::Failed if self.code != 0 => Ok(()),
+            _ => Err(ScbError::new(ScbErrorCode::ContractUnknown)),
+        }
+    }
+
     /// Encodes one length-delimited response frame.
     ///
     /// # Errors
     ///
-    /// Returns `SCB_RESOURCE_LIMIT` for oversized daemon-owned output.
-    pub fn encode_frame(&self, output_limit: usize) -> Result<Vec<u8>, ScbError> {
-        if self.output.len() > output_limit {
-            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
-        }
+    /// Refuses missing complete evidence, invalid status/code combinations,
+    /// or an oversized response frame.
+    pub fn encode_frame(&self) -> Result<Vec<u8>, ScbError> {
+        self.validate_shape()?;
+        let evidence = match &self.evidence {
+            None => encode_union(0, &[])?,
+            Some(value) => encode_union(1, &value.encode_record()?)?,
+        };
         let record = encode_record(&[
-            (1, encode_uvar(RUN_VERSION)),
+            (1, encode_uvar(RUN_RESPONSE_VERSION)),
             (2, encode_uvar(u64::from(self.status.tag()))),
             (3, encode_uvar(u64::from(self.code))),
-            (4, self.output.clone()),
+            (4, evidence),
         ])?;
         let mut frame = RUN_MAGIC.to_vec();
         let len =
             u32::try_from(record.len()).map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
         frame.extend_from_slice(&len.to_be_bytes());
         frame.extend_from_slice(&record);
+        if frame.len() > MAX_RESPONSE_FRAME_BYTES {
+            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+        }
         Ok(frame)
     }
 
@@ -434,10 +464,10 @@ impl RunResponse {
     ///
     /// # Errors
     ///
-    /// Returns the first stable SCB1 refusal for magic, length, shape,
-    /// version, or status violations.
-    pub fn decode_frame(frame: &[u8], output_limit: usize) -> Result<Self, ScbError> {
-        if frame.len() < 12 {
+    /// Returns the first stable SCB1 refusal for frame bounds, magic, length,
+    /// shape, version, status, or evidence violations.
+    pub fn decode_frame(frame: &[u8]) -> Result<Self, ScbError> {
+        if frame.len() < 12 || frame.len() > MAX_RESPONSE_FRAME_BYTES {
             return Err(ScbError::new(ScbErrorCode::LengthOverflow));
         }
         if frame[..8] != *RUN_MAGIC {
@@ -465,7 +495,7 @@ impl RunResponse {
             values.push(cursor.read_sized_payload()?.to_vec());
         }
         cursor.check_finished()?;
-        if read_uvar(&values[0])? != RUN_VERSION {
+        if read_uvar(&values[0])? != RUN_RESPONSE_VERSION {
             return Err(ScbError::new(ScbErrorCode::VersionUnsupported));
         }
         let status_tag = u32::try_from(read_uvar(&values[1])?)
@@ -474,14 +504,21 @@ impl RunResponse {
             .ok_or_else(|| ScbError::new(ScbErrorCode::UnionInvalid))?;
         let code = u32::try_from(read_uvar(&values[2])?)
             .map_err(|_| ScbError::new(ScbErrorCode::IntegerOverflow))?;
-        if values[3].len() > output_limit {
-            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
-        }
-        Ok(Self {
+        let mut evidence_cursor = ScbValueCursor::new(&values[3])?;
+        let (evidence_tag, evidence_bytes) = evidence_cursor.read_union()?;
+        evidence_cursor.check_finished()?;
+        let evidence = match evidence_tag {
+            0 if evidence_bytes.is_empty() => None,
+            1 => Some(RunEvidence::parse_record(evidence_bytes)?),
+            _ => return Err(ScbError::new(ScbErrorCode::UnionInvalid)),
+        };
+        let response = Self {
             status,
             code,
-            output: values[3].clone(),
-        })
+            evidence,
+        };
+        response.validate_shape()?;
+        Ok(response)
     }
 }
 
@@ -645,41 +682,31 @@ mod tests {
     }
 
     #[test]
-    fn response_roundtrips_with_bounded_output() {
-        let response = RunResponse {
+    fn response_refusal_roundtrips_and_complete_requires_evidence() {
+        let incomplete = RunResponse {
             status: RunStatus::Complete,
             code: 0,
-            output: vec![0xaa; 128],
+            evidence: None,
         };
-        let frame = response.encode_frame(256).expect("encodes");
         assert_eq!(
-            RunResponse::decode_frame(&frame, 256).expect("decodes"),
-            response
-        );
-        assert_eq!(
-            RunResponse::decode_frame(&frame, 64)
-                .expect_err("over limit")
+            incomplete
+                .encode_frame()
+                .expect_err("missing evidence")
                 .code(),
-            ScbErrorCode::ResourceLimit
-        );
-        let oversized = RunResponse {
-            status: RunStatus::Complete,
-            code: 0,
-            output: vec![0xaa; 257],
-        };
-        assert_eq!(
-            oversized.encode_frame(256).expect_err("oversized").code(),
-            ScbErrorCode::ResourceLimit
+            ScbErrorCode::ContractUnknown
         );
         let refused = RunResponse {
             status: RunStatus::Refused,
             code: 7,
-            output: Vec::new(),
+            evidence: None,
         };
-        let frame = refused.encode_frame(256).expect("encodes");
+        let frame = refused.encode_frame().expect("encodes");
+        assert_eq!(RunResponse::decode_frame(&frame).expect("decodes"), refused);
         assert_eq!(
-            RunResponse::decode_frame(&frame, 256).expect("decodes"),
-            refused
+            RunResponse::decode_frame(&vec![0; MAX_RESPONSE_FRAME_BYTES + 1])
+                .expect_err("oversized response before parse")
+                .code(),
+            ScbErrorCode::LengthOverflow
         );
     }
 
