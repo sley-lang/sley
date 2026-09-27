@@ -42,7 +42,7 @@ use crate::error::{AgentError, AgentErrorCode, Result, io};
 use crate::exec::{self, Executor};
 use crate::names::{NameMap, Names, is_identifier};
 use crate::opcodes::{self, ImmediateKind};
-use crate::workspace::{Head, Program, STATE_DIR, Workspace};
+use crate::workspace::{Head, Program, Workspace};
 
 /// Neighbors one command generates at most (`--max-neighbors` overrides).
 pub const MAX_NEIGHBORS: usize = 64;
@@ -52,16 +52,17 @@ pub const MAX_MILLIS: u64 = 10_000;
 pub const NEIGHBOR_CEILING: usize = 4096;
 /// The most `--max-millis` may ask for (one hour).
 pub const MILLIS_CEILING: u64 = 3_600_000;
-/// Search commands per seed lineage.
-pub const SEARCHES_PER_SEED: u64 = 2;
+/// Search commands per attempt: per accepted head of a workspace.
+pub const SEARCHES_PER_ATTEMPT: u64 = 2;
 /// Fuel a seed's public case may use.
 pub const SEED_FUEL: u64 = 10_000_000;
 /// Fuel a neighbor's public case may always use (up to [`SEED_FUEL`]).
 pub const NEIGHBOR_FUEL_FLOOR: u64 = 1_000_000;
 /// A neighbor's case may use this many times the seed's fuel on it.
 pub const NEIGHBOR_FUEL_FACTOR: u64 = 10;
-/// The use record in the workbench state directory.
-pub const SEARCH_FILE: &str = "search.json";
+/// The use record in the workbench state directory: one file per search,
+/// `<head transaction>-<n>.json`, claimed exclusively.
+pub const USES_DIR: &str = "search";
 /// Ranked neighbors the text output lists.
 pub const SHOWN: usize = 5;
 /// The ranking rule, stated in every output.
@@ -69,6 +70,8 @@ pub const RULE: &str =
     "public cases passed (desc), then edit size (asc), then generator order, then generation index";
 /// What a search result means, stated in every output.
 pub const CLAIM: &str = "kernel-valid and evaluated against the stated public cases, not proof of correctness for all inputs";
+/// What the `TestCases` of the searched function are, in every output.
+pub const TESTS: &str = "the TestCases of <fn> in each state (authored, imported and provided) run too, as evidence beside the public cases, not ranked";
 /// The command line.
 pub const USAGE: &str = "search <fn> --public <cases.json> [--from <candidate | draft>] [--max-neighbors <n>] [--max-millis <ms>]";
 
@@ -131,8 +134,9 @@ impl Generator {
         }
     }
 
-    /// Edit size: the items of an operation or terminator a neighbor of
-    /// this generator changes.
+    /// Base edit size: the items of an operation or terminator a neighbor
+    /// of this generator changes. A substitution that replaces a nested
+    /// operation adds every operation and literal it removes.
     #[must_use]
     pub const fn size(self) -> u64 {
         match self {
@@ -233,8 +237,8 @@ fn no_oracle(detail: impl Into<String>) -> AgentError {
 ///
 /// `AGENT_SEARCH_NO_ORACLE` without a readable public case for the
 /// function; `AGENT_SEARCH_SEED_INVALID` for an unusable seed, a name that
-/// is not a function of the seed, or a seed lineage that has used its
-/// searches; `AGENT_HANDLE_UNKNOWN` for a reference that does not exist.
+/// is not a function of the seed or cannot run, or an attempt (an
+/// accepted head) that has used its searches; `AGENT_HANDLE_UNKNOWN` for a reference that does not exist.
 #[allow(clippy::too_many_lines)]
 pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
     let started = Instant::now();
@@ -270,7 +274,8 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
             request.public
         )));
     }
-    record_use(workspace, &seed)?;
+    runnable(&seed, &function, &function_name, &file, request.public)?;
+    let uses = claim_use(workspace, &head, &seed.label, &function_name)?;
 
     let model = Model::build(&seed.program, &seed.names, body);
     let place = Place::of(seed.frame.as_ref(), &function_name);
@@ -302,6 +307,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
         &file.cases,
         &seed_caps,
         deadline,
+        &function_name,
     );
     let caps: Vec<u64> = (0..file.cases.len())
         .map(
@@ -317,6 +323,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
 
     let mut generated = generate(&model, &writer, request.max_neighbors, deadline);
     let context = Context {
+        function: &function_name,
         head: &head,
         head_names: &head_names,
         authority: &authority,
@@ -353,7 +360,7 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
         let neighbor = &generated.neighbors[*position];
         (
             std::cmp::Reverse(neighbor.passed()),
-            neighbor.generator.size(),
+            neighbor.size,
             neighbor.generator,
             neighbor.index,
         )
@@ -367,14 +374,28 @@ pub fn run(workspace: &Workspace, request: &Request<'_>) -> Result<Report> {
         .first()
         .map(|position| &generated.neighbors[*position])
     {
-        Some(top) if top.status == Status::Evaluated && top.passed() == usable => EXIT_OK,
+        Some(top)
+            if top.status == Status::Evaluated
+                && top.passed() == usable
+                && top.evaluation.as_ref().is_some_and(Evaluation::tests_clean) =>
+        {
+            EXIT_OK
+        }
         _ => EXIT_NEGATIVE,
     };
     let counts = Counts::of(&generated);
     let resources = Resources::measure(started, cpu_before);
-    let next = next_step(&seed, request.public, &seed_run, &generated, &ranked);
+    let next = next_step(
+        &seed,
+        request.public,
+        &function_name,
+        &seed_run,
+        &generated,
+        &ranked,
+    );
     let summary = Summary {
         request,
+        uses,
         function: &function_name,
         seed: &seed,
         file: &file,
@@ -425,7 +446,7 @@ struct CaseFile {
     bytes: usize,
     cases: Vec<Case>,
     /// Entries that are not a usable case (not an object, no `function`, no
-    /// `expect`, or `args` not an array); never run.
+    /// `expect`, or no `args` array); never run.
     unusable: usize,
 }
 
@@ -452,15 +473,14 @@ impl CaseFile {
         let mut unusable = 0;
         for (index, entry) in entries.iter().enumerate() {
             let function = entry.get("function").and_then(Value::as_str);
-            let args = entry.get("args").cloned().unwrap_or_else(|| json!([]));
-            match (function, entry.get("expect"), args) {
-                (Some(function), Some(expect), Value::Array(args)) => cases.push(Case {
+            match (function, entry.get("expect"), entry.get("args")) {
+                (Some(function), Some(expect), Some(Value::Array(args))) => cases.push(Case {
                     name: entry
                         .get("name")
                         .and_then(Value::as_str)
                         .map_or_else(|| format!("case{index}"), str::to_owned),
                     function: function.to_owned(),
-                    args,
+                    args: args.clone(),
                     expect: expect.clone(),
                 }),
                 _ => unusable += 1,
@@ -507,11 +527,26 @@ struct CaseRun {
     fuel: u64,
 }
 
-/// The public cases run on one program state.
+/// One `TestCase` run.
+#[derive(Clone, Debug)]
+struct TestRun {
+    name: String,
+    passed: bool,
+    expected: String,
+    actual: String,
+}
+
+/// The public cases, then the searched function's `TestCases`, run on one
+/// program state.
 #[derive(Clone, Debug, Default)]
 struct Evaluation {
     outcomes: Vec<CaseRun>,
-    /// Every case ran (the wall limit did not stop the evaluation).
+    /// The state's `TestCases` of the searched function that ran: evidence
+    /// beside the public cases, never ranked.
+    tests: Vec<TestRun>,
+    /// The state's `TestCases` of the searched function.
+    test_total: usize,
+    /// Every case and test ran (the wall limit did not stop the evaluation).
     complete: bool,
 }
 
@@ -521,6 +556,56 @@ impl Evaluation {
             .iter()
             .filter(|run| matches!(run.outcome, Outcome::Pass(_)))
             .count()
+    }
+
+    fn tests_passed(&self) -> usize {
+        self.tests.iter().filter(|test| test.passed).count()
+    }
+
+    /// Every `TestCase` of the function ran and passed.
+    fn tests_clean(&self) -> bool {
+        self.tests.len() == self.test_total && self.tests_passed() == self.test_total
+    }
+
+    fn tests_json(&self) -> Value {
+        let outcomes: Vec<Value> = self
+            .tests
+            .iter()
+            .map(|test| {
+                json!({"name": test.name, "outcome": if test.passed { "pass" } else { "fail" },
+                       "expected": test.expected, "actual": test.actual})
+            })
+            .collect();
+        json!({"passed": self.tests_passed(), "run": self.tests.len(), "total": self.test_total,
+               "outcomes": outcomes})
+    }
+
+    /// `1/2 (fail: t_a)`, with the tests that did not run.
+    fn tests_text(&self) -> String {
+        let mut text = format!("{}/{}", self.tests_passed(), self.tests.len());
+        if self.tests.len() < self.test_total {
+            let _ = write!(
+                text,
+                " (partial: {} of {} run, wall limit reached)",
+                self.tests.len(),
+                self.test_total
+            );
+        }
+        let failed: Vec<&str> = self
+            .tests
+            .iter()
+            .filter(|test| !test.passed)
+            .map(|test| test.name.as_str())
+            .collect();
+        if !failed.is_empty() {
+            let more = failed.len().saturating_sub(3);
+            let _ = write!(text, " (fail: {}", failed[..failed.len().min(3)].join(", "));
+            if more > 0 {
+                let _ = write!(text, " +{more}");
+            }
+            text.push(')');
+        }
+        text
     }
 
     fn to_json(&self, cases: &[Case]) -> Value {
@@ -600,17 +685,20 @@ impl Evaluation {
 }
 
 /// Runs the cases on a program state, each under its fuel cap and the
-/// `call` limits otherwise, until the deadline.
+/// `call` limits otherwise, then the state's `TestCases` of `function`
+/// under their declared limits, until the deadline. The deadline is checked
+/// before each run: a run that has started finishes.
 fn evaluate(
     program: &Program,
     names: &Names,
     cases: &[Case],
     caps: &[u64],
     deadline: Instant,
+    function: &str,
 ) -> Evaluation {
     let mut evaluation = Evaluation {
-        outcomes: Vec::new(),
         complete: true,
+        ..Evaluation::default()
     };
     let mut executor = match Executor::new(program) {
         Ok(executor) => Some(executor),
@@ -639,6 +727,37 @@ fn evaluate(
             case: index,
             outcome,
             fuel,
+        });
+    }
+    let mut tests: Vec<(String, sley_ssmc::TestCaseDefinition)> = executor
+        .tests()
+        .iter()
+        .filter(|test| names.name(&test.target) == function)
+        .map(|test| (names.name(&test.entity_id), test.clone()))
+        .collect();
+    tests.sort_by(|a, b| a.0.cmp(&b.0));
+    evaluation.test_total = tests.len();
+    for (name, test) in &tests {
+        if !evaluation.complete || Instant::now() >= deadline {
+            evaluation.complete = false;
+            break;
+        }
+        // A declared fuel above the case cap runs under the cap, so one run
+        // stays within the wall limit's granularity; a run the cap stops
+        // says so.
+        let capped = test.resource_limits.fuel > SEED_FUEL;
+        let mut run = test.clone();
+        run.resource_limits.fuel = run.resource_limits.fuel.min(SEED_FUEL);
+        let outcome = executor.run_test(&run, names);
+        let mut actual = outcome.actual.clone();
+        if capped && !outcome.passed() && actual.starts_with("resource limit") {
+            let _ = write!(actual, " at the search cap of {SEED_FUEL} fuel");
+        }
+        evaluation.tests.push(TestRun {
+            name: name.clone(),
+            passed: outcome.passed(),
+            expected: outcome.expected,
+            actual,
         });
     }
     evaluation
@@ -696,8 +815,6 @@ struct Seed {
     frame: Option<Value>,
     program: Program,
     names: Names,
-    /// The use-limit key: the root draft, a candidate, or the head.
-    lineage: String,
     draft: Option<String>,
     candidate: Option<String>,
 }
@@ -713,14 +830,12 @@ impl Seed {
         let Some(reference) = from else {
             let program = head.program().clone();
             let names = Names::build(&program, map);
-            let transaction = crate::hex::encode(head.transaction_id().as_bytes());
             return Ok(Self {
                 label: "head".to_owned(),
                 on: None,
                 frame: None,
                 program,
                 names,
-                lineage: format!("head@{}", &transaction[..16]),
                 draft: None,
                 candidate: None,
             });
@@ -761,14 +876,12 @@ impl Seed {
                 )));
             }
             let program = valid_program(head, authority, &stored, &spelled)?;
-            let lineage = lineage_of_draft(&drafts, &store, &handle, 0);
             return Ok(Self {
                 names: Names::build(&program, map),
                 label: spelled.clone(),
                 on: Some(spelled.clone()),
                 frame: Some(frame),
                 program,
-                lineage,
                 draft: Some(spelled),
                 candidate: Some(candidate),
             });
@@ -791,14 +904,12 @@ impl Seed {
                     "{handle} was not made from an AF1 frame, so no neighbor can be layered on it"
                 ))
             })?;
-        let lineage = lineage_of_candidate(&drafts, &store, &handle, 0);
         Ok(Self {
             names: Names::build(&program, map),
             label: handle.clone(),
             on: Some(handle.clone()),
             frame: Some(frame),
             program,
-            lineage,
             draft: meta["draft"].as_str().map(str::to_owned),
             candidate: Some(handle),
         })
@@ -824,88 +935,110 @@ fn valid_program(
         .ok_or_else(|| seed_invalid(format!("{label} proposes no program state")))
 }
 
-/// Longest `on` chain followed to a lineage root.
-const MAX_LINEAGE_DEPTH: usize = 64;
-
-/// A draft's lineage: the lineage of the candidate its first revision was
-/// layered on (`try --on cK`), else the draft itself.
-fn lineage_of_draft(drafts: &Drafts, store: &Store, handle: &str, depth: usize) -> String {
-    if depth < MAX_LINEAGE_DEPTH
-        && let Some(on) = drafts
-            .status(handle, 1)
-            .ok()
-            .and_then(|status| status["on"].as_str().map(str::to_owned))
-            .filter(|on| candidate::is_handle(on))
-    {
-        return lineage_of_candidate(drafts, store, &on, depth + 1);
-    }
-    handle.to_owned()
-}
-
-/// A candidate's lineage: the lineage of the draft that made it, else the
-/// candidate itself.
-fn lineage_of_candidate(drafts: &Drafts, store: &Store, handle: &str, depth: usize) -> String {
-    store
-        .meta(handle)
-        .and_then(|meta| meta["draft"].as_str().and_then(DraftRef::parse))
-        .map_or_else(
-            || handle.to_owned(),
-            |reference| lineage_of_draft(drafts, store, &reference.handle, depth + 1),
-        )
-}
-
-/// Counts one search against the seed's lineage, refusing the third.
-fn record_use(workspace: &Workspace, seed: &Seed) -> Result<()> {
-    let path = workspace.dir().join(STATE_DIR).join(SEARCH_FILE);
-    let mut record = match fs::read_to_string(&path) {
-        Ok(text) => serde_json::from_str::<Value>(&text).map_err(|error| {
-            AgentError::new(AgentErrorCode::Io, format!("{}: {error}", path.display()))
-        })?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => json!({}),
-        Err(error) => return Err(io(&path, &error)),
-    };
-    if !record.is_object() {
-        record = json!({});
-    }
-    record["searches_per_seed"] = json!(SEARCHES_PER_SEED);
-    if !record["lineages"].is_object() {
-        record["lineages"] = json!({});
-    }
-    let entry = &mut record["lineages"][seed.lineage.as_str()];
-    let used = entry["uses"].as_u64().unwrap_or(0);
-    if used >= SEARCHES_PER_SEED {
-        let seeds: Vec<String> = entry["seeds"]
-            .as_array()
-            .map(|seeds| {
-                seeds
-                    .iter()
-                    .filter_map(|seed| seed.as_str().map(str::to_owned))
-                    .collect()
-            })
-            .unwrap_or_default();
-        return Err(seed_invalid(format!(
-            "{} has used its {SEARCHES_PER_SEED} searches ({}): each seed lineage (a draft with the candidates of its revisions and the drafts started on them, or the head until the next commit) gets {SEARCHES_PER_SEED}; repair by hand with try --on",
+/// Refuses a search that could not evaluate anything: the function must
+/// run in the dev loop, and at least one public case for it must fit its
+/// parameters. Nothing is recorded before this passes.
+fn runnable(
+    seed: &Seed,
+    function: &EntityId,
+    name: &str,
+    file: &CaseFile,
+    public: &str,
+) -> Result<()> {
+    let mut executor = Executor::new(&seed.program).map_err(|error| {
+        seed_invalid(format!(
+            "{} cannot run in the dev loop: {}",
             seed.label,
-            if seeds.is_empty() {
-                seed.lineage.clone()
-            } else {
-                format!("lineage {}: {}", seed.lineage, seeds.join(", "))
+            error.detail()
+        ))
+    })?;
+    executor.prepare(function).map_err(|error| {
+        seed_invalid(format!(
+            "`{name}` cannot run in the dev loop ({}), so no neighbor can be evaluated",
+            error.detail()
+        ))
+    })?;
+    let mut reasons = Vec::new();
+    for case in &file.cases {
+        if seed.names.resolve(&case.function) != Some(*function) {
+            continue;
+        }
+        match crate::cli::typed_inputs(&executor, &seed.program, &seed.names, function, &case.args)
+        {
+            Ok(_) => return Ok(()),
+            Err(error) => reasons.push(format!("{}: {}", case.name, error.detail())),
+        }
+    }
+    let more = reasons.len().saturating_sub(3);
+    reasons.truncate(3);
+    let mut detail = format!(
+        "no public case for `{name}` in {public} can run on {}: {}",
+        seed.label,
+        reasons.join("; ")
+    );
+    if more > 0 {
+        let _ = write!(detail, "; {more} more");
+    }
+    Err(no_oracle(detail))
+}
+
+/// A scratch file name no other command uses.
+fn scratch(label: &str) -> Result<String> {
+    let random = candidate::random32()?;
+    Ok(format!(
+        ".{label}-{}-{}.partial",
+        std::process::id(),
+        crate::hex::encode(&random[..8])
+    ))
+}
+
+/// Claims one of the attempt's searches: the first free slot file
+/// `<head>-<n>.json` (n from 1 to [`SEARCHES_PER_ATTEMPT`]) is created by
+/// linking a complete scratch file into place, which fails when the slot
+/// exists, so concurrent searches never share a slot and never exceed the
+/// bound. Returns the slot number.
+fn claim_use(workspace: &Workspace, head: &Head, seed: &str, function: &str) -> Result<u64> {
+    let dir = workspace.state_dir()?.join(USES_DIR);
+    fs::create_dir_all(&dir).map_err(|error| io(&dir, &error))?;
+    let transaction = crate::hex::encode(head.transaction_id().as_bytes());
+    let path = |slot: u64| dir.join(format!("{transaction}-{slot}.json"));
+    let temporary = dir.join(scratch("use")?);
+    let mut content = json!({"head": transaction, "seed": seed, "fn": function}).to_string();
+    content.push('\n');
+    fs::write(&temporary, content).map_err(|error| io(&temporary, &error))?;
+    let mut claimed = Ok(None);
+    for slot in 1..=SEARCHES_PER_ATTEMPT {
+        match fs::hard_link(&temporary, path(slot)) {
+            Ok(()) => {
+                claimed = Ok(Some(slot));
+                break;
             }
-        )));
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                claimed = Err(io(&path(slot), &error));
+                break;
+            }
+        }
     }
-    entry["uses"] = json!(used + 1);
-    if !entry["seeds"].is_array() {
-        entry["seeds"] = json!([]);
+    let _ = fs::remove_file(&temporary);
+    if let Some(slot) = claimed? {
+        return Ok(slot);
     }
-    if let Some(seeds) = entry["seeds"].as_array_mut() {
-        seeds.push(json!(seed.label));
-    }
-    let state = workspace.state_dir()?;
-    let temporary = state.join(format!(".{SEARCH_FILE}.partial"));
-    let mut text = serde_json::to_string_pretty(&record).unwrap_or_default();
-    text.push('\n');
-    fs::write(&temporary, text).map_err(|error| io(&temporary, &error))?;
-    fs::rename(&temporary, &path).map_err(|error| io(&path, &error))
+    let earlier: Vec<String> = (1..=SEARCHES_PER_ATTEMPT)
+        .filter_map(|slot| {
+            let value: Value = serde_json::from_str(&fs::read_to_string(path(slot)).ok()?).ok()?;
+            Some(format!(
+                "{} {}",
+                value["seed"].as_str().unwrap_or("?"),
+                value["fn"].as_str().unwrap_or("?")
+            ))
+        })
+        .collect();
+    Err(seed_invalid(format!(
+        "this attempt has used its {SEARCHES_PER_ATTEMPT} searches (head {}: {}): every search on one accepted head counts, whatever its seed, function or draft; repair by hand with try --on",
+        &transaction[..8],
+        earlier.join(", ")
+    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -1410,6 +1543,7 @@ impl Sink<'_> {
         self.out.neighbors.push(Neighbor {
             index: self.out.neighbors.len() + 1,
             generator: change.generator(),
+            size: written.size,
             at: written.at,
             change: written.change,
             pointer: written.pointer,
@@ -1902,6 +2036,8 @@ struct Written {
     at: String,
     change: String,
     pointer: Option<String>,
+    /// Edit size (see [`Generator::size`]).
+    size: u64,
 }
 
 /// Writes neighbors as frames that layer on the seed's frame.
@@ -2016,6 +2152,38 @@ fn show(value: &Value) -> String {
         .map_or_else(|| value.to_string(), str::to_owned)
 }
 
+/// Opcodes whose operation, when a substitution drops it, would take a
+/// call, an effect, a contract check, an observation or a cell with it.
+const KEPT: [u32; 9] = [112, 144, 145, 160, 161, 162, 176, 177, 178];
+
+/// The operations and literals an AF1-X operand item computes (a nested
+/// operation and every nested operation and literal inside it; a name or a
+/// literal operand itself computes nothing more), or `None` when dropping
+/// it would drop a failure path (`op?`), a call or an effect.
+fn computed(item: &Value) -> Option<u64> {
+    let Value::Array(items) = item else {
+        return Some(0);
+    };
+    let word = items.first().and_then(Value::as_str)?;
+    if word.contains('?') {
+        return None;
+    }
+    let row = opcodes::by_word(word)?;
+    if KEPT.contains(&row.tag) {
+        return None;
+    }
+    let first = 1 + usize::from(row.immediate != ImmediateKind::None);
+    let mut total = 1;
+    for operand in items.iter().skip(first) {
+        total += match operand {
+            Value::Array(_) => computed(operand)?,
+            Value::String(_) => 0,
+            _ => 1,
+        };
+    }
+    Some(total)
+}
+
 /// A nudged constant in the form of the literal it replaces: a bare number
 /// stays bare, a typed literal keeps its type key, a constant name becomes
 /// a typed literal.
@@ -2035,6 +2203,22 @@ fn literal_like(old: &Value, value: &ConstValue, names: &Names) -> Value {
 fn typed_literal(value: &ConstValue, names: &Names) -> Value {
     json!({"type": crate::types::render(&value.value_type, names),
            "value": crate::values::to_json(value, names)})
+}
+
+/// Whether a frame names a generated entity (`__`); typed literals'
+/// values are data, not names.
+fn names_generated(value: &Value) -> bool {
+    match value {
+        Value::String(text) => text.contains("__"),
+        Value::Array(items) => items.iter().any(names_generated),
+        Value::Object(object) if object.contains_key("value") && object.contains_key("type") => {
+            false
+        }
+        Value::Object(object) => object
+            .iter()
+            .any(|(key, value)| key.contains("__") || names_generated(value)),
+        _ => false,
+    }
 }
 
 /// Opcodes whose result type the frame compiler derives from the immediate
@@ -2084,17 +2268,38 @@ impl Writer<'_> {
         }
     }
 
+    /// The neighbor's frame, or `None` when no frame layered on the seed
+    /// states the change (it is then skipped and counted, never proposed).
     fn write(&self, change: &Change) -> Option<Written> {
         let block = &self.model.blocks[change.block()];
         let stated = self
             .stated
             .as_ref()
             .filter(|stated| stated.blocks.contains_key(&block.leaf));
-        match (stated, self.place) {
-            (Some(stated), _) => self.write_stated(stated, change),
-            (None, Place::Defined) => None,
-            (None, _) => self.write_program(change),
-        }
+        let written = match (stated, self.place) {
+            (Some(stated), _) => self.write_stated(stated, change)?,
+            (None, Place::Defined) => return None,
+            // An edit layers beside the seed's own edits of the function.
+            (None, Place::Unstated { edits: true }) if change.op().is_some() => {
+                self.write_program(change)?
+            }
+            // Otherwise the program's statement of the block must be the
+            // head's: code the seed derived (a ripple rewrite, an expansion)
+            // has no frame of its own to restate.
+            (None, _) if self.live(change.block()) => self.write_program(change)?,
+            (None, _) => return None,
+        };
+        // An AF1-X frame reserves `__` for generated names.
+        (!self.afx || !names_generated(&written.frame)).then_some(written)
+    }
+
+    /// Whether a block, its parameters and its operations are the head's.
+    fn live(&self, block: usize) -> bool {
+        let owner = &self.model.blocks[block];
+        let same = |id: &EntityId| {
+            self.head.body(id).is_some() && self.head.body(id) == self.model.program.body(id)
+        };
+        same(&owner.id) && owner.params.iter().all(same) && owner.ops.iter().all(|(id, _)| same(id))
     }
 
     /// The neighbor frame: `edit` when the change stays inside one named
@@ -2168,6 +2373,7 @@ impl Writer<'_> {
         let mut value = at(&stated.frame, &site.block)?.clone();
         let original = value.clone();
         let afx = stated.afx;
+        let mut edit_size = change.generator().size();
         let text = if let Some(op) = change.op() {
             let body = &block.ops[op].1;
             let item = at_mut(&mut value, &site.rest)?;
@@ -2224,6 +2430,9 @@ impl Writer<'_> {
                         let name = self.reference(with, change.block(), afx)?;
                         let index = parts.first + slot;
                         let list = parts.list_mut(item)?;
+                        // A nested operation leaves with its operand: only a
+                        // pure one, and its size counts.
+                        edit_size += computed(&list[index])?;
                         let old = show(&list[index]);
                         list[index] = Value::from(name.clone());
                         format!("operand {slot}: {old} -> {name}")
@@ -2240,7 +2449,7 @@ impl Writer<'_> {
                 format!("{inner}{text}")
             }
         } else {
-            self.term_stated(stated, change, &site, kind, &mut value)?
+            self.term_stated(stated, change, &site, kind, &mut value, &mut edit_size)?
         };
         if value == original {
             return None;
@@ -2250,6 +2459,7 @@ impl Writer<'_> {
             change: text,
             pointer: Some(pointer),
             frame: self.frame_for(&site, value),
+            size: edit_size,
         })
     }
 
@@ -2264,6 +2474,7 @@ impl Writer<'_> {
         site: &Site,
         kind: Kind,
         value: &mut Value,
+        edit_size: &mut u64,
     ) -> Option<String> {
         let afx = stated.afx;
         let index = change.block();
@@ -2399,6 +2610,7 @@ impl Writer<'_> {
                     }
                     (Change::Returned { with, .. }, "return") if items.len() == 2 => {
                         let name = self.reference(with, index, afx)?;
+                        *edit_size += computed(&items[1])?;
                         new[1] = Value::from(name.clone());
                         format!("return {} -> {name}", show(&items[1]))
                     }
@@ -2413,6 +2625,7 @@ impl Writer<'_> {
                         let slot_value = path
                             .iter()
                             .try_fold(&mut new, |value, index| value.get_mut(*index))?;
+                        *edit_size += computed(slot_value)?;
                         let old = show(slot_value);
                         *slot_value = Value::from(name.clone());
                         format!("argument {slot}: {old} -> {name}")
@@ -2459,7 +2672,12 @@ impl Writer<'_> {
         full.extend(site.rest.iter().cloned());
         let item = at(&stated.frame, &full)?;
         let parts = Parts::of(item, &site.rest, kind, &owner.ops[at_op].1)?;
-        parts.operands(item)?.first().cloned()
+        // Restating a nested operation here would evaluate it twice.
+        parts
+            .operands(item)?
+            .first()
+            .filter(|operand| !operand.is_array())
+            .cloned()
     }
 
     /// A fresh operation name for a block: `base`, else `base_2`, ...
@@ -2723,6 +2941,7 @@ impl Writer<'_> {
                 at,
                 change: text,
                 pointer: None,
+                size: change.generator().size(),
             });
         }
         if self.place == (Place::Unstated { edits: true }) {
@@ -2796,6 +3015,7 @@ impl Writer<'_> {
             at: format!("{} (term)", block.leaf),
             change: text,
             pointer: None,
+            size: change.generator().size(),
         })
     }
 }
@@ -2832,6 +3052,8 @@ struct Neighbor {
     /// Generation index, from 1.
     index: usize,
     generator: Generator,
+    /// Edit size.
+    size: u64,
     at: String,
     change: String,
     pointer: Option<String>,
@@ -2851,6 +3073,8 @@ impl Neighbor {
 
 /// What every neighbor is compiled and evaluated against.
 struct Context<'a> {
+    /// The searched function's name.
+    function: &'a str,
     head: &'a Head,
     head_names: &'a Names,
     authority: &'a Authority,
@@ -2943,7 +3167,14 @@ impl Context<'_> {
         let mut map = self.map.clone();
         map.extend(&compiled.names);
         let names = Names::build(&program, &map);
-        let evaluation = evaluate(&program, &names, self.cases, self.caps, self.deadline);
+        let evaluation = evaluate(
+            &program,
+            &names,
+            self.cases,
+            self.caps,
+            self.deadline,
+            self.function,
+        );
         neighbor.status = if evaluation.complete {
             Status::Evaluated
         } else if evaluation.outcomes.is_empty() {
@@ -3059,10 +3290,12 @@ fn peak_kib() -> Option<u64> {
 }
 
 /// The command that applies the top-ranked neighbor, when it passes more
-/// public cases than the seed.
+/// public cases than the seed; a `TestCase` of the function it fails is
+/// said on the same line.
 fn next_step(
     seed: &Seed,
     public: &str,
+    function: &str,
     seed_run: &Evaluation,
     generated: &Generated,
     ranked: &[usize],
@@ -3090,6 +3323,12 @@ fn next_step(
         .first()
         .map(|position| &generated.neighbors[*position])
     else {
+        if generated.neighbors.is_empty() && generated.skipped > 0 {
+            return format!(
+                "no neighbor was evaluated: none of the {} changes found can be stated as a frame layered on {} (generated or derived code); restate the blocks of {function} with patch in a frame, then search that; or {by_hand}",
+                generated.skipped, seed.label
+            );
+        }
         return format!("no neighbor was evaluated; {by_hand}");
     };
     if top.passed() <= seed_run.passed() {
@@ -3100,12 +3339,34 @@ fn next_step(
         );
     }
     let frame = quoted(&top.frame.to_string());
-    format!("sley-agent try {on}{frame} --public {}", quoted(public))
+    let mut next = format!("sley-agent try {on}{frame} --public {}", quoted(public));
+    if let Some(evaluation) = top.evaluation.as_ref().filter(|e| !e.tests_clean()) {
+        let failed: Vec<&str> = evaluation
+            .tests
+            .iter()
+            .filter(|test| !test.passed)
+            .map(|test| test.name.as_str())
+            .collect();
+        let _ = write!(
+            next,
+            "  # caution: it fails {} of the {} TestCases of {function}{}",
+            failed.len() + (evaluation.test_total - evaluation.tests.len()),
+            evaluation.test_total,
+            if failed.is_empty() {
+                " (not all ran)".to_owned()
+            } else {
+                format!(": {}", failed.join(", "))
+            }
+        );
+    }
+    next
 }
 
 /// Everything the outputs report.
 struct Summary<'a> {
     request: &'a Request<'a>,
+    /// This search's slot among the attempt's searches.
+    uses: u64,
     function: &'a str,
     seed: &'a Seed,
     file: &'a CaseFile,
@@ -3129,7 +3390,10 @@ impl Summary<'_> {
             ));
         }
         if self.wall_reached {
-            let mut text = format!("wall limit reached ({} ms)", self.request.max_millis);
+            let mut text = format!(
+                "wall limit reached (bound {} ms, stopped after {} ms: the bound is checked before each case run, TestCase run and neighbor, and a run in progress finishes)",
+                self.request.max_millis, self.resources.wall_millis
+            );
             if self.generated.wall {
                 text.push_str(": generation stopped");
             }
@@ -3142,7 +3406,7 @@ impl Summary<'_> {
                 self.counts.not_evaluated
             );
             if !self.seed_run.complete {
-                text.push_str("; the seed's cases did not all run");
+                text.push_str("; the seed's cases and tests did not all run");
             }
             reached.push(text);
         }
@@ -3162,7 +3426,7 @@ impl Summary<'_> {
             "index": neighbor.index,
             "rank": neighbor.rank,
             "generator": neighbor.generator.name(),
-            "size": neighbor.generator.size(),
+            "size": neighbor.size,
             "at": neighbor.at,
             "change": neighbor.change,
             "pointer": neighbor.pointer,
@@ -3170,6 +3434,7 @@ impl Summary<'_> {
             "status": neighbor.status.label(),
             "kernel": neighbor.kernel,
             "public": neighbor.evaluation.as_ref().map(|evaluation| evaluation.to_json(&self.file.cases)),
+            "tests": neighbor.evaluation.as_ref().map(Evaluation::tests_json),
         })
     }
 
@@ -3183,11 +3448,14 @@ impl Summary<'_> {
             .map(|position| self.neighbor_json(&self.generated.neighbors[*position]))
             .collect();
         json!({
-            "search": {"fn": self.function, "seed": self.seed.label, "lineage": self.seed.lineage},
+            "search": {"fn": self.function, "seed": self.seed.label, "use": self.uses,
+                       "searches_per_attempt": SEARCHES_PER_ATTEMPT},
             "public": {"file": self.request.public, "sha256": self.file.sha256,
                        "cases": self.file.cases.len(), "for_fn": self.for_function,
                        "unusable": self.file.unusable},
-            "seed": {"public": self.seed_run.to_json(&self.file.cases)},
+            "seed": {"public": self.seed_run.to_json(&self.file.cases),
+                     "tests": self.seed_run.tests_json()},
+            "tests": TESTS,
             "generators": Generator::ALL.iter().map(|generator| generator.name()).collect::<Vec<_>>(),
             "rule": RULE,
             "counts": {"generated": self.counts.generated, "valid": self.counts.valid,
@@ -3196,7 +3464,7 @@ impl Summary<'_> {
                        "skipped": self.counts.skipped, "duplicates": self.counts.duplicates},
             "limits": {"max_neighbors": self.request.max_neighbors, "max_millis": self.request.max_millis,
                        "neighbor_limit_reached": self.generated.more, "wall_limit_reached": self.wall_reached,
-                       "searches_per_seed": SEARCHES_PER_SEED,
+                       "searches_per_attempt": SEARCHES_PER_ATTEMPT,
                        "case_fuel": {"seed": SEED_FUEL, "neighbor_factor": NEIGHBOR_FUEL_FACTOR,
                                      "neighbor_floor": NEIGHBOR_FUEL_FLOOR, "neighbor_ceiling": SEED_FUEL}},
             "neighbors": neighbors,
@@ -3232,6 +3500,20 @@ impl Summary<'_> {
             let _ = write!(text, ", {} unusable entries not run", self.file.unusable);
         }
         text.push('\n');
+        if seed.test_total == 0 {
+            let _ = writeln!(
+                text,
+                "tests: no TestCase targets {} in the seed; only the public cases ran",
+                self.function
+            );
+        } else {
+            let _ = writeln!(
+                text,
+                "tests: {}; the seed passes {}",
+                TESTS.replace("<fn>", self.function),
+                seed.tests_text()
+            );
+        }
         let _ = write!(
             text,
             "neighbors: {} generated, {} kernel-valid, {} refused, {} evaluated",
@@ -3254,10 +3536,13 @@ impl Summary<'_> {
         let _ = writeln!(text, "ranking: {RULE}");
         for position in self.ranked.iter().take(SHOWN) {
             let neighbor = &self.generated.neighbors[*position];
-            let evaluation = neighbor
-                .evaluation
-                .as_ref()
-                .map_or_else(String::new, |e| e.text(&self.file.cases));
+            let evaluation = neighbor.evaluation.as_ref().map_or_else(String::new, |e| {
+                let mut text = e.text(&self.file.cases);
+                if e.test_total > 0 {
+                    let _ = write!(text, "; tests {}", e.tests_text());
+                }
+                text
+            });
             let _ = writeln!(
                 text,
                 "{:>2}. #{} {} at {}: {} (size {}): public {evaluation}\n    {}",
@@ -3266,7 +3551,7 @@ impl Summary<'_> {
                 neighbor.generator.name(),
                 neighbor.at,
                 neighbor.change,
-                neighbor.generator.size(),
+                neighbor.size,
                 neighbor.frame
             );
         }

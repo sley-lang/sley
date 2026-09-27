@@ -76,6 +76,8 @@ sley-agent help [guide|af1|afx|drafts|types|tests|opcodes|search|refusals]
 A `<ref>` is a handle (`c3`), `latest`, a file holding stored candidate
 hex, raw stored candidate hex, or a bare candidate record (which is framed
 through the kernel). `--json` makes every command print one JSON object.
+A flag given twice (`--json`, `--workspace`, or any flag of a command) is
+refused with `AGENT_USAGE_INVALID`, never resolved by position.
 Exit status 0 is success. Exit status 1 is a negative outcome: a refused
 candidate, a failing test, or no submission. Exit status 2 is a workbench
 refusal (section 9). No response prints record, stored or body hex: a
@@ -635,8 +637,8 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_RIPPLE_LIMIT` | a ripple bound was reached |
 | `AGENT_RIPPLE_GUARD_SHAPE` | the checker is not `P -> Result<P,E>` for the guarded parameter |
 | `AGENT_RIPPLE_GUARD_ORDER` | no identical check to replace, or an evaluation order a guard cannot keep |
-| `AGENT_SEARCH_NO_ORACLE` | `search` has no permitted public case for the function: the case file is unreadable, holds no case, or none for the function |
-| `AGENT_SEARCH_SEED_INVALID` | the `search` seed is unusable (refused, incomplete, a text draft, not made from a frame), the name is not one of its functions, or its lineage has used its searches |
+| `AGENT_SEARCH_NO_ORACLE` | `search` has no permitted public case for the function: the case file is unreadable, holds no case, none for the function, or none whose arguments fit the function |
+| `AGENT_SEARCH_SEED_INVALID` | the `search` seed is unusable (refused, incomplete, a text draft, not made from a frame), the name is not one of its functions or cannot run, or the attempt has used its searches |
 
 ## 10. Execution (advisory)
 
@@ -954,17 +956,24 @@ The seed is `--from`: a Valid candidate made from an AF1 frame, or a draft
 revision in state `valid` (`d1` is the latest revision). Without `--from`
 it is the head. The candidate is validated against the current head again;
 a refused, stale, incomplete or text seed, a candidate made from raw
-operations, and a name that is not a function of the seed are refused with
+operations, a name that is not a function of the seed, and a function the
+dev loop cannot run (lowering refuses it) are refused with
 `AGENT_SEARCH_SEED_INVALID`. A reference that does not exist is
 `AGENT_HANDLE_UNKNOWN`.
 
 The case file has the `try --public` format
 (`[{"name", "function", "args", "expect"}]`). It needs at least one usable
-case (a `function`, an `expect` and an `args` array) for the function, or
-`search` refuses with `AGENT_SEARCH_NO_ORACLE`. Every usable case in the
-file runs, in file order. Expected values come only from the file: no
-expectation is derived from the seed or a neighbor. Search reads no other
-cases.
+case (a `function`, an `expect` and an `args` array) for the function
+whose arguments read against the function's parameter types, or `search`
+refuses with `AGENT_SEARCH_NO_ORACLE` and names why each case cannot run.
+Every usable case in the file runs, in file order. Expected values come
+only from the file: no expectation is derived from the seed or a neighbor.
+
+The `TestCases` of the function in the seed and in each Valid neighbor
+(the frame's own, imported and provided ones, found by their target's
+name) run after the public cases, under their declared limits with fuel
+at most 10,000,000. They are author-written expectations, reported beside
+the public cases and never ranked.
 
 ### 13.2 Generators and neighbor frames
 
@@ -975,7 +984,7 @@ is local and deterministic.
 |---|---|---|
 | opcode swap | another opcode of the same-signature family: `add sub mul div rem`, `shl shr`, `fadd fsub fmul fdiv`, `eq ne`, `lt le gt ge`, `and or` | 1 |
 | operand permutation | the two operands of `sub div rem shl shr fsub fdiv lt le gt ge` exchanged, when they differ and have one type | 2 |
-| operand substitution | an operand, a returned value or a `br` argument replaced by another visible value of the same type | 1 |
+| operand substitution | an operand, a returned value or a `br` argument replaced by another visible value of the same type | 1, plus each nested operation and literal it removes |
 | constant nudge | an integer constant plus one, minus one, or negated, in its type's range, as a new literal | 1 |
 | edge swap | the two targets of a `cond`; the targets of two `switch` cases whose arguments fit the other target's parameters | 2 |
 | negation | a `cond` condition (or an AF1-X exit condition) `c` becomes `not c`; a condition `not x` becomes `x` | 1 |
@@ -992,14 +1001,27 @@ block, written so that `try --on <seed>` layers it on the seed's frame.
 When the seed's frame states the function, the neighbor restates what the
 author wrote, in the frame's dialect; for an AF1-X frame the source map
 leads each operation back to its authored statement, nested operation or
-literal. Otherwise it restates the live function. A change no such frame can state
-is skipped and counted: a change to code the tool generated (AF1-X
-continuations, checked switches, shared exits), a permutation of two
-nested operations (it would reorder their evaluation), and a block change
-beside the seed's own `edit` of the function. Search then compiles exactly
-the layered frame, assembles the record and validates it with
-`validate_candidate_bytes`; a layered frame that changes nothing is refused
-as `try` refuses it. Only kernel-Valid neighbors run the cases.
+literal. Otherwise it restates the live function. A change no such frame
+can state is skipped and counted before it can take one of the neighbor
+slots:
+
+- a change to code the tool generated (AF1-X continuations, checked
+  switches, shared exits), and any neighbor of an AF1-X seed whose frame
+  would name a generated (`__`) entity;
+- a change to a block the seed's frame does not state whose code differs
+  from the head's (code a ripple derivation rewrote);
+- a permutation of two nested operations (it would reorder their
+  evaluation), and a block change beside the seed's own `edit`;
+- a substitution that would replace a nested operation carrying a failure
+  route (`op?`), a call, an effect, a contract check, an observation or a
+  cell operation, anywhere inside it, by a name;
+- `not x -> x` where `x` is an unnamed nested operation (writing it would
+  evaluate it twice).
+
+Search then compiles exactly the layered frame, assembles the record and
+validates it with `validate_candidate_bytes`; a layered frame that changes
+nothing is refused as `try` refuses it. Only kernel-Valid neighbors run the
+cases.
 
 ### 13.3 Ranking, bounds and output
 
@@ -1011,29 +1033,46 @@ rule is printed with every result.
 |---|---|
 | neighbors generated per command (`--max-neighbors`, at most 4096) | 64 |
 | wall time per command (`--max-millis`, at most 3,600,000) | 10,000 ms |
-| searches per seed lineage | 2 |
+| searches per attempt (per accepted head of the workspace) | 2 |
 | fuel of a seed's case | 10,000,000 |
 | fuel of a neighbor's case | ten times the seed's on that case, within 1,000,000 and 10,000,000; 1,000,000 when the seed ran out |
+| fuel of a `TestCase` run | its declared fuel, at most 10,000,000 |
 
-Cases run under the `call` limits otherwise. A seed lineage is a draft with
-the candidates of its revisions and the drafts started with `try --on` one
-of them, a candidate that no draft made, or the head until the next commit.
-`.sley/search.json` records the uses; a third search on a lineage is
-refused with `AGENT_SEARCH_SEED_INVALID`. A refused search uses nothing.
+Cases run under the `call` limits otherwise. The wall limit is checked
+before each case run, `TestCase` run and neighbor, and generation stops at
+it; a run in progress finishes. The granularity is therefore one run: a
+command can exceed the limit by at most the run in progress (its fuel
+cap) and one neighbor's compilation. The output reports the bound and the
+time actually taken.
+
+An attempt is one accepted head of a workspace: every search on it counts,
+whatever its seed, function or draft, so trying the same frame again or
+chaining `try --on` gives no more searches, and only a commit (a new head)
+starts a new attempt. Each search claims one slot file,
+`.sley/search/<head transaction>-<n>.json` with `n` from 1 to 2, by
+linking a complete file into place, which fails when the slot exists;
+concurrent searches therefore never share a slot or exceed the bound. A
+third search is refused with `AGENT_SEARCH_SEED_INVALID`. The use is
+claimed only after every other check passes: a refused search uses
+nothing.
 
 The output states the seed's own case results, the neighbor counts
 (generated, kernel-valid, refused, evaluated, partial, not evaluated,
 skipped), the rule, each neighbor's generator, place, change, edit size,
 frame, verdict and per-case results (`pass`, `fail`, `resource limit`, or
-`unknown` when a case cannot run), the limits reached (the neighbor limit
+`unknown` when a case cannot run), its `TestCase` results (or that no
+`TestCase` targets the function), the limits reached (the neighbor limit
 when more neighbors exist, the wall limit with what it stopped), local wall
 time, the thread's CPU time and the process's peak resident memory where
 the platform reports them (else `not measured`), and this sentence:
 verified means kernel-valid and evaluated against the stated public cases,
 not proof of correctness for all inputs. Text lists the top five ranked
 neighbors; `--json` lists all. For the same seed and cases the output is
-identical except for the resource measurements. Exit status is 0 when the
-top-ranked neighbor passes every public case, else 1.
+identical except for the resource measurements and the use slot. The
+`next:` line names the `TestCases` of the function the proposed neighbor
+fails, after a `# caution:` on the same line. Exit status is 0 when the
+top-ranked neighbor passes every public case and every `TestCase` of the
+function, else 1.
 
 The events ledger line of a search carries `search_neighbors`,
 `search_valid`, `search_evaluated` and `search_exhausted` among its `afx`
@@ -1043,6 +1082,10 @@ counters.
 on a small program, a value without a same-typed substitute, the neighbor
 limit and the wall limit, a looping neighbor stopped at its fuel cap, AF1-X
 neighbors that layer on their draft, the head seed, the seed and case-file
-refusals, determinism, the ranking rule, the per-lineage use limit, the
+refusals, runnable-case checks, determinism, the ranking rule, the
+per-attempt use limit (repeated frames, long `try --on` chains, concurrent
+searches), repeated flags, unstateable and derived code skipped before the
+budget, nested failure routes kept, negations that would duplicate
+evaluation skipped, the wall limit's granularity, `TestCase` evidence, the
 ledger counters, the `search` help example, and wrong opcode, constant,
 return value and switch edge repairs applied with `try --on`.

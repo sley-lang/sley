@@ -103,10 +103,20 @@ pub fn run(args: &[String], out: &mut dyn Write) -> i32 {
     let mut words = args.iter();
     while let Some(word) = words.next() {
         match word.as_str() {
+            "--workspace" | "-C" if global.workspace.is_some() => {
+                return refuse(
+                    out,
+                    &usage("--workspace is given twice; give it once"),
+                    false,
+                );
+            }
             "--workspace" | "-C" => match words.next() {
                 Some(dir) => global.workspace = Some(PathBuf::from(dir)),
                 None => return refuse(out, &usage("--workspace needs a directory"), false),
             },
+            "--json" if global.json => {
+                return refuse(out, &usage("--json is given twice; give it once"), true);
+            }
             "--json" => global.json = true,
             _ => rest.push(word.clone()),
         }
@@ -228,6 +238,10 @@ fn words(args: &[String], valued: &[&str], switches: &[&str]) -> Result<Words> {
     let mut positional = Vec::new();
     let mut iter = args.iter();
     while let Some(word) = iter.next() {
+        let known = valued.contains(&word.as_str()) || switches.contains(&word.as_str());
+        if known && flags.iter().any(|(name, _): &(String, _)| name == word) {
+            return Err(usage(format!("{word} is given twice; give it once")));
+        }
         if valued.contains(&word.as_str()) {
             let value = iter
                 .next()
