@@ -1090,7 +1090,8 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
             "/fns/0/blocks/0/ops/0: `y__z` contains `__`",
         ],
     );
-    // `edit.with` stays plain AF1; `ripple` is not enabled; "afx" is 1.
+    // `edit.with` stays plain AF1; an unknown ripple intent is refused;
+    // "afx" is 1.
     assert_refused(
         &temp.path,
         &json!({"af1": 1, "afx": 1, "edit": [{"fn": "f", "replace_op": "entry.x", "with": ["add", "a", 1]}]}),
@@ -1104,7 +1105,7 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
         &temp.path,
         &json!({"af1": 1, "afx": 1, "ripple": [{"intent": "arity"}]}),
         "AGENT_RIPPLE_INTENT_UNKNOWN",
-        &["/ripple: ripple is not enabled in this build"],
+        &["/ripple/0: unknown intent"],
     );
     assert_refused(
         &temp.path,

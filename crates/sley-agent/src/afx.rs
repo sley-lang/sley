@@ -44,7 +44,7 @@ pub const MAX_EXPANDED_OPS_PER_FUNCTION: usize = 4096;
 /// Most generated blocks (continuations and shared exits) per function.
 pub const MAX_GENERATED_BLOCKS_PER_FUNCTION: usize = 1024;
 /// Longest name the AF1 name grammar admits.
-const MAX_NAME: usize = 64;
+pub(crate) const MAX_NAME: usize = 64;
 
 /// The result of expanding an AF1-X frame.
 #[derive(Clone, Debug)]
@@ -58,6 +58,9 @@ pub struct Expansion {
     /// Decisions the frame leaves open; when any is present, `frame` is
     /// incomplete and must not be compiled.
     pub obligations: Vec<Obligation>,
+    /// The affected-entity and boundary inventory of the frame's `ripple`
+    /// intents (`ripple.json`), when it has any.
+    pub ripple: Option<Value>,
 }
 
 /// What a source-map entry's expanded construct is.
@@ -89,6 +92,9 @@ pub enum Role {
     TableRow,
     /// A shared exit block (`__fail_Case`, `__err`, `__none`).
     SharedExit,
+    /// An edit a `ripple` intent derived (a patch, a block, an operation or
+    /// a test).
+    Ripple,
 }
 
 impl Role {
@@ -109,6 +115,7 @@ impl Role {
             Self::Qualified => "qualified",
             Self::TableRow => "table-row",
             Self::SharedExit => "shared-exit",
+            Self::Ripple => "ripple",
         }
     }
 
@@ -223,6 +230,27 @@ impl SourceMap {
     pub fn origin(&self, function: &str, name: &str) -> Option<&str> {
         self.names.get(function)?.get(name).map(String::as_str)
     }
+
+    /// Moves every entry at or below `<ops>/<n>` with `n >= from` to
+    /// `<ops>/<n+1>`: an operation was inserted at `from` in the `ops` list
+    /// at pointer `ops`.
+    pub(crate) fn shift_ops(&mut self, ops: &str, from: usize) {
+        for entry in &mut self.entries {
+            let Some(rest) = entry
+                .expanded
+                .strip_prefix(ops)
+                .and_then(|rest| rest.strip_prefix('/'))
+            else {
+                continue;
+            };
+            let (index, tail) = rest.find('/').map_or((rest, ""), |at| rest.split_at(at));
+            if let Ok(index) = index.parse::<usize>()
+                && index >= from
+            {
+                entry.expanded = format!("{ops}/{}{tail}", index + 1);
+            }
+        }
+    }
 }
 
 /// Feature use counts of one expansion (for the events ledger).
@@ -246,6 +274,12 @@ pub struct AfxStats {
     pub table_rows: u64,
     /// Generated blocks (continuations and shared exits).
     pub generated_blocks: u64,
+    /// `ripple` intents derived.
+    pub ripple_intents: u64,
+    /// Edits the intents derived (call sites, tests and guarded checks).
+    pub ripple_edits: u64,
+    /// Holes the intents left for the author.
+    pub ripple_holes: u64,
 }
 
 impl AfxStats {
@@ -266,6 +300,15 @@ impl AfxStats {
         ] {
             map.insert(key.to_owned(), Value::from(value));
         }
+        if self.ripple_intents > 0 {
+            for (key, value) in [
+                ("ripple_intents", self.ripple_intents),
+                ("ripple_edits", self.ripple_edits),
+                ("ripple_holes", self.ripple_holes),
+            ] {
+                map.insert(key.to_owned(), Value::from(value));
+            }
+        }
         map
     }
 
@@ -279,6 +322,9 @@ impl AfxStats {
         self.qualified += other.qualified;
         self.table_rows += other.table_rows;
         self.generated_blocks += other.generated_blocks;
+        self.ripple_intents += other.ripple_intents;
+        self.ripple_edits += other.ripple_edits;
+        self.ripple_holes += other.ripple_holes;
     }
 }
 
@@ -363,9 +409,10 @@ fn join_lines(code: AgentErrorCode, mut lines: Vec<String>) -> AgentError {
 ///
 /// # Errors
 ///
-/// `AGENT_FRAME_INVALID` when the frame is not an AF1-X object frame;
-/// `AGENT_RIPPLE_INTENT_UNKNOWN` for `ripple` (not enabled in this build).
-/// Every other open decision is returned as an [`Obligation`].
+/// `AGENT_FRAME_INVALID` when the frame is not an AF1-X object frame, or
+/// the refusal of the frame's own definitions when a `ripple` intent needs
+/// them compiled first ([`crate::ripple`]). Every other open decision is
+/// returned as an [`Obligation`].
 pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<Expansion> {
     let object = frame_value
         .as_object()
@@ -379,16 +426,11 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
             "declare \"afx\": 1 for the authoring dialect, or remove the key",
         ));
     }
-    if object.contains_key("ripple") {
-        return Err(AgentError::new(
-            AgentErrorCode::RippleIntentUnknown,
-            "/ripple: ripple is not enabled in this build; state the change as a frame",
-        ));
-    }
     let context = Context::new(program, names, object);
     let mut out = object.clone();
     out.remove("afx");
     out.remove("test_tables");
+    out.remove("ripple");
     let mut expander = Expander {
         cx: &context,
         map: SourceMap::default(),
@@ -433,11 +475,30 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
         &mut expander.obligations,
     );
     expander.stats.table_rows = rows;
+    // Ripple intents apply last, to the frame with its own definitions
+    // resolved; they derive ordinary AF1 edits into the same plain frame.
+    let mut ripple = None;
+    if let Some(intents) = object.get("ripple") {
+        let clean = expander.obligations.is_empty();
+        let outcome = crate::ripple::apply(
+            &context,
+            intents,
+            &mut out,
+            &mut expander.map,
+            &mut expander.obligations,
+            clean,
+        )?;
+        expander.stats.ripple_intents = outcome.intents;
+        expander.stats.ripple_edits = outcome.edits;
+        expander.stats.ripple_holes = outcome.holes;
+        ripple = Some(outcome.inventory);
+    }
     Ok(Expansion {
         frame: Value::Object(out),
         map: expander.map,
         stats: expander.stats,
         obligations: expander.obligations,
+        ripple,
     })
 }
 
@@ -485,21 +546,22 @@ struct FrameType {
     members: Vec<(String, Option<TypeExpr>)>,
 }
 
-type Signature = (Vec<Option<TypeExpr>>, Option<TypeExpr>);
+/// Parameter types and result type, each when known.
+pub(crate) type Signature = (Vec<Option<TypeExpr>>, Option<TypeExpr>);
 
 /// The members of a type definition with their payload or field types.
 type Members = Vec<(String, Option<TypeExpr>)>;
 
 /// The read-only typing context: the program, its names, and the frame's
 /// own declarations.
-struct Context<'a> {
-    program: &'a Program,
-    names: &'a Names,
+pub(crate) struct Context<'a> {
+    pub(crate) program: &'a Program,
+    pub(crate) names: &'a Names,
     types: BTreeMap<String, FrameType>,
-    type_names: BTreeMap<EntityId, String>,
+    pub(crate) type_names: BTreeMap<EntityId, String>,
     consts: BTreeMap<String, Option<TypeExpr>>,
     signatures: BTreeMap<String, Signature>,
-    top: BTreeSet<String>,
+    pub(crate) top: BTreeSet<String>,
 }
 
 fn placeholder(index: usize) -> EntityId {
@@ -643,7 +705,7 @@ impl<'a> Context<'a> {
         cx
     }
 
-    fn live_function(
+    pub(crate) fn live_function(
         &self,
         name: &str,
     ) -> Option<(EntityId, &'a sley_mutate::value::FunctionBody)> {
@@ -657,7 +719,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn live_signature(&self, name: &str) -> Option<Signature> {
+    pub(crate) fn live_signature(&self, name: &str) -> Option<Signature> {
         let (_, body) = self.live_function(name)?;
         Some((
             body.parameters
@@ -668,14 +730,14 @@ impl<'a> Context<'a> {
         ))
     }
 
-    fn parameter_type(&self, param: &EntityId) -> Option<TypeExpr> {
+    pub(crate) fn parameter_type(&self, param: &EntityId) -> Option<TypeExpr> {
         match self.program.body(param) {
             Some(EntityBodyValue::Parameter(p)) => Some(p.value_type.clone()),
             _ => None,
         }
     }
 
-    fn signature(&self, name: &str) -> Option<Signature> {
+    pub(crate) fn signature(&self, name: &str) -> Option<Signature> {
         if let Some(signature) = self.signatures.get(name) {
             return Some(signature.clone());
         }
@@ -704,7 +766,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn render(&self, ty: &TypeExpr) -> String {
+    pub(crate) fn render(&self, ty: &TypeExpr) -> String {
         types::render_with(ty, &|id| {
             self.type_names
                 .get(id)
@@ -777,7 +839,7 @@ impl TypeNames for Context<'_> {
 }
 
 /// `[["name", type], ...]` with the types read; `None` when malformed.
-fn read_params(
+pub(crate) fn read_params(
     value: Option<&Value>,
     cx: &Context<'_>,
 ) -> Option<Vec<(String, Option<TypeExpr>, Value)>> {
@@ -4262,7 +4324,7 @@ fn fill_from_partners(
 
 /// A name longer than the grammar allows: a prefix and a digest of the
 /// whole name (still derived from the authored path alone).
-fn shorten(name: &str) -> String {
+pub(crate) fn shorten(name: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in name.bytes() {
         hash ^= u64::from(byte);
