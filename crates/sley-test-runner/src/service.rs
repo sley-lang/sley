@@ -6,7 +6,8 @@
 //! stages one checked worker input, owns the system unit through exit/reap,
 //! and signs only the resulting complete measurement. Internal failures yield
 //! no result; unconfirmed cleanup has a distinct error for daemon degradation.
-//! Binding and installing the production listener remain separate work.
+//! The root daemon binds the production listener and calls this boundary.
+//! Installation and privileged qualification remain separate work.
 
 use std::io::{self, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -59,6 +60,26 @@ pub enum ServiceError {
     /// The peer disconnected or its response could not be written.
     WriteFailure,
 }
+
+impl core::fmt::Display for ServiceError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str(match self {
+            Self::Ingress(_) => "NATIVE_SERVICE_INGRESS_REFUSED",
+            Self::AcceptFailure => "NATIVE_SERVICE_ACCEPT_FAILED",
+            Self::Stage(_) => "NATIVE_SERVICE_STAGE_FAILED",
+            Self::Unit(_) => "NATIVE_SERVICE_UNIT_FAILED",
+            Self::InputPath => "NATIVE_SERVICE_INPUT_PATH_INVALID",
+            Self::ClockUnavailable => "NATIVE_SERVICE_CLOCK_UNAVAILABLE",
+            Self::Owner(_) => "NATIVE_SERVICE_OWNER_FAILED",
+            Self::CleanupUnconfirmed => "NATIVE_SERVICE_CLEANUP_UNCONFIRMED",
+            Self::Attestation(_) => "NATIVE_SERVICE_ATTESTATION_FAILED",
+            Self::ResponseEncoding => "NATIVE_SERVICE_RESPONSE_ENCODING_FAILED",
+            Self::WriteFailure => "NATIVE_SERVICE_WRITE_FAILED",
+        })
+    }
+}
+
+impl std::error::Error for ServiceError {}
 
 fn write_response(stream: &mut UnixStream, response: &RunResponse) -> Result<(), ServiceError> {
     let frame = response
@@ -212,8 +233,8 @@ pub fn serve_one_root(
 
 /// Accepts and handles exactly one connection from a trusted listener.
 ///
-/// This is a composable boundary for the eventual root loop; it does not
-/// bind a path, install a service, or claim execution readiness.
+/// This legacy refusal path does not bind a path, install a service, or
+/// claim native execution readiness.
 ///
 /// # Errors
 ///

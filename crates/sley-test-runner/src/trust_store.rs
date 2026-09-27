@@ -193,7 +193,9 @@ impl ProvisionedMeasurementAuthority {
         })
     }
 
-    pub(crate) const fn config(&self) -> &RunnerConfig {
+    /// Returns the immutable administrator configuration bound to this authority.
+    #[must_use]
+    pub const fn config(&self) -> &RunnerConfig {
         &self.config
     }
 

@@ -16,8 +16,8 @@
 //! a signed-completion builder, a root-provisioned measurement trust loader,
 //! and readiness probes. The root connection handler composes authentication,
 //! staging, owned launch, confirmed cleanup, and signing. The production
-//! listener, daemon entry, systemd installation, and privileged qualification
-//! remain open.
+//! listener and daemon entry are present; installation and privileged
+//! qualification remain open.
 //!
 //! It performs no policy selection, grants no commit authority, and holds no
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
@@ -49,6 +49,7 @@ pub mod protocol;
 pub mod reconcile;
 pub mod response;
 pub mod service;
+pub mod socket;
 pub mod stage;
 pub mod telemetry;
 pub mod trust_store;

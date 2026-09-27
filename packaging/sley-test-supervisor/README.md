@@ -1,79 +1,67 @@
-# Root supervisor installation — authenticated privilege handoff
+# Native test supervisor installation
 
-N3 source (crate `sley-test-runner`, CLI `__native-test-worker` entry,
-transient-unit renderer, enforcement math, worker envelope, readiness
-probes, and one-connection authenticated refusal service) is landed and
-tested. The service answers a valid request with
-`RUN_REFUSAL_EXECUTION_NOT_WIRED`, an authenticated program mismatch with
-`RUN_REFUSAL_PROGRAM_INVALID`, and invalid ingress peers with no response. It has
-no production daemon entry, worker launch, or measurement signature. The
-steps below need root on each intended host and are explicitly **pending**,
-not waived:
+The root service source is `crates/sley-test-runner/src/bin/sley-test-supervisor.rs`.
+The accompanying `sley-test-supervisor.service` owns
+`/run/sley-test-supervisor`, loads one administrator configuration, pins the
+installed worker and supervisor bytes, loads root-provisioned measurement
+authority, reconciles old worker units, and then accepts authenticated local
+requests. The worker executes selected native Sley `TestCase` programs through
+the existing VM. This service is host machinery; it is not a Sley program.
 
-The closed runner request carries `candidate_id=Some` for candidate-affected
-runs and `None` for explicit-root diagnostics, matching the owner-derived plan
-modes. It also carries one exact bounded worker frame; ingress checks its
-declared limits against the authenticated outer request and refuses a zero or
-expanded wall budget. This internal socket format has no installed daemon or
-external compatibility claim yet. A bounded portable program artifact now
-encodes the exact plan, root, live object inventory, and selected native
-`TestCase`; its strict parser and `RunRequest::verified_program` reject
-cross-boundary identity, limit, or ordered input-hash substitution. The pure
-owner derives a bounded worker request from the statically validated selected
-`TestCase` before launch, then constructs the complete outer request from that
-program and a host nonce. The transaction owner can now source a candidate run
-request from the validator's proposed root and complete object inventory. The
-refusal-only socket service rechecks the program and hash bindings after peer
-authentication. A pure `execute_portable_test` bridge now projects
-the bound objects, rechecks the selected native `TestCase`, executes the
-existing Sley VM, and compares VM-derived ordered input hashes. The pure
-`sley-tests` owner reserves the complete execution report before the VM runs
-and can build a canonical observed report and expectation comparison, or a
-canonical rejected report when the VM refuses before observation. These
-results have no host memory/time measurement and do not pass admission. A
-separate `RunRequest::verified_observed_worker_report` check parses a bounded
-worker report and binds its plan, selected test, root, function, ordered input
-hashes, schema hashes, profile, and limits to the authenticated request. It
-checks data consistency only; the refusal-only service does not call it yet.
-The private worker now dispatches a valid portable program to the pure VM
-and writes a bounded canonical report. The runner can stage a checked worker
-frame as an exclusive regular file under a root-owned, symlink-free private
-runtime directory, then render a unit tied to its exact nonce, memory cap,
-wall budget, and staged path. This path is locally tested without launching a
-privileged unit. The internal response now carries a bounded canonical report,
-measured attestation, and supervisor configuration together, with exact
-identity, nonce, caller, memory, and deadline consistency checks; parsing does
-not verify signature trust. Signed prelaunch diagnostics remain representable
-without an installed memory cap. The current service still returns only a refusal.
-Replay/diagnostic artifact sourcing,
-measured launch, and admission still need to be wired before either mode can
-execute through the service.
+## Current evidence
 
-1. Build the release binaries (`sley`, supervisor daemon once its event
-   loop lands) and install the worker at the configured
-   `/usr/lib/sley/sley-native-test-worker` path.
-2. Pin `worker_sha256` over the exact installed worker bytes
-   (`sley-test-runner::config::sha256_bytes`) and write the administrator
-   `RunnerConfig` (socket dir, callers, measurement key path, trust
-   manifest dir). Keys are root-only (`0400 root:root`); the worker
-   namespace must not contain them.
-3. Install the `sley-test-supervisor.service` unit (ships with the daemon
-   binary, not before) and start it; verify the authenticated socket
-   appears with root ownership.
-4. Run the unprivileged probe (`cargo run -p sley-test-runner --example
-   probe -- /run/sley-test-supervisor`) and keep the receipt. Its socket
-   check requires a root-owned runtime directory without group/world write,
-   a root-owned Unix socket, and a live listener. Every `fail` names a
-   platform prerequisite to implement, including the Linux `openat2` path
-   resolution used for worker input bindings; none may be waived with a
-   documented assumption.
-5. Run the privileged probe set (pre-exec placement, transient units,
-   UID/key isolation, manager backstop, caller and daemon SIGKILL
-   cleanup, orphan reconciliation) on **both** intended hosts and keep
-   the receipts. Mock success cannot qualify an enforcer.
-6. Wire worker execution dispatch (N5) and the Ed25519 measurement signer
-   with the pinned Ed25519 implementation before any attestation is trusted.
+The daemon builds, the runner's unprivileged unit tests pass, and its service
+unit source is present. The actual root service has **not** been installed or
+qualified on the intended hosts. No native test admission or release-readiness
+claim follows from the local unit tests. The authenticated refusal-only
+handler remains available for negative protocol tests; the production daemon
+uses the root handler.
 
-Known operational state: `sudo -n` on primary-host requires a password, so
-no privileged step was attempted from this session. Operator approval
-for the handoff is already granted; the handoff itself has not happened.
+## Protected administrator configuration
+
+The daemon reads exactly `/etc/sley-test-supervisor/config.json`. It must be a
+single-link, root-owned regular file with mode `0400` or `0600`, reachable
+without symlinks. The closed JSON object requires these fields:
+
+| Field | Meaning |
+|---|---|
+| `version` | `1` |
+| `runtime_dir` | `/run/sley-test-supervisor`, matching the unit's `RuntimeDirectory` |
+| `worker_path` | Exact installed, root-owned private worker executable path; the current worker entry is `__native-test-worker --credential` |
+| `worker_sha256` | Lowercase SHA-256 hex of the installed worker bytes |
+| `supervisor_sha256` | Lowercase SHA-256 hex of the installed daemon bytes |
+| `page_size` | Host page size as a power of two |
+| `allowed_callers` | Nonempty array of unique `uid`, `workspace`, and `principal` identities; each identity is lowercase 32-byte hex |
+| `measurement_key_path` | Root-only Ed25519 measurement key file |
+| `trust_manifest_dir` | Root-owned directory containing `measurement.sleyntr1` |
+
+The manifest must grant the loaded key the measurement role. The key and
+manifest are separate from request data and never enter the worker namespace.
+The socket has mode `0666` so configured nonroot UIDs can connect; the daemon
+checks kernel peer credentials against `allowed_callers` **before reading** a
+request. The runtime directory must be root-owned and not writable by other
+users.
+
+## Qualification before admission
+
+1. Build and install exact worker and daemon binaries. A copy of `sley` may
+   serve as the worker executable when it contains the private credential
+   entry. Preserve its exact installed bytes while the digest pin is active.
+2. Provision the private configuration, signing key, and measurement trust
+   manifest. Install the included service unit, start it, and retain its
+   startup log. `NATIVE_SUPERVISOR_READY` is a startup marker, not a passing
+   execution receipt.
+3. Run `cargo run -p sley-test-runner --example probe --
+   /run/sley-test-supervisor` as an unprivileged user and retain the receipt.
+4. Run the privileged N3 checks on both intended hosts: real transient-unit
+   placement, memory and wall enforcement, UID and key isolation, cgroup
+   telemetry, peer authentication, daemon/worker kill handling, and restart
+   orphan reconciliation. Verify complete response and signature against the
+   exact selected test and supervisor configuration.
+5. Only then use the transaction owner's native test admission path and its
+   candidate/root binding checks. A static `TestCase` validation, a mock
+   response, or a pure VM comparison does not grant admission.
+
+`sudo -n` currently requires a password on the primary host, so the root
+installation and live qualification are pending. The local source and tests
+do not waive this gate.
