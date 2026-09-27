@@ -8,7 +8,8 @@
 //!   AV1-X rendering ([`xview`]).
 //! - AF1 frames: name-based JSON authoring data compiled client-side, in one
 //!   pass, into the existing mutation candidate record ([`frame`]), and the
-//!   AF1-X authoring dialect expanded into them first ([`afx`]).
+//!   AF1-X authoring dialect expanded into them first ([`afx`]), with its
+//!   `ripple` graph transformations ([`ripple`]).
 //! - An advisory dev loop: in-process candidate validation with decoded
 //!   refusals and locators, and lower-once execution of functions and
 //!   `TestCases` ([`exec`]).
@@ -41,6 +42,7 @@ pub mod locate;
 pub mod names;
 pub mod opcodes;
 pub mod raw;
+pub mod ripple;
 pub mod search;
 pub mod tables;
 pub mod types;

@@ -432,8 +432,8 @@ Every generated entity maps to the authored JSON pointer it came from.
 A problem found in the expanded frame is reported at the authored pointer,
 followed by `[expanded <pointer>]`. The expanded frame and the source map
 are kept with the draft revision (`sley-agent draft <d> --expanded`).
-`ripple` intents (typed graph transformations) are refused with
-`AGENT_RIPPLE_INTENT_UNKNOWN` unless this build enables them.
+`ripple` intents (typed graph transformations) are described in section
+5.3.
 
 ### 5.2 Test tables
 
@@ -464,6 +464,72 @@ without a row it once made, the live test of that row is deleted in the
 same candidate (a `note:` says so), so no stale row survives beside the
 restated ones. A table removed from the frame altogether deletes nothing;
 its live tests are deleted only explicitly.
+
+### 5.3 Ripple
+
+An AF1 frame with `"afx": 1` may carry `"ripple": [intent, ...]`: typed
+changes stated once. `sley-agent help afx` is the reference text. Intents
+apply in written order after the frame's own definitions are expanded, and
+each derives ordinary AF1 edits into the same frame: patches of the live
+functions it rewrites (only the blocks that change, restated with every
+other operation as it is), rewritten calls in the frame's own functions,
+and restated TestCases. The unchanged compiler and kernel then judge the
+whole candidate; a derivation is never admission evidence. A decision a
+derivation cannot make mechanically is an obligation whose pointer leads
+into the intent (`/ripple/<i>`, `/ripple/<i>/value`, `/ripple/<i>/in/<j>`),
+and the frame is then not compiled. Derivation is deterministic. The derived
+edits are part of the draft's expanded frame, and `ripple.json` in the
+draft revision lists, per intent, the sites and tests rewritten or left as
+written, the boundary met and the changed entities. The events ledger
+counts `ripple_intents`, `ripple_edits` and `ripple_holes`.
+
+Two intents are enabled:
+
+- `{"arity": f}` and `{"arity": f, "value": v}`. The frame restates the
+  parameters of the live function `f`. Every call of `f` in live code the
+  frame does not restate, and every TestCase of `f`, gets its arguments by
+  parameter name: a kept parameter (same name and type) keeps its argument,
+  a removed one drops it while its computation still runs, and a new one
+  takes `v`, a literal of its type, when exactly one parameter is new.
+  Anything else is `AGENT_RIPPLE_HOLE_UNFILLED` naming the site, the
+  parameter and its type; a parameter kept by name with another type is
+  never coerced. A call or test the frame itself writes is left as written
+  when it has the new argument count and rewritten when it has the old one.
+  The exported boundary is `AGENT_RIPPLE_EXPORTED_BOUNDARY`: `f` is the
+  function of an entry point, in a package's exports, a global's
+  initializer, or named by a contract or policy binding (code outside the
+  program's calls uses its parameters), or a live caller belongs to other
+  namespaces than `f`. Visibility alone is not the boundary. A use of `f`
+  as a value (`fnref`) is unresolved dispatch and a hole.
+- `{"guard": g, "arg": p, "in": [f, ...], "mode": m}`. `g` is a checker
+  `P -> Result<P,E>` (another shape is `AGENT_RIPPLE_GUARD_SHAPE`; no error
+  case is inferred for `Option`), defined in the same frame or live; each
+  `f` is a live function the frame does not restate, with parameter `p` of
+  type `P`. `"preserve"` (the default) replaces an inline check at its own
+  position when it is structurally the same as `g`'s body up to names: the
+  same pure operations on `p`, in the same order, ending a block, the same
+  error results, and one success continuation that reads nothing the check
+  defines. The checked value, the order of evaluation, the errors and the
+  continuation are then those of the original. A match is never inferred
+  from tests; anything else is `AGENT_RIPPLE_GUARD_ORDER`. `"entry"`
+  evaluates `g(p)` once when `f` starts, before its existing checks (which
+  can change error precedence), and routes every use of `p` that the `Ok`
+  payload dominates through it; a block the error route can also reach, or
+  an explicitly unreachable one, keeps `p`. The error is returned
+  unchanged when `f` returns `Result<_,E>`, or goes to the one block of `f`
+  that takes `(e: E)` (a block that only passes the error on counts as the
+  block it passes it to); with no such route, or more than one, it is a
+  hole. Entry never moves a check before an effect, never evaluates `g`
+  twice on `p`, never deletes an existing check, and is refused when `g`
+  calls `f`.
+
+`effect`, `member`, `retype`, `move` and `prune` are not enabled in this
+build: they are refused with `AGENT_RIPPLE_INTENT_UNKNOWN`, as is any
+unknown intent. The bounds are 32 intents per frame, 256 call sites and
+tests per `arity`, and 64 functions per `guard` and blocks per checker;
+reaching one is `AGENT_RIPPLE_LIMIT`, never truncation. A function with
+type parameters or declared effects is never patched, since AF1 cannot
+restate either.
 
 ## 6. Opcodes
 
@@ -562,7 +628,13 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_X_SCOPE` | an AF1-X name is ambiguous, not available where it is used, or an omitted edge argument cannot be derived |
 | `AGENT_X_LIMIT` | an AF1-X expansion bound (depth, operations, generated blocks) was reached |
 | `AGENT_TEST_TABLE_INVALID` | a test table or row is malformed, duplicated, collides with another test, or names a live test its table did not make |
-| `AGENT_RIPPLE_INTENT_UNKNOWN` | a `ripple` intent is unknown or not enabled in this build |
+| `AGENT_RIPPLE_INTENT_UNKNOWN` | a `ripple` intent is unknown, or not enabled in this build |
+| `AGENT_RIPPLE_TARGET_KIND` | an intent names something other than a live function it can change |
+| `AGENT_RIPPLE_HOLE_UNFILLED` | a derivation needs an argument, route or decision it cannot derive |
+| `AGENT_RIPPLE_EXPORTED_BOUNDARY` | a derivation reached a use outside the program's calls or in another namespace |
+| `AGENT_RIPPLE_LIMIT` | a ripple bound was reached |
+| `AGENT_RIPPLE_GUARD_SHAPE` | the checker is not `P -> Result<P,E>` for the guarded parameter |
+| `AGENT_RIPPLE_GUARD_ORDER` | no identical check to replace, or an evaluation order a guard cannot keep |
 | `AGENT_SEARCH_NO_ORACLE` | `search` has no permitted public case for the function: the case file is unreadable, holds no case, or none for the function |
 | `AGENT_SEARCH_SEED_INVALID` | the `search` seed is unusable (refused, incomplete, a text draft, not made from a frame), the name is not one of its functions, or its lineage has used its searches |
 

@@ -1080,7 +1080,8 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
             "/fns/0/blocks/0/ops/0: `y__z` contains `__`",
         ],
     );
-    // `edit.with` stays plain AF1; `ripple` is not enabled; "afx" is 1.
+    // `edit.with` stays plain AF1; an unknown ripple intent is refused;
+    // "afx" is 1.
     assert_refused(
         &temp.path,
         &json!({"af1": 1, "afx": 1, "edit": [{"fn": "f", "replace_op": "entry.x", "with": ["add", "a", 1]}]}),
@@ -1094,7 +1095,7 @@ fn literals_nesting_and_names_follow_the_dialect_rules() {
         &temp.path,
         &json!({"af1": 1, "afx": 1, "ripple": [{"intent": "arity"}]}),
         "AGENT_RIPPLE_INTENT_UNKNOWN",
-        &["/ripple: ripple is not enabled in this build"],
+        &["/ripple/0: unknown intent"],
     );
     assert_refused(
         &temp.path,
@@ -1678,16 +1679,33 @@ fn test_tables_lower_to_tests_that_point_at_their_rows() {
 #[test]
 fn every_example_in_help_afx_runs() {
     let temp = workspace("help-afx");
+    // A frame without tests is the live program the ripple examples after
+    // it change: it is committed in its own workspace.
+    let live = workspace("help-afx-ripple");
     let examples: Vec<&str> = sley_agent::help::AFX
         .split("```json\n")
         .skip(1)
         .map(|rest| rest.split("```").next().unwrap())
         .collect();
-    assert!(examples.len() >= 3);
+    assert!(examples.len() >= 6);
+    let mut ripples = 0;
     for (index, example) in examples.iter().enumerate() {
         let frame: Value = serde_json::from_str(example)
             .unwrap_or_else(|error| panic!("example {index} is not JSON: {error}"));
-        let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+        if frame.get("test_tables").is_none() {
+            let (status, text) = run(&live.path, &["try", &frame.to_string()]);
+            assert_eq!(status, 0, "help afx example {index}: {text}");
+            let (status, text) = run(&live.path, &["commit"]);
+            assert_eq!(status, 0, "help afx example {index}: {text}");
+            continue;
+        }
+        let dir = if frame.get("ripple").is_some() {
+            ripples += 1;
+            &live.path
+        } else {
+            &temp.path
+        };
+        let (status, text) = run(dir, &["try", &frame.to_string()]);
         assert_eq!(status, 0, "help afx example {index}: {text}");
         let rows: usize = frame["test_tables"]
             .as_array()
@@ -1700,6 +1718,7 @@ fn every_example_in_help_afx_runs() {
             "help afx example {index}: {text}"
         );
     }
+    assert_eq!(ripples, 2, "both enabled intents have an example");
     assert_eq!(
         sley_agent::help::topic("afx").as_deref(),
         Some(sley_agent::help::AFX)

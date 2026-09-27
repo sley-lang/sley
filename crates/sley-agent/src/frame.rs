@@ -190,6 +190,11 @@ fn compile_extended(
     compiled
         .artifacts
         .push(("sourcemap.json".to_owned(), expansion.map.to_json()));
+    if let Some(inventory) = expansion.ripple {
+        compiled
+            .artifacts
+            .push(("ripple.json".to_owned(), inventory));
+    }
     compiled.stats = expansion.stats.to_json();
     Ok(compiled)
 }

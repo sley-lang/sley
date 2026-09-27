@@ -146,6 +146,87 @@ A name that is taken gets `_2`, `_3`, ... Do not use `__` in your own
 names. A refusal names the authored position, with the expanded one in
 brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
 
+## Ripple
+
+    "ripple": [{"arity": "f"}, {"arity": "f", "value": 0},
+               {"guard": "g", "arg": "p", "in": ["f", ...], "mode": "preserve"}]
+
+A ripple intent states a change once, and `try` derives the edits it
+implies into the frame. Intents apply in order, after the frame's own
+definitions, and the kernel judges the whole candidate as usual. See the
+derived edits with `sley-agent draft <d> --expanded`; `ripple.json` in the
+draft lists the changed entities and the boundaries met. A decision ripple
+cannot make is an `AGENT_RIPPLE_*` obligation that points into the intent.
+
+`{"arity": f}`: the frame restates the parameters of the live function `f`
+(in `fns`, or in a `patch` with `params`). Every call of `f` in live code
+and every TestCase of `f` get their arguments by parameter name: a kept
+parameter keeps its argument, a removed one drops it, and a new one takes
+`"value"` (a literal of its type) or is an obligation. A call the frame
+itself writes is left as written when it passes the new number of
+arguments. Ripple stops (`AGENT_RIPPLE_EXPORTED_BOUNDARY`) when `f` is an
+entry point, a package export, a global's initializer, or named by a
+contract or policy binding, and at a caller in another namespace. A use of
+`f` as a value (`fnref`) is an obligation.
+
+`{"guard": g, "arg": p, "in": [f, ...]}`: `g` is a checker `P -> Result<P,E>`,
+defined in the same frame or live. `"mode": "preserve"` (the default)
+replaces, in each live `f`, an inline check of parameter `p` that runs the
+same operations as `g` in the same order, at the end of a block, and fails
+with the same errors, by a call of `g` at that place; anything else is
+`AGENT_RIPPLE_GUARD_ORDER`. `"mode": "entry"` calls `g(p)` once when `f`
+starts, before its other checks, and every use of `p` after a success reads
+the checked value (a block the error also reaches keeps `p`). The error is
+returned unchanged when `f` returns `Result<_,E>`, or goes to the one block
+of `f` that takes `(e: E)`.
+
+`effect`, `member`, `retype`, `move` and `prune` are not enabled in this
+build (`AGENT_RIPPLE_INTENT_UNKNOWN`).
+
+Given these live functions:
+
+```json
+{"af1": 1, "afx": 1,
+ "types": [{"name": "OrderError", "variant": ["InvalidQuantity", "InvalidPrice", "Overflow"]}],
+ "fns": [{"fn": "line_total", "params": [["quantity", "i64"], ["price", "i64"]], "returns": "Result<i64,OrderError>",
+          "blocks": [{"name": "entry",
+                      "ops": [["!InvalidPrice", "if", ["lt", "price", 0]],
+                              ["!InvalidQuantity", "if", ["lt", "quantity", 1]],
+                              ["total", "mul?Overflow", "quantity", "price"]],
+                      "term": ["ok", "total"]}]},
+         {"fn": "order_total", "params": [["quantity", "i64"], ["price", "i64"]], "returns": "Result<i64,OrderError>",
+          "blocks": [{"name": "entry", "ops": [["t", "call?", "line_total", "quantity", "price"]], "term": ["ok", "t"]}]}]}
+```
+
+this frame adds a `fee` parameter to `line_total`; the call in `order_total`
+passes `0` for it:
+
+```json
+{"af1": 1, "afx": 1,
+ "patch": [{"fn": "line_total", "params": [["quantity", "i64"], ["price", "i64"], ["fee", "i64"]],
+            "blocks": {"entry": {"ops": [["!InvalidPrice", "if", ["lt", "price", 0]],
+                                         ["!InvalidQuantity", "if", ["lt", "quantity", 1]],
+                                         ["total", "mul?Overflow", "quantity", "price"]],
+                                 "term": ["ok", ["add?Overflow", "total", "fee"]]}}}],
+ "ripple": [{"arity": "line_total", "value": 0}],
+ "test_tables": [{"name": "t_fee", "fn": "line_total", "cases": [{"args": [2, 5, 1], "expect": {"Ok": 11}}]},
+                 {"name": "t_order", "fn": "order_total", "cases": [{"args": [2, 5], "expect": {"Ok": 10}}]}]}
+```
+
+and this one moves the quantity check of `line_total` into a checker, at
+the same place (the price check still comes first):
+
+```json
+{"af1": 1, "afx": 1,
+ "fns": [{"fn": "check_quantity", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
+          "blocks": [{"name": "entry", "ops": [["!InvalidQuantity", "if", ["lt", "q", 1]]], "term": ["ok", "q"]}]}],
+ "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["line_total"]}],
+ "test_tables": [{"name": "t_line", "fn": "line_total",
+                  "cases": [{"args": [0, -1], "expect": {"Err": "InvalidPrice"}},
+                            {"args": [0, 5], "expect": {"Err": "InvalidQuantity"}},
+                            {"args": [2, 5], "expect": {"Ok": 10}}]}]}
+```
+
 ## Refusals
 
     AGENT_X_PROPAGATION       no single, type-correct failure route for ? or !
@@ -153,4 +234,10 @@ brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
     AGENT_X_LIMIT             nesting (32), operations (4096) or generated blocks (1024)
     AGENT_TEST_TABLE_INVALID  a malformed, duplicated or colliding table row, or one
                               naming a live test its table did not make
-    AGENT_RIPPLE_INTENT_UNKNOWN  ripple is not enabled in this build
+    AGENT_RIPPLE_INTENT_UNKNOWN     an unknown intent, or one not enabled in this build
+    AGENT_RIPPLE_TARGET_KIND        not a live function the intent can change
+    AGENT_RIPPLE_HOLE_UNFILLED      a value or route ripple cannot derive
+    AGENT_RIPPLE_EXPORTED_BOUNDARY  a use outside the program's calls, or in another namespace
+    AGENT_RIPPLE_LIMIT              32 intents, 256 call sites and tests per intent, 64 guarded functions
+    AGENT_RIPPLE_GUARD_SHAPE        the checker is not P -> Result<P,E>
+    AGENT_RIPPLE_GUARD_ORDER        no identical check to replace, or an order that cannot be kept
