@@ -3,8 +3,7 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews",
-      "second_host_attestation_operator_lane"
+      "council_reviews"
     ],
     "publication_authorized": true,
     "signature_algorithm": null,
@@ -83,7 +82,7 @@
         "byproducts": [
           {
             "digest": {
-              "sha256": "d7715b6f61cd7d32f675223897a05ee618743d9f2e79f2b148176e4d659fd49f"
+              "sha256": "6659c8f3854089b0d0cac4136c236a20c5d5f173f41d40cac1aebd8ee9d27fd6"
             },
             "name": "evidence/release/reproducibility-report.json"
           },
@@ -109,5 +108,5 @@
       }
     ]
   },
-  "statement_digest": "8b8390f35eefc0c0af1b8669b1504ebb3411fb6866bcb0d5e9b578cc265f846b"
+  "statement_digest": "39eb7ccb0c09fa8d384c7718884c636a9a508f615cffd12fd17b6271d86b4819"
 }
