@@ -18,6 +18,7 @@ use crate::candidate::{self, Authority, Store};
 use crate::catalog::Verdict;
 use crate::error::{AgentError, AgentErrorCode, Result, io, unknown_name, usage};
 use crate::exec::{self, Executor, TestOutcome};
+use crate::focus;
 use crate::frame;
 use crate::help;
 use crate::locate::Source;
@@ -25,6 +26,7 @@ use crate::names::{NameMap, Names, Scope};
 use crate::values::{self, ProgramTypes};
 use crate::view::{self, ViewOptions};
 use crate::workspace::{Head, NAMES_FILE, Program, STATE_DIR, SUBMISSION, Workspace};
+use crate::xview;
 
 /// Exit status for success.
 pub const EXIT_OK: i32 = 0;
@@ -269,20 +271,74 @@ fn shown(reference: &str) -> String {
 fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
     let words = words(
         args,
-        &["--after"],
-        &["--ids", "--types", "--limits", "--package"],
+        &["--after", "--focus"],
+        &["--ids", "--types", "--limits", "--package", "--x"],
     )?;
     let options = ViewOptions {
         ids: words.has("--ids"),
         types: words.has("--types"),
         limits: words.has("--limits"),
     };
+    let x = words.has("--x");
+    let focus = words.value("--focus");
+    if focus.is_some() && (!words.positional.is_empty() || words.has("--package")) {
+        return Err(usage(
+            "--focus takes one name; view further names without --focus",
+        ));
+    }
     let workspace = workspace(global)?;
     let head = workspace.head()?;
     let map = name_map(&workspace)?;
     let selected = select(&workspace, &head, &map, words.value("--after"))?;
     let shown_label = selected.label.as_deref().map(shown);
-    let mut text = view::header(&selected.program, shown_label.as_deref());
+    let mut text = if x {
+        view::header_x(&selected.program, shown_label.as_deref())
+    } else {
+        view::header(&selected.program, shown_label.as_deref())
+    };
+    let render = |id: &EntityId| {
+        if x {
+            xview::entity(&selected.program, &selected.names, id, options)
+        } else {
+            view::entity(&selected.program, &selected.names, id, options)
+        }
+    };
+    if let Some(target) = focus {
+        let id = selected
+            .names
+            .resolve(target)
+            .ok_or_else(|| unknown_name(target))?;
+        // Expansion commands repeat the reference: the resolved handle, or
+        // the reference as given when it is a plain word.
+        let after = selected.label.as_deref().map(|label| {
+            let plain = label.len() <= 80
+                && label
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "._/-".contains(c));
+            if plain {
+                label.to_owned()
+            } else {
+                "<ref>".to_owned()
+            }
+        });
+        let focused = focus::render(
+            &selected.program,
+            &selected.names,
+            &id,
+            &focus::FocusRequest {
+                header: text,
+                options,
+                x,
+                after,
+            },
+        );
+        if global.json {
+            write_json(out, &json!({"view": focused.text, "focus": focused.json}))?;
+        } else {
+            write_text(out, &focused.text)?;
+        }
+        return Ok(EXIT_OK);
+    }
     if words.positional.is_empty() && words.value("--after").is_some() && !words.has("--package") {
         // The affected view: every function and test the candidate touches.
         let store = Store::open(&workspace)?;
@@ -293,27 +349,21 @@ fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
             &selected,
         )?;
         for id in affected {
-            text.push_str(&view::entity(
-                &selected.program,
-                &selected.names,
-                &id,
-                options,
-            ));
+            text.push_str(&render(&id));
         }
     } else if words.has("--package") || words.positional.is_empty() {
-        text.push_str(&view::package(&selected.program, &selected.names, options));
+        if x {
+            text.push_str(&xview::package(&selected.program, &selected.names, options));
+        } else {
+            text.push_str(&view::package(&selected.program, &selected.names, options));
+        }
     } else {
         for target in &words.positional {
             let id = selected
                 .names
                 .resolve(target)
                 .ok_or_else(|| unknown_name(target))?;
-            text.push_str(&view::entity(
-                &selected.program,
-                &selected.names,
-                &id,
-                options,
-            ));
+            text.push_str(&render(&id));
         }
     }
     if global.json {
