@@ -2096,7 +2096,9 @@ impl<'c, 'a> LiveGraph<'c, 'a> {
 
     /// The generated continuation pieces of the live block `root`, in
     /// order: each is the continuation edge's target of the one before (a
-    /// switch's Ok/Some case passing `$` first, or a cond's else target),
+    /// switch's Ok/Some case passing `$` first, a cond's else target, or the
+    /// payload-free Ok case to an exit piece that a preserve guard's call
+    /// leaves where the check was),
     /// has that one as its only predecessor, and has the name the
     /// expansion allocates for it.
     fn pieces_of(&self, root: &str) -> Vec<String> {
@@ -2122,6 +2124,19 @@ impl<'c, 'a> LiveGraph<'c, 'a> {
                             .get(leaf)
                             .and_then(|&position| self.first_param(position))
                             .is_some_and(|value| is_allocated(leaf, &format!("{root}__{value}")))
+                    })
+                    // A check a preserve guard replaced by a call: its Ok
+                    // case continues to the exit piece without the payload.
+                    .or_else(|| {
+                        switch
+                            .cases
+                            .iter()
+                            .find(|case| {
+                                case.case_key == CaseKey::Builtin(BuiltinCase::Ok)
+                                    && !case.edge.arguments.contains(&SwitchArgument::CasePayload)
+                            })
+                            .map(|case| self.cx.names.leaf(&case.edge.target))
+                            .filter(|leaf| is_exit_piece(leaf, root, self.blocks.len()))
                     }),
                 Terminator::CondBranch(cond) => Some(self.cx.names.leaf(&cond.if_false.target))
                     .filter(|leaf| is_exit_piece(leaf, root, self.blocks.len())),

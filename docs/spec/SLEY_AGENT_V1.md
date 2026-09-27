@@ -494,6 +494,22 @@ draft revision lists, per intent, the sites and tests rewritten or left as
 written, the boundary met and the changed entities. The events ledger
 counts `ripple_intents`, `ripple_edits` and `ripple_holes`.
 
+An intent the head already reflects derives nothing and is listed as
+`already applied`: an `arity` whose restated parameters are the ones `f`
+has at the head (the frame's calls and tests of `f` are then read as
+written, as plain AF1 reads them; `"frame_calls": "old"` is a hole, since
+the parameters it names are gone), and a `guard` whose function already has
+the shape the mode derives (entry: the entry block holds only the call of
+`g` on `p`, passing the checked value on and the error to the block that
+returns it or to the named handler; preserve: a block ends with that call,
+continuing without the checked value). So a revision layered on a
+committed one, such as a tests-only `try --on dN --rebase`, re-derives
+nothing. In `try --on`, a follow-up's intent replaces the draft's intent
+with the same identity where it stands: `arity` of the same function, or
+`guard` with the same checker and `arg`; other intents are appended. A
+block restated after a committed preserve guard replaces the pieces its
+expansion made, through the guard's call as well.
+
 Two intents are enabled:
 
 - `{"arity": f}`, `{"arity": f, "value": v}`, optionally with

@@ -1525,6 +1525,11 @@ fn repair_hint(
             " ({missing} does not exist: replace {whole} whole, with it included)"
         );
     }
+    if at.starts_with("/ripple") {
+        text.push_str(
+            "; to drop an intent instead, set \"/ripple\" to the intents to keep (a follow-up's intent replaces the same intent)",
+        );
+    }
     if let Some(on) = relayer {
         let _ = write!(
             text,

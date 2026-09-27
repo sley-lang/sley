@@ -15,7 +15,9 @@
 //!   replaced in that block; an edit of the same operation replaces the base
 //!   edit; otherwise it is appended.
 //! - `test_tables`: a table replaces the base table of the same name.
-//! - `ripple` intents are appended in order.
+//! - `ripple`: an intent replaces the base intent of the same kind and
+//!   target (`arity` of the same function; `guard` with the same checker
+//!   and parameter) where it stands; others are appended in order.
 //! - `delete` entries are added; `namespace` replaces.
 
 use serde_json::{Map, Value};
@@ -50,8 +52,9 @@ pub fn layer(base: &Value, delta: &Value) -> Result<Value> {
                 replace_named(list(&mut merged, key), entries, "name");
             }
             "fns" | "functions" => replace_named(list(&mut merged, "fns"), entries, "fn"),
-            // Intents apply in written order to the accumulated frame.
-            "ripple" => list(&mut merged, "ripple").extend(entries),
+            // Intents apply in written order to the accumulated frame; a
+            // restated intent replaces the same intent in place.
+            "ripple" => replace_intents(list(&mut merged, "ripple"), entries),
             "delete" => {
                 let deletes = list(&mut merged, "delete");
                 for entry in entries {
@@ -103,6 +106,30 @@ fn replace_named(base: &mut Vec<Value>, entries: Vec<Value>, key: &str) {
             base.iter()
                 .position(|item| name_of(item, key) == Some(name))
         });
+        match slot {
+            Some(index) => base[index] = entry,
+            None => base.push(entry),
+        }
+    }
+}
+
+/// An intent's identity: its kind and target, and for a guard the
+/// parameter it checks. `None` for an entry that names no enabled intent.
+fn intent_key(entry: &Value) -> Option<(&'static str, &str, &str)> {
+    let object = entry.as_object()?;
+    if let Some(target) = object.get("arity").and_then(Value::as_str) {
+        return (!object.contains_key("guard")).then_some(("arity", target, ""));
+    }
+    let checker = object.get("guard").and_then(Value::as_str)?;
+    Some(("guard", checker, object.get("arg").and_then(Value::as_str)?))
+}
+
+/// Each intent replaces the base intent with the same identity, where it
+/// stands, or is appended.
+fn replace_intents(base: &mut Vec<Value>, entries: Vec<Value>) {
+    for entry in entries {
+        let slot = intent_key(&entry)
+            .and_then(|key| base.iter().position(|item| intent_key(item) == Some(key)));
         match slot {
             Some(index) => base[index] = entry,
             None => base.push(entry),
@@ -347,5 +374,31 @@ mod tests {
         assert_eq!(merged["delete"], json!(["old"]));
         assert!(layer(&base(), &json!([])).is_err());
         assert!(layer(&base(), &json!({"tests": []})).is_err());
+    }
+
+    #[test]
+    fn a_restated_intent_replaces_the_same_intent_in_place() {
+        let base = json!({"af1": 1, "afx": 1, "ripple": [
+            {"arity": "f", "value": 0},
+            {"guard": "g", "arg": "p", "in": ["a"]},
+            {"guard": "g", "arg": "q", "in": ["a"]}]});
+        let merged = layer(
+            &base,
+            &json!({"af1": 1, "ripple": [
+                {"guard": "g", "arg": "p", "in": ["a", "b"], "mode": "entry"},
+                {"arity": "f", "value": 5},
+                {"arity": "h"},
+                {"effect": "f"}]}),
+        )
+        .unwrap();
+        assert_eq!(
+            merged["ripple"],
+            json!([
+                {"arity": "f", "value": 5},
+                {"guard": "g", "arg": "p", "in": ["a", "b"], "mode": "entry"},
+                {"guard": "g", "arg": "q", "in": ["a"]},
+                {"arity": "h"},
+                {"effect": "f"}])
+        );
     }
 }
