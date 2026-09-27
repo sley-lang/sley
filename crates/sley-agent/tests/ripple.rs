@@ -272,6 +272,11 @@ fn arity_base() -> Value {
        "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", 1]], "term": ["return", "r"]}]},
       {"fn": "h", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,ArithmeticError>",
        "blocks": [{"name": "entry", "ops": [["r", "call", "f", "y", "x"]], "term": ["return", "r"]}]},
+      // Two calls in one block.
+      {"fn": "pair", "params": [["x", "i64"], ["y", "i64"]],
+       "returns": "(Result<i64,ArithmeticError>,Result<i64,ArithmeticError>)",
+       "blocks": [{"name": "entry", "ops": [["r1", "call", "f", "x", "y"], ["r2", "call", "f", "y", "x"]],
+                   "term": ["return", ["tuple", "r1", "r2"]]}]},
       {"fn": "twice", "params": [["x", "i64"], ["flag", "bool"]], "returns": "Result<i64,ArithmeticError>",
        "blocks": [{"name": "entry", "term": ["cond", "flag", "left", "right"]},
                   {"name": "left", "ops": [["r", "call?", "f", "x", "x"]], "term": ["return", ["call", "f", "r", 2]]},
@@ -338,7 +343,7 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
             )
         })
         .collect();
-    for entity in ["fn f", "fn g", "fn h", "fn twice", "test t_f"] {
+    for entity in ["fn f", "fn g", "fn h", "fn pair", "fn twice", "test t_f"] {
         assert!(changed.contains(&entity.to_owned()), "{changed:?}");
     }
     assert!(!changed.contains(&"test t_g".to_owned()), "{changed:?}");
@@ -354,6 +359,19 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
     assert_eq!(
         patched_calls(&expanded, "h"),
         [("r".to_owned(), vec![json!("x"), json!("y"), json!("r__a2")])]
+    );
+    assert_eq!(
+        patched_calls(&expanded, "pair"),
+        [
+            (
+                "r1".to_owned(),
+                vec![json!("y"), json!("x"), json!("r1__a2")]
+            ),
+            (
+                "r2".to_owned(),
+                vec![json!("x"), json!("y"), json!("r2__a2")]
+            ),
+        ]
     );
     assert_eq!(patched_calls(&expanded, "twice").len(), 3);
     let g = expanded["patch"]
@@ -381,7 +399,7 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
     assert_eq!(intent["intent"], "arity");
     assert_eq!(intent["old"], json!(["a: i64", "b: i64"]));
     assert_eq!(intent["new"], json!(["b: i64", "a: i64", "c: i64"]));
-    assert_eq!(intent["calls"].as_array().unwrap().len(), 5);
+    assert_eq!(intent["calls"].as_array().unwrap().len(), 7);
     assert!(
         intent["calls"]
             .as_array()
@@ -397,18 +415,19 @@ fn arity_rewrites_every_caller_and_test_by_parameter_name() {
     assert_eq!(intent["boundary"]["references"], json!([]));
     assert_eq!(
         inventory["changed"]["functions"],
-        json!(["g", "h", "twice"])
+        json!(["g", "h", "pair", "twice"])
     );
     assert_eq!(inventory["changed"]["tests"], json!(["t_f"]));
     let status = artifact(&temp.path, draft, "status.json");
     assert_eq!(status["stats"]["ripple_intents"], 1);
-    assert_eq!(status["stats"]["ripple_edits"], 6);
+    assert_eq!(status["stats"]["ripple_edits"], 8);
     assert_eq!(status["stats"]["ripple_holes"], 0);
     // Tests of the changed functions ran and pass; every caller computes
     // what it did before.
     assert_eq!(report["tests"].as_array().unwrap().len(), 2);
     same_behavior(&temp.path, &frame, "g", &grid(&[&ints()]));
     same_behavior(&temp.path, &frame, "h", &grid(&[&ints(), &ints()]));
+    same_behavior(&temp.path, &frame, "pair", &grid(&[&ints(), &ints()]));
     same_behavior(&temp.path, &frame, "twice", &grid(&[&ints(), &bools()]));
 }
 
@@ -562,7 +581,7 @@ fn a_missing_value_is_a_hole_at_each_site() {
         &["/ripple/0: `g.entry.r` gives `f` no argument for its new parameter `c` (expected i64)"],
     );
     // One hole per call site and per test, each pointing into the intent.
-    assert_eq!(obligations.len(), 6, "{obligations:#?}");
+    assert_eq!(obligations.len(), 8, "{obligations:#?}");
     for obligation in &obligations {
         assert_eq!(obligation["symbol"], "AGENT_RIPPLE_HOLE_UNFILLED");
         assert_eq!(obligation["at"], "/ripple/0");
@@ -1134,12 +1153,12 @@ fn derivations_are_deterministic() {
     assert_eq!(first.ripple, second.ripple);
     assert_eq!(first.frame.to_string(), second.frame.to_string());
     assert_eq!(first.stats.ripple_intents, 1);
-    assert_eq!(first.stats.ripple_edits, 6);
+    assert_eq!(first.stats.ripple_edits, 8);
     // A hole-bearing derivation is deterministic too.
     let holes = new_f(&json!([{"arity": "f"}]));
     let (a, b) = (expand(&temp.path, &holes), expand(&temp.path, &holes));
     assert_eq!(a.obligations, b.obligations);
-    assert_eq!(a.obligations.len(), 6);
+    assert_eq!(a.obligations.len(), 8);
     // The same frame layered on its own draft derives the same edits.
     let report = valid(&temp.path, &frame);
     let draft = report["draft"]

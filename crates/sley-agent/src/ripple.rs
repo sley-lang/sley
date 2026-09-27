@@ -1559,12 +1559,19 @@ impl<'c, 'a> Ripple<'c, 'a> {
         frame_records.reverse();
         calls.extend(frame_records);
         for (test_index, name) in frame_tests {
-            let count = self.out["tests"][test_index]
-                .get("args")
-                .or_else(|| self.out["tests"][test_index].get("inputs"))
+            let test = self
+                .out
+                .get("tests")
+                .and_then(|tests| tests.get(test_index));
+            let count = test
+                .and_then(|test| test.get("args").or_else(|| test.get("inputs")))
                 .and_then(Value::as_array)
                 .map_or(0, Vec::len);
-            let label = format!("/tests/{test_index} (`{name}`)");
+            let authored = self
+                .map
+                .authored(&format!("/tests/{test_index}"))
+                .unwrap_or_else(|| format!("/tests/{test_index}"));
+            let label = format!("{authored} (`{name}`)");
             let edit = if count == new.len() {
                 "as written"
             } else if count == old.len() {
@@ -1864,7 +1871,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
                 if restated.contains(&block.leaf) {
                     continue;
                 }
-                for (index, op) in block.ops.iter().enumerate() {
+                for op in &block.ops {
                     let Imm::Function { id: callee, .. } = &op.imm else {
                         continue;
                     };
@@ -1875,7 +1882,6 @@ impl<'c, 'a> Ripple<'c, 'a> {
                         function: function.clone(),
                         block: block.leaf.clone(),
                         op: op.leaf.clone(),
-                        index,
                         fnref: op.tag == 194,
                     });
                 }
@@ -2162,7 +2168,12 @@ impl<'c, 'a> Ripple<'c, 'a> {
         let Some(b) = func.position(&site.block) else {
             return false;
         };
-        let old_args = func.blocks[b].ops[site.index].args.clone();
+        // By name: a constant inserted for an earlier site of the same
+        // block moves the ones after it.
+        let Some(position) = func.blocks[b].ops.iter().position(|op| op.leaf == site.op) else {
+            return false;
+        };
+        let old_args = func.blocks[b].ops[position].args.clone();
         let Some(args) = self.arguments(context, &old_args, label, false) else {
             return false;
         };
@@ -2181,7 +2192,7 @@ impl<'c, 'a> Ripple<'c, 'a> {
         let func = self.funcs.get_mut(&site.function).expect("present");
         let block = &mut func.blocks[b];
         let leaf = block.leaf.clone();
-        let mut index = site.index;
+        let mut index = position;
         if let (Some(name), Some((literal, ty, _))) = (&constant, &fill)
             && args.iter().any(Option::is_none)
         {
@@ -3140,7 +3151,6 @@ struct LiveSite {
     function: String,
     block: String,
     op: String,
-    index: usize,
     fnref: bool,
 }
 
