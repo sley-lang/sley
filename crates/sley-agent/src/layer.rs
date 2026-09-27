@@ -14,6 +14,8 @@
 //! - `edit`: on a function the base defines or patches, the operation is
 //!   replaced in that block; an edit of the same operation replaces the base
 //!   edit; otherwise it is appended.
+//! - `test_tables`: a table replaces the base table of the same name.
+//! - `ripple` intents are appended in order.
 //! - `delete` entries are added; `namespace` replaces.
 
 use serde_json::{Map, Value};
@@ -44,9 +46,12 @@ pub fn layer(base: &Value, delta: &Value) -> Result<Value> {
         let entries = value.as_array().cloned().unwrap_or_default();
         match key.as_str() {
             "af1" => {}
-            "types" | "consts" => replace_named(list(&mut merged, key), entries, "name"),
+            "types" | "consts" | "tests" | "test_tables" => {
+                replace_named(list(&mut merged, key), entries, "name");
+            }
             "fns" | "functions" => replace_named(list(&mut merged, "fns"), entries, "fn"),
-            "tests" => replace_named(list(&mut merged, "tests"), entries, "name"),
+            // Intents apply in written order to the accumulated frame.
+            "ripple" => list(&mut merged, "ripple").extend(entries),
             "delete" => {
                 let deletes = list(&mut merged, "delete");
                 for entry in entries {

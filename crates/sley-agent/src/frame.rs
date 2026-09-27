@@ -85,6 +85,11 @@ pub struct Compiled {
     pub tests: Vec<EntityId>,
     /// Notes for the author (auto-deleted dependents, ...).
     pub notes: Vec<String>,
+    /// Derived authoring artifacts kept with a draft revision, by file name
+    /// (the expanded frame and its source map for an AF1-X frame).
+    pub artifacts: Vec<(String, Value)>,
+    /// Authoring statistics for the events ledger (feature use counts).
+    pub stats: serde_json::Map<String, Value>,
 }
 
 /// Compiles an AF1 frame against the accepted program.
