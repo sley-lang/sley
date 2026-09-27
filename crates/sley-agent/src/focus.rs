@@ -12,9 +12,10 @@
 //!
 //! Output stays within `FOCUS_BOUND` bytes: rendered context is omitted
 //! from the end (calls, then consts, then types), then the target's body;
-//! name lists shrink to their counts last. Every omission prints its count
-//! and the exact command that shows what it left out. A focused view is
-//! context for reading, not a completeness certificate.
+//! name lists shrink to their counts last; a target or boundary line that
+//! is still too long is cut. Every omission prints its count and the exact
+//! command that shows what it left out. A focused view is context for
+//! reading, not a completeness certificate.
 
 use std::fmt::Write as _;
 
@@ -30,6 +31,9 @@ use crate::xview;
 
 /// The byte bound of a focused view's text.
 pub const FOCUS_BOUND: usize = 4000;
+/// The longest target or boundary line kept whole once everything else is
+/// omitted; a longer line is cut there, with its expansion command.
+const LINE_CLIP: usize = 800;
 
 /// How a focused view renders, and how its expansion commands read.
 #[derive(Clone, Debug)]
@@ -176,6 +180,7 @@ pub fn render(
         target_text: &target_text,
         collapsed: false,
         long_commands: true,
+        clip: false,
         sections,
         boundary: &boundary.text,
     };
@@ -355,6 +360,7 @@ struct Layout<'a> {
     target_text: &'a str,
     collapsed: bool,
     long_commands: bool,
+    clip: bool,
     sections: Vec<Section>,
     boundary: &'a str,
 }
@@ -366,21 +372,63 @@ impl Layout<'_> {
     /// end). When even that does not fit, the target's body is replaced by
     /// its signature and the context refills from the most relevant end;
     /// as a last resort, expansion commands point at the JSON name lists
-    /// instead of listing names. The fixed lines always stay.
+    /// instead of listing names. Then a target or boundary line longer
+    /// than `LINE_CLIP` is cut, with the command that shows it whole. The
+    /// text never exceeds the bound: should it still, it is cut at the
+    /// bound with the command for the complete JSON view.
     fn bounded(&mut self) -> (String, Vec<Value>) {
-        let configurations: &[(bool, bool)] = if self.target_text.lines().count() > 1 {
-            &[(false, true), (true, true), (true, false)]
+        let configurations: &[(bool, bool, bool)] = if self.target_text.lines().count() > 1 {
+            &[
+                (false, true, false),
+                (true, true, false),
+                (true, false, false),
+                (true, false, true),
+            ]
         } else {
-            &[(false, true), (false, false)]
+            &[
+                (false, true, false),
+                (false, false, false),
+                (false, false, true),
+            ]
         };
-        for &(collapsed, long_commands) in configurations {
+        for &(collapsed, long_commands, clip) in configurations {
             self.collapsed = collapsed;
             self.long_commands = long_commands;
+            self.clip = clip;
             if self.fit() {
-                break;
+                return self.compose();
             }
         }
-        self.compose()
+        let (mut text, mut omitted) = self.compose();
+        let json_command = self.request.json_command(self.name);
+        let tail = format!("\n# view cut at {FOCUS_BOUND} bytes: {json_command}\n");
+        let mut cut = FOCUS_BOUND.saturating_sub(tail.len());
+        while !text.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let rest = text.len() - cut;
+        text.truncate(cut);
+        text.push_str(&tail);
+        omitted.push(
+            json!({"section": "text", "count": rest, "unit": "bytes", "expand": json_command}),
+        );
+        (text, omitted)
+    }
+
+    /// A line cut at `LINE_CLIP` bytes (when clipping), with how much was
+    /// left out and the command that shows it.
+    fn clipped(&self, line: &str, section: &str, expand: &str, omitted: &mut Vec<Value>) -> String {
+        if !self.clip || line.len() <= LINE_CLIP {
+            return line.to_owned();
+        }
+        let mut cut = LINE_CLIP;
+        while !line.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let rest = line.len() - cut;
+        omitted.push(json!({"section": section, "count": rest, "unit": "bytes",
+            "names": [self.name], "expand": expand}));
+        format!("{} ... ({rest} more bytes: {expand})", &line[..cut])
     }
 
     fn fits(&self) -> bool {
@@ -428,15 +476,25 @@ impl Layout<'_> {
         );
         let view_command = self.request.view_command();
         let json_command = self.request.json_command(self.name);
+        let expand_target = format!("{view_command} {}", self.name);
         if self.collapsed {
             let mut lines = self.target_text.lines();
             let first = lines.next().unwrap_or_default();
+            let first = self.clipped(first, "target", &expand_target, &mut omitted);
             let rest = lines.count();
-            let expand = format!("{view_command} {}", self.name);
-            let _ = writeln!(text, "{first}\n# body omitted ({rest} lines): {expand}");
-            omitted.push(
-                json!({"section": "target", "count": rest, "names": [self.name], "expand": expand}),
+            let _ = writeln!(
+                text,
+                "{first}\n# body omitted ({rest} lines): {expand_target}"
             );
+            omitted.push(
+                json!({"section": "target", "count": rest, "names": [self.name],
+                "expand": expand_target}),
+            );
+        } else if self.clip {
+            for line in self.target_text.lines() {
+                let line = self.clipped(line, "target", &expand_target, &mut omitted);
+                let _ = writeln!(text, "{line}");
+            }
         } else {
             text.push_str(self.target_text);
         }
@@ -482,7 +540,10 @@ impl Layout<'_> {
                 }
             }
         }
-        text.push_str(self.boundary);
+        for line in self.boundary.lines() {
+            let line = self.clipped(line, "boundary", &json_command, &mut omitted);
+            let _ = writeln!(text, "{line}");
+        }
         (text, omitted)
     }
 }
