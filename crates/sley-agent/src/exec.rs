@@ -184,6 +184,16 @@ impl Executor {
         Ok(())
     }
 
+    /// Lowers a function now (execution otherwise lowers on first use).
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_EXECUTION_REFUSED` when it is not a live function or lowering
+    /// refuses it.
+    pub fn prepare(&mut self, id: &EntityId) -> Result<()> {
+        self.lower(id)
+    }
+
     /// Executes a function on typed inputs, lowering it on first use.
     ///
     /// # Errors

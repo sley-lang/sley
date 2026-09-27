@@ -612,7 +612,14 @@ fn the_neighbor_and_wall_limits_are_labeled() {
     assert_eq!(report["limits"]["neighbor_limit_reached"], true);
     assert_eq!(report["limits"]["wall_limit_reached"], false);
     assert_eq!(neighbors(&report).len(), 64);
-    // An explicit bound, on a new seed.
+    // An explicit bound, in another attempt (a workspace's head gets two
+    // searches).
+    let temp = workspace("limits-3");
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"function": "many", "args": [1, 2], "expect": true}]),
+    );
     let c2 = seed(&temp.path, &frame);
     let (_, report) = search(
         &temp.path,
@@ -630,6 +637,12 @@ fn the_neighbor_and_wall_limits_are_labeled() {
     assert_eq!(report["limits"]["max_neighbors"], 3);
     assert_eq!(report["limits"]["neighbor_limit_reached"], true);
     // No wall time: nothing is generated or run, and the output says so.
+    let temp = workspace("limits-0");
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"function": "many", "args": [1, 2], "expect": true}]),
+    );
     let c3 = seed(&temp.path, &frame);
     let (status, text) = run(
         &temp.path,
@@ -650,9 +663,11 @@ fn the_neighbor_and_wall_limits_are_labeled() {
         "{text}"
     );
     assert!(
-        text.contains(
-            "limits: wall limit reached (0 ms): generation stopped; 0 of 0 neighbors evaluated"
-        ),
+        text.contains("limits: wall limit reached (bound 0 ms, stopped after "),
+        "{text}"
+    );
+    assert!(
+        text.contains("generation stopped; 0 of 0 neighbors evaluated"),
         "{text}"
     );
     assert!(text.contains("next: no neighbor was evaluated;"), "{text}");
@@ -984,7 +999,7 @@ fn a_case_file_without_a_case_for_the_function_is_no_oracle() {
         assert!(text.contains(&detail), "{file}: {text}");
     }
     // Cases never come from the candidate: no search was counted either.
-    assert!(!temp.path.join(".sley/search.json").exists());
+    assert_eq!(uses(&temp.path), 0);
 }
 
 #[test]
@@ -994,6 +1009,7 @@ fn the_same_seed_and_cases_give_the_same_report() {
     let c1 = seed(&temp.path, &sign_frame());
     let strip = |mut value: Value| {
         value.as_object_mut().unwrap().remove("resources");
+        value["search"].as_object_mut().unwrap().remove("use");
         value
     };
     let (_, first) = search(&temp.path, &["sign", "--public", &public, "--from", &c1]);
@@ -1015,8 +1031,18 @@ fn the_same_seed_and_cases_give_the_same_report() {
     assert_eq!(lines(first), lines(second));
 }
 
+/// The searches recorded in a workspace (one slot file each).
+fn uses(dir: &Path) -> usize {
+    fs::read_dir(dir.join(".sley/search")).map_or(0, |entries| {
+        entries
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".json"))
+            .count()
+    })
+}
+
 #[test]
-fn each_seed_lineage_gets_two_searches() {
+fn an_attempt_gets_two_searches_whatever_its_seeds() {
     let temp = workspace("uses");
     let public = cases(&temp.path, "cases.json", &diff_cases());
     let c1 = seed(&temp.path, &diff_frame());
@@ -1028,42 +1054,128 @@ fn each_seed_lineage_gets_two_searches() {
         search(&temp.path, &["diff", "--public", &public, "--from", "d1"]).0,
         0
     );
-    // A candidate made on top of c1 is the same lineage.
+    assert_eq!(uses(&temp.path), 2);
+    // The same whole frame tried again, a draft started on c1 and another
+    // function: all the same attempt.
+    let c2 = seed(&temp.path, &diff_frame());
     let (status, _) = run(
         &temp.path,
-        &[
-            "try",
-            "--on",
-            &c1,
-            "{\"af1\": 1, \"edit\": [{\"fn\": \"diff\", \"replace_op\": \"entry.r\", \"with\": [\"mul\", \"a\", \"b\"]}]}",
-        ],
+        &["try", "--on", &c1, &json!({"af1": 1, "edit": [{"fn": "diff", "replace_op": "entry.r", "with": ["mul", "a", "b"]}]}).to_string()],
     );
     assert_eq!(status, 0);
+    let c4 = seed(&temp.path, &sign_frame());
+    let sign_public = cases(&temp.path, "sign.json", &sign_cases());
+    for (function, file, from) in [
+        ("diff", &public, Some(c2.as_str())),
+        ("diff", &public, Some("d3")),
+        ("diff", &public, Some("c3")),
+        ("sign", &sign_public, Some(c4.as_str())),
+    ] {
+        let mut args = vec!["search", function, "--public", file];
+        if let Some(from) = from {
+            args.extend(["--from", from]);
+        }
+        let (status, text) = run(&temp.path, &args);
+        assert_eq!(status, 2, "{args:?}: {text}");
+        assert!(
+            text.starts_with(
+                "error AGENT_SEARCH_SEED_INVALID: this attempt has used its 2 searches (head "
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains(&format!(": {c1} diff, d1@r1 diff)")),
+            "{text}"
+        );
+    }
+    assert_eq!(uses(&temp.path), 2);
+    // A commit makes a new head: a new attempt.
+    let (status, text) = run(&temp.path, &["commit", &c2]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(search(&temp.path, &["diff", "--public", &public]).0, 0);
+    assert_eq!(uses(&temp.path), 3);
+}
+
+#[test]
+fn a_long_chain_of_try_on_stays_one_attempt() {
+    let temp = workspace("chain");
+    let public = cases(&temp.path, "cases.json", &diff_cases());
+    let mut handle = seed(&temp.path, &diff_frame());
+    for _ in 0..2 {
+        assert_eq!(
+            search(
+                &temp.path,
+                &["diff", "--public", &public, "--from", &handle]
+            )
+            .0,
+            0
+        );
+    }
+    // More hops than any chain walk would follow.
+    let edit = json!({"af1": 1, "edit": [{"fn": "diff", "replace_op": "entry.r", "with": ["add", "a", "b"]}]}).to_string();
+    for _ in 0..40 {
+        let (_, value) = run_json(&temp.path, &["try", "--on", &handle, &edit]);
+        handle = value["handle"].as_str().unwrap().to_owned();
+    }
     let (status, text) = run(
         &temp.path,
-        &["search", "diff", "--public", &public, "--from", "c2"],
+        &["search", "diff", "--public", &public, "--from", &handle],
     );
     assert_eq!(status, 2, "{text}");
     assert!(
-        text.contains(
-            "error AGENT_SEARCH_SEED_INVALID: c2 has used its 2 searches (lineage d1: c1, d1@r1)"
-        ),
+        text.contains("this attempt has used its 2 searches"),
         "{text}"
     );
-    let record: Value =
-        serde_json::from_str(&fs::read_to_string(temp.path.join(".sley/search.json")).unwrap())
-            .unwrap();
-    assert_eq!(record["searches_per_seed"], 2);
-    assert_eq!(
-        record["lineages"]["d1"],
-        json!({"uses": 2, "seeds": ["c1", "d1@r1"]})
-    );
-    // A new draft is a new lineage.
-    let c3 = seed(&temp.path, &diff_frame());
-    assert_eq!(
-        search(&temp.path, &["diff", "--public", &public, "--from", &c3]).0,
-        0
-    );
+    assert_eq!(uses(&temp.path), 2);
+}
+
+#[test]
+fn concurrent_searches_claim_at_most_two_slots() {
+    let temp = workspace("race");
+    let public = cases(&temp.path, "cases.json", &diff_cases());
+    let c1 = seed(&temp.path, &diff_frame());
+    let dir = temp.path.clone();
+    let workers: Vec<_> = (0..12)
+        .map(|_| {
+            let (dir, public, c1) = (dir.clone(), public.clone(), c1.clone());
+            std::thread::spawn(move || {
+                run(
+                    &dir,
+                    &["search", "diff", "--public", &public, "--from", &c1],
+                )
+            })
+        })
+        .collect();
+    let results: Vec<(i32, String)> = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect();
+    let ran = results.iter().filter(|(status, _)| *status == 0).count();
+    assert_eq!(ran, 2, "{results:?}");
+    for (status, text) in &results {
+        if *status != 0 {
+            assert_eq!(*status, 2);
+            assert!(
+                text.starts_with(
+                    "error AGENT_SEARCH_SEED_INVALID: this attempt has used its 2 searches"
+                ),
+                "{text}"
+            );
+        }
+    }
+    assert_eq!(uses(&temp.path), 2);
+    // No scratch file is left behind.
+    let left: Vec<String> = fs::read_dir(temp.path.join(".sley/search"))
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| {
+            Path::new(name)
+                .extension()
+                .is_none_or(|extension| extension != "json")
+        })
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
 }
 
 #[test]
@@ -1181,7 +1293,9 @@ fn snapshot(dir: &Path, skip: &[&str]) -> Vec<(PathBuf, Vec<u8>)> {
             let path = entry.path();
             if path.is_dir() {
                 pending.push(path);
-            } else if !skip.iter().any(|name| path.ends_with(name)) {
+            } else if !skip.iter().any(|name| {
+                path.ends_with(name) || path.parent().is_some_and(|parent| parent.ends_with(name))
+            }) {
                 out.push((path.clone(), fs::read(&path).unwrap()));
             }
         }
@@ -1208,12 +1322,12 @@ fn search_changes_nothing_but_its_record_and_only_the_searched_function() {
                 {"function": "twice", "args": [5], "expect": {"Ok": 3}}]),
     );
     let c1 = seed(&temp.path, &frame);
-    let before = snapshot(&temp.path, &["events.jsonl", "search.json"]);
+    let before = snapshot(&temp.path, &["events.jsonl", ".sley/search"]);
     let (status, report) = search(&temp.path, &["diff", "--public", &public, "--from", &c1]);
     assert_eq!(status, 0, "{report:#}");
     assert_eq!(
         before,
-        snapshot(&temp.path, &["events.jsonl", "search.json"])
+        snapshot(&temp.path, &["events.jsonl", ".sley/search"])
     );
     // The caller's case runs too: the top neighbor fixes both.
     assert_eq!(neighbors(&report)[0]["public"]["passed"], 2);
@@ -1290,4 +1404,479 @@ fn constant_nudges_stay_in_their_type_range() {
         .map(|n| n["change"].as_str().unwrap())
         .collect();
     assert_eq!(changes, ["-9223372036854775808 -> -9223372036854775807"]);
+}
+
+#[test]
+fn a_substitution_never_drops_a_nested_failure_path_and_counts_what_it_removes() {
+    let temp = workspace("nested");
+    // r = add?Overflow(b, mul?Overflow(a, a)): replacing the nested checked
+    // multiplication by a name would delete its overflow route.
+    let frame = json!({"af1": 1, "afx": 1,
+      "types": [{"name": "E", "variant": ["Overflow", "Neg"]}],
+      "fns": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry", "ops": [["r", "add?Overflow", "b", ["mul?Overflow", "a", "a"]]],
+                    "term": ["ok", "r"]}]}]});
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "small", "function": "f", "args": [2, 2], "expect": {"Ok": 4}},
+                {"name": "big", "function": "f", "args": [4_000_000_000_i64, 2], "expect": {"Ok": 4}}]),
+    );
+    seed(&temp.path, &frame);
+    let (_, report) = search(&temp.path, &["f", "--public", &public, "--from", "d1"]);
+    for neighbor in neighbors(&report) {
+        let change = neighbor["change"].as_str().unwrap();
+        assert!(
+            !change.starts_with("operand 1: [\"mul?Overflow\""),
+            "{neighbor:#}"
+        );
+        assert!(
+            neighbor["frame"].to_string().contains("mul?")
+                || neighbor["generator"] == "opcode swap",
+            "{neighbor:#}"
+        );
+    }
+    assert!(
+        report["counts"]["skipped"].as_u64().unwrap() >= 2,
+        "{report:#}"
+    );
+    // A pure nested operation may be replaced; its operations count.
+    let frame = json!({"af1": 1, "afx": 1,
+      "fns": [{"fn": "g", "params": [["a", "i64"], ["flag", "bool"]], "returns": "bool",
+        "blocks": [{"name": "entry", "ops": [["c", "and", ["lt", "a", 0], "flag"]], "term": ["return", "c"]}]}]});
+    let g_public = cases(
+        &temp.path,
+        "g.json",
+        &json!([{"function": "g", "args": [5, true], "expect": true}]),
+    );
+    seed(&temp.path, &frame);
+    let (_, report) = search(&temp.path, &["g", "--public", &g_public, "--from", "d2"]);
+    let dropped = find(
+        &report,
+        "operand substitution",
+        "entry.c",
+        "operand 0: [\"lt\",\"a\",0] -> flag",
+    );
+    assert_eq!(
+        dropped["size"], 3,
+        "the operand, lt and its literal: {dropped:#}"
+    );
+    assert_eq!(dropped["public"]["passed"], 1);
+    // It passes like the size-1 `and -> or`, and ranks after it.
+    let swap = find(&report, "opcode swap", "entry.c", "and -> or");
+    assert!(
+        swap["rank"].as_u64() < dropped["rank"].as_u64(),
+        "{report:#}"
+    );
+}
+
+#[test]
+fn changes_no_frame_can_state_are_skipped_before_the_budget() {
+    // Live code written in the authoring dialect carries generated names; an
+    // AF1-X seed that does not restate a block cannot name them.
+    let temp = workspace("generated");
+    let live = json!({"af1": 1, "afx": 1,
+      "types": [{"name": "E", "variant": ["Overflow", "Neg", "Big"]}],
+      "fns": [{"fn": "score", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry",
+          "ops": [["!Neg", "if", ["lt", "x", 0]], ["d", "sub?Overflow", "y", "x"], ["big", "gt", "d", 100]],
+          "term": ["cond", "big", "high", "low"]},
+         {"name": "high", "params": [["d", "i64"]], "ops": [["h", "mul?Overflow", "d", 2]], "term": ["br", "join", "h"]},
+         {"name": "low", "params": [["d", "i64"]], "ops": [["l", "add?Overflow", "d", ["mul?Overflow", "x", 3]]], "term": ["br", "join", "l"]},
+         {"name": "join", "params": [["v", "i64"], ["d", "i64"]], "ops": [["!Big", "if", ["ge", "v", 1000]]],
+          "term": ["ok", ["add?Overflow", "v", "d"]]}]}]});
+    let c1 = seed(&temp.path, &live);
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "s1", "function": "score", "args": [1, 5], "expect": {"Ok": 8}},
+                {"name": "s3", "function": "score", "args": [1, 500], "expect": {"Ok": 1497}}]),
+    );
+    let patch = json!({"af1": 1, "afx": 1, "patch": [{"fn": "score", "blocks": {"high": {"params": [["d", "i64"]],
+        "ops": [["h", "mul?Overflow", "d", 3]], "term": ["br", "join", "h"]}}}]});
+    seed(&temp.path, &patch);
+    let (_, report) = search(
+        &temp.path,
+        &[
+            "score",
+            "--public",
+            &public,
+            "--from",
+            "d2",
+            "--max-neighbors",
+            "20",
+        ],
+    );
+    // Only the restated block `high` is searched: its neighbors fit the budget.
+    assert_eq!(
+        report["limits"]["neighbor_limit_reached"], false,
+        "{report:#}"
+    );
+    assert!(
+        report["counts"]["skipped"].as_u64().unwrap() > 50,
+        "{report:#}"
+    );
+    assert!(report["counts"]["generated"].as_u64().unwrap() <= 20);
+    for neighbor in neighbors(&report) {
+        assert!(
+            !neighbor["frame"].to_string().contains("__"),
+            "{neighbor:#}"
+        );
+        assert!(
+            neighbor["at"].as_str().unwrap().starts_with("high"),
+            "{neighbor:#}"
+        );
+        let detail = neighbor["kernel"]["detail"].as_str().unwrap_or("");
+        assert!(!detail.contains("reserved"), "{neighbor:#}");
+    }
+    // An AF1-X seed that does not state `score` at all: nothing is stated,
+    // nothing uses a slot, and the output says how to search it.
+    let unrelated = json!({"af1": 1, "afx": 1, "fns": [{"fn": "helper", "params": [["q", "i64"]], "returns": "i64",
+        "blocks": [{"name": "entry", "ops": [], "term": ["return", "q"]}]}]});
+    seed(&temp.path, &unrelated);
+    let (status, text) = run(
+        &temp.path,
+        &["search", "score", "--public", &public, "--from", "d3"],
+    );
+    assert_eq!(status, 1, "{text}");
+    assert!(
+        text.contains("neighbors: 0 generated, 0 kernel-valid, 0 refused, 0 evaluated; "),
+        "{text}"
+    );
+    assert!(
+        text.contains("next: no neighbor was evaluated: none of the ")
+            && text.contains("restate the blocks of score with patch"),
+        "{text}"
+    );
+    // Code a ripple derivation rewrote has no frame of its own.
+    let temp = workspace("rippled");
+    let live = json!({"af1": 1,
+     "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "i64",
+       "blocks": [{"name": "entry", "ops": [], "term": ["return", "a"]}]},
+      {"fn": "g", "params": [["x", "i64"], ["y", "i64"]], "returns": "i64",
+       "blocks": [{"name": "entry", "ops": [["s", "sub", "x", "y"], ["t", "call", "f", "x"]], "term": ["return", "t"]}]}]});
+    let c1 = seed(&temp.path, &live);
+    assert_eq!(run(&temp.path, &["commit", &c1]).0, 0);
+    let rippled = json!({"af1": 1, "afx": 1,
+     "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "blocks": {"entry": {"ops": [], "term": ["return", "b"]}}}],
+     "ripple": [{"arity": "f", "value": 0}]});
+    seed(&temp.path, &rippled);
+    let g_public = cases(
+        &temp.path,
+        "g.json",
+        &json!([{"name": "g1", "function": "g", "args": [5, 3], "expect": 3}]),
+    );
+    let (_, report) = search(&temp.path, &["g", "--public", &g_public, "--from", "d2"]);
+    assert_eq!(report["counts"]["generated"], 0, "{report:#}");
+    assert_eq!(report["counts"]["refused"], 0);
+    assert!(report["counts"]["skipped"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn a_negation_never_evaluates_a_nested_operation_twice() {
+    let temp = workspace("unnegate");
+    let frame = json!({"af1": 1, "afx": 1,
+      "types": [{"name": "E", "variant": ["Overflow", "Neg"]}],
+      "fns": [{"fn": "u", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry",
+          "ops": [["nc", "not", ["lt", ["sub?Overflow", "x", "y"], 0]], ["!Neg", "if", "nc"]],
+          "term": ["ok", "x"]}]}]});
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "a", "function": "u", "args": [5, 3], "expect": {"Ok": 5}},
+                {"name": "b", "function": "u", "args": [3, 5], "expect": {"Err": "Neg"}}]),
+    );
+    seed(&temp.path, &frame);
+    let (_, report) = search(&temp.path, &["u", "--public", &public, "--from", "d1"]);
+    for neighbor in neighbors(&report) {
+        assert!(
+            neighbor["frame"]
+                .to_string()
+                .matches("sub?Overflow")
+                .count()
+                <= 1,
+            "{neighbor:#}"
+        );
+    }
+    assert!(
+        !neighbors(&report)
+            .iter()
+            .any(|n| n["generator"] == "negation"),
+        "{report:#}"
+    );
+    // `not x -> x` where x is named stays available.
+    let named = json!({"af1": 1, "afx": 1,
+      "types": [{"name": "E", "variant": ["Overflow", "Neg"]}],
+      "fns": [{"fn": "v", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,E>",
+        "blocks": [{"name": "entry",
+          "ops": [["small", "lt", ["sub?Overflow", "x", "y"], 0], ["nc", "not", "small"], ["!Neg", "if", "nc"]],
+          "term": ["ok", "x"]}]}]});
+    let v_public = cases(
+        &temp.path,
+        "v.json",
+        &json!([{"function": "v", "args": [3, 5], "expect": {"Err": "Neg"}}]),
+    );
+    seed(&temp.path, &named);
+    let (_, report) = search(&temp.path, &["v", "--public", &v_public, "--from", "d2"]);
+    let removal = find(
+        &report,
+        "negation",
+        "entry (!Neg if)",
+        "condition nc -> small",
+    );
+    assert_eq!(removal["public"]["passed"], 1, "{removal:#}");
+}
+
+#[test]
+fn the_wall_limit_stops_between_runs_and_reports_the_elapsed_time() {
+    // A seed that never ends: every case runs to its fuel cap.
+    let spin = json!({"af1": 1, "fns": [{"fn": "spin", "params": [["n", "i64"]], "returns": "i64",
+      "blocks": [{"name": "entry", "ops": [["zero", "const", 0]], "term": ["br", "loop", "zero"]},
+        {"name": "loop", "params": [["i", "i64"]], "ops": [["one", "const", 1], ["j", "add", "i", "one"], ["done", "lt", "n", "i"]],
+         "term": ["cond", "done", ["out", "i"], ["next", "j", "i"]]},
+        {"name": "next", "params": [["r", "Result<i64,ArithmeticError>"], ["k", "i64"]], "ops": [],
+         "term": ["switch", "r", ["Ok", "loop", "$"], ["Err", "out", "k"]]},
+        {"name": "out", "params": [["v", "i64"]], "ops": [], "term": ["return", "v"]}]}]});
+    let case = |i: usize| json!({"name": format!("c{i}"), "function": "spin", "args": [1_000_000_000_000_000_i64], "expect": 5});
+    let one = workspace("wall-one");
+    let one_public = cases(&one.path, "one.json", &json!([case(0)]));
+    let c1 = seed(&one.path, &spin);
+    let (_, report) = search(
+        &one.path,
+        &[
+            "spin",
+            "--public",
+            &one_public,
+            "--from",
+            &c1,
+            "--max-neighbors",
+            "0",
+        ],
+    );
+    let case_millis = report["resources"]["wall_millis"].as_u64().unwrap().max(1);
+    let temp = workspace("wall");
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &Value::Array((0..8).map(case).collect()),
+    );
+    let c1 = seed(&temp.path, &spin);
+    let bound = case_millis + case_millis / 10 + 5;
+    let (status, report) = search(
+        &temp.path,
+        &[
+            "spin",
+            "--public",
+            &public,
+            "--from",
+            &c1,
+            "--max-millis",
+            &bound.to_string(),
+        ],
+    );
+    assert_eq!(status, 1, "{report:#}");
+    let seed_run = &report["seed"]["public"];
+    assert_eq!(seed_run["complete"], false);
+    let ran = seed_run["run"].as_u64().unwrap();
+    assert!((1..8).contains(&ran), "{report:#}");
+    // At most the run in progress at the bound finishes.
+    let elapsed = report["resources"]["wall_millis"].as_u64().unwrap();
+    assert!(
+        elapsed < bound + 3 * case_millis,
+        "{elapsed} ms for a {bound} ms bound, {case_millis} ms per case"
+    );
+    assert_eq!(report["limits"]["wall_limit_reached"], true);
+    let (_, text) = run(
+        &temp.path,
+        &[
+            "search",
+            "spin",
+            "--public",
+            &public,
+            "--from",
+            &c1,
+            "--max-millis",
+            &bound.to_string(),
+        ],
+    );
+    let reported = text
+        .lines()
+        .find_map(|line| line.strip_prefix("resources: wall "))
+        .and_then(|rest| rest.split(' ').next())
+        .unwrap()
+        .to_owned();
+    assert!(
+        text.contains(&format!("wall limit reached (bound {bound} ms, stopped after {reported} ms: the bound is checked before each case run, TestCase run and neighbor, and a run in progress finishes)")),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_flag_given_twice_is_refused() {
+    let temp = workspace("flags");
+    let public = cases(&temp.path, "cases.json", &diff_cases());
+    let other = cases(&temp.path, "other.json", &sign_cases());
+    let c1 = seed(&temp.path, &diff_frame());
+    for args in [
+        vec![
+            "search",
+            "diff",
+            "--public",
+            &public,
+            "--from",
+            &c1,
+            "--max-neighbors",
+            "3",
+            "--max-neighbors",
+            "70",
+        ],
+        vec![
+            "search", "diff", "--public", &public, "--public", &other, "--from", &c1,
+        ],
+        vec![
+            "search", "diff", "--public", &public, "--from", &c1, "--from", "c9",
+        ],
+        vec![
+            "search",
+            "diff",
+            "--public",
+            &public,
+            "--max-millis",
+            "5",
+            "--max-millis",
+            "9",
+        ],
+        vec!["try", "--on", &c1, "--on", "c9", "{\"af1\": 1}"],
+        vec!["try", "--no-test", "--no-test", "{\"af1\": 1}"],
+        vec!["view", "--x", "--x"],
+        vec!["--json", "--json", "find"],
+    ] {
+        let (status, text) = run(&temp.path, &args);
+        assert_eq!(status, 2, "{args:?}: {text}");
+        assert!(
+            text.contains("AGENT_USAGE_INVALID") && text.contains("is given twice; give it once"),
+            "{args:?}: {text}"
+        );
+    }
+    let mut words = vec!["--workspace".to_owned(), temp.path.display().to_string()];
+    words.extend(["--workspace", "/elsewhere", "find"].map(str::to_owned));
+    let mut out = Vec::new();
+    assert_eq!(sley_agent::cli::run(&words, &mut out), 2);
+    assert!(
+        String::from_utf8(out)
+            .unwrap()
+            .contains("--workspace is given twice")
+    );
+    assert_eq!(uses(&temp.path), 0);
+}
+
+#[test]
+fn only_a_case_that_can_run_is_an_oracle() {
+    let temp = workspace("runnable");
+    let c1 = seed(&temp.path, &diff_frame());
+    for (file, detail) in [
+        (
+            json!([{"name": "t1", "function": "diff", "expect": {"Ok": 2}}]),
+            "has no public case for `diff`".to_owned(),
+        ),
+        (
+            json!([{"name": "t1", "function": "diff", "args": [5, 3, 9], "expect": {"Ok": 2}}]),
+            format!(
+                "no public case for `diff` in {{file}} can run on {c1}: t1: diff takes 2 argument(s), got 3"
+            ),
+        ),
+        (
+            json!([{"name": "t1", "function": "diff", "args": ["five", 3], "expect": {"Ok": 2}}]),
+            format!(
+                "no public case for `diff` in {{file}} can run on {c1}: t1: arg 0: expected an integer"
+            ),
+        ),
+    ] {
+        let path = cases(&temp.path, "bad.json", &file);
+        let (status, text) = run(
+            &temp.path,
+            &["search", "diff", "--public", &path, "--from", &c1],
+        );
+        assert_eq!(status, 2, "{text}");
+        assert!(text.starts_with("error AGENT_SEARCH_NO_ORACLE: "), "{text}");
+        assert!(text.contains(&detail.replace("{file}", &path)), "{text}");
+    }
+    assert_eq!(uses(&temp.path), 0, "a refused search uses nothing");
+    // One runnable case is enough; the others are reported unknown.
+    let mixed = cases(
+        &temp.path,
+        "mixed.json",
+        &json!([{"name": "bad", "function": "diff", "args": [1], "expect": {"Ok": 2}},
+                {"name": "good", "function": "diff", "args": [5, 3], "expect": {"Ok": 2}}]),
+    );
+    let (_, report) = search(&temp.path, &["diff", "--public", &mixed, "--from", &c1]);
+    assert_eq!(
+        report["seed"]["public"]["outcomes"][0]["outcome"],
+        "unknown"
+    );
+    assert_eq!(neighbors(&report)[0]["public"]["passed"], 1);
+    assert_eq!(uses(&temp.path), 1);
+}
+
+#[test]
+fn the_functions_test_cases_run_as_evidence_beside_the_public_cases() {
+    let temp = workspace("own-tests");
+    // Two authored rows: `own_1` fails once `add` becomes `sub`.
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{"fn": "diff", "params": [["a", "i64"], ["b", "i64"]],
+      "returns": "Result<i64,ArithmeticError>",
+      "blocks": [{"name": "entry", "ops": [["r", "add", "a", "b"]], "term": ["return", "r"]}]}],
+     "test_tables": [{"name": "own", "fn": "diff", "cases": [{"args": [0, 0], "expect": {"Ok": 0}}, {"args": [2, 2], "expect": {"Ok": 4}}]}]});
+    let public = cases(
+        &temp.path,
+        "cases.json",
+        &json!([{"name": "p1", "function": "diff", "args": [5, 5], "expect": {"Ok": 0}}]),
+    );
+    seed(&temp.path, &frame);
+    let (status, text) = run(
+        &temp.path,
+        &["search", "diff", "--public", &public, "--from", "d1"],
+    );
+    assert_eq!(status, 1, "the top neighbor fails a TestCase: {text}");
+    assert!(
+        text.contains(&format!(
+            "tests: {}; the seed passes 2/2\n",
+            sley_agent::search::TESTS.replace("<fn>", "diff")
+        )),
+        "{text}"
+    );
+    assert!(text.contains(" 1. #1 opcode swap at entry.r: add -> sub (size 1): public 1/1; tests 1/2 (fail: own_1)\n"), "{text}");
+    let next = text
+        .lines()
+        .find_map(|line| line.strip_prefix("next: "))
+        .unwrap();
+    assert!(next.starts_with("sley-agent try --on d1@r1 "), "{next}");
+    assert!(
+        next.ends_with("  # caution: it fails 1 of the 2 TestCases of diff: own_1"),
+        "{next}"
+    );
+    let (_, report) = search(&temp.path, &["diff", "--public", &public, "--from", "d1"]);
+    assert_eq!(report["seed"]["tests"]["passed"], 2);
+    let top = &neighbors(&report)[0];
+    assert_eq!(top["tests"]["total"], 2);
+    assert_eq!(
+        top["tests"]["outcomes"][1],
+        json!({"name": "own_1", "outcome": "fail", "expected": "Ok(4)", "actual": "Ok(0)"})
+    );
+    // The ranking stays by public cases.
+    assert_eq!(top["public"]["passed"], 1);
+    // Without TestCases the output says only the public cases ran.
+    let temp = workspace("no-tests");
+    let public = cases(&temp.path, "cases.json", &diff_cases());
+    let c1 = seed(&temp.path, &diff_frame());
+    let (status, text) = run(
+        &temp.path,
+        &["search", "diff", "--public", &public, "--from", &c1],
+    );
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains("tests: no TestCase targets diff in the seed; only the public cases ran\n"),
+        "{text}"
+    );
 }
