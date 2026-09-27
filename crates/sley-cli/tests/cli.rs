@@ -2687,8 +2687,14 @@ fn native_test_worker_credential_entry_runs_the_rendered_unit_argv() {
         "/etc/sley-test-supervisor/trust",
     )
     .unwrap();
-    let unit =
-        render_transient_unit(&config, "9f2c", source.to_str().unwrap(), 8192, 1_000).unwrap();
+    let unit = render_transient_unit(
+        &config,
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        source.to_str().unwrap(),
+        8192,
+        1_000,
+    )
+    .unwrap();
     assert!(unit.argv.contains(&format!(
         "--property=LoadCredential={WORKER_INPUT_CREDENTIAL}:{}",
         source.display()
@@ -2732,4 +2738,64 @@ fn native_test_worker_credential_entry_runs_the_rendered_unit_argv() {
     let output = run(None, &[WORKER_START_GATE, WORKER_RELEASE_GATE]);
     assert_eq!(output.status.code(), Some(EXIT_INPUT_UNREADABLE));
     assert_eq!(&output.stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+}
+
+#[test]
+fn native_test_worker_channel_reads_real_report_before_release() {
+    use std::net::Shutdown;
+    use std::os::unix::net::UnixStream;
+    use std::time::{Duration, Instant};
+
+    use sley_test_runner::channel::{ChannelError, read_report_before, require_output_eof_before};
+    use sley_test_runner::worker::{WORKER_RELEASE_GATE, WORKER_START_GATE};
+
+    let scratch = TempDir::new("native-worker-channel");
+    let credentials = scratch.child("credentials");
+    std::fs::create_dir(&credentials).unwrap();
+    std::fs::write(
+        credentials.join("sley-input"),
+        include_bytes!("../../../conformance/native-worker/v1/observed-input.bin"),
+    )
+    .unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sley"))
+        .args(["__native-test-worker", "--credential"])
+        .env("CREDENTIALS_DIRECTORY", &credentials)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let (peer, client) = UnixStream::pair().unwrap();
+    client.shutdown(Shutdown::Write).unwrap();
+    assert_eq!(
+        read_report_before(
+            child.stdout.as_mut().unwrap(),
+            &peer,
+            Instant::now() + Duration::from_millis(20),
+        ),
+        Err(ChannelError::Deadline)
+    );
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&[WORKER_START_GATE])
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let report = read_report_before(child.stdout.as_mut().unwrap(), &peer, deadline).unwrap();
+    assert_eq!(
+        report.stored_bytes(),
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    assert!(child.try_wait().unwrap().is_none());
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&[WORKER_RELEASE_GATE])
+        .unwrap();
+    require_output_eof_before(child.stdout.as_mut().unwrap(), &peer, deadline).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
 }

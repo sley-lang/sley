@@ -12,7 +12,7 @@
 //! socket client, authenticated socket
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, live cgroup telemetry,
-//! a bounded gated-worker report channel,
+//! a bounded gated-worker report channel and ordered manager/cgroup gate phase,
 //! and readiness probes. The root service loop and privileged transient-unit
 //! execution are not wired yet.
 //!
@@ -35,6 +35,7 @@ pub mod execution;
 pub mod ingress;
 pub mod manager;
 pub mod outcome;
+pub mod phase;
 pub mod probe;
 pub mod program;
 pub mod protocol;

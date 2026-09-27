@@ -101,7 +101,7 @@ impl LiveCgroupTelemetry {
         )
     }
 
-    fn open_from_root(
+    pub(crate) fn open_from_root(
         root: &Path,
         unit_name: &str,
         control_group: &str,

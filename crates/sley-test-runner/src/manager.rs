@@ -6,12 +6,14 @@
 //! module only verifies an existing unit; it cannot launch or attest one.
 
 use std::collections::BTreeMap;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use serde_json::Value;
 
-use crate::config::RunnerConfig;
+use crate::config::{RunnerConfig, UNIT_PREFIX};
 use crate::unit::TransientUnit;
 use crate::worker::WORKER_INPUT_CREDENTIAL;
 
@@ -82,6 +84,70 @@ pub fn verify_system_unit(
         config,
         worker_input_path,
     )
+}
+
+/// Confirms that the system manager no longer lists this exact unit and its
+/// system.slice cgroup path is absent. A still-loaded unit or live group is
+/// not a reap confirmation, even if the launcher process has exited.
+///
+/// # Errors
+///
+/// Refuses malformed names, manager failures, or unreadable cgroup state.
+pub fn confirm_system_unit_reaped(unit_name: &str) -> Result<bool, ManagerError> {
+    let nonce = unit_name
+        .strip_prefix(UNIT_PREFIX)
+        .ok_or(ManagerError::PropertyMismatch)?;
+    if nonce.len() != 64
+        || !nonce
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    let service_name = format!("{unit_name}.service");
+    let listing = busctl(&[
+        "call",
+        SYSTEMD_BUS,
+        SYSTEMD_MANAGER,
+        "org.freedesktop.systemd1.Manager",
+        "ListUnitsByPatterns",
+        "asas",
+        "0",
+        "1",
+        &service_name,
+    ])?;
+    let entries = listed_units(&listing)?;
+    if !entries.is_empty() {
+        return Ok(false);
+    }
+    let system_slice = Path::new("/sys/fs/cgroup/system.slice");
+    let parent = std::fs::symlink_metadata(system_slice).map_err(|_| ManagerError::Unavailable)?;
+    if !parent.is_dir() || parent.uid() != 0 {
+        return Err(ManagerError::Unavailable);
+    }
+    let cgroup_path = system_slice.join(service_name);
+    match std::fs::symlink_metadata(cgroup_path) {
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(true),
+        Ok(_) => Ok(false),
+        Err(_) => Err(ManagerError::Unavailable),
+    }
+}
+
+fn listed_units(value: &Value) -> Result<&[Value], ManagerError> {
+    if value.get("type").and_then(Value::as_str) != Some("a(ssssssouso)") {
+        return Err(ManagerError::Unavailable);
+    }
+    let data = value
+        .get("data")
+        .and_then(Value::as_array)
+        .ok_or(ManagerError::Unavailable)?;
+    if data.len() != 1 {
+        return Err(ManagerError::Unavailable);
+    }
+    data[0]
+        .as_array()
+        .map(Vec::as_slice)
+        .ok_or(ManagerError::Unavailable)
 }
 
 fn busctl(args: &[&str]) -> Result<Value, ManagerError> {
@@ -425,6 +491,20 @@ mod tests {
         assert_eq!(
             verify_snapshot(&unit_map, &service, &unit, &config, input),
             Err(ManagerError::PropertyMismatch)
+        );
+    }
+
+    #[test]
+    fn reaped_unit_list_requires_the_exact_typed_empty_reply() {
+        assert!(
+            listed_units(&json!({"type":"a(ssssssouso)","data":[[]]}))
+                .unwrap()
+                .is_empty()
+        );
+        assert!(listed_units(&json!({"type":"a(ssssssouso)","data":[[["unit"]]]})).is_ok());
+        assert_eq!(
+            listed_units(&json!({"type":"as","data":[[]]})),
+            Err(ManagerError::Unavailable)
         );
     }
 }
