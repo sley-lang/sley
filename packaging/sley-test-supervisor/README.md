@@ -18,9 +18,12 @@ external compatibility claim yet. A bounded portable program artifact now
 encodes the exact plan, root, live object inventory, and selected native
 `TestCase`; its strict parser and `RunRequest::verified_program` reject
 cross-boundary identity or limit substitution. The refusal-only service does
-not yet invoke that check. Owner-side artifact construction, worker execution
-and reply, and measured launch still need to be wired before either mode can
-execute.
+not yet invoke that check. A pure `execute_portable_test` bridge now projects
+the bound objects, rechecks the selected native `TestCase`, executes the
+existing Sley VM, and compares VM-derived ordered input hashes. Its result
+has no host memory/time measurement and does not pass admission. Owner-side
+artifact construction, worker dispatch/reply, and measured launch still need
+to be wired before either mode can execute through the service.
 
 1. Build the release binaries (`sley`, supervisor daemon once its event
    loop lands) and install the worker at the configured

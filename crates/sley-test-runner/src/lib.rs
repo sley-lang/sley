@@ -5,8 +5,9 @@
 //! `RunNativeTest` IPC protocol, the frozen systemd transient-unit rendering,
 //! the checked enforcement math (page-aligned memory caps, monotonic
 //! deadlines, peak/event admission), the measurement-admission predicate, the
-//! worker request envelope and bounded portable program artifact, the authenticated socket
-//! ingress boundary, a fail-closed one-connection service boundary, and the
+//! worker request envelope, bounded portable program artifact, pure native
+//! execution bridge, authenticated socket ingress boundary, fail-closed
+//! one-connection service boundary, and the
 //! readiness probes. The root service loop and privileged transient-unit
 //! execution are not wired yet.
 //!
@@ -20,6 +21,7 @@
 
 pub mod config;
 pub mod enforce;
+pub mod execution;
 pub mod ingress;
 pub mod outcome;
 pub mod probe;

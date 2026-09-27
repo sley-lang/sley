@@ -251,7 +251,7 @@ impl PortableTestProgram {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{protocol::RunRequest, worker::WorkerRequest};
+    use crate::{execution::execute_portable_test, protocol::RunRequest, worker::WorkerRequest};
     use sley_id::{
         CapabilitySummaryDigest, ObjectId, PolicyRootId, PrincipalId, TransactionId, WorkspaceId,
     };
@@ -260,8 +260,9 @@ mod tests {
         value::{BlockBody, EntityIdSet, FunctionBody, ParameterBody, TestCaseBody},
     };
     use sley_ssmc::{
-        ConstData, ConstValue, EffectEnvironment, ExpectedOutcome, ParameterRole, Reachability,
-        ResourceLimits, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+        ConstData, ConstValue, EffectEnvironment, ExpectedObservation, ExpectedOutcome,
+        ParameterRole, Reachability, ResourceLimits, ReturnTerminator, Terminator, TypeExpr,
+        ValueRef, Visibility, fingerprint::hash_validated_value,
     };
     use sley_state_root::StateRootBuilder;
     use sley_tests::{
@@ -364,7 +365,9 @@ mod tests {
         builder.build(registry).expect("root")
     }
 
-    fn fixture() -> (
+    fn fixture_with_observations(
+        observations: Vec<ExpectedObservation>,
+    ) -> (
         NativeTestPlanV1,
         AcceptedStateRoot,
         Vec<EntityObject>,
@@ -424,7 +427,7 @@ mod tests {
                     inputs: vec![bool_value(true)],
                     effect_environment: EffectEnvironment::Replay(Vec::new()),
                     expected: ExpectedOutcome::Value(bool_value(true)),
-                    observations: Vec::new(),
+                    observations,
                     resource_limits: limits(),
                 }),
             ),
@@ -462,6 +465,15 @@ mod tests {
         })
         .expect("plan");
         (plan, root, objects, test)
+    }
+
+    fn fixture() -> (
+        NativeTestPlanV1,
+        AcceptedStateRoot,
+        Vec<EntityObject>,
+        EntityId,
+    ) {
+        fixture_with_observations(Vec::new())
     }
 
     #[test]
@@ -565,5 +577,51 @@ mod tests {
                 .code(),
             ScbErrorCode::ContractUnknown
         );
+    }
+
+    #[test]
+    fn portable_test_runs_the_native_vm_with_exact_ordered_input_hashes() {
+        let (plan, root, objects, test) = fixture();
+        let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
+        let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
+            .expect("validated Boolean hash");
+        let mut worker = WorkerRequest {
+            program_bytes: program.stored_bytes().to_vec(),
+            input_hashes: vec![*hash.as_bytes()],
+            declared_limits: program.selected().declared_limits,
+            implementation_limits: plan.implementation_limits(),
+        };
+        let outcome = execute_portable_test(&program, &worker).expect("native VM run");
+        assert_eq!(
+            outcome.termination(),
+            &sley_vm::native_execution::NativeExecutionTermination::Success(bool_value(true))
+        );
+        assert_eq!(outcome.observation().input_hashes(), &[hash]);
+        worker.input_hashes[0] = [99; 32];
+        assert!(matches!(
+            execute_portable_test(&program, &worker),
+            Err(crate::execution::PortableExecutionError::InputHashesMismatch)
+        ));
+    }
+
+    #[test]
+    fn portable_execution_rechecks_unsupported_test_observations() {
+        let (plan, root, objects, test) = fixture_with_observations(vec![ExpectedObservation {
+            observation_id: [7; 32],
+            value: bool_value(true),
+        }]);
+        let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
+        let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
+            .expect("validated Boolean hash");
+        let worker = WorkerRequest {
+            program_bytes: program.stored_bytes().to_vec(),
+            input_hashes: vec![*hash.as_bytes()],
+            declared_limits: program.selected().declared_limits,
+            implementation_limits: plan.implementation_limits(),
+        };
+        assert!(matches!(
+            execute_portable_test(&program, &worker),
+            Err(crate::execution::PortableExecutionError::Static(_))
+        ));
     }
 }
