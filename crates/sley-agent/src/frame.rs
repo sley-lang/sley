@@ -116,6 +116,15 @@ pub fn compile(
         Some(Value::Number(version)) if version.as_u64() == Some(1) => {}
         _ => return Err(frame("/af1", "declare \"af1\": 1")),
     }
+    if let Some(afx) = object.get("afx") {
+        if afx.as_u64() != Some(1) || !afx.is_number() {
+            return Err(frame(
+                "/afx",
+                "declare \"afx\": 1 for the authoring dialect, or remove the key",
+            ));
+        }
+        return compile_extended(program, names, ceilings, frame_value, nonce, random);
+    }
     for key in object.keys() {
         if !matches!(
             key.as_str(),
@@ -156,6 +165,33 @@ pub fn compile(
     };
     compiler.run(object, random)?;
     compiler.finish()
+}
+
+/// An AF1-X frame: expanded into plain AF1, compiled by the unchanged
+/// path, and every compiler problem pointer mapped back to the authored
+/// frame. The expansion and its source map become artifacts.
+fn compile_extended(
+    program: &Program,
+    names: &Names,
+    ceilings: &sley_policy::PolicyResourceCeilings,
+    frame_value: &Value,
+    nonce: CandidateNonce,
+    random: &mut dyn FnMut() -> Result<[u8; 32]>,
+) -> Result<Compiled> {
+    let expansion = crate::afx::expand(program, names, frame_value)?;
+    if !expansion.obligations.is_empty() {
+        return Err(crate::afx::refusal(&expansion.obligations));
+    }
+    let mut compiled = compile(program, names, ceilings, &expansion.frame, nonce, random)
+        .map_err(|error| expansion.map.rewrite(&error))?;
+    compiled
+        .artifacts
+        .push(("expanded.json".to_owned(), expansion.frame));
+    compiled
+        .artifacts
+        .push(("sourcemap.json".to_owned(), expansion.map.to_json()));
+    compiled.stats = expansion.stats.to_json();
+    Ok(compiled)
 }
 
 #[derive(Clone, Copy, Debug)]

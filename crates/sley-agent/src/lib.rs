@@ -6,7 +6,8 @@
 //! - AV1 views: compact, output-only, non-canonical listings under local
 //!   names ([`view`]).
 //! - AF1 frames: name-based JSON authoring data compiled client-side, in one
-//!   pass, into the existing mutation candidate record ([`frame`]).
+//!   pass, into the existing mutation candidate record ([`frame`]), and the
+//!   AF1-X authoring dialect expanded into them first ([`afx`]).
 //! - An advisory dev loop: in-process candidate validation with decoded
 //!   refusals and locators, and lower-once execution of functions and
 //!   `TestCases` ([`exec`]).
@@ -18,6 +19,7 @@
 // in the workspace, and it is a module of the binary target (ADR-0052).
 #![forbid(unsafe_code)]
 
+pub mod afx;
 pub mod candidate;
 pub mod catalog;
 pub mod cli;
@@ -32,6 +34,7 @@ pub mod layer;
 pub mod names;
 pub mod opcodes;
 pub mod raw;
+pub mod tables;
 pub mod types;
 pub mod values;
 pub mod view;
