@@ -30,6 +30,42 @@ pub enum AgentErrorCode {
     SubmissionRefused,
     /// A workspace file could not be read or written.
     Io,
+    /// An AF1-X checked propagation has no single, type-correct failure route.
+    XPropagation,
+    /// An AF1-X name is ambiguous, unavailable on a path, or cannot be threaded.
+    XScope,
+    /// An AF1-X expansion or traversal bound was reached.
+    XLimit,
+    /// An AF1-X rewrite cannot preserve evaluation order.
+    XEffectOrder,
+    /// The given revision is not the draft's latest revision.
+    DraftStale,
+    /// The accepted head changed since the draft revision; rebase explicitly.
+    DraftHeadChanged,
+    /// The draft revision has no complete, Valid candidate for the request.
+    DraftIncomplete,
+    /// A delta target is invalid, missing, or overlaps another.
+    DeltaInvalid,
+    /// A test table or case row is malformed or duplicated.
+    TestTableInvalid,
+    /// The ripple intent is unknown or not enabled.
+    RippleIntentUnknown,
+    /// The ripple target is not an entity of the kind the intent needs.
+    RippleTargetKind,
+    /// A ripple derivation left a decision for the author.
+    RippleHoleUnfilled,
+    /// A ripple derivation reached an exported boundary.
+    RippleExportedBoundary,
+    /// A ripple derivation reached its resource bound.
+    RippleLimit,
+    /// The guard's type shape is not supported.
+    RippleGuardShape,
+    /// The guard placement or equivalence cannot be established.
+    RippleGuardOrder,
+    /// No permitted, independent public cases are available to search against.
+    SearchNoOracle,
+    /// The search seed is not a usable candidate or complete draft.
+    SearchSeedInvalid,
 }
 
 impl AgentErrorCode {
@@ -48,6 +84,24 @@ impl AgentErrorCode {
             Self::ExecutionRefused => "AGENT_EXECUTION_REFUSED",
             Self::SubmissionRefused => "AGENT_SUBMISSION_REFUSED",
             Self::Io => "AGENT_IO_FAILED",
+            Self::XPropagation => "AGENT_X_PROPAGATION",
+            Self::XScope => "AGENT_X_SCOPE",
+            Self::XLimit => "AGENT_X_LIMIT",
+            Self::XEffectOrder => "AGENT_X_EFFECT_ORDER",
+            Self::DraftStale => "AGENT_DRAFT_STALE",
+            Self::DraftHeadChanged => "AGENT_DRAFT_HEAD_CHANGED",
+            Self::DraftIncomplete => "AGENT_DRAFT_INCOMPLETE",
+            Self::DeltaInvalid => "AGENT_DELTA_INVALID",
+            Self::TestTableInvalid => "AGENT_TEST_TABLE_INVALID",
+            Self::RippleIntentUnknown => "AGENT_RIPPLE_INTENT_UNKNOWN",
+            Self::RippleTargetKind => "AGENT_RIPPLE_TARGET_KIND",
+            Self::RippleHoleUnfilled => "AGENT_RIPPLE_HOLE_UNFILLED",
+            Self::RippleExportedBoundary => "AGENT_RIPPLE_EXPORTED_BOUNDARY",
+            Self::RippleLimit => "AGENT_RIPPLE_LIMIT",
+            Self::RippleGuardShape => "AGENT_RIPPLE_GUARD_SHAPE",
+            Self::RippleGuardOrder => "AGENT_RIPPLE_GUARD_ORDER",
+            Self::SearchNoOracle => "AGENT_SEARCH_NO_ORACLE",
+            Self::SearchSeedInvalid => "AGENT_SEARCH_SEED_INVALID",
         }
     }
 }

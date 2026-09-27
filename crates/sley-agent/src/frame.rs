@@ -2597,7 +2597,7 @@ fn read_visibility(value: Option<&Value>, pointer: &str) -> Result<Visibility> {
 
 /// Infers an operation's result type from its opcode, operand types, and
 /// context; `None` when the context does not determine it.
-fn infer(
+pub(crate) fn infer(
     row: &OpcodeRow,
     operands: &[TypeExpr],
     hint: Option<&TypeExpr>,
@@ -2891,7 +2891,7 @@ fn terminator_shape(word: &str, items: &[Value]) -> String {
 
 /// The problem lines of a refusal: one line, or a combined refusal's
 /// headline problem and its indented continuation lines.
-fn problem_lines(error: &AgentError) -> Vec<String> {
+pub(crate) fn problem_lines(error: &AgentError) -> Vec<String> {
     let mut lines: Vec<String> = error
         .detail()
         .lines()
@@ -2910,7 +2910,7 @@ fn problem_lines(error: &AgentError) -> Vec<String> {
 /// One refusal for several frame problems. The headline is the first
 /// problem, pointer included, so the refusal line itself says where; the
 /// others follow one per line.
-fn combined(mut errors: Vec<AgentError>) -> AgentError {
+pub(crate) fn combined(mut errors: Vec<AgentError>) -> AgentError {
     if errors.len() == 1 {
         return errors.remove(0);
     }
