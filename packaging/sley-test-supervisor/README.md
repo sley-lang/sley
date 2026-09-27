@@ -5,6 +5,12 @@ transient-unit renderer, enforcement math, worker envelope, readiness
 probes) is landed and tested. The steps below need root on each intended
 host and are explicitly **pending**, not waived:
 
+The closed runner request carries `candidate_id=Some` for candidate-affected
+runs and `None` for explicit-root diagnostics, matching the owner-derived plan
+modes. This internal socket format has no installed daemon or external
+compatibility claim yet. The selected program artifact and worker reply still
+need to be wired before either mode can execute.
+
 1. Build the release binaries (`sley`, supervisor daemon once its event
    loop lands) and install the worker at the configured
    `/usr/lib/sley/sley-native-test-worker` path.

@@ -3,12 +3,14 @@
 //! The daemon exposes exactly one request shape. There is no command
 //! string, executable path, unit-property map, credential selection, or
 //! signing-key field anywhere in these types: the type system, not a
-//! runtime check, excludes caller-chosen authority. Requests arrive with a
-//! 4-byte big-endian length prefix and are refused past
+//! runtime check, excludes caller-chosen authority. Requests carry an
+//! 8-byte magic followed by a 4-byte big-endian length and are refused past
 //! [`MAX_REQUEST_BYTES`](crate::config::MAX_REQUEST_BYTES).
+//! Field 4 is an optional candidate identity because explicit-root plans
+//! have no candidate. This internal format has not shipped with a daemon.
 
 use sley_id::{CandidateId, EntityId, ObjectId, PolicyRootId, PrincipalId, WorkspaceId};
-use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_uvar};
+use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_union, encode_uvar};
 use sley_vm::native_execution::NativeDeclaredLimits;
 
 use crate::config::MAX_REQUEST_BYTES;
@@ -27,8 +29,9 @@ pub struct RunRequest {
     pub workspace: WorkspaceId,
     /// Principal the caller runs as; must match the authorized principal.
     pub principal: PrincipalId,
-    /// Candidate the plan was derived from.
-    pub candidate_id: CandidateId,
+    /// Candidate the plan was derived from, absent for explicit-root tests.
+    /// The plan ID still binds the owner-derived selection in both modes.
+    pub candidate_id: Option<CandidateId>,
     /// Native plan under execution.
     pub plan_id: sley_id::NativeTestPlanId,
     /// Test object under execution.
@@ -142,6 +145,24 @@ fn read_nonce(value: &[u8]) -> Result<[u8; 32], ScbError> {
     read_id(value)
 }
 
+fn option_candidate(value: Option<CandidateId>) -> Result<Vec<u8>, ScbError> {
+    match value {
+        None => encode_union(0, &[]),
+        Some(id) => encode_union(1, id.as_bytes()),
+    }
+}
+
+fn read_option_candidate(value: &[u8]) -> Result<Option<CandidateId>, ScbError> {
+    let mut cursor = ScbValueCursor::new(value)?;
+    let (tag, payload) = cursor.read_union()?;
+    cursor.check_finished()?;
+    match tag {
+        0 if payload.is_empty() => Ok(None),
+        1 => Ok(Some(CandidateId::from_bytes(read_id(payload)?))),
+        _ => Err(ScbError::new(ScbErrorCode::UnionInvalid)),
+    }
+}
+
 impl RunRequest {
     /// Encodes one length-delimited request frame for the socket.
     ///
@@ -153,7 +174,7 @@ impl RunRequest {
             (1, encode_uvar(RUN_VERSION)),
             (2, self.workspace.as_bytes().to_vec()),
             (3, self.principal.as_bytes().to_vec()),
-            (4, self.candidate_id.as_bytes().to_vec()),
+            (4, option_candidate(self.candidate_id)?),
             (5, self.plan_id.as_bytes().to_vec()),
             (6, self.test_object.as_bytes().to_vec()),
             (7, self.test_entity.as_bytes().to_vec()),
@@ -218,7 +239,7 @@ impl RunRequest {
         Ok(Self {
             workspace: WorkspaceId::from_bytes(read_id(&values[1])?),
             principal: PrincipalId::from_bytes(read_id(&values[2])?),
-            candidate_id: CandidateId::from_bytes(read_id(&values[3])?),
+            candidate_id: read_option_candidate(&values[3])?,
             plan_id: sley_id::NativeTestPlanId::from_bytes(read_id(&values[4])?),
             test_object: ObjectId::from_bytes(read_id(&values[5])?),
             test_entity: EntityId::from_bytes(read_id(&values[6])?),
@@ -318,7 +339,7 @@ mod tests {
         RunRequest {
             workspace: WorkspaceId::from_bytes([1; 32]),
             principal: PrincipalId::from_bytes([2; 32]),
-            candidate_id: CandidateId::from_bytes([3; 32]),
+            candidate_id: Some(CandidateId::from_bytes([3; 32])),
             plan_id: sley_id::NativeTestPlanId::from_bytes([4; 32]),
             test_object: ObjectId::from_bytes([5; 32]),
             test_entity: EntityId::from_bytes([6; 32]),
@@ -346,6 +367,16 @@ mod tests {
             RunRequest::decode_frame(&frame).expect("decodes"),
             request()
         );
+        let explicit = RunRequest {
+            candidate_id: None,
+            ..request()
+        };
+        let explicit_frame = explicit.encode_frame().expect("explicit root encodes");
+        assert_eq!(
+            RunRequest::decode_frame(&explicit_frame).expect("explicit root decodes"),
+            explicit
+        );
+        assert_ne!(explicit_frame, frame);
     }
 
     #[test]
@@ -376,6 +407,24 @@ mod tests {
         assert_eq!(
             RunRequest::decode_frame(&[]).expect_err("empty").code(),
             ScbErrorCode::LengthOverflow
+        );
+        assert_eq!(
+            read_option_candidate(&encode_union(0, &[1]).expect("union"))
+                .expect_err("nonempty absent candidate")
+                .code(),
+            ScbErrorCode::UnionInvalid
+        );
+        assert_eq!(
+            read_option_candidate(&encode_union(1, &[1; 31]).expect("union"))
+                .expect_err("short candidate")
+                .code(),
+            ScbErrorCode::LengthOverflow
+        );
+        assert_eq!(
+            read_option_candidate(&encode_union(2, &[]).expect("union"))
+                .expect_err("unknown candidate tag")
+                .code(),
+            ScbErrorCode::UnionInvalid
         );
     }
 

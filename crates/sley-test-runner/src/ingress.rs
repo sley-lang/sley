@@ -165,7 +165,7 @@ mod tests {
         RunRequest {
             workspace: WorkspaceId::from_bytes([1; 32]),
             principal: PrincipalId::from_bytes([2; 32]),
-            candidate_id: CandidateId::from_bytes([3; 32]),
+            candidate_id: Some(CandidateId::from_bytes([3; 32])),
             plan_id: sley_id::NativeTestPlanId::from_bytes([4; 32]),
             test_object: ObjectId::from_bytes([5; 32]),
             test_entity: EntityId::from_bytes([6; 32]),
@@ -218,6 +218,22 @@ mod tests {
             .expect("write");
         let bound = authenticate_request(&mut server, &config(uid), Duration::from_secs(1))
             .expect("authenticated request");
+        assert_eq!(bound.caller_uid(), uid);
+        assert_eq!(bound.request(), &expected);
+    }
+
+    #[test]
+    fn explicit_root_request_authenticates_without_candidate_identity() {
+        let (mut server, mut client, uid) = pair();
+        let expected = RunRequest {
+            candidate_id: None,
+            ..request()
+        };
+        client
+            .write_all(&expected.encode_frame().expect("frame"))
+            .expect("write");
+        let bound = authenticate_request(&mut server, &config(uid), Duration::from_secs(1))
+            .expect("authenticated explicit-root request");
         assert_eq!(bound.caller_uid(), uid);
         assert_eq!(bound.request(), &expected);
     }
