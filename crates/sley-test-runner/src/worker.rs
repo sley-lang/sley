@@ -16,10 +16,14 @@
 
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_uvar};
 use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits, profile_id};
+use std::ffi::OsStr;
 use std::fs::File;
+use std::os::fd::{AsFd, OwnedFd};
 use std::path::Component;
 
-use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
+use nix::errno::Errno;
+use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat, openat2};
+use nix::sys::stat::Mode;
 
 use crate::{
     config::MAX_WORKER_OUTPUT_BYTES, execution::report_portable_test, program::PortableTestProgram,
@@ -350,7 +354,12 @@ pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Wr
     let how = OpenHow::new()
         .flags(OFlag::O_RDONLY | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC)
         .resolve(ResolveFlag::RESOLVE_BENEATH | ResolveFlag::RESOLVE_NO_SYMLINKS);
-    let Ok(opened) = openat2(&root, relative, how) else {
+    let opened = match openat2(&root, relative, how) {
+        Ok(opened) => Ok(opened),
+        Err(Errno::ENOSYS) => open_components_no_symlinks(&root, relative),
+        Err(error) => Err(error),
+    };
+    let Ok(opened) = opened else {
         return write_refusal(output, WorkerRefusal::InputUnreadable);
     };
     let mut file = File::from(opened);
@@ -358,6 +367,40 @@ pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Wr
         Ok(metadata) if metadata.is_file() => run_stdio(&mut file, output),
         _ => write_refusal(output, WorkerRefusal::InputUnreadable),
     }
+}
+
+// Some systemd worker sandboxes return ENOSYS for openat2. Walking from a
+// pinned root fd with O_NOFOLLOW on every component keeps the same no-symlink,
+// no-parent-traversal boundary without loosening the transient unit.
+fn open_components_no_symlinks(root: &File, relative: &std::path::Path) -> Result<OwnedFd, Errno> {
+    let components = relative.iter().collect::<Vec<_>>();
+    if components.is_empty()
+        || components.len() > 64
+        || relative
+            .components()
+            .any(|part| !matches!(part, Component::Normal(_)))
+    {
+        return Err(Errno::EINVAL);
+    }
+    fn walk<Fd: AsFd>(directory: Fd, components: &[&OsStr]) -> Result<OwnedFd, Errno> {
+        let (first, rest) = components.split_first().ok_or(Errno::EINVAL)?;
+        if rest.is_empty() {
+            return openat(
+                directory,
+                std::path::Path::new(first),
+                OFlag::O_RDONLY | OFlag::O_NONBLOCK | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+                Mode::empty(),
+            );
+        }
+        let next = openat(
+            directory,
+            std::path::Path::new(first),
+            OFlag::O_PATH | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+            Mode::empty(),
+        )?;
+        walk(&next, rest)
+    }
+    walk(root.as_fd(), &components)
 }
 
 /// Reads the fixed service credential installed by systemd for the worker.
@@ -576,6 +619,8 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("input.bin");
         std::fs::write(&path, &frame).expect("write");
+        let root = File::open("/").expect("root");
+        assert!(open_components_no_symlinks(&root, path.strip_prefix("/").unwrap()).is_ok());
         let mut output = Vec::new();
         assert_eq!(run_input_path(&path, &mut output), EXIT_MALFORMED);
         assert_eq!(&output[4..], b"SCB_LENGTH_OVERFLOW");
@@ -588,11 +633,22 @@ mod tests {
         assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
         let link = dir.join("linked.bin");
         symlink(&path, &link).expect("create symlink");
+        assert!(open_components_no_symlinks(&root, link.strip_prefix("/").unwrap()).is_err());
         let mut output = Vec::new();
         assert_eq!(run_input_path(&link, &mut output), EXIT_INPUT_UNREADABLE);
         assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
         let linked_directory = dir.join("linked-directory");
         symlink(&dir, &linked_directory).expect("create parent symlink");
+        assert!(
+            open_components_no_symlinks(
+                &root,
+                linked_directory
+                    .join("input.bin")
+                    .strip_prefix("/")
+                    .unwrap()
+            )
+            .is_err()
+        );
         let mut output = Vec::new();
         assert_eq!(
             run_input_path(&linked_directory.join("input.bin"), &mut output),
