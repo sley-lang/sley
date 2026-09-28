@@ -146,11 +146,12 @@ pub fn load_native_authority(path: &Path) -> Result<NativeAuthority, &'static st
         SocketNativeCommitExecutor::new(socket.to_path_buf(), uid, measurement_trust.clone())
             .map_err(|_| "NATIVE_CLI_SOCKET_INVALID")?;
     Ok(NativeAuthority::provision(
-        Box::new(executor),
+        Box::new(executor.clone()),
         Box::new(signer),
         measurement_trust,
         acceptance_trust,
-    ))
+    )
+    .with_candidate_diagnostic_executor(Box::new(executor)))
 }
 
 #[cfg(test)]

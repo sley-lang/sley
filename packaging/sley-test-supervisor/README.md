@@ -21,10 +21,11 @@ The development `sley serve --protocol-profile v3-capable` command now accepts
 an explicit `--native-authority-config` file for the receiver's separate
 acceptance key and trust manifests. Its file shape and permission checks are
 in [the CLI contract](../../docs/spec/SLEY_CLI_V1.md#11-explicit-native-commit-authority-development-revision-12).
-It supplies the existing native commit route with a socket executor and signer;
-it does not qualify this root service or enable native tests on the selected
-2.0.1 release binary. Diagnostic `tests.selected` and `tests.affected` remain
-unprovisioned.
+It supplies the existing native commit route with a socket executor and signer.
+The same receiver-selected adapter now serves candidate-bound `tests.affected`;
+explicit accepted-root `tests.selected` still refuses until its complete root
+snapshot can be supplied to the executor. Neither path qualifies this root
+service or enables native tests on the selected 2.0.1 release binary.
 
 ## Protected administrator configuration
 

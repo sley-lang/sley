@@ -4438,6 +4438,75 @@ fn commit_server(label: &str) -> (sley_repo::test_support::TempDir, Server, Sess
     (temp, server, session)
 }
 
+#[test]
+fn configured_candidate_diagnostics_use_receiver_executor_only_for_affected() {
+    use sley_id::WorkspaceId;
+
+    let (temp, mut server, session) = commit_server("v3-configured-affected");
+    let workspace = WorkspaceId::from_bytes([1; 32]);
+    let head = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap();
+    let parent = head.verified_revision().transaction_id();
+    let root = head.verified_revision().state_root().root;
+    let candidate = empty_candidate(&temp, parent);
+    let profile = sley_tests::native_execution_profile_id();
+    let affected_body = |attempt: [u8; 16]| {
+        encode_record(&[
+            (1, candidate.clone()),
+            (2, profile.as_bytes().to_vec()),
+            (3, attempt.to_vec()),
+        ])
+        .unwrap()
+    };
+
+    let absent = call_v3_fail(
+        &mut server,
+        session,
+        1,
+        TESTS_AFFECTED_TAG,
+        affected_body([0xD1; 16]),
+    );
+    assert_eq!(absent.symbol, "NATIVE_EXECUTOR_UNAVAILABLE");
+
+    server.set_native_authority(
+        commit_authority(workspace)
+            .with_candidate_diagnostic_executor(Box::new(EmptyNativeExecutor)),
+    );
+    let affected = call_v3_ok(
+        &mut server,
+        session,
+        2,
+        TESTS_AFFECTED_TAG,
+        affected_body([0xD2; 16]),
+    );
+    let fields = fields_of(&affected.body, 6);
+    assert_eq!(
+        fields[2],
+        encode_uvar(1),
+        "empty candidate comparison completed"
+    );
+    assert_eq!(fields[3], encode_uvar(0), "no native tests selected");
+    let selected = call_v3_fail(
+        &mut server,
+        session,
+        3,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[], [0xD3; 16]),
+    );
+    assert_eq!(selected.symbol, "NATIVE_EXECUTOR_UNAVAILABLE");
+
+    server.set_native_authority(commit_authority(workspace));
+    let replaced = call_v3_fail(
+        &mut server,
+        session,
+        4,
+        TESTS_AFFECTED_TAG,
+        affected_body([0xD4; 16]),
+    );
+    assert_eq!(replaced.symbol, "NATIVE_EXECUTOR_UNAVAILABLE");
+}
+
 /// An empty-selection namespace candidate over the given parent: no
 /// `TestCases` created, so the native plan selects nothing and the commit
 /// exercises the journal/status/replay path without worker evidence.

@@ -288,6 +288,9 @@ struct ReplayAttempt {
 pub struct NativeAuthority {
     /// Qualified test-execution dispatch for commit and replay.
     executor: Box<dyn NativeTestExecutor>,
+    /// Separately provisioned candidate-selection dispatch for 602. A
+    /// replacement authority must not retain an earlier diagnostic route.
+    candidate_diagnostic_executor: Option<Box<dyn NativeTestExecutor>>,
     /// Configured acceptance signer claiming statements.
     signer: Box<dyn NativeAcceptanceSigner>,
     /// Receiver-provisioned trust manifests: measurement first, then
@@ -310,9 +313,23 @@ impl NativeAuthority {
     ) -> Self {
         Self {
             executor,
+            candidate_diagnostic_executor: None,
             signer,
             trust_manifests: [measurement_trust, acceptance_trust],
         }
+    }
+
+    /// Provisions 602 `tests.affected` through the same receiver-selected
+    /// candidate executor as native commit. This does not grant an explicit
+    /// accepted-root 601 `tests.selected` route: an executor without
+    /// `execute_diagnostic` support still refuses that method.
+    #[must_use]
+    pub fn with_candidate_diagnostic_executor(
+        mut self,
+        executor: Box<dyn NativeTestExecutor>,
+    ) -> Self {
+        self.candidate_diagnostic_executor = Some(executor);
+        self
     }
 
     /// Returns the receiver-provisioned measurement trust manifest.
@@ -686,7 +703,8 @@ impl Server {
     /// travel as one unit because a commit needs all three: without the
     /// authority every native commit refuses before any journal or
     /// accepted-state write.
-    pub fn set_native_authority(&mut self, authority: NativeAuthority) {
+    pub fn set_native_authority(&mut self, mut authority: NativeAuthority) {
+        self.executor = authority.candidate_diagnostic_executor.take();
         self.native_authority = Some(authority);
     }
 
