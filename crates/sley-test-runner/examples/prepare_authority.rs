@@ -224,6 +224,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     let supervisor = configured_supervisor_profile(&parsed_config, memory_bytes, wall_ms)?;
     let admission = fixed_native_admission_profile()?;
     let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis())?;
+    let minimum_remaining = 120_000_u64;
+    if imported.record.expiry.not_after
+        <= now
+            .checked_add(minimum_remaining)
+            .ok_or_else(|| invalid("time overflow"))?
+    {
+        return Err(invalid("candidate has expired or expires within two minutes").into());
+    }
     let valid_from = now.saturating_sub(60_000);
     let valid_until = now
         .checked_add(7 * 24 * 60 * 60 * 1000)
@@ -278,6 +286,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         "stage_manifest_sha256": sha256(&build_manifest_bytes),
         "state_sha256": sha256(&workspace_bytes),
         "candidate_sha256": sha256(&candidate_bytes),
+        "candidate_expires_unix_millis": imported.record.expiry.not_after,
         "source_commit": field(&build_manifest, "source_commit")?,
         "workspace_id": workspace,
         "commit_principal_id": principal,

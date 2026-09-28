@@ -60,7 +60,9 @@ users.
 `prepare_authority` is a development example for one F0 fixture. It reads an
 exact staged binary manifest, the toolkit workspace state, and the native
 `TestCase` candidate. It verifies the staged binary hashes and candidate's
-canonical workspace, principal, parent, policy, epoch, and ID. It derives the
+canonical workspace, principal, parent, policy, epoch, ID, and remaining
+lifetime. A candidate that has expired or expires within two minutes is refused
+before any output directory is created. It derives the
 same per-limit `SupervisorConfigV1` that the daemon checks, plus the fixed
 native admission profile. It creates a new mode `0700` output directory with
 mode `0600` root and receiver configuration drafts, a receiver acceptance key,
@@ -77,6 +79,11 @@ cargo run --locked --offline -p sley-test-runner --example prepare_authority -- 
   "$(id -u)" 4096 ROOT_MEASUREMENT_PUBLIC_KEY_HEX \
   /absolute/new/private/output-directory
 ```
+
+The native test candidate expires ten minutes after construction. Regenerate
+it against the same accepted graph workspace immediately before using this
+example; do not reuse an old candidate or a draft that binds an old candidate
+digest. The preparation plan records the exact candidate expiry.
 
 The root configuration draft names `/usr/lib/sley/sley`,
 `/usr/lib/sley/sley-test-supervisor`, and the future root-owned files under
