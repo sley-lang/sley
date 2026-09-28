@@ -13,14 +13,17 @@ It judges nothing that needs a human: a `REVIEW_ONLY` verdict is not a pass.
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import json
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import publication_authority  # noqa: E402  (sibling module)
+from rust_source_regions import rust_code_mask  # noqa: E402  (sibling module)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +32,30 @@ REPORT = ROOT / "evidence/validation/anti-goal-conformance.json"
 CONTRACT = "sley2.anti-goal-conformance.v1"
 KERNEL_TREES = ("crates",)
 PROBE_SOURCE = Path("crates/sley-test-runner/src/probe.rs")
+# The one unsafe exception (ADR-0052): a module of the sley-agent binary target.
+AGENT_CRATE = Path("crates/sley-agent")
+ALLOCATOR_SOURCE = AGENT_CRATE / "src/allocator.rs"
+ALLOCATOR_ADR = Path("docs/adr/ADR-0052-agent-binary-allocator.md")
+# Code (comments and literals masked) that uses or permits unsafe code: the
+# keyword itself (blocks, fns, impls, traits, extern blocks, unsafe
+# attributes) or a lint level that relaxes `unsafe_code`.
+UNSAFE_TOKEN = re.compile(r"\bunsafe\b")
+UNSAFE_LINT_RELAX = re.compile(r"\b(?:allow|expect|warn)\s*\([^)]*\bunsafe_code\b")
+# What the allocator module may not contain: other files or code pulled in,
+# foreign or exported symbols, mutable statics, transmutes, installation.
+ALLOCATOR_FORBIDDEN = {
+    "an out-of-line module": r"\bmod\s+\w+\s*;",
+    "a #[path] attribute": r"#\s*!?\s*\[\s*path\b",
+    "include!": r"\binclude(?:_str|_bytes)?\s*!",
+    "macro_rules!": r"\bmacro_rules\s*!",
+    "an exported or placed symbol": r"\b(?:no_mangle|export_name|link_section|link_name|used)\b",
+    "extern": r"\bextern\b",
+    "inline assembly": r"\b(?:global_)?asm\s*!",
+    "a mutable static": r"\bstatic\s+mut\b",
+    "transmute": r"\btransmute\b",
+    "from_raw_parts_mut": r"\bfrom_raw_parts_mut\b",
+    "#[global_allocator]": r"\bglobal_allocator\b",
+}
 # Crate names that would signal a prohibited capability if they entered the
 # dependency graph.
 FORBIDDEN_DEPENDENCIES = {
@@ -70,11 +97,80 @@ def locked_dependencies() -> set[str]:
     return set(re.findall(r'^name = "([a-z0-9_-]+)"', (ROOT / "Cargo.lock").read_text(encoding="utf-8"), re.M))
 
 
+def rust_code(source: str) -> str:
+    """The source with comments and literals blanked (newlines kept)."""
+    return "".join(
+        char if keep or char == "\n" else " " for char, keep in zip(source, rust_code_mask(source))
+    )
+
+
+@functools.cache
+def code_of(path: Path) -> str:
+    """`rust_code` of a file, lexed once per run."""
+    return rust_code(path.read_text(encoding="utf-8", errors="ignore"))
+
+
+def uses_unsafe(code: str) -> bool:
+    return bool(UNSAFE_TOKEN.search(code) or UNSAFE_LINT_RELAX.search(code))
+
+
+def allocator_exception_problems(sources: list[Path]) -> list[str]:
+    """Why the ADR-0052 exception does not hold; empty when it does.
+
+    The exception is exactly one module of the sley-agent binary target,
+    installed by the binary and by the workbench tests only; the library
+    forbids unsafe code; the package relaxes only `unsafe_code`, to `deny`;
+    no other member relaxes anything; and the module pulls in no other code
+    and exports nothing."""
+    problems = []
+    if not (ROOT / ALLOCATOR_ADR).is_file():
+        problems.append(f"{ALLOCATOR_ADR} is missing")
+    allocator = rust_code((ROOT / ALLOCATOR_SOURCE).read_text(encoding="utf-8"))
+    relaxations = UNSAFE_LINT_RELAX.findall(allocator)
+    if len(relaxations) != 1 or len(re.findall(r"#!\[allow\(unsafe_code\)\]", allocator)) != 1:
+        problems.append("the allocator module must carry exactly one #![allow(unsafe_code)] and no other relaxation")
+    if "unsafe impl GlobalAlloc for SizeClassCache" not in " ".join(allocator.split()):
+        problems.append("the allocator module must implement GlobalAlloc for SizeClassCache")
+    for what, pattern in ALLOCATOR_FORBIDDEN.items():
+        if re.search(pattern, allocator):
+            problems.append(f"the allocator module contains {what}")
+    library = rust_code((ROOT / AGENT_CRATE / "src/lib.rs").read_text(encoding="utf-8"))
+    if "#![forbid(unsafe_code)]" not in library or re.search(r"\ballocator\b|#\s*\[\s*path\b", library):
+        problems.append("sley-agent's lib.rs must forbid unsafe code and must not include the allocator")
+    binary = rust_code((ROOT / AGENT_CRATE / "src/main.rs").read_text(encoding="utf-8"))
+    if not re.search(r"^mod allocator;$", binary, re.M) or uses_unsafe(binary):
+        problems.append("sley-agent's main.rs must declare `mod allocator;` and use no unsafe code")
+    for path in sources:
+        relative = path.relative_to(ROOT)
+        code = code_of(path)
+        installs = len(re.findall(r"\bglobal_allocator\b", code))
+        includes = re.findall(r"#\s*\[\s*path\s*=\s*\"([^\"]*)\"", path.read_text(encoding="utf-8", errors="ignore"))
+        allowed_site = relative in (AGENT_CRATE / "src/main.rs", AGENT_CRATE / "tests/workbench.rs")
+        if installs and not (allowed_site and installs == 1):
+            problems.append(f"{relative} installs a global allocator")
+        if any(include.endswith("allocator.rs") for include in includes) and relative != AGENT_CRATE / "tests/workbench.rs":
+            problems.append(f"{relative} includes the allocator module")
+    workspace = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+    expected = {
+        "rust": {**workspace["workspace"]["lints"]["rust"], "unsafe_code": "deny"},
+        "clippy": workspace["workspace"]["lints"]["clippy"],
+    }
+    for manifest in sorted((ROOT / "crates").glob("*/Cargo.toml")):
+        package = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        agent = manifest.parent == ROOT / AGENT_CRATE
+        if package.get("lints") != (expected if agent else {"workspace": True}):
+            problems.append(f"{manifest.relative_to(ROOT)} has lints {package.get('lints')}")
+        if "build" in package.get("package", {}) or (manifest.parent / "build.rs").exists():
+            if agent:
+                problems.append("sley-agent has a build script")
+    return problems
+
+
 def kernel_sources() -> list[Path]:
     sources = []
     for tree in KERNEL_TREES:
         for path in sorted((ROOT / tree).rglob("*.rs")):
-            if "/target/" not in str(path):
+            if "target" not in path.relative_to(ROOT).parts:
                 sources.append(path)
     return sources
 
@@ -155,6 +251,30 @@ def evaluate_campaign_declarations(root: Path) -> tuple[bool, str]:
     )
 
 
+def unsafe_row(sources: list[Path]) -> tuple[bool, str]:
+    """The anti-goal "unsafe code hidden in kernel": the workspace forbids
+    unsafe code, and no source uses or permits it except the ADR-0052
+    allocator module while its exception holds."""
+    workspace_manifest = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+    forbid = 'unsafe_code = "forbid"' in workspace_manifest
+    problems = allocator_exception_problems(sources) if (ROOT / ALLOCATOR_SOURCE).exists() else []
+    exempt = {ALLOCATOR_SOURCE} if (ROOT / ALLOCATOR_SOURCE).exists() and not problems else set()
+    unsafe_sources = [
+        str(path.relative_to(ROOT))
+        for path in sources
+        if path.relative_to(ROOT) not in exempt
+        and uses_unsafe(code_of(path))
+    ]
+    detail = (
+        f"workspace lint forbids unsafe: {forbid}; "
+        f"sources that use or permit unsafe code: {unsafe_sources or 'none'}; "
+        f"exception isolated by ADR-0052: {[str(path) for path in sorted(exempt)] or 'none'}"
+    )
+    if problems:
+        detail += f"; ADR-0052 exception problems: {problems}"
+    return forbid and not unsafe_sources and not problems, detail
+
+
 def evaluate() -> dict[str, dict]:
     """One verdict per mechanically checkable anti-goal."""
     locked = locked_dependencies()
@@ -215,6 +335,10 @@ def evaluate() -> dict[str, dict]:
 
     shell_users = []
     for path in sources:
+        # Integration tests spawn the executable under test. They are not a
+        # process surface exposed by the shipped kernel or agent binary.
+        if "tests" in path.relative_to(ROOT).parts:
+            continue
         source = path.read_text(encoding="utf-8", errors="ignore")
         if "std::process::Command" not in source:
             continue
@@ -229,18 +353,8 @@ def evaluate() -> dict[str, dict]:
         "limited to systemctl --version and getconf PAGESIZE without a shell",
     )
 
-    workspace_manifest = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
-    unsafe_sources = [
-        str(path.relative_to(ROOT))
-        for path in sources
-        if re.search(r"^\s*(unsafe |#!\[allow\(unsafe_code)", path.read_text(encoding="utf-8", errors="ignore"), re.M)
-    ]
-    record(
-        "unsafe code hidden in kernel",
-        'unsafe_code = "forbid"' in workspace_manifest and not unsafe_sources,
-        f"workspace lint forbids unsafe: {'unsafe_code = \"forbid\"' in workspace_manifest}; "
-        f"kernel sources with unsafe or an allow: {unsafe_sources or 'none'}",
-    )
+    passed, detail = unsafe_row(sources)
+    record("unsafe code hidden in kernel", passed, detail)
 
     tags = [tag for tag in git("tag").split("\n") if tag]
     # The unpushed-commit count moves with every commit, so it made this
@@ -305,7 +419,16 @@ def build_report() -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--check-unsafe",
+        action="store_true",
+        help="evaluate only the unsafe-code anti-goal (a fast gate; writes nothing)",
+    )
     arguments = parser.parse_args()
+    if arguments.check_unsafe:
+        passed, detail = unsafe_row(kernel_sources())
+        print(canonical({"mode": "check-unsafe", "result": "PASS" if passed else "FAIL", "detail": detail}), end="")
+        return 0 if passed else 1
     report = build_report()
     text = canonical(report)
     summary = {

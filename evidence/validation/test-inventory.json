@@ -196,7 +196,7 @@
   "conformance_rejections": 285,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "3f0360c330d8c9394787d2980958976b016acfb6bbb73dc53aaae5cbd18dc134",
+  "inventory_digest": "7e9666cb670dd61adcf805f6ae618407bdb87c7bcb46a2fb7839c3974453c893",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -225,7 +225,7 @@
     "manifest_harness_deps": [],
     "python_use_sites": 0,
     "rust_use_sites": 0,
-    "scanned_manifests": 22
+    "scanned_manifests": 23
   },
   "property_tests": 0,
   "python_test_modules": [
@@ -283,9 +283,14 @@
       "tests": 20
     },
     {
+      "crate": "sley-agent",
+      "ignored": 0,
+      "tests": 269
+    },
+    {
       "crate": "sley-check",
       "ignored": 0,
-      "tests": 86
+      "tests": 87
     },
     {
       "crate": "sley-cli",
@@ -300,7 +305,7 @@
     {
       "crate": "sley-id",
       "ignored": 0,
-      "tests": 7
+      "tests": 8
     },
     {
       "crate": "sley-json-bridge",
@@ -355,7 +360,7 @@
     {
       "crate": "sley-store",
       "ignored": 0,
-      "tests": 48
+      "tests": 49
     },
     {
       "crate": "sley-test-runner",
@@ -370,16 +375,16 @@
     {
       "crate": "sley-txn",
       "ignored": 1,
-      "tests": 248
+      "tests": 249
     },
     {
       "crate": "sley-vm",
       "ignored": 6,
-      "tests": 494
+      "tests": 496
     }
   ],
   "rust_ignored_emitters": 39,
-  "rust_unit_tests": 2015,
+  "rust_unit_tests": 2290,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

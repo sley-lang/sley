@@ -27,6 +27,7 @@ id -> scb1 + ssmc -> schema -> state-root + store
 ssmc -> check -> query + mutate -> vm -> tests -> policy -> txn -> repo
 vm + tests -> conformance + test-runner        policy -> adapter
 kernel crates -> protocol -> json-bridge -> cli        test-runner -> cli
+kernel crates (mutate, policy, txn, repo, vm, tests) -> agent
 ```
 
 Transport, CLI, adapters, benchmarks, optional ZJX compression, Git, Siglum,
@@ -59,6 +60,7 @@ crate, and nothing in `crates/` depends on it.
 | `sley-json-bridge` | generated non-canonical JSON mapping of SMP1 frames |
 | `sley-test-runner` | host-side native test supervision |
 | `sley-cli` | thin machine wrapper; no semantic rules |
+| `sley-agent` | agent workbench: AV1 views, AF1 frames, advisory dev loop; no semantic rules (ADR-0051) |
 
 ## Canonical and derived state
 

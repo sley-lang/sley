@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -227,10 +228,20 @@ impl ObjectStore {
     ///
     /// Returns deterministic store or exact SCB1 verifier codes.
     pub fn read<V: CanonicalVerifier>(&self, object_id: ObjectId, verifier: &V) -> Result<Vec<u8>> {
-        let path = self.verified_object_path(object_id)?;
-        let record = bounded_read(&path)?;
-        verify_record(&record, object_id, verifier)?;
-        Ok(record)
+        self.read_session().read(object_id, verifier)
+    }
+
+    /// Starts a read session for reading many objects in one operation.
+    ///
+    /// See [`ObjectReadSession`] for exactly which work the session shares.
+    #[must_use]
+    pub fn read_session(&self) -> ObjectReadSession<'_> {
+        ObjectReadSession {
+            store: self,
+            prefix_verified: false,
+            verified_fanout: [false; 256],
+            verified_leaf_directories: BTreeSet::new(),
+        }
     }
 
     /// Stages, verifies, and atomically promotes an immutable object.
@@ -530,6 +541,74 @@ impl ObjectStore {
     ) -> Result<Vec<RecoveryEvent>> {
         let _selection = StoreCutSelection::install(cut);
         self.recover_staged()
+    }
+}
+
+/// One read operation over many objects of one store.
+///
+/// Every [`ObjectReadSession::read`] performs the checks of
+/// [`ObjectStore::read`] in the same order: store root, `objects`, `scb1`,
+/// both fanout directories, the bounded regular-file read, the digest
+/// trailer, and the caller's canonical verifier. The only difference is that
+/// a directory component which already passed its `symlink_metadata`
+/// real-directory check earlier in the same session is not examined again;
+/// the object file, its bytes, its digest, and its verifier run for every
+/// object. A component that failed is never recorded, so it is checked again
+/// on the next read.
+#[derive(Debug)]
+pub struct ObjectReadSession<'a> {
+    store: &'a ObjectStore,
+    prefix_verified: bool,
+    verified_fanout: [bool; 256],
+    verified_leaf_directories: BTreeSet<[u8; 2]>,
+}
+
+impl ObjectReadSession<'_> {
+    /// Reads and verifies an object by path-derived ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns deterministic store or exact SCB1 verifier codes, exactly as
+    /// [`ObjectStore::read`] does.
+    pub fn read<V: CanonicalVerifier>(
+        &mut self,
+        object_id: ObjectId,
+        verifier: &V,
+    ) -> Result<Vec<u8>> {
+        let path = self.verified_object_path(object_id)?;
+        let record = bounded_read(&path)?;
+        verify_record(&record, object_id, verifier)?;
+        Ok(record)
+    }
+
+    fn verified_object_path(&mut self, object_id: ObjectId) -> Result<PathBuf> {
+        let hex = object_id_hex(object_id);
+        let id = object_id.as_bytes();
+        let mut current = self.store.root.clone();
+        if self.prefix_verified {
+            current.push("objects");
+            current.push("scb1");
+        } else {
+            ensure_existing_dir(&current)?;
+            for component in ["objects", "scb1"] {
+                current.push(component);
+                ensure_existing_dir(&current)?;
+            }
+            self.prefix_verified = true;
+        }
+        current.push(&hex[0..2]);
+        let fanout = usize::from(id[0]);
+        if !self.verified_fanout[fanout] {
+            ensure_existing_dir(&current)?;
+            self.verified_fanout[fanout] = true;
+        }
+        current.push(&hex[2..4]);
+        let leaf = [id[0], id[1]];
+        if !self.verified_leaf_directories.contains(&leaf) {
+            ensure_existing_dir(&current)?;
+            self.verified_leaf_directories.insert(leaf);
+        }
+        Ok(current.join(format!("{hex}.scb1")))
     }
 }
 
@@ -1699,6 +1778,60 @@ mod tests {
             store.read(object_id, &verifier).unwrap_err().code(),
             StoreErrorCode::StoreIo
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_session_matches_read_and_never_skips_object_checks() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new("read-session");
+        let store = ObjectStore::new(temp.path());
+        let (first, first_id) = bool_record(true);
+        let (second, second_id) = bool_record(false);
+        store.put(first_id, &first, &verifier).unwrap();
+        store.put(second_id, &second, &verifier).unwrap();
+
+        let mut session = store.read_session();
+        for _ in 0..2 {
+            assert_eq!(session.read(first_id, &verifier).unwrap(), first);
+            assert_eq!(session.read(second_id, &verifier).unwrap(), second);
+        }
+        assert_eq!(store.read(first_id, &verifier).unwrap(), first);
+
+        // A verified directory never exempts the object file: a symlinked
+        // object and a substituted object still fail inside the session.
+        let first_path = store.object_path(first_id);
+        let outside = temp.path().join("outside.scb1");
+        fs::write(&outside, &first).unwrap();
+        fs::remove_file(&first_path).unwrap();
+        symlink(&outside, &first_path).unwrap();
+        assert_eq!(
+            session.read(first_id, &verifier).unwrap_err().code(),
+            StoreErrorCode::StoreIo
+        );
+        fs::remove_file(&first_path).unwrap();
+        fs::write(&first_path, &second).unwrap();
+        assert_eq!(
+            session.read(first_id, &verifier).unwrap_err().code(),
+            StoreErrorCode::StoreObjectSubstitution
+        );
+        assert_eq!(session.read(second_id, &verifier).unwrap(), second);
+
+        // A component that failed is not recorded: it fails again.
+        let linked = TempDir::new("read-session-linked");
+        let target = linked.path().join("outside-scb1");
+        fs::create_dir(&target).unwrap();
+        fs::create_dir(linked.path().join("objects")).unwrap();
+        symlink(&target, linked.path().join("objects/scb1")).unwrap();
+        let linked_store = ObjectStore::new(linked.path());
+        let mut linked_session = linked_store.read_session();
+        for _ in 0..2 {
+            assert_eq!(
+                linked_session.read(first_id, &verifier).unwrap_err().code(),
+                StoreErrorCode::StoreIo
+            );
+        }
     }
 
     #[cfg(unix)]

@@ -97,7 +97,7 @@
       "attestation_file_sha256": "273c174040b36f2b5ca0ea6b88c2a8799c156c09477a14e35675d8e09c35811a",
       "bundle_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
       "merge_commit": "2297045748d84cfbf588a7db5be4127c1e435c83",
-      "note": "Revision-9 sequence: the provisional commit contains only the merged report and retained secondary attestation. Both clean hosts rebuilt the candidate twice and produced byte-identical artifacts; this receipt precedes the final evidence refresh and verification. Superseded 2026-09-18 by the c75277b6/a7852028 re-mints and the current candidate: the receipt commit b0f56b1e also carried five crates/sley-repo/tests changes (not a records-only descendant), the rev-9 refresh/verify/quick for this candidate did not complete before the re-mint, and this attestation is recorded as superseded in this ledger and in the summary's attestation_supersedes chain, never carried onto a later candidate (it is not in the tracked report's superseded_attestations: it had been removed at 75ad17aa, the c75277b6 mint, by a manual report replacement — 9316df19 inherited the primary-only state — before contract revision 10 introduced the listing)."
+      "note": "Revision-9 sequence: the provisional commit contains only the merged report and retained secondary attestation. Both clean hosts rebuilt the candidate twice and produced byte-identical artifacts; this receipt precedes the final evidence refresh and verification. Superseded 2026-09-18 by the c75277b6/a7852028 re-mints and the current candidate: the receipt commit b0f56b1e also carried five crates/sley-repo/tests changes (not a records-only descendant), the rev-9 refresh/verify/quick for this candidate did not complete before the re-mint, and this attestation is recorded as superseded in this ledger and in the summary's attestation_supersedes chain, never carried onto a later candidate (it is not in the tracked report's superseded_attestations: it had been removed at 75ad17aa, the c75277b6 mint, by a manual report replacement \u2014 9316df19 inherited the primary-only state \u2014 before contract revision 10 introduced the listing)."
     },
     {
       "candidate_commit": "8d063f00133f369599032191708fa7efabb3e2fa",
@@ -111,7 +111,7 @@
       "attestation_file_sha256": "e835598423290834a2fe7ef9394813d76dacdd9a19a3b512e0030c8ca46d3e4f",
       "bundle_commit": "8d063f00133f369599032191708fa7efabb3e2fa",
       "merge_commit": "700d4da9f0e5061e5d24f435104730590238a017",
-      "note": "Runbook deviation, recorded as observed: the tracked scripts/second_host_attest.sh --phase build passed the lease gate (free), the candidate binding and the reachability probe, then failed at the bundle step (`git bundle create <file> <bare-sha>` -> \"fatal: Refusing to create empty bundle.\"; git bundle needs a ref, not a bare object id). The build phase was then run by a manual mirror of the tracked phase (checkpoint-local second_host_build_ref.sh, outside the repository) that differs only in bundling the candidate through a temporary ref refs/heads/attest/8d063f0 (created, bundled, deleted; bundle verified) and in sourcing ~/.cargo/env for the non-login lab shell; every lab step (fresh clone from the bundle, detached checkout, HEAD equality, clean-tree test, cargo fetch --locked, make release-candidate-build, --emit-attestation, sha256sum) is the tracked runbook's. The lab build reported REPRODUCIBLE / PASS with artifact ecf51188…, 2,508,082 B, 15 members, manifest f0bd4072…, the same as the primary mint; the attestation was transferred by scp and merged by the tracked script's --phase merge. The bundle-step fix to the tracked script rides the next source change (a script edit now would move the candidate)."
+      "note": "Runbook deviation, recorded as observed: the tracked scripts/second_host_attest.sh --phase build passed the lease gate (free), the candidate binding and the reachability probe, then failed at the bundle step (`git bundle create <file> <bare-sha>` -> \"fatal: Refusing to create empty bundle.\"; git bundle needs a ref, not a bare object id). The build phase was then run by a manual mirror of the tracked phase (checkpoint-local second_host_build_ref.sh, outside the repository) that differs only in bundling the candidate through a temporary ref refs/heads/attest/8d063f0 (created, bundled, deleted; bundle verified) and in sourcing ~/.cargo/env for the non-login lab shell; every lab step (fresh clone from the bundle, detached checkout, HEAD equality, clean-tree test, cargo fetch --locked, make release-candidate-build, --emit-attestation, sha256sum) is the tracked runbook's. The lab build reported REPRODUCIBLE / PASS with artifact ecf51188\u2026, 2,508,082 B, 15 members, manifest f0bd4072\u2026, the same as the primary mint; the attestation was transferred by scp and merged by the tracked script's --phase merge. The bundle-step fix to the tracked script rides the next source change (a script edit now would move the candidate)."
     },
     {
       "candidate_commit": "515cc4a3d9875b46273712367a2f77e355522906",
@@ -125,7 +125,7 @@
       "attestation_file_sha256": "c811a7301df214ab3d6bd08cdc34143ceb99bf73ddc5afc35d87ead809dd3da5",
       "bundle_commit": "515cc4a3d9875b46273712367a2f77e355522906",
       "merge_commit": "ecf453cea068fb11f28f8ad0a3046f5803a4704c",
-      "note": "The Sley 2.0.0 release candidate. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with no deviation (its bundle step bundles through a temporary ref since the 8d063f00 lane); the lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,513,163 B, 15 members, manifest e6963e14…. The secondary host's re-attestation of the current commit retires the superseded 8d063f00 secondary from the report's superseded_attestations listing (contract revision 11); its receipt stays above."
+      "note": "The Sley 2.0.0 release candidate. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with no deviation (its bundle step bundles through a temporary ref since the 8d063f00 lane); the lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,513,163 B, 15 members, manifest e6963e14\u2026. The secondary host's re-attestation of the current commit retires the superseded 8d063f00 secondary from the report's superseded_attestations listing (contract revision 11); its receipt stays above."
     },
     {
       "candidate_commit": "ef2a39f659bd0caeaa92dbc546d0342dc7f43d57",
@@ -139,7 +139,7 @@
       "attestation_file_sha256": "7760bdf2a327da2d8590d5e1e2a5b2d41e8af78a6349389eddf0966e3df04d58",
       "bundle_commit": "ef2a39f659bd0caeaa92dbc546d0342dc7f43d57",
       "merge_commit": "87e2ae723d47198b2574398fce548d27c34cb7a1",
-      "note": "The official Sley 2.0.0 release, minted after the operator's publication decision. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with no deviation; the lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,513,155 B, 15 members, manifest c34adec8…. It supersedes the 515cc4a3 candidate, whose receipt stays above."
+      "note": "The official Sley 2.0.0 release, minted after the operator's publication decision. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with no deviation; the lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,513,155 B, 15 members, manifest c34adec8\u2026. It supersedes the 515cc4a3 candidate, whose receipt stays above."
     },
     {
       "candidate_commit": "1fea02faace9503060425fa565757c0c29af9d93",
@@ -168,6 +168,34 @@
       "bundle_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "merge_commit": "87c354029066cea8e80abb172bbe659b59ffd5bc",
       "note": "The official Sley 2.0.1 release, built from commit c748dda1 of sley-lang/sley. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with the host taken from SLEY2_LAB_HOST and SLEY2_LAB_HOME (the public defaults are placeholders). The lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,559,049 B. Host names and addresses in this public ledger are neutral labels."
+    },
+    {
+      "candidate_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+      "date": "2026-09-25",
+      "transport_lane": "private USB link between the primary and secondary hosts; SSH_CONNECTION verified by the tracked runbook at the build and merge phases",
+      "lab_checkout": "/home/lab/sley2-attest-d7d1346",
+      "lab_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+      "lab_evidence_sha256": "e4ab742e501b75ff57052ad0a26413b6c2492a12e212e688b0e18dddc80f76ed",
+      "artifact_sha256": "5d6bdc31306c2c3c7d61c3130ef8c0a4e0f2ac757e5907218f7620c181492a30",
+      "attestation_path": "evidence/release/attestations/d7d1346-secondary.json",
+      "attestation_file_sha256": "2b49c58cce5942302b4973cdaa7506b4719f3b1d22e237ac3006167f8702a9f4",
+      "bundle_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+      "merge_commit": "1c457d5bc759d47ef44a4bea4bbe3fe81a82ccb5",
+      "note": "The official Sley 2.0.2 release, built from commit d7d13464 of sley-lang/sley. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with the host taken from SLEY2_LAB_HOST and SLEY2_LAB_HOME (the public defaults are placeholders). The lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 4,868,674 B. Host names and addresses in this public ledger are neutral labels."
+    },
+    {
+      "candidate_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+      "date": "2026-09-27",
+      "transport_lane": "SSH secondary-host through the configured adaptive transport; physical lane not recorded during the build",
+      "lab_checkout": "/home/lab/sley203-attest-69d57b1",
+      "lab_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+      "lab_evidence_sha256": "19eb0ca9976d6e31642a782a7d6f47cfaabcf61a5a7777b931f35ce0b054dd1e",
+      "artifact_sha256": "4a9aef6962795f49f6e9c13dfe2cd6815a9392106708cccbc491367c4ca3c2a3",
+      "attestation_path": "evidence/release/attestations/69d57b1-secondary.json",
+      "attestation_file_sha256": "d848afd77f79956cf116c4b24aba999573e913589280baead7b32dbadda830cc",
+      "bundle_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+      "merge_commit": "1753761f5914618205981b6a6379995135bee51e",
+      "note": "Manual execution of the documented custody steps: lease checked free before transport and again before build; a fresh clone of the release/2.0.3 branch from a transferred Git bundle; build_release_candidate.py --timeout-seconds 1800 --require-clean with CARGO_BUILD_JOBS=3 and host-local scratch, then build_reproducibility_report.py --host-label secondary --emit-attestation. The branch was at the exact candidate and both builds recorded a clean tree. This did not invoke second_host_attest.sh or the full records-refresh make target on the lab. The copied build evidence and attestation matched the primary commit, artifact, size, manifest and member count. Host/path labels in this public receipt are neutral."
     }
   ]
 }

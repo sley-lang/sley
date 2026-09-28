@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
-  <img alt="Version 2.0.1" src="https://img.shields.io/badge/version-2.0.1-38c8e8?style=flat-square">
+  <img alt="Version 2.0.3" src="https://img.shields.io/badge/version-2.0.3-38c8e8?style=flat-square">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
   <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
   <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
@@ -22,7 +22,7 @@
   <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
-  <a href="docs/release/SLEY-2.0.1.md"><b>Release notes</b></a> ·
+  <a href="docs/release/SLEY-2.0.3.md"><b>Release notes</b></a> ·
   <a href="https://sleylang.org/faq"><b>FAQ</b></a>
 </p>
 
@@ -63,13 +63,13 @@ machine code instead of prose.
 > toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
 > and Python 3 for the demo.
 
-**1. Get the `sley` binary.** Download `sley-2.0.1-linux-x86_64.tar.gz` from
+**1. Get the `sley` binary.** Download `sley-2.0.3-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
 ```sh
 git clone https://github.com/sley-lang/sley.git
 cd sley
-cargo build --release -p sley-cli        # → target/release/sley
+cargo build --release -p sley-cli -p sley-agent   # → target/release/sley, sley-agent
 ```
 
 **2. Say hello.** Every `sley` command prints machine-readable JSON:
@@ -119,6 +119,24 @@ directory. No source tree is needed.
 The demo imports and executes a program that was built in advance. As
 `explicit_gap` says, it doesn't construct, commit, test-select, or merge a
 candidate through the public builder, which is still proposal-only.
+
+**4. Write a program.** `sley-agent` is the workbench agents use: it renders
+functions as compact listings, compiles a JSON authoring frame into one
+candidate, validates it and runs its tests in one command:
+
+```console
+$ sley-agent init demo && cd demo
+$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../percent.json
+$ sley-agent try ../percent.json      # the guide's first example
+c1: Valid (+27 created, 0 replaced, 0 deleted)
+tests: 3/3 passed
+  ...
+next: sley-agent submit c1
+```
+
+`sley-agent help` is the whole guide (under 8 KiB). The
+[Quickstart](docs/QUICKSTART.md#7-write-and-test-a-program-with-sley-agent)
+walks through it.
 
 ➡️ **The [full Quickstart](docs/QUICKSTART.md)** covers verifying the
 download, driving `sley serve` by hand over JSON lines, exit codes, and the
@@ -180,19 +198,22 @@ roots, the change lifecycle, sessions, and the glossary.
 
 See the **[2.0.0 release notes](docs/release/SLEY-2.0.0.md)** for the complete
 list, including the known limits, and the
-**[2.0.1 release notes](docs/release/SLEY-2.0.1.md)** for the fixes since.
+**[2.0.1 release notes](docs/release/SLEY-2.0.1.md)** for the fixes since, and
+the **[2.0.2 release notes](docs/release/SLEY-2.0.2.md)** for the agent
+workbench.
 
 ## Project status
 
-**Sley 2.0.1** is the current release, a patch release of 2.0.0. It's a
-*release*, not a GA claim: the
+**Sley 2.0.3** is the current release, a point release of 2.0.2 that adds
+compact authoring, persistent drafts, focused views and checked workbench
+transformations. See the [2.0.3 release notes](docs/release/SLEY-2.0.3.md). It's a *release*, not a GA claim: the
 [2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
 list every acceptance criterion that wasn't met at 2.0.0 and every open
-finding. 2.0.1 makes no new GA claim.
+finding. 2.0.3 makes no new GA claim.
 
 | Track | State |
 |---|---|
-| **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1. The kernel, repository, protocol, CLI, and reproducible packaging are in place. |
+| **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1 and the agent workbench in 2.0.2. The kernel, repository, protocol, CLI, agent workbench, and reproducible packaging are in place. |
 | **Sley 2.1** | In progress. **Self-hosting**: the Sley toolchain built with Sley, under the REWEAVE plan ([ADR-0049](docs/adr/ADR-0049-reweave-scope-adoption.md), [Bootstrap Profile 2](docs/spec/BOOTSTRAP_PROFILE_2.md)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
 | **Sley 1.x** | Frozen at [v1.2.0](https://github.com/GreyforgeLabs/sley-legacy/releases/tag/v1.2.0) in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
@@ -206,7 +227,7 @@ finding. 2.0.1 makes no new GA claim.
 | 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
 | 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
 | 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
-| 📦 **[Release notes](docs/release/SLEY-2.0.0.md)** | What 2.0.0 contains, how to verify it, and what isn't claimed yet. [2.0.1](docs/release/SLEY-2.0.1.md) lists the fixes since. |
+| 📦 **[Release notes](docs/release/SLEY-2.0.0.md)** | What 2.0.0 contains, how to verify it, and what isn't claimed yet. [2.0.1](docs/release/SLEY-2.0.1.md) lists the fixes since, and [2.0.2](docs/release/SLEY-2.0.2.md) the agent workbench. |
 | 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
 | 🤝 **[Contributing](CONTRIBUTING.md)** | The slice contract, validation gates, and commit discipline |
 

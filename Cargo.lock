@@ -321,7 +321,7 @@ checksum = "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
 
 [[package]]
 name = "sley-adapter"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "sley-check",
@@ -331,8 +331,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "sley-agent"
+version = "2.0.3"
+dependencies = [
+ "serde_json",
+ "sley-check",
+ "sley-id",
+ "sley-mutate",
+ "sley-policy",
+ "sley-repo",
+ "sley-scb1",
+ "sley-ssmc",
+ "sley-state-root",
+ "sley-store",
+ "sley-tests",
+ "sley-txn",
+ "sley-vm",
+]
+
+[[package]]
 name = "sley-check"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "sley-id",
  "sley-ssmc",
@@ -340,7 +359,7 @@ dependencies = [
 
 [[package]]
 name = "sley-cli"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "serde_json",
  "sley-id",
@@ -356,7 +375,7 @@ dependencies = [
 
 [[package]]
 name = "sley-conformance"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "sley-check",
  "sley-id",
@@ -367,14 +386,14 @@ dependencies = [
 
 [[package]]
 name = "sley-id"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
 ]
 
 [[package]]
 name = "sley-json-bridge"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "serde_json",
  "sley-id",
@@ -383,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "sley-mutate"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "serde",
@@ -396,7 +415,7 @@ dependencies = [
 
 [[package]]
 name = "sley-policy"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "sley-check",
@@ -412,7 +431,7 @@ dependencies = [
 
 [[package]]
 name = "sley-protocol"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "nix",
@@ -439,7 +458,7 @@ dependencies = [
 
 [[package]]
 name = "sley-query"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "serde_json",
  "sley-check",
@@ -451,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "sley-repo"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "libc",
@@ -473,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "sley-scb1"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "serde",
@@ -484,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "sley-schema"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "sley-id",
@@ -493,14 +512,14 @@ dependencies = [
 
 [[package]]
 name = "sley-ssmc"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "sley-id",
 ]
 
 [[package]]
 name = "sley-state-root"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "sley-id",
  "sley-scb1",
@@ -509,7 +528,7 @@ dependencies = [
 
 [[package]]
 name = "sley-store"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "sley-id",
  "sley-scb1",
@@ -517,7 +536,7 @@ dependencies = [
 
 [[package]]
 name = "sley-test-runner"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "ed25519-dalek",
  "nix",
@@ -538,7 +557,7 @@ dependencies = [
 
 [[package]]
 name = "sley-tests"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "sley-check",
  "sley-id",
@@ -551,7 +570,7 @@ dependencies = [
 
 [[package]]
 name = "sley-txn"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "ed25519-dalek",
@@ -568,7 +587,7 @@ dependencies = [
 
 [[package]]
 name = "sley-vm"
-version = "2.0.1"
+version = "2.0.3"
 dependencies = [
  "blake3",
  "sha2",

@@ -116,14 +116,14 @@
     {
       "acceptance_evidence": "core/conformance pass with network disabled",
       "anti_goal": "network-dependent core tests",
-      "detail": "networking crates in the lock: none; the lock holds 60 crates in total",
+      "detail": "networking crates in the lock: none; the lock holds 61 crates in total",
       "state": "HOLDS",
       "surface": "network-isolated gate"
     },
     {
       "acceptance_evidence": "`unsafe_code=forbid`; any exception isolated by ADR/review",
       "anti_goal": "unsafe code hidden in kernel",
-      "detail": "workspace lint forbids unsafe: True; kernel sources with unsafe or an allow: none",
+      "detail": "workspace lint forbids unsafe: True; sources that use or permit unsafe code: none; exception isolated by ADR-0052: ['crates/sley-agent/src/allocator.rs']",
       "state": "HOLDS",
       "surface": "workspace lints and source scan"
     },
@@ -172,14 +172,14 @@
     {
       "acceptance_evidence": "no tag, upload, or deploy action outside the operator's recorded publication decision (`scripts/publication_authority.py`)",
       "anti_goal": "unauthorized publication/deploy/spend",
-      "detail": "git tags: 1; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
+      "detail": "git tags: 3; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
       "state": "HOLDS",
       "surface": "repo metadata and operator gate"
     }
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "8b1b65223edab4823ce5646a124791c440f8fa8fbdd2d552ed6b7ef19afea5fc",
+  "report_digest": "d9851c8d994530809def9ce796044a77acf9ed362ca526190e92df220182cb72",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

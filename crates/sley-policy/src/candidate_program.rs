@@ -123,9 +123,62 @@ pub(crate) struct OwnedFunctionUnit {
     pub(crate) operations: Vec<Operation>,
 }
 
+/// Where a projection failed (explain-only; never encoded): the entity
+/// being projected or walked and, for a failed reference, the dependency and
+/// its relationship tag.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ProgramLocus {
+    pub(crate) entity: EntityId,
+    pub(crate) dependency: Option<EntityId>,
+    pub(crate) relationship: Option<u32>,
+}
+
+fn projection_error_locus(
+    error: SemanticProjectionError,
+    objects: &[EntityObject],
+) -> Option<ProgramLocus> {
+    let at = |entity: EntityId| ProgramLocus {
+        entity,
+        dependency: None,
+        relationship: None,
+    };
+    match error {
+        SemanticProjectionError::ResourceLimit => None,
+        SemanticProjectionError::SetNotCanonical => objects
+            .windows(2)
+            .find(|pair| pair[0].record().entity_id >= pair[1].record().entity_id)
+            .map(|pair| at(pair[1].record().entity_id)),
+        SemanticProjectionError::OpcodeUnknown => objects.iter().find_map(|object| {
+            if let EntityBodyValue::Operation(body) = &object.record().body {
+                Opcode::from_tag(body.opcode)
+                    .is_none()
+                    .then(|| at(object.record().entity_id))
+            } else {
+                None
+            }
+        }),
+    }
+}
+
 impl CandidateProgram {
     pub(crate) fn project(objects: &[EntityObject]) -> Result<Self, CandidateProgramError> {
-        let inventory = project_semantic_inventory(objects)?;
+        Self::project_located(objects).map_err(|(error, _)| error)
+    }
+
+    /// `project`, also naming where a failure occurred. One code path serves
+    /// both, so the locus can never disagree with the refusal.
+    pub(crate) fn project_located(
+        objects: &[EntityObject],
+    ) -> Result<Self, (CandidateProgramError, Option<ProgramLocus>)> {
+        let at = |entity: EntityId| ProgramLocus {
+            entity,
+            dependency: None,
+            relationship: None,
+        };
+        // The shared projection returns the authoritative refusal. Locate
+        // that same refusal for workbench diagnostics without re-projecting.
+        let inventory = project_semantic_inventory(objects)
+            .map_err(|error| (error.into(), projection_error_locus(error, objects)))?;
         let mut program = Self {
             kinds: BTreeMap::new(),
             type_definitions: inventory.type_definitions,
@@ -175,7 +228,10 @@ impl CandidateProgram {
                 .insert(record.entity_id, record.body.kind_tag())
                 .is_some()
             {
-                return Err(CandidateProgramError::DuplicateEntity);
+                return Err((
+                    CandidateProgramError::DuplicateEntity,
+                    Some(at(record.entity_id)),
+                ));
             }
         }
 
@@ -183,9 +239,28 @@ impl CandidateProgram {
             kinds: &program.kinds,
             edges: BTreeSet::new(),
             work: 0,
+            attempted: None,
         };
         for object in objects {
-            collector.collect(object.record().entity_id, &object.record().body)?;
+            let entity = object.record().entity_id;
+            collector.attempted = None;
+            collector
+                .collect(entity, &object.record().body)
+                .map_err(|error| {
+                    let (dependency, relationship) = collector
+                        .attempted
+                        .map_or((None, None), |(dependency, tag)| {
+                            (Some(dependency), Some(tag))
+                        });
+                    (
+                        error,
+                        Some(ProgramLocus {
+                            entity,
+                            dependency,
+                            relationship,
+                        }),
+                    )
+                })?;
         }
         program.edges = collector.edges.into_iter().collect();
         program.graph_work = collector.work;
@@ -235,6 +310,15 @@ impl CandidateProgram {
     /// by their owning phases and refused at the phase 12 guard when
     /// well-formed (contract section 9).
     const EXCLUDED_OPERATION_OPCODES: [u32; 5] = [144, 145, 160, 161, 162];
+
+    /// The first operation `operation_analysis_supported` rejects, for an
+    /// explain-only locator.
+    pub(crate) fn first_unanalyzable_operation(&self) -> Option<EntityId> {
+        self.operations
+            .iter()
+            .find(|operation| Self::EXCLUDED_OPERATION_OPCODES.contains(&operation.opcode.tag()))
+            .map(|operation| operation.entity_id)
+    }
 
     pub(crate) fn operation_count(&self) -> u64 {
         self.operations.len() as u64
@@ -522,6 +606,10 @@ struct GraphCollector<'a> {
     kinds: &'a BTreeMap<EntityId, u16>,
     edges: BTreeSet<ProgramEdge>,
     work: u64,
+    /// The reference `add` is examining, for explain-only locators. It is
+    /// cleared once the reference is accepted, so a failure elsewhere never
+    /// names a reference that resolved.
+    attempted: Option<(EntityId, u32)>,
 }
 
 impl GraphCollector<'_> {
@@ -532,6 +620,7 @@ impl GraphCollector<'_> {
         relationship_tag: u32,
         expected_kinds: u32,
     ) -> Result<(), CandidateProgramError> {
+        self.attempted = Some((dependency, relationship_tag));
         charge(&mut self.work, 1)?;
         let actual = self
             .kinds
@@ -549,6 +638,7 @@ impl GraphCollector<'_> {
         if self.edges.len() > MAX_PROGRAM_EDGES {
             return Err(CandidateProgramError::ResourceLimit);
         }
+        self.attempted = None;
         Ok(())
     }
 
@@ -1177,8 +1267,41 @@ mod tests {
             }),
         );
         assert_eq!(
-            CandidateProgram::project(&[operation]).unwrap_err(),
+            CandidateProgram::project(std::slice::from_ref(&operation)).unwrap_err(),
             CandidateProgramError::OpcodeUnknown
+        );
+        assert_eq!(
+            CandidateProgram::project_located(&[operation]).unwrap_err(),
+            (
+                CandidateProgramError::OpcodeUnknown,
+                Some(ProgramLocus {
+                    entity: id(1),
+                    dependency: None,
+                    relationship: None,
+                }),
+            )
+        );
+    }
+
+    #[test]
+    fn shared_projection_locates_noncanonical_inventory() {
+        let namespace = || {
+            EntityBodyValue::Namespace(NamespaceBody {
+                parent: None,
+                members: EntityIdSet::from_unsorted(vec![]).unwrap(),
+            })
+        };
+        let objects = [object(id(2), namespace()), object(id(1), namespace())];
+        assert_eq!(
+            CandidateProgram::project_located(&objects).unwrap_err(),
+            (
+                CandidateProgramError::SetNotCanonical,
+                Some(ProgramLocus {
+                    entity: id(1),
+                    dependency: None,
+                    relationship: None,
+                }),
+            )
         );
     }
 
