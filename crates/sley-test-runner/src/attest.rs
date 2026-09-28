@@ -15,12 +15,14 @@ use sley_tests::{
 };
 
 use crate::config::RunnerConfig;
+use crate::config::sha256_bytes;
 use crate::enforce::{deadline_ns, floor_page_cap};
 use crate::ingress::AuthenticatedRunRequest;
+use crate::manager_oom::{ManagerOomClaimV1, RunManagerOomEvidence};
 use crate::outcome::{
     AdmissionRefusal, AttemptOutcome, ObservedTermination, Signer, SignerError, admit_for_signature,
 };
-use crate::owner::{OwnedTimeoutFacts, OwnedWorkerResult};
+use crate::owner::{OwnedOomFacts, OwnedTimeoutFacts, OwnedWorkerResult};
 use crate::protocol::{RunRequest, RunResponse, RunStatus};
 use crate::response::{RunEvidence, RunNoResultEvidence};
 use crate::unit::expected_supervisor_config;
@@ -162,6 +164,7 @@ fn sign_no_result(
         code,
         evidence: None,
         no_result: Some(no_result),
+        manager_oom: None,
     };
     request
         .verified_no_result_evidence(&response, caller_uid)
@@ -247,6 +250,87 @@ pub fn sign_measured_timeout(
             memory_events: facts.telemetry.memory_events,
         },
     )
+}
+
+/// Signs a separately typed, manager-observed OOM after the owner verified
+/// exact unit settings, retained OOM result, SIGKILL status, and empty cgroup.
+/// No cgroup event counters are asserted by this diagnostic.
+///
+/// # Errors
+/// Refuses a mismatched cap or peak, invalid request, absent trust, clock
+/// failure, or signer failure.
+pub fn sign_manager_oom(
+    config: &RunnerConfig,
+    authenticated: &AuthenticatedRunRequest,
+    facts: OwnedOomFacts,
+    trust: &HistoricalTrustPolicyV1,
+    signer: &dyn Signer,
+    code: u32,
+) -> Result<RunResponse, AttestationError> {
+    if code != crate::service::RUN_FAILURE_MANAGER_OOM {
+        return Err(AttestationError::Binding(ScbErrorCode::ContractUnknown));
+    }
+    let request = authenticated.request();
+    request
+        .verified_program()
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let (_, installed_cap) = floor_page_cap(request.declared_limits.memory_bytes, config.page_size)
+        .map_err(|_| AttestationError::Binding(ScbErrorCode::ResourceLimit))?;
+    if facts.manager.memory_peak == 0 || facts.manager.memory_peak > installed_cap {
+        return Err(AttestationError::Binding(ScbErrorCode::ContractUnknown));
+    }
+    let supervisor_config = expected_supervisor_config(config, request, authenticated.caller_uid())
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let recorded_unix_millis = u64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| AttestationError::ClockUnavailable)?
+            .as_millis(),
+    )
+    .map_err(|_| AttestationError::ClockUnavailable)?;
+    let key_id = signer.public_key();
+    if !trust.grants(
+        &key_id,
+        ROLE_MEASUREMENT,
+        request.workspace.as_bytes(),
+        supervisor_config.id().as_bytes(),
+        recorded_unix_millis,
+    ) {
+        return Err(AttestationError::TrustRejected);
+    }
+    let request_frame = request
+        .encode_frame()
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let mut claim = ManagerOomClaimV1 {
+        request_sha256: sha256_bytes(&request_frame),
+        caller_uid: authenticated.caller_uid(),
+        key_id,
+        trust_policy_id: *trust.id().as_bytes(),
+        supervisor_config_id: *supervisor_config.id().as_bytes(),
+        installed_memory_cap: installed_cap,
+        memory_peak: facts.manager.memory_peak,
+        exec_main_pid: facts.manager.exec_main_pid,
+        elapsed_ns: facts.elapsed_ns,
+        recorded_unix_millis,
+        signature: [0; 64],
+    };
+    let preimage = claim
+        .signature_preimage()
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    claim.signature = signer.sign(&preimage).map_err(AttestationError::Signing)?;
+    let evidence = RunManagerOomEvidence::build(claim, supervisor_config)
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let response = RunResponse {
+        status: RunStatus::Failed,
+        code,
+        evidence: None,
+        no_result: None,
+        manager_oom: Some(evidence),
+    };
+    request
+        .verified_manager_oom_evidence(&response, authenticated.caller_uid())
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    Ok(response)
 }
 
 /// Signs a completed, already reaped worker attempt under provisioned trust.
@@ -348,6 +432,7 @@ pub fn sign_complete_attempt(
         code: 0,
         evidence: Some(evidence),
         no_result: None,
+        manager_oom: None,
     };
     request
         .verified_response_evidence(&response, caller_uid)
@@ -372,6 +457,7 @@ mod tests {
     use super::*;
     use crate::config::{AllowedCaller, default_config};
     use crate::ingress::authenticate_request;
+    use crate::manager::ReapedOomWorker;
     use crate::outcome::Ed25519MeasurementSigner;
     use crate::phase::GatedWorkerResult;
     use crate::program::PortableTestProgram;
@@ -562,6 +648,78 @@ mod tests {
         assert_eq!(
             sign_measured_timeout(&config, &authenticated, facts, &trust, &signer, 1),
             Err(AttestationError::Binding(ScbErrorCode::ContractUnknown))
+        );
+    }
+
+    #[test]
+    fn manager_oom_is_signed_without_claiming_cgroup_counters_or_a_report() {
+        let (config, authenticated, _, signer) = fixture();
+        let request = authenticated.request();
+        let profile = *expected_supervisor_config(&config, request, authenticated.caller_uid())
+            .expect("config profile")
+            .id()
+            .as_bytes();
+        let trust = trust(request, &signer, ROLE_MEASUREMENT, profile);
+        let facts = OwnedOomFacts {
+            manager: ReapedOomWorker {
+                exec_main_pid: 123,
+                memory_peak: 4_096,
+            },
+            elapsed_ns: 1,
+        };
+        let response = sign_manager_oom(
+            &config,
+            &authenticated,
+            facts,
+            &trust,
+            &signer,
+            crate::service::RUN_FAILURE_MANAGER_OOM,
+        )
+        .expect("signed manager OOM");
+        assert!(response.evidence.is_none());
+        assert!(response.no_result.is_none());
+        let frame = response.encode_frame().expect("bounded response");
+        let parsed = RunResponse::decode_frame(&frame).expect("canonical response");
+        let evidence = request
+            .verified_manager_oom_evidence(&parsed, authenticated.caller_uid())
+            .expect("exact request binding");
+        let claim = evidence.claim();
+        assert_eq!(claim.memory_peak, 4_096);
+        assert_eq!(claim.exec_main_pid, 123);
+        let preimage = claim.signature_preimage().expect("preimage");
+        VerifyingKey::from_bytes(&claim.key_id)
+            .expect("public key")
+            .verify_strict(&preimage, &Signature::from_bytes(&claim.signature))
+            .expect("signature verifies");
+        let mut wrong_nonce = request.clone();
+        wrong_nonce.nonce[0] ^= 1;
+        assert!(
+            wrong_nonce
+                .verified_manager_oom_evidence(&parsed, authenticated.caller_uid())
+                .is_err()
+        );
+        assert!(
+            request
+                .verified_manager_oom_evidence(&parsed, authenticated.caller_uid() + 1)
+                .is_err()
+        );
+        let dirty = OwnedOomFacts {
+            manager: ReapedOomWorker {
+                memory_peak: 8_192,
+                ..facts.manager
+            },
+            ..facts
+        };
+        assert!(
+            sign_manager_oom(
+                &config,
+                &authenticated,
+                dirty,
+                &trust,
+                &signer,
+                crate::service::RUN_FAILURE_MANAGER_OOM,
+            )
+            .is_err()
         );
     }
 

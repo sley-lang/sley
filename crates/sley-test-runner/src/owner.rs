@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use crate::channel::check_peer_connected;
 use crate::config::{BinaryPinError, RunnerConfig, UNIT_PREFIX};
 use crate::enforce::{REAP_BUDGET_USEC, check_elapsed};
-use crate::manager::confirm_system_unit_reaped;
+use crate::manager::{ReapedOomWorker, confirm_system_unit_reaped, verify_reaped_oom_unit};
 use crate::phase::{GatedWorkerResult, PhaseError, run_system_unit_phase};
 use crate::unit::{TransientUnit, render_transient_unit};
 
@@ -37,6 +37,9 @@ pub enum OwnerError {
     /// The deadline was observed with clean live counters, and the launched
     /// unit was killed and confirmed empty before returning these facts.
     MeasuredTimeout(OwnedTimeoutFacts),
+    /// The exact installed unit failed with manager-observed OOM and was
+    /// confirmed empty; cgroup event counters were already unavailable.
+    ManagerOom(OwnedOomFacts),
     /// The requesting peer was lost after the gated phase.
     PeerLost,
     /// Worker launcher exited nonzero after a complete report.
@@ -57,6 +60,7 @@ impl core::fmt::Display for OwnerError {
             Self::LaunchFailure => "NATIVE_OWNER_LAUNCH_FAILED",
             Self::Phase(_) => "NATIVE_OWNER_PHASE_REFUSED",
             Self::MeasuredTimeout(_) => "NATIVE_OWNER_MEASURED_TIMEOUT",
+            Self::ManagerOom(_) => "NATIVE_OWNER_MANAGER_OOM",
             Self::PeerLost => "NATIVE_OWNER_PEER_LOST",
             Self::WorkerExit => "NATIVE_OWNER_WORKER_EXIT",
             Self::Deadline => "NATIVE_OWNER_DEADLINE",
@@ -81,6 +85,15 @@ pub struct OwnedWorkerResult {
 pub struct OwnedTimeoutFacts {
     /// Last verified live cgroup sample at the report deadline.
     pub telemetry: crate::telemetry::LiveTelemetrySample,
+    /// Monotonic launch-through-confirmed-reap duration.
+    pub elapsed_ns: u64,
+}
+
+/// Trusted manager facts captured after a verified OOM and confirmed reap.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OwnedOomFacts {
+    /// Typed manager result for the exact rendered worker unit.
+    pub manager: ReapedOomWorker,
     /// Monotonic launch-through-confirmed-reap duration.
     pub elapsed_ns: u64,
 }
@@ -305,11 +318,27 @@ pub fn run_owned_system_unit(
         }
         Err(error) => {
             guard.abort()?;
+            if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, None) {
+                let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+                    .map_err(|_| OwnerError::InvalidDeadline)?;
+                return Err(OwnerError::ManagerOom(OwnedOomFacts {
+                    manager,
+                    elapsed_ns,
+                }));
+            }
             return Err(OwnerError::Phase(error));
         }
     };
     if let Err(error) = guard.finish(peer, deadline) {
         guard.abort()?;
+        if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, None) {
+            let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+                .map_err(|_| OwnerError::InvalidDeadline)?;
+            return Err(OwnerError::ManagerOom(OwnedOomFacts {
+                manager,
+                elapsed_ns,
+            }));
+        }
         return Err(error);
     }
     let elapsed_ns =

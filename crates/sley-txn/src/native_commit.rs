@@ -440,6 +440,8 @@ pub enum SupervisorEvidenceError {
         /// Stable supervisor refusal or failure code.
         code: u32,
     },
+    /// Trusted manager-observed OOM with no worker report or cgroup counters.
+    SignedManagerOom,
     /// The signed measurement lacks receiver trust or has an invalid signature.
     MeasurementTrust(NativeCommitError),
 }
@@ -463,6 +465,27 @@ pub fn verified_supervisor_execution(
 ) -> Result<ExecutedNativeTest, SupervisorEvidenceError> {
     let response = RunResponse::decode_frame(response_frame)
         .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+    if response.manager_oom.is_some() {
+        let evidence = request
+            .verified_manager_oom_evidence(&response, caller_uid)
+            .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+        let claim = evidence.claim();
+        verify_measurement_trust(
+            &claim.key_id,
+            &claim.trust_policy_id,
+            request.workspace,
+            &claim.supervisor_config_id,
+            claim.recorded_unix_millis,
+            measurement_trust,
+        )
+        .map_err(SupervisorEvidenceError::MeasurementTrust)?;
+        let preimage = claim
+            .signature_preimage()
+            .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+        verify_ed25519_signature(&claim.key_id, &preimage, &claim.signature)
+            .map_err(SupervisorEvidenceError::MeasurementTrust)?;
+        return Err(SupervisorEvidenceError::SignedManagerOom);
+    }
     if response.no_result.is_some() {
         let evidence = request
             .verified_no_result_evidence(&response, caller_uid)
@@ -1516,6 +1539,7 @@ mod tests {
                 RunEvidence::build(report, attestation, config).expect("bound evidence"),
             ),
             no_result: None,
+            manager_oom: None,
         };
         (request, response, trust)
     }
@@ -1600,6 +1624,67 @@ mod tests {
             )
             .expect("tampered no-result pair"),
         );
+        assert_eq!(
+            verified_supervisor_execution(
+                &request,
+                &response.encode_frame().expect("tampered frame"),
+                1_000,
+                &trust,
+            ),
+            Err(SupervisorEvidenceError::MeasurementTrust(
+                NativeCommitError::TrustRejected
+            ))
+        );
+    }
+
+    #[test]
+    fn signed_manager_oom_is_resource_failure_only_after_exact_binding_and_trust() {
+        use sley_test_runner::{
+            config::sha256_bytes,
+            manager_oom::{ManagerOomClaimV1, RunManagerOomEvidence},
+            service::RUN_FAILURE_MANAGER_OOM,
+        };
+
+        let (request, mut response, trust) = signed_diagnostic_fixture();
+        let old = response.evidence.take().expect("worker evidence");
+        let key = SigningKey::from_bytes(&[3; 32]);
+        let mut claim = ManagerOomClaimV1 {
+            request_sha256: sha256_bytes(&request.encode_frame().expect("request frame")),
+            caller_uid: 1_000,
+            key_id: key.verifying_key().to_bytes(),
+            trust_policy_id: *trust.id().as_bytes(),
+            supervisor_config_id: *old.supervisor_config().id().as_bytes(),
+            installed_memory_cap: 4_096,
+            memory_peak: 4_096,
+            exec_main_pid: 123,
+            elapsed_ns: 1,
+            recorded_unix_millis: 1,
+            signature: [0; 64],
+        };
+        claim.signature = key
+            .sign(&claim.signature_preimage().expect("OOM preimage"))
+            .to_bytes();
+        let config = old.supervisor_config().clone();
+        response.status = RunStatus::Failed;
+        response.code = RUN_FAILURE_MANAGER_OOM;
+        response.manager_oom =
+            Some(RunManagerOomEvidence::build(claim, config.clone()).expect("OOM evidence"));
+        let frame = response.encode_frame().expect("OOM frame");
+        assert_eq!(
+            verified_supervisor_execution(&request, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::SignedManagerOom)
+        );
+        let mut wrong_nonce = request.clone();
+        wrong_nonce.nonce[0] ^= 1;
+        assert_eq!(
+            verified_supervisor_execution(&wrong_nonce, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::InvalidResponse(
+                ScbErrorCode::ContractUnknown
+            ))
+        );
+        claim.signature[0] ^= 1;
+        response.manager_oom =
+            Some(RunManagerOomEvidence::build(claim, config).expect("tampered OOM evidence"));
         assert_eq!(
             verified_supervisor_execution(
                 &request,
@@ -1840,6 +1925,7 @@ mod tests {
             code: 7,
             evidence: None,
             no_result: None,
+            manager_oom: None,
         };
         assert_eq!(
             verified_supervisor_execution(
@@ -1922,6 +2008,7 @@ mod tests {
                 RunEvidence::build(report.clone(), attestation, config).expect("evidence"),
             ),
             no_result: None,
+            manager_oom: None,
         };
         let frame = response.encode_frame().expect("complete frame");
         let executed = verified_supervisor_execution(&request, &frame, 1_000, &trust)

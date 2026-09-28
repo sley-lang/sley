@@ -17,12 +17,13 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use sley_tests::ROLE_MEASUREMENT;
 
 use crate::attest::{
-    AttestationError, sign_complete_attempt, sign_measured_timeout, sign_prelaunch_refusal,
+    AttestationError, sign_complete_attempt, sign_manager_oom, sign_measured_timeout,
+    sign_prelaunch_refusal,
 };
 use crate::config::RunnerConfig;
 use crate::enforce::EnforceError;
-use crate::ingress::{IngressError, authenticate_request};
-use crate::owner::{OwnerError, run_owned_system_unit};
+use crate::ingress::{AuthenticatedRunRequest, IngressError, authenticate_request};
+use crate::owner::{OwnedWorkerResult, OwnerError, run_owned_system_unit};
 use crate::protocol::{RunResponse, RunStatus};
 use crate::stage::{StageError, stage_worker_input};
 use crate::trust_store::ProvisionedMeasurementAuthority;
@@ -44,6 +45,8 @@ pub const RUN_REFUSAL_WALL_UNSUPPORTED: u32 = 5;
 pub const MIN_SUPPORTED_WALL_MILLIS: u64 = 1_000;
 /// Stable failed-run code for a sampled wall deadline with confirmed teardown.
 pub const RUN_FAILURE_WALL_TIMEOUT: u32 = 1;
+/// Stable failed-run code for a signed, exact manager-observed OOM after reap.
+pub const RUN_FAILURE_MANAGER_OOM: u32 = 2;
 /// Hard deadline for writing one complete bounded supervisor response.
 pub const RESPONSE_WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -120,6 +123,43 @@ fn write_response(stream: &mut UnixStream, response: &RunResponse) -> Result<(),
     Ok(())
 }
 
+fn response_for_owned_result(
+    result: Result<OwnedWorkerResult, OwnerError>,
+    config: &RunnerConfig,
+    authenticated: &AuthenticatedRunRequest,
+    authority: &ProvisionedMeasurementAuthority,
+) -> Result<RunResponse, ServiceError> {
+    match result {
+        Ok(result) => sign_complete_attempt(
+            config,
+            authenticated,
+            result,
+            authority.trust(),
+            authority.signer(),
+        )
+        .map_err(ServiceError::Attestation),
+        Err(OwnerError::MeasuredTimeout(facts)) => sign_measured_timeout(
+            config,
+            authenticated,
+            facts,
+            authority.trust(),
+            authority.signer(),
+            RUN_FAILURE_WALL_TIMEOUT,
+        )
+        .map_err(ServiceError::Attestation),
+        Err(OwnerError::ManagerOom(facts)) => sign_manager_oom(
+            config,
+            authenticated,
+            facts,
+            authority.trust(),
+            authority.signer(),
+            RUN_FAILURE_MANAGER_OOM,
+        )
+        .map_err(ServiceError::Attestation),
+        Err(error) => Err(ServiceError::Owner(error)),
+    }
+}
+
 /// Handles one already accepted socket connection, always refusing execution.
 ///
 /// # Errors
@@ -142,6 +182,7 @@ pub fn handle_connection(
         code,
         evidence: None,
         no_result: None,
+        manager_oom: None,
     };
     write_response(stream, &response)
 }
@@ -175,6 +216,7 @@ pub fn handle_root_connection(
                 code: RUN_REFUSAL_PROGRAM_INVALID,
                 evidence: None,
                 no_result: None,
+                manager_oom: None,
             },
         );
     }
@@ -202,6 +244,7 @@ pub fn handle_root_connection(
                 code: RUN_REFUSAL_TRUST_NOT_GRANTED,
                 evidence: None,
                 no_result: None,
+                manager_oom: None,
             },
         );
     }
@@ -241,26 +284,7 @@ pub fn handle_root_connection(
         return Err(ServiceError::CleanupUnconfirmed);
     }
     removal.map_err(ServiceError::Stage)?;
-    let response = match result {
-        Ok(result) => sign_complete_attempt(
-            config,
-            &authenticated,
-            result,
-            authority.trust(),
-            authority.signer(),
-        )
-        .map_err(ServiceError::Attestation)?,
-        Err(OwnerError::MeasuredTimeout(facts)) => sign_measured_timeout(
-            config,
-            &authenticated,
-            facts,
-            authority.trust(),
-            authority.signer(),
-            RUN_FAILURE_WALL_TIMEOUT,
-        )
-        .map_err(ServiceError::Attestation)?,
-        Err(error) => return Err(ServiceError::Owner(error)),
-    };
+    let response = response_for_owned_result(result, config, &authenticated, authority)?;
     write_response(stream, &response)
 }
 
@@ -422,6 +446,7 @@ mod tests {
                 code: RUN_REFUSAL_EXECUTION_NOT_WIRED,
                 evidence: None,
                 no_result: None,
+                manager_oom: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");
@@ -489,6 +514,7 @@ mod tests {
                 code: RUN_REFUSAL_PROGRAM_INVALID,
                 evidence: None,
                 no_result: None,
+                manager_oom: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");
@@ -529,6 +555,7 @@ mod tests {
                 code: RUN_REFUSAL_PROGRAM_INVALID,
                 evidence: None,
                 no_result: None,
+                manager_oom: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");
@@ -564,6 +591,7 @@ mod tests {
                 code: RUN_REFUSAL_TRUST_NOT_GRANTED,
                 evidence: None,
                 no_result: None,
+                manager_oom: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");

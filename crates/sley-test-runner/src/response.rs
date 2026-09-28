@@ -274,7 +274,10 @@ fn measurement_matches_request(
         })
 }
 
-fn expected_config_cap(request: &RunRequest, config: &SupervisorConfigV1) -> Result<u64, ScbError> {
+pub(crate) fn expected_config_cap(
+    request: &RunRequest,
+    config: &SupervisorConfigV1,
+) -> Result<u64, ScbError> {
     let config_parts = config.parts();
     if !config_parts.page_size.is_power_of_two() {
         return Err(mismatch());
@@ -317,6 +320,9 @@ impl RunRequest {
         caller_uid: u32,
     ) -> Result<&'a RunEvidence, ScbError> {
         if response.status == RunStatus::Refused {
+            return Err(mismatch());
+        }
+        if response.manager_oom.is_some() || response.no_result.is_some() {
             return Err(mismatch());
         }
         let evidence = response.evidence.as_ref().ok_or_else(mismatch)?;
@@ -371,7 +377,7 @@ impl RunRequest {
         caller_uid: u32,
     ) -> Result<&'a RunNoResultEvidence, ScbError> {
         let evidence = response.no_result.as_ref().ok_or_else(mismatch)?;
-        if response.evidence.is_some() {
+        if response.evidence.is_some() || response.manager_oom.is_some() {
             return Err(mismatch());
         }
         self.verified_program()?;
@@ -514,6 +520,7 @@ mod tests {
                 code: 0,
                 evidence: Some(evidence),
                 no_result: None,
+                manager_oom: None,
             },
         )
     }
@@ -748,6 +755,7 @@ mod tests {
             code: 4,
             evidence: None,
             no_result: Some(no_result.clone()),
+            manager_oom: None,
         };
         let frame = response.encode_frame().expect("no-result frame");
         let decoded = RunResponse::decode_frame(&frame).expect("canonical response");

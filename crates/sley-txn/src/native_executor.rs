@@ -153,7 +153,8 @@ fn client_failure(error: ClientError) -> NativeCommitError {
 
 fn evidence_failure(error: SupervisorEvidenceError) -> NativeCommitError {
     match error {
-        SupervisorEvidenceError::SignedNoResult {
+        SupervisorEvidenceError::SignedManagerOom
+        | SupervisorEvidenceError::SignedNoResult {
             status: RunStatus::Refused,
             termination: TERMINATION_PRELAUNCH_REFUSED,
             code: RUN_REFUSAL_WALL_UNSUPPORTED,
@@ -215,6 +216,10 @@ mod tests {
 
     #[test]
     fn uncertain_transport_and_evidence_remain_unknown() {
+        assert_eq!(
+            evidence_failure(SupervisorEvidenceError::SignedManagerOom),
+            NativeCommitError::ResourceRefused
+        );
         assert_eq!(
             client_failure(ClientError::ConnectFailure),
             NativeCommitError::ExecutorUnavailable

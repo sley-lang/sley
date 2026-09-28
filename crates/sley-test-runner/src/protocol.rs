@@ -9,8 +9,9 @@
 //! Field 4 is an optional candidate identity because explicit-root plans
 //! have no candidate. Field 13 carries the exact bounded worker frame so
 //! the daemon can stage it read-only after authenticating the outer scope.
-//! Response version 3 distinguishes a bounded worker-report triple from a
-//! signed no-result host diagnostic pair. Every triple names its actual
+//! Response version 3 distinguishes a bounded worker-report triple, a
+//! signed no-result host diagnostic pair, and a separate signed manager OOM
+//! diagnostic without unavailable cgroup counters. Every triple names its actual
 //! worker report; a host failure cannot borrow a VM-owned rejection report.
 //! Parsing either form never grants signature trust or native test admission.
 //! This private format has not shipped in a public release.
@@ -24,6 +25,7 @@ use sley_vm::{
 };
 
 use crate::config::{MAX_REQUEST_BYTES, MAX_WORKER_OUTPUT_BYTES};
+use crate::manager_oom::RunManagerOomEvidence;
 use crate::program::PortableTestProgram;
 use crate::response::{MAX_RESPONSE_FRAME_BYTES, RunEvidence, RunNoResultEvidence};
 use crate::worker::WorkerRequest;
@@ -114,6 +116,9 @@ pub struct RunResponse {
     /// Signed host diagnostic with no worker report. It cannot cover a test
     /// receipt and must never coexist with `evidence`.
     pub no_result: Option<RunNoResultEvidence>,
+    /// Signed manager-observed OOM after confirmed worker reap, without
+    /// cgroup event counters or a native execution report.
+    pub manager_oom: Option<RunManagerOomEvidence>,
 }
 
 fn declared_record(limits: NativeDeclaredLimits) -> Result<Vec<u8>, ScbError> {
@@ -425,6 +430,7 @@ impl RunResponse {
             RunStatus::Complete
                 if self.code == 0
                     && self.no_result.is_none()
+                    && self.manager_oom.is_none()
                     && self
                         .evidence
                         .as_ref()
@@ -435,6 +441,7 @@ impl RunResponse {
             RunStatus::Refused
                 if self.code != 0
                     && self.evidence.is_none()
+                    && self.manager_oom.is_none()
                     && self.no_result.as_ref().is_none_or(|evidence| {
                         evidence.attestation().parts().termination
                             == sley_tests::TERMINATION_PRELAUNCH_REFUSED
@@ -445,6 +452,11 @@ impl RunResponse {
             RunStatus::Failed
                 if self.code != 0
                     && !(self.evidence.is_some() && self.no_result.is_some())
+                    && self.manager_oom.as_ref().is_none_or(|_| {
+                        self.evidence.is_none()
+                            && self.no_result.is_none()
+                            && self.code == crate::service::RUN_FAILURE_MANAGER_OOM
+                    })
                     && self.no_result.as_ref().is_none_or(|evidence| {
                         evidence.attestation().parts().termination
                             > sley_tests::TERMINATION_PRELAUNCH_REFUSED
@@ -464,11 +476,12 @@ impl RunResponse {
     /// or an oversized response frame.
     pub fn encode_frame(&self) -> Result<Vec<u8>, ScbError> {
         self.validate_shape()?;
-        let evidence = match (&self.evidence, &self.no_result) {
-            (None, None) => encode_union(0, &[])?,
-            (Some(value), None) => encode_union(1, &value.encode_record()?)?,
-            (None, Some(value)) => encode_union(2, &value.encode_record()?)?,
-            (Some(_), Some(_)) => return Err(ScbError::new(ScbErrorCode::ContractUnknown)),
+        let evidence = match (&self.evidence, &self.no_result, &self.manager_oom) {
+            (None, None, None) => encode_union(0, &[])?,
+            (Some(value), None, None) => encode_union(1, &value.encode_record()?)?,
+            (None, Some(value), None) => encode_union(2, &value.encode_record()?)?,
+            (None, None, Some(value)) => encode_union(3, &value.encode_record()?)?,
+            _ => return Err(ScbError::new(ScbErrorCode::ContractUnknown)),
         };
         let record = encode_record(&[
             (1, encode_uvar(RUN_RESPONSE_VERSION)),
@@ -534,12 +547,18 @@ impl RunResponse {
         let mut evidence_cursor = ScbValueCursor::new(&values[3])?;
         let (evidence_tag, evidence_bytes) = evidence_cursor.read_union()?;
         evidence_cursor.check_finished()?;
-        let (evidence, no_result) = match evidence_tag {
-            0 if evidence_bytes.is_empty() => (None, None),
-            1 => (Some(RunEvidence::parse_record(evidence_bytes)?), None),
+        let (evidence, no_result, manager_oom) = match evidence_tag {
+            0 if evidence_bytes.is_empty() => (None, None, None),
+            1 => (Some(RunEvidence::parse_record(evidence_bytes)?), None, None),
             2 => (
                 None,
                 Some(RunNoResultEvidence::parse_record(evidence_bytes)?),
+                None,
+            ),
+            3 => (
+                None,
+                None,
+                Some(RunManagerOomEvidence::parse_record(evidence_bytes)?),
             ),
             _ => return Err(ScbError::new(ScbErrorCode::UnionInvalid)),
         };
@@ -548,6 +567,7 @@ impl RunResponse {
             code,
             evidence,
             no_result,
+            manager_oom,
         };
         response.validate_shape()?;
         Ok(response)
@@ -720,6 +740,7 @@ mod tests {
             code: 0,
             evidence: None,
             no_result: None,
+            manager_oom: None,
         };
         assert_eq!(
             incomplete
@@ -733,6 +754,7 @@ mod tests {
             code: 7,
             evidence: None,
             no_result: None,
+            manager_oom: None,
         };
         let frame = refused.encode_frame().expect("encodes");
         assert_eq!(RunResponse::decode_frame(&frame).expect("decodes"), refused);
