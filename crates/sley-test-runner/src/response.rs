@@ -9,11 +9,13 @@
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record};
 use sley_tests::{
     MeasuredTestAttestationV1, NativeExecutionEvidence, NativeExecutionReportV1,
-    SupervisorConfigV1, TERMINATION_COMPLETE, TERMINATION_PRELAUNCH_REFUSED,
+    SupervisorConfigV1, TERMINATION_COMPLETE, TERMINATION_PRELAUNCH_REFUSED, TERMINATION_TIMEOUT,
 };
 
 use crate::config::MAX_WORKER_OUTPUT_BYTES;
-use crate::enforce::{check_elapsed, check_memory_evidence, floor_page_cap, runtime_max_usec};
+use crate::enforce::{
+    check_elapsed, check_memory_evidence, deadline_ns, floor_page_cap, runtime_max_usec,
+};
 use crate::protocol::{RunRequest, RunResponse, RunStatus};
 
 /// Maximum response-embedded measurement attestation bytes.
@@ -394,7 +396,20 @@ impl RunRequest {
                 Ok(evidence)
             }
             RunStatus::Failed
+                if attestation.parts().termination == TERMINATION_TIMEOUT
+                    && attestation.installed_memory_cap() == expected_cap
+                    && attestation.measured_memory_peak() <= expected_cap
+                    && attestation.memory_events().max == 0
+                    && attestation.memory_events().oom == 0
+                    && attestation.memory_events().oom_kill == 0
+                    && deadline_ns(self.wall_ms)
+                        .is_ok_and(|bound| attestation.elapsed_ns() >= bound) =>
+            {
+                Ok(evidence)
+            }
+            RunStatus::Failed
                 if attestation.parts().termination > TERMINATION_PRELAUNCH_REFUSED
+                    && attestation.parts().termination != TERMINATION_TIMEOUT
                     && attestation.installed_memory_cap() == expected_cap =>
             {
                 Ok(evidence)

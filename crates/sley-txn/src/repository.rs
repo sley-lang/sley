@@ -24099,6 +24099,19 @@ mod native_commit_tests {
         }
     }
 
+    /// Test-only stand-in for a trusted, confirmed native resource refusal.
+    struct ResourceRefusingExecutor;
+
+    impl NativeTestExecutor for ResourceRefusingExecutor {
+        fn execute(
+            &self,
+            _plan: &NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            Err(NativeCommitError::ResourceRefused)
+        }
+    }
+
     /// Test-only executor producing synthetic rejected diagnostics per
     /// selected test: coherent no-result pairs (rejected report, attestation
     /// without an execution report) that never claim a real run.
@@ -25088,6 +25101,44 @@ mod native_commit_tests {
             .expect_err("no blind retry");
         assert_eq!(retry.code(), NativeCommitError::OutcomeUnknown.symbol());
         assert_eq!(executor.invocations.get(), 1);
+    }
+
+    #[test]
+    fn confirmed_resource_refusal_aborts_before_promotion_and_preserves_head() {
+        let fixture = Fixture::new("native-confirmed-resource-refusal");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            45,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(45),
+                Some(&ResourceRefusingExecutor),
+            ))
+            .expect_err("trusted resource refusal");
+        assert_eq!(error.code(), NativeCommitError::ResourceRefused.symbol());
+        assert_eq!(
+            AttemptRecord::parse(
+                &std::fs::read(attempt_path(fixture.repository.root(), attempt(45))).unwrap()
+            )
+            .unwrap()
+            .state,
+            AttemptState::AbortedBeforePromotion
+        );
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
     }
 
     #[test]

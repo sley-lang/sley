@@ -304,6 +304,9 @@ pub enum NativeCommitError {
     /// Checkpoint expiry or disconnect before promotion; safe to retry after
     /// reconciling history.
     AbortedRetrySafe,
+    /// Trusted measurement says a resource bound ended the worker, with
+    /// confirmed teardown and no native test result to admit.
+    ResourceRefused,
     /// Failure during or after promotion, or lost preservation error after
     /// launch; query history, never resubmit blindly.
     OutcomeUnknown,
@@ -328,6 +331,7 @@ impl NativeCommitError {
             Self::ExecutorUnavailable => "NATIVE_EXECUTOR_UNAVAILABLE",
             Self::BusyRetrySafe => "NATIVE_COMMIT_BUSY_RETRY_SAFE",
             Self::AbortedRetrySafe => "NATIVE_COMMIT_ABORTED_RETRY_SAFE",
+            Self::ResourceRefused => "NATIVE_TEST_RESOURCE_REFUSED",
             Self::OutcomeUnknown => "NATIVE_COMMIT_OUTCOME_UNKNOWN",
             Self::AttemptConflict => "NATIVE_ATTEMPT_CONFLICT",
             Self::JournalCorrupt => "NATIVE_JOURNAL_CORRUPT",
@@ -1610,6 +1614,69 @@ mod tests {
     }
 
     #[test]
+    fn trusted_timeout_pair_is_classified_without_execution_evidence() {
+        use sley_test_runner::response::RunNoResultEvidence;
+        use sley_tests::{
+            TERMINATION_TIMEOUT, measurement_signature_preimage, unsigned_record_prefix,
+        };
+
+        let (request, mut response, trust) = signed_diagnostic_fixture();
+        let old = response.evidence.take().expect("worker evidence");
+        let mut parts = old.attestation().parts().clone();
+        parts.execution_report_id = None;
+        parts.elapsed_ns = request.wall_ms * 1_000_000;
+        parts.termination = TERMINATION_TIMEOUT;
+        parts.complete_output = false;
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned timeout");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        parts.signature = SigningKey::from_bytes(&[3; 32]).sign(&preimage).to_bytes();
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("signed timeout"),
+                old.supervisor_config().clone(),
+            )
+            .expect("no-result pair"),
+        );
+        response.status = RunStatus::Failed;
+        response.code = 1;
+        let frame = response.encode_frame().expect("timeout frame");
+        assert_eq!(
+            verified_supervisor_execution(&request, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::SignedNoResult {
+                status: RunStatus::Failed,
+                termination: TERMINATION_TIMEOUT,
+                code: 1,
+            })
+        );
+        let old = response.no_result.take().expect("timeout pair");
+        let mut parts = old.attestation().parts().clone();
+        parts.elapsed_ns -= 1;
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned early timeout");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        parts.signature = SigningKey::from_bytes(&[3; 32]).sign(&preimage).to_bytes();
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("early timeout"),
+                old.supervisor_config().clone(),
+            )
+            .expect("early timeout pair"),
+        );
+        assert_eq!(
+            verified_supervisor_execution(
+                &request,
+                &response.encode_frame().expect("early timeout frame"),
+                1_000,
+                &trust,
+            ),
+            Err(SupervisorEvidenceError::InvalidResponse(
+                ScbErrorCode::ContractUnknown
+            ))
+        );
+    }
+
+    #[test]
     #[allow(clippy::too_many_lines)]
     fn supervisor_response_requires_exact_binding_and_trusted_signature() {
         use sley_test_runner::response::RunEvidence;
@@ -1993,6 +2060,10 @@ mod tests {
             (
                 NativeCommitError::AbortedRetrySafe,
                 "NATIVE_COMMIT_ABORTED_RETRY_SAFE",
+            ),
+            (
+                NativeCommitError::ResourceRefused,
+                "NATIVE_TEST_RESOURCE_REFUSED",
             ),
             (
                 NativeCommitError::OutcomeUnknown,

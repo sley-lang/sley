@@ -16,7 +16,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use sley_tests::ROLE_MEASUREMENT;
 
-use crate::attest::{AttestationError, sign_complete_attempt, sign_prelaunch_refusal};
+use crate::attest::{
+    AttestationError, sign_complete_attempt, sign_measured_timeout, sign_prelaunch_refusal,
+};
 use crate::config::RunnerConfig;
 use crate::enforce::EnforceError;
 use crate::ingress::{IngressError, authenticate_request};
@@ -40,6 +42,8 @@ pub const RUN_REFUSAL_WALL_UNSUPPORTED: u32 = 5;
 /// This initial systemd profile has only been observed to complete native
 /// tests at a one-second wall budget; shorter requests refuse before launch.
 pub const MIN_SUPPORTED_WALL_MILLIS: u64 = 1_000;
+/// Stable failed-run code for a sampled wall deadline with confirmed teardown.
+pub const RUN_FAILURE_WALL_TIMEOUT: u32 = 1;
 /// Hard deadline for writing one complete bounded supervisor response.
 pub const RESPONSE_WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -146,10 +150,10 @@ pub fn handle_connection(
 ///
 /// Invalid selected programs receive a closed prelaunch refusal. Unsupported
 /// short wall budgets and staging failures under provisioned trust receive a
-/// signed no-result refusal. Once worker launch is attempted, internal
-/// failures close the connection without a signed result. `CleanupUnconfirmed`
-/// requires the outer daemon
-/// to stop accepting work until orphan reconciliation succeeds.
+/// signed no-result refusal. A sampled report deadline with confirmed kill
+/// and reap receives a signed no-result failure. Other postlaunch failures
+/// close the connection without a signed result. `CleanupUnconfirmed` requires
+/// the outer daemon to stop accepting work until orphan reconciliation succeeds.
 ///
 /// # Errors
 ///
@@ -231,23 +235,32 @@ pub fn handle_root_connection(
         input_path,
         stream,
         authenticated.request().wall_ms,
-    )
-    .map_err(|error| {
-        if error == OwnerError::CleanupUnconfirmed {
-            ServiceError::CleanupUnconfirmed
-        } else {
-            ServiceError::Owner(error)
-        }
-    })?;
-    staged.remove().map_err(ServiceError::Stage)?;
-    let response = sign_complete_attempt(
-        config,
-        &authenticated,
-        result,
-        authority.trust(),
-        authority.signer(),
-    )
-    .map_err(ServiceError::Attestation)?;
+    );
+    let removal = staged.remove();
+    if matches!(&result, Err(OwnerError::CleanupUnconfirmed)) {
+        return Err(ServiceError::CleanupUnconfirmed);
+    }
+    removal.map_err(ServiceError::Stage)?;
+    let response = match result {
+        Ok(result) => sign_complete_attempt(
+            config,
+            &authenticated,
+            result,
+            authority.trust(),
+            authority.signer(),
+        )
+        .map_err(ServiceError::Attestation)?,
+        Err(OwnerError::MeasuredTimeout(facts)) => sign_measured_timeout(
+            config,
+            &authenticated,
+            facts,
+            authority.trust(),
+            authority.signer(),
+            RUN_FAILURE_WALL_TIMEOUT,
+        )
+        .map_err(ServiceError::Attestation)?,
+        Err(error) => return Err(ServiceError::Owner(error)),
+    };
     write_response(stream, &response)
 }
 

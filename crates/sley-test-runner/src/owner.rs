@@ -34,6 +34,9 @@ pub enum OwnerError {
     LaunchFailure,
     /// The manager, cgroup, gated output, or requesting peer refused.
     Phase(PhaseError),
+    /// The deadline was observed with clean live counters, and the launched
+    /// unit was killed and confirmed empty before returning these facts.
+    MeasuredTimeout(OwnedTimeoutFacts),
     /// The requesting peer was lost after the gated phase.
     PeerLost,
     /// Worker launcher exited nonzero after a complete report.
@@ -53,6 +56,7 @@ impl core::fmt::Display for OwnerError {
             Self::InvalidDeadline => "NATIVE_OWNER_INVALID_DEADLINE",
             Self::LaunchFailure => "NATIVE_OWNER_LAUNCH_FAILED",
             Self::Phase(_) => "NATIVE_OWNER_PHASE_REFUSED",
+            Self::MeasuredTimeout(_) => "NATIVE_OWNER_MEASURED_TIMEOUT",
             Self::PeerLost => "NATIVE_OWNER_PEER_LOST",
             Self::WorkerExit => "NATIVE_OWNER_WORKER_EXIT",
             Self::Deadline => "NATIVE_OWNER_DEADLINE",
@@ -68,6 +72,16 @@ pub struct OwnedWorkerResult {
     /// Canonical pure report and final live cgroup sample.
     pub gated: GatedWorkerResult,
     /// Monotonic launch-through-reap duration in nanoseconds.
+    pub elapsed_ns: u64,
+}
+
+/// A deadline snapshot captured while the worker lived, followed by verified
+/// kill and reap. No worker execution report is claimed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OwnedTimeoutFacts {
+    /// Last verified live cgroup sample at the report deadline.
+    pub telemetry: crate::telemetry::LiveTelemetrySample,
+    /// Monotonic launch-through-confirmed-reap duration.
     pub elapsed_ns: u64,
 }
 
@@ -280,6 +294,15 @@ pub fn run_owned_system_unit(
     };
     let gated = match phase {
         Ok(gated) => gated,
+        Err(PhaseError::MeasuredTimeout(telemetry)) => {
+            guard.abort()?;
+            let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+                .map_err(|_| OwnerError::InvalidDeadline)?;
+            return Err(OwnerError::MeasuredTimeout(OwnedTimeoutFacts {
+                telemetry,
+                elapsed_ns,
+            }));
+        }
         Err(error) => {
             guard.abort()?;
             return Err(OwnerError::Phase(error));

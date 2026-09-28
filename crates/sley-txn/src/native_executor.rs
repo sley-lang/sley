@@ -22,7 +22,7 @@ use sley_test_runner::{
     config::SOCKET_NAME,
     protocol::{RunRequest, RunStatus},
 };
-use sley_tests::{HistoricalTrustPolicyV1, NativeTestPlanV1};
+use sley_tests::{HistoricalTrustPolicyV1, NativeTestPlanV1, TERMINATION_TIMEOUT};
 
 use crate::native_commit::{
     ExecutedNativeTest, NativeCommitError, NativeTestExecutor, SupervisorEvidenceError,
@@ -158,6 +158,11 @@ fn evidence_failure(error: SupervisorEvidenceError) -> NativeCommitError {
             status: RunStatus::Refused,
             ..
         } => NativeCommitError::ExecutorUnavailable,
+        SupervisorEvidenceError::SignedNoResult {
+            status: RunStatus::Failed,
+            termination: TERMINATION_TIMEOUT,
+            ..
+        } => NativeCommitError::ResourceRefused,
         SupervisorEvidenceError::NoEvidence {
             status: RunStatus::Failed | RunStatus::Complete,
             ..
@@ -220,6 +225,22 @@ mod tests {
         assert_eq!(
             evidence_failure(SupervisorEvidenceError::NoEvidence {
                 status: RunStatus::Failed,
+                code: 1,
+            }),
+            NativeCommitError::OutcomeUnknown
+        );
+        assert_eq!(
+            evidence_failure(SupervisorEvidenceError::SignedNoResult {
+                status: RunStatus::Failed,
+                termination: TERMINATION_TIMEOUT,
+                code: 1,
+            }),
+            NativeCommitError::ResourceRefused
+        );
+        assert_eq!(
+            evidence_failure(SupervisorEvidenceError::SignedNoResult {
+                status: RunStatus::Failed,
+                termination: sley_tests::TERMINATION_KILLED,
                 code: 1,
             }),
             NativeCommitError::OutcomeUnknown

@@ -10,12 +10,19 @@ the existing VM. This service is host machinery; it is not a Sley program.
 
 ## Current evidence
 
-The daemon builds, the runner's unprivileged unit tests pass, and its service
-unit source is present. The actual root service has **not** been installed or
-qualified on the intended hosts. No native test admission or release-readiness
-claim follows from the local unit tests. The authenticated refusal-only
-handler remains available for negative protocol tests; the production daemon
-uses the root handler.
+An earlier development build is installed on greyarch with its worker and
+supervisor hashes pinned in the root configuration. Its service is stopped and
+disabled. A disposable F0 scenario exercised a real native test, but
+postlaunch resource failures still returned an unknown receiver outcome. The
+current source adds signed prelaunch refusals and a signed postlaunch wall
+timeout when clean cgroup counters are sampled while the worker is live and
+the unit is subsequently killed and confirmed empty. The timeout counters
+are a deadline snapshot, not counters read after teardown. OOM and missing
+or dirty telemetry remain unknown. These changes are not in the installed
+binaries and have not been live-qualified. No released-core compatibility or
+full native test admission claim follows from these source tests. The
+authenticated refusal-only handler remains available for negative protocol
+tests; the production daemon uses the root handler.
 
 The development `sley serve --protocol-profile v3-capable` command now accepts
 an explicit `--native-authority-config` file for the receiver's separate
@@ -116,6 +123,7 @@ supervised request.
    static `TestCase` validation, a mock
    response, or a pure VM comparison does not grant admission.
 
-`sudo -n` currently requires a password on the primary host, so the root
-installation and live qualification are pending. The local source and tests
-do not waive this gate.
+The installed greyarch build predates the current source. Any update needs a
+reviewed migration that preserves the root measurement authority and exact
+binary pins, followed by fresh live qualification. The local source and tests
+do not waive that gate.

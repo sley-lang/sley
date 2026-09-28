@@ -10,17 +10,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sley_scb1::ScbErrorCode;
 use sley_tests::{
     HistoricalTrustPolicyV1, MeasuredTestAttestationParts, MeasuredTestAttestationV1, MemoryEvents,
-    NativeExecutionEvidence, ROLE_MEASUREMENT, TERMINATION_PRELAUNCH_REFUSED,
+    NativeExecutionEvidence, ROLE_MEASUREMENT, TERMINATION_PRELAUNCH_REFUSED, TERMINATION_TIMEOUT,
     measurement_signature_preimage, unsigned_record_prefix,
 };
 
 use crate::config::RunnerConfig;
-use crate::enforce::floor_page_cap;
+use crate::enforce::{deadline_ns, floor_page_cap};
 use crate::ingress::AuthenticatedRunRequest;
 use crate::outcome::{
     AdmissionRefusal, AttemptOutcome, ObservedTermination, Signer, SignerError, admit_for_signature,
 };
-use crate::owner::OwnedWorkerResult;
+use crate::owner::{OwnedTimeoutFacts, OwnedWorkerResult};
 use crate::protocol::{RunRequest, RunResponse, RunStatus};
 use crate::response::{RunEvidence, RunNoResultEvidence};
 use crate::unit::expected_supervisor_config;
@@ -81,18 +81,23 @@ fn bind_worker_report(
     Ok(())
 }
 
-/// Signs a refusal after authenticated admission but before any worker unit
-/// is launched. The zero host facts are valid only for that boundary.
-///
-/// # Errors
-/// Refuses invalid request bindings, absent measurement trust, clock failure,
-/// or signing failure. The caller must establish that launch did not occur.
-pub fn sign_prelaunch_refusal(
+#[derive(Clone, Copy)]
+struct NoResultFacts {
+    status: RunStatus,
+    termination: u32,
+    installed_cap: u64,
+    elapsed_ns: u64,
+    memory_peak: u64,
+    memory_events: MemoryEvents,
+}
+
+fn sign_no_result(
     config: &RunnerConfig,
     authenticated: &AuthenticatedRunRequest,
     trust: &HistoricalTrustPolicyV1,
     signer: &dyn Signer,
     code: u32,
+    facts: NoResultFacts,
 ) -> Result<RunResponse, AttestationError> {
     if code == 0 {
         return Err(AttestationError::Binding(ScbErrorCode::ContractUnknown));
@@ -133,15 +138,11 @@ pub fn sign_prelaunch_refusal(
         principal: request.principal,
         caller_uid,
         declared_limits: request.declared_limits,
-        installed_memory_cap: 0,
-        elapsed_ns: 0,
-        measured_memory_peak: 0,
-        memory_events: MemoryEvents {
-            max: 0,
-            oom: 0,
-            oom_kill: 0,
-        },
-        termination: TERMINATION_PRELAUNCH_REFUSED,
+        installed_memory_cap: facts.installed_cap,
+        elapsed_ns: facts.elapsed_ns,
+        measured_memory_peak: facts.memory_peak,
+        memory_events: facts.memory_events,
+        termination: facts.termination,
         complete_output: false,
         empty_cgroup_confirmed: true,
         recorded_unix_millis,
@@ -157,7 +158,7 @@ pub fn sign_prelaunch_refusal(
     let no_result = RunNoResultEvidence::build(attestation, supervisor_config)
         .map_err(|error| AttestationError::Binding(error.code()))?;
     let response = RunResponse {
-        status: RunStatus::Refused,
+        status: facts.status,
         code,
         evidence: None,
         no_result: Some(no_result),
@@ -166,6 +167,86 @@ pub fn sign_prelaunch_refusal(
         .verified_no_result_evidence(&response, caller_uid)
         .map_err(|error| AttestationError::Binding(error.code()))?;
     Ok(response)
+}
+
+/// Signs a refusal after authenticated admission but before any worker unit
+/// is launched. The zero host facts are valid only for that boundary.
+///
+/// # Errors
+/// Refuses invalid request bindings, absent measurement trust, clock failure,
+/// or signing failure. The caller must establish that launch did not occur.
+pub fn sign_prelaunch_refusal(
+    config: &RunnerConfig,
+    authenticated: &AuthenticatedRunRequest,
+    trust: &HistoricalTrustPolicyV1,
+    signer: &dyn Signer,
+    code: u32,
+) -> Result<RunResponse, AttestationError> {
+    sign_no_result(
+        config,
+        authenticated,
+        trust,
+        signer,
+        code,
+        NoResultFacts {
+            status: RunStatus::Refused,
+            termination: TERMINATION_PRELAUNCH_REFUSED,
+            installed_cap: 0,
+            elapsed_ns: 0,
+            memory_peak: 0,
+            memory_events: MemoryEvents {
+                max: 0,
+                oom: 0,
+                oom_kill: 0,
+            },
+        },
+    )
+}
+
+/// Signs a deadline observed with a clean live cgroup snapshot, after the
+/// owner has killed the launched unit and confirmed the group empty.
+///
+/// # Errors
+/// Refuses dirty or inconsistent sampled facts, a deadline that was not
+/// actually reached, absent trust, or signing failure. No VM report is
+/// claimed and this response cannot become native receipt evidence.
+pub fn sign_measured_timeout(
+    config: &RunnerConfig,
+    authenticated: &AuthenticatedRunRequest,
+    facts: OwnedTimeoutFacts,
+    trust: &HistoricalTrustPolicyV1,
+    signer: &dyn Signer,
+    code: u32,
+) -> Result<RunResponse, AttestationError> {
+    let (_, installed_cap) = floor_page_cap(
+        authenticated.request().declared_limits.memory_bytes,
+        config.page_size,
+    )
+    .map_err(|_| AttestationError::Binding(ScbErrorCode::ResourceLimit))?;
+    let elapsed_floor = deadline_ns(authenticated.request().wall_ms)
+        .map_err(|_| AttestationError::Binding(ScbErrorCode::ResourceLimit))?;
+    if !facts.telemetry.events_clean()
+        || facts.telemetry.main_pid == 0
+        || facts.telemetry.memory_peak > installed_cap
+        || facts.elapsed_ns < elapsed_floor
+    {
+        return Err(AttestationError::Binding(ScbErrorCode::ContractUnknown));
+    }
+    sign_no_result(
+        config,
+        authenticated,
+        trust,
+        signer,
+        code,
+        NoResultFacts {
+            status: RunStatus::Failed,
+            termination: TERMINATION_TIMEOUT,
+            installed_cap,
+            elapsed_ns: facts.elapsed_ns,
+            memory_peak: facts.telemetry.memory_peak,
+            memory_events: facts.telemetry.memory_events,
+        },
+    )
 }
 
 /// Signs a completed, already reaped worker attempt under provisioned trust.
@@ -439,6 +520,48 @@ mod tests {
         assert_eq!(
             sign_prelaunch_refusal(&config, &authenticated, &wrong_trust, &signer, 4),
             Err(AttestationError::TrustRejected)
+        );
+    }
+
+    #[test]
+    fn measured_timeout_is_signed_only_after_deadline_with_clean_counters() {
+        let (config, authenticated, result, signer) = fixture();
+        let request = authenticated.request();
+        let profile = *expected_supervisor_config(&config, request, authenticated.caller_uid())
+            .expect("config profile")
+            .id()
+            .as_bytes();
+        let trust = trust(request, &signer, ROLE_MEASUREMENT, profile);
+        let mut facts = OwnedTimeoutFacts {
+            telemetry: result.gated.telemetry,
+            elapsed_ns: request.wall_ms * 1_000_000,
+        };
+        let response = sign_measured_timeout(&config, &authenticated, facts, &trust, &signer, 1)
+            .expect("signed timeout");
+        assert_eq!(response.status, RunStatus::Failed);
+        assert!(response.evidence.is_none());
+        let evidence = request
+            .verified_no_result_evidence(&response, authenticated.caller_uid())
+            .expect("bound timeout");
+        let parts = evidence.attestation().parts();
+        assert_eq!(parts.termination, TERMINATION_TIMEOUT);
+        assert_eq!(parts.execution_report_id, None);
+        let unsigned = unsigned_record_prefix(parts).expect("unsigned timeout");
+        let preimage = measurement_signature_preimage(&unsigned).expect("preimage");
+        VerifyingKey::from_bytes(&parts.key_id)
+            .expect("public key")
+            .verify_strict(&preimage, &Signature::from_bytes(&parts.signature))
+            .expect("signed timeout verifies");
+        facts.elapsed_ns -= 1;
+        assert_eq!(
+            sign_measured_timeout(&config, &authenticated, facts, &trust, &signer, 1),
+            Err(AttestationError::Binding(ScbErrorCode::ContractUnknown))
+        );
+        facts.elapsed_ns += 1;
+        facts.telemetry.memory_events.oom_kill = 1;
+        assert_eq!(
+            sign_measured_timeout(&config, &authenticated, facts, &trust, &signer, 1),
+            Err(AttestationError::Binding(ScbErrorCode::ContractUnknown))
         );
     }
 
