@@ -16,6 +16,12 @@ use crate::names::Names;
 /// Renders a type in shorthand.
 #[must_use]
 pub fn render(ty: &TypeExpr, names: &Names) -> String {
+    render_with(ty, &|id| names.name(id))
+}
+
+/// Renders a type in shorthand, naming entities with `name`.
+#[must_use]
+pub fn render_with(ty: &TypeExpr, name: &dyn Fn(&EntityId) -> String) -> String {
     match ty {
         TypeExpr::Unit => "unit".into(),
         TypeExpr::Bool => "bool".into(),
@@ -25,43 +31,51 @@ pub fn render(ty: &TypeExpr, names: &Names) -> String {
         TypeExpr::F64 => "f64".into(),
         TypeExpr::Bytes => "bytes".into(),
         TypeExpr::Text => "text".into(),
-        TypeExpr::Tuple(items) => format!("({})", list(items, names)),
+        TypeExpr::Tuple(items) => format!("({})", list(items, name)),
         TypeExpr::Named(instance) => {
             if instance.arguments.is_empty() {
-                names.name(&instance.definition)
+                name(&instance.definition)
             } else {
                 format!(
                     "{}<{}>",
-                    names.name(&instance.definition),
-                    list(&instance.arguments, names)
+                    name(&instance.definition),
+                    list(&instance.arguments, name)
                 )
             }
         }
-        TypeExpr::Vector(item) => format!("Vec<{}>", render(item, names)),
+        TypeExpr::Vector(item) => format!("Vec<{}>", render_with(item, name)),
         TypeExpr::OrderedMap { key, value } => {
-            format!("Map<{},{}>", render(key, names), render(value, names))
+            format!(
+                "Map<{},{}>",
+                render_with(key, name),
+                render_with(value, name)
+            )
         }
-        TypeExpr::Option(item) => format!("Option<{}>", render(item, names)),
+        TypeExpr::Option(item) => format!("Option<{}>", render_with(item, name)),
         TypeExpr::Result { ok, error } => {
-            format!("Result<{},{}>", render(ok, names), render(error, names))
+            format!(
+                "Result<{},{}>",
+                render_with(ok, name),
+                render_with(error, name)
+            )
         }
         TypeExpr::FunctionRef(function) => format!(
             "fn({})->{}",
-            list(&function.parameters, names),
-            render(&function.result, names)
+            list(&function.parameters, name),
+            render_with(&function.result, name)
         ),
-        TypeExpr::AdapterHandle(id) => format!("Adapter<{}>", names.name(id)),
-        TypeExpr::CapabilityToken(id) => format!("Capability<{}>", names.name(id)),
-        TypeExpr::LocalCell(item) => format!("Cell<{}>", render(item, names)),
+        TypeExpr::AdapterHandle(id) => format!("Adapter<{}>", name(id)),
+        TypeExpr::CapabilityToken(id) => format!("Capability<{}>", name(id)),
+        TypeExpr::LocalCell(item) => format!("Cell<{}>", render_with(item, name)),
         TypeExpr::TypeParameter(index) => format!("${index}"),
         TypeExpr::BuiltinFailure(kind) => failure_name(*kind).into(),
     }
 }
 
-fn list(items: &[TypeExpr], names: &Names) -> String {
+fn list(items: &[TypeExpr], name: &dyn Fn(&EntityId) -> String) -> String {
     items
         .iter()
-        .map(|item| render(item, names))
+        .map(|item| render_with(item, name))
         .collect::<Vec<_>>()
         .join(",")
 }

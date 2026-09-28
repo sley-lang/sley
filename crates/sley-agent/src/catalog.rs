@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use sley_policy::{CandidateValidationOutput, RefusalLocator};
 
 use crate::explain;
+use crate::locate::{Authored, Source};
 use crate::names::Names;
 use crate::workspace::Program;
 
@@ -134,6 +135,11 @@ pub struct Verdict {
     pub location: Option<String>,
     /// `TestCases` the kernel selected for this candidate.
     pub selected_tests: usize,
+    /// Authored frame positions of a function-wide refusal (`locate`).
+    pub authored: Option<Authored>,
+    /// The advisory analysis of the refused function, made once and reused
+    /// by the locator detail, the authored positions and `also`.
+    analysis: Option<explain::Analysis>,
 }
 
 impl Verdict {
@@ -155,13 +161,26 @@ impl Verdict {
                 hint: None,
                 location: None,
                 selected_tests,
+                authored: None,
+                analysis: None,
             };
         }
         let diagnostic = record.diagnostics.first();
         let symbol = diagnostic.map(|d| d.source_symbol.clone());
         let phase = diagnostic.map(|d| d.phase_tag);
+        let analysis = output.refusal_locator().and_then(|locator| {
+            (locator.field.is_none() && locator.related.is_none())
+                .then(|| explain::Analysis::of(locator, program, names))
+                .flatten()
+        });
         let location = output.refusal_locator().map(|locator| {
-            render_locator(locator, symbol.as_deref().unwrap_or(""), program, names)
+            render_locator_with(
+                locator,
+                symbol.as_deref().unwrap_or(""),
+                program,
+                names,
+                analysis.as_ref(),
+            )
         });
         Self {
             valid: false,
@@ -173,6 +192,36 @@ impl Verdict {
             symbol,
             location,
             selected_tests,
+            authored: None,
+            analysis,
+        }
+    }
+
+    /// The advisory analysis of the refused function, when one was made.
+    #[must_use]
+    pub fn analysis(&self) -> Option<&explain::Analysis> {
+        self.analysis.as_ref()
+    }
+
+    /// Adds the authored frame positions of a function-wide refusal of a
+    /// candidate made from a frame (advisory; see `crate::locate`).
+    pub fn locate(
+        &mut self,
+        output: &CandidateValidationOutput,
+        source: &Source<'_>,
+        program: &Program,
+        names: &Names,
+    ) {
+        if let (false, Some(locator)) = (self.valid, output.refusal_locator()) {
+            self.authored = crate::locate::authored(
+                self.symbol.as_deref().unwrap_or(""),
+                self.phase,
+                locator,
+                program,
+                names,
+                source,
+                self.analysis.as_ref(),
+            );
         }
     }
 
@@ -182,7 +231,7 @@ impl Verdict {
         if self.valid {
             return json!({"valid": true, "decision": self.decision, "selected_tests": self.selected_tests});
         }
-        json!({
+        let mut value = json!({
             "valid": false,
             "decision": self.decision,
             "phase": self.phase,
@@ -192,7 +241,14 @@ impl Verdict {
             "retry": self.retry,
             "where": self.location,
             "hint": self.hint,
-        })
+        });
+        if let Some(authored) = &self.authored {
+            value["authored"] = authored.to_json();
+            if let Some(frame) = &authored.frame {
+                value["authored_frame"] = json!(frame);
+            }
+        }
+        value
     }
 
     /// The one-line summary (`Valid`, `REFUSED ResourceLimit at phase 12 ...`).
@@ -223,6 +279,9 @@ impl Verdict {
         if let Some(location) = &self.location {
             let _ = writeln!(text, "  where: {location}");
         }
+        if let Some(authored) = &self.authored {
+            let _ = writeln!(text, "  authored: {}", authored.text());
+        }
         if let Some(hint) = &self.hint {
             let _ = writeln!(text, "  hint: {hint}");
         }
@@ -249,6 +308,17 @@ pub fn render_locator(
     symbol: &str,
     program: &Program,
     names: &Names,
+) -> String {
+    render_locator_with(locator, symbol, program, names, None)
+}
+
+/// [`render_locator`], reusing an analysis of the located function.
+fn render_locator_with(
+    locator: &RefusalLocator,
+    symbol: &str,
+    program: &Program,
+    names: &Names,
+    analysis: Option<&explain::Analysis>,
 ) -> String {
     let mut parts = Vec::new();
     if let Some(operation) = locator.operation {
@@ -295,7 +365,12 @@ pub fn render_locator(
     if locator.subject.is_some()
         && locator.field.is_none()
         && locator.related.is_none()
-        && let Some(detail) = explain::detail(symbol, locator, program, names)
+        && let Some(detail) = match analysis {
+            Some(analysis) if Some(analysis.function()) == locator.subject => {
+                analysis.detail(symbol)
+            }
+            _ => explain::detail(symbol, locator, program, names),
+        }
     {
         text.push_str(": ");
         text.push_str(&detail);

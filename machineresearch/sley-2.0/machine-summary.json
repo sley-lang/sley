@@ -16,14 +16,14 @@
     "state": "RELEASE_APPROVED",
     "authority": "operator",
     "decided": "2026-09-24",
-    "release": "2.0.2",
+    "release": "2.0.3",
     "release_name": "Sley 2.0",
-    "label": "plain 2.0.2, a point release of 2.0.1 that adds the agent workbench, with no preview or alpha label (operator decisions 2026-09-24 and 2026-09-25); publication and tag v2.0.2 by operator decision (2026-09-26)",
+    "label": "plain 2.0.3, a point release of 2.0.2 adding compact authoring, persistent drafts, focused views and checked workbench transformations; operator publication authorization 2026-09-27",
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
-    "final_commit_note": "the official Sley 2.0.2 release, built from commit d7d13464 of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
+    "final_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+    "final_commit_note": "Selected Sley 2.0.3 source commit, built reproducibly on two hosts. The release records and publication decision are filed in records-only descendants.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
       "EVIDENCED": 32,
@@ -56,9 +56,10 @@
     "open_p1_p2_at_decision": "rw075_correction 4 P1 + 4 P2 (AR-02 large-preimage design and AR-06 transcript binding; the self-hosting/REWEAVE line, 2.1); finding-ledger mechanism P2s in release_candidate_packaging (4), reproducibility_and_independent_conformance (3) and standards_sbom_and_provenance (2) against scripts/build_finding_register.py and scripts/retire_review_claims.py",
     "council_reviews": "no longer used (operator decision 2026-09-24); criteria that wait on a Council or independent review stay AWAITS_REVIEW",
     "deferred_to_2_1": "self-hosting (REWEAVE / SH2)",
-    "release_notes": "docs/release/SLEY-2.0.2.md",
+    "release_notes": "docs/release/SLEY-2.0.3.md",
     "decided_2_0_1": "2026-09-25",
-    "decided_2_0_2": "2026-09-25"
+    "decided_2_0_2": "2026-09-25",
+    "decided_2_0_3": "2026-09-27"
   },
   "status": "IN_PROGRESS",
   "locator": {
@@ -184,12 +185,14 @@
       "GitHub release v2.0.0 carrying sley-2.0.0-linux-x86_64.tar.gz and its SHA-256",
       "the sleylang.org website describing Sley 2.0.0",
       "the 2.0.1 patch release (GitHub release v2.0.1 with sley-2.0.1-linux-x86_64.tar.gz): operator direction 2026-09-25 to merge the contributor fixes and fix every issue found in the post-release verification",
-      "the 2.0.2 point release (GitHub release v2.0.2 with sley-2.0.2-linux-x86_64.tar.gz): operator direction 2026-09-26 to release the agent workbench and its fixes"
+      "the 2.0.2 point release (GitHub release v2.0.2 with sley-2.0.2-linux-x86_64.tar.gz): operator direction 2026-09-26 to release the agent workbench and its fixes",
+      "the 2.0.3 point release (GitHub release v2.0.3 with sley-2.0.3-linux-x86_64.tar.gz): operator direction 2026-09-27 to verify a workbench improvement over 2.0.2 and then release it; the improvement was verified before publication preparation"
     ],
     "authorized_tags": [
       "v2.0.0",
       "v2.0.1",
-      "v2.0.2"
+      "v2.0.2",
+      "v2.0.3"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry."
@@ -4904,7 +4907,7 @@
     "contract_revision": 9,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.0.2-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.0.3-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
@@ -4931,8 +4934,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "5d6bdc31306c2c3c7d61c3130ef8c0a4e0f2ac757e5907218f7620c181492a30",
-    "candidate_artifact_size_bytes": 4868674,
+    "candidate_artifact_sha256": "4a9aef6962795f49f6e9c13dfe2cd6815a9392106708cccbc491367c4ca3c2a3",
+    "candidate_artifact_size_bytes": 5883672,
     "candidate_member_count": 17,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4940,22 +4943,22 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "d0a806a1ff1e4761b4244d914870d18a5c18afec52a8ae6416b3370f948e3fc6",
-    "candidate_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+    "candidate_manifest_digest": "2e010379c095e53c130314659e13d1929cde23bee70b31849d669013c1a74b1d",
+    "candidate_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.0.2 release, built from commit d7d13464 of sley-lang/sley (two clean musl builds, REPRODUCIBLE) and independently rebuilt on the secondary host the same day from a transferred Git bundle (make release-candidate-build in a detached clean clone, REPRODUCIBLE, the same artifact digest) through the tracked scripts/second_host_attest.sh. The secondary attestation is merged into the tracked report (MULTI_HOST_REPRODUCIBLE, merge commit 1c457d5b) and retained as evidence/release/attestations/d7d1346-secondary.json, with its custody receipt in evidence/release/second-host-lane-records.json.",
+    "candidate_evidence_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+    "candidate_second_host_note": "The 2.0.3 candidate has two identical clean musl builds on each of two hosts. The secondary attestation is retained in evidence/release/attestations/69d57b1-secondary.json and merged at 1753761; the custody receipt records the manual build invocation and transport limits.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
-    "mint_method": "primary clean-tree mint via make release-candidate-smoke in a detached linked worktree of the candidate commit (two clean musl builds, REPRODUCIBLE); independently repeated on secondary-host from the transferred Git bundle under the S20-730 second-host runbook (make release-candidate-build, REPRODUCIBLE, same artifact digest; tracked runbook, no deviation)",
+    "mint_method": "Primary clean-tree build via build_release_candidate.py --timeout-seconds 1800 --require-clean; two clean musl builds, archive comparison, source-independent demo and conformance subset.",
     "p1_open_count": 0,
     "p1_open": [],
-    "mint_worktree": "primary: detached linked worktree of the candidate commit under /home/dev/Work/checkpoints (clean by construction); secondary: detached clean clone /home/lab/sley2-attest-515cc4a of the transferred bundle (the superseded 8d063f00 lane used /home/lab/sley2-attest-8d063f0, the 45b2cd98 mint /home/lab/sley2-repair-45b2cd9-v1)",
+    "mint_worktree": "Dedicated clean release worktree on the primary host; a separate clone from a transferred Git bundle on the secondary host.",
     "offline_tests_note": "test methods in bench/release/tests/test_packaging.py; scripts/check_release_candidate_packaging.py pins the count against the def test_ census",
     "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_2_P2_2_P3",
     "nabu_architecture_review_revision_2": "PASS_0_P0_0_P1_0_P2_3_P3_CLOSED",
@@ -6313,7 +6316,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+    "attested_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -7089,6 +7092,13 @@
       },
       {
         "commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
         "hosts": [
           "primary",
           "secondary"

@@ -387,7 +387,7 @@ fn test_names_may_carry_hyphens_like_the_public_tests() {
     let temp = committed_program("hyphen", None);
     let frame = json!({"af1": 1, "tests": [
         {"fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}, "name": "bound-inside"}]});
-    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    let (status, text) = run(&temp.path, &["try", &frame.to_string(), "--verbose"]);
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("ok   bound-inside = Ok(5)"), "{text}");
     let (status, text) = run(&temp.path, &["view", "--after", "latest", "bound-inside"]);
@@ -622,7 +622,7 @@ fn full_redefinition_reuses_names_and_deletes_the_rest() {
     assert!(text.contains("tests: 0 ran"), "{text}");
     assert!(
         text.contains(
-            "next: add tests without restating the frame: sley-agent try --on c3 '{\"af1\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)"
+            "next: add tests without restating the frame: sley-agent try --on d3 '{\"af1\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)"
         ),
         "{text}"
     );
@@ -645,27 +645,106 @@ fn full_redefinition_reuses_names_and_deletes_the_rest() {
 
 #[test]
 fn the_guide_is_small_and_every_example_runs() {
+    // The guide stays small (its size is recorded, not waived), and its
+    // examples run in order: the frame with `try`, the follow-up with
+    // `try --on d1`, and the repair delta with `fill`.
     let guide = sley_agent::help::GUIDE;
-    assert!(guide.len() <= 8 * 1024, "guide is {} bytes", guide.len());
+    assert!(guide.len() <= 3_500, "guide is {} bytes", guide.len());
     let temp = workspace("guide", None);
     let examples: Vec<&str> = guide
         .split("```json\n")
         .skip(1)
         .map(|rest| rest.split("```").next().unwrap())
         .collect();
-    assert!(examples.len() >= 3);
-    for (index, example) in examples.iter().enumerate() {
-        let (status, text) = run(&temp.path, &["try", example]);
-        assert_eq!(status, 0, "guide example {index}: {text}");
-        if index == 0 {
-            assert!(text.contains("tests: 3/3 passed"), "{text}");
-            // Commit the definitions so the edit and patch examples apply.
-            let mut frame: Value = serde_json::from_str(example).unwrap();
-            frame.as_object_mut().unwrap().remove("tests");
-            assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
-            assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    assert_eq!(examples.len(), 3, "a frame, a follow-up and a repair delta");
+    let (status, text) = run(&temp.path, &["try", examples[0]]);
+    assert_eq!(status, 0, "guide frame: {text}");
+    assert!(text.contains("tests: 3/3 passed"), "{text}");
+    assert!(text.contains("draft d1@r1"), "{text}");
+    let (status, text) = run(&temp.path, &["try", "--on", "d1", examples[1]]);
+    assert_eq!(status, 0, "guide follow-up: {text}");
+    assert!(text.contains("tests: 3/3 passed"), "{text}");
+    let fix = temp.path.join("fix.json");
+    fs::write(&fix, examples[2]).unwrap();
+    let (status, text) = run(
+        &temp.path,
+        &["fill", "d1", fix.to_str().unwrap(), "--revision", "2"],
+    );
+    assert_eq!(status, 0, "guide repair: {text}");
+    assert!(text.contains("d1@r3"), "{text}");
+    let (status, text) = run(&temp.path, &["submit", "d1"]);
+    assert_eq!(status, 0, "{text}");
+    // Every help topic the guide names exists.
+    for line in guide.lines() {
+        if let Some(rest) = line.split("sley-agent help ").nth(1) {
+            let topics = rest.split('`').next().unwrap();
+            for topic in topics.split('|') {
+                assert!(
+                    sley_agent::help::topic(topic).is_some(),
+                    "the guide names an unknown help topic: {topic}"
+                );
+            }
         }
     }
+    // Every command the guide shows names a real command.
+    for line in guide.lines() {
+        if let Some(command) = line.trim_start().strip_prefix("sley-agent ") {
+            let word = command.split_whitespace().next().unwrap();
+            assert!(
+                sley_agent::cli::COMMANDS.contains(&word),
+                "the guide shows an unknown command: {line}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_drafts_help_command_runs() {
+    // The command lines of `help drafts` run in order on a draft made from
+    // the guide's frame, with the guide's follow-up and repair as files.
+    let guide = sley_agent::help::GUIDE;
+    let examples: Vec<&str> = guide
+        .split("```json\n")
+        .skip(1)
+        .map(|rest| rest.split("```").next().unwrap())
+        .collect();
+    let temp = workspace("drafts-help", None);
+    assert_eq!(run(&temp.path, &["try", examples[0]]).0, 0);
+    fs::write(temp.path.join("more.json"), examples[1]).unwrap();
+    fs::write(temp.path.join("fix.json"), examples[2]).unwrap();
+    let mut ran = 0;
+    for line in sley_agent::help::DRAFTS.lines() {
+        let Some(command) = line.trim_start().strip_prefix("sley-agent ") else {
+            continue;
+        };
+        let words: Vec<String> = command
+            .split("  ")
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .map(|word| {
+                if Path::new(word)
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+                {
+                    temp.path.join(word).display().to_string()
+                } else {
+                    word.to_owned()
+                }
+            })
+            .collect();
+        let words: Vec<&str> = words.iter().map(String::as_str).collect();
+        let (status, text) = run(&temp.path, &words);
+        assert_eq!(status, 0, "help drafts: {line}: {text}");
+        ran += 1;
+    }
+    assert!(ran >= 8, "{ran} commands ran");
+}
+
+/// The worked AF1 example of the 2.0.2 guide (plain AF1), the program many
+/// tests edit.
+fn percent_frame() -> Value {
+    serde_json::from_str(include_str!("fixtures/percent.json")).unwrap()
 }
 
 /// A workspace holding the guide's first example (without its tests) and
@@ -678,7 +757,7 @@ fn guide_context(label: &str) -> TempDir {
         .and_then(|rest| rest.split("```").next())
         .unwrap();
     let mut frame: Value = serde_json::from_str(example).unwrap();
-    frame.as_object_mut().unwrap().remove("tests");
+    frame.as_object_mut().unwrap().remove("test_tables");
     let stub = json!({"fn": "stub", "params": [], "returns": "i64",
         "blocks": [{"name": "entry", "ops": [], "term": ["trap", "unreachable"]}]});
     frame["fns"].as_array_mut().unwrap().push(stub);
@@ -789,12 +868,7 @@ fn every_value_form_in_help_types_round_trips() {
 /// The guide's first example without its tests, committed.
 fn percent_program(label: &str) -> TempDir {
     let temp = workspace(label, None);
-    let example = sley_agent::help::GUIDE
-        .split("```json\n")
-        .nth(1)
-        .and_then(|rest| rest.split("```").next())
-        .unwrap();
-    let mut frame: Value = serde_json::from_str(example).unwrap();
+    let mut frame = percent_frame();
     frame.as_object_mut().unwrap().remove("tests");
     assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
     assert_eq!(run(&temp.path, &["commit"]).0, 0);
@@ -1495,7 +1569,7 @@ fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
     let (status, text) = run(&temp.path, &["try", &clamp_frame(true).to_string()]);
     assert_eq!(status, 0, "{text}");
     assert!(
-        text.contains("next: add tests without restating the frame: sley-agent try --on c1"),
+        text.contains("next: add tests without restating the frame: sley-agent try --on d1"),
         "{text}"
     );
     let tests = json!({"af1": 1, "tests": [
@@ -1506,7 +1580,7 @@ fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
     assert!(text.starts_with("c2: Valid"), "{text}");
     assert!(text.contains("FAIL t_above"), "{text}");
     assert!(
-        text.contains("next: fix only what failed on top of c2: sley-agent try --on c2"),
+        text.contains("next: fix only what failed on top of d2: sley-agent try --on d2"),
         "{text}"
     );
     // The fix names one operation of a function the base frame defines.
@@ -1521,14 +1595,17 @@ fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
     let (status, text) = run(&temp.path, &["try", "--on", "c3", &broken.to_string()]);
     assert_eq!(status, 2, "{text}");
     assert!(
-        text.contains("pointers refer to .sley/layered.json (the frame of c3 with yours on top)"),
+        text.contains(
+            "pointers refer to .sley/drafts/d4/r1/frame.json (the frame of c3 with yours on top"
+        ),
         "{text}"
     );
     assert!(temp.path.join(".sley/layered.json").is_file());
     // Raw operations leave no frame to build on.
     let raw = json!([{"class": "CreateEntity", "kind": 9, "key": "limit",
-        "payload": {"value": {"type": "i64", "data": {"variant": "SInt", "value": 1}}}}]);
-    let (_, text) = run(&temp.path, &["try", &raw.to_string()]);
+        "payload": {"value": {"value_type": "i64", "data": {"variant": "SInt", "value": 1}}}}]);
+    let (status, text) = run(&temp.path, &["try", &raw.to_string()]);
+    assert_eq!(status, 0, "{text}");
     let handle = text.split(':').next().unwrap().to_owned();
     let (status, text) = run(&temp.path, &["try", "--on", &handle, &tests.to_string()]);
     assert_eq!(status, 2, "{text}");
@@ -1612,4 +1689,26 @@ fn malformed_terminators_and_cases_name_the_fix() {
         assert_eq!(status, 2, "{term}: {text}");
         assert!(text.contains(message), "{term}: {text}");
     }
+}
+
+#[test]
+fn a_misspelled_terminator_is_named_before_the_types_it_hides() {
+    // `retrun` hides the use that types `r`; the refusal names the
+    // terminator first and the inference failure as its consequence.
+    let temp = workspace("root-cause", None);
+    let frame = json!({"af1": 1, "fns": [{"fn": "f", "params": [["x", "i64"]],
+        "returns": "Result<i64,ArithmeticError>",
+        "blocks": [{"name": "entry", "ops": [["r", "ok", "x"]], "term": ["retrun", "r"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    let first = text.lines().next().unwrap();
+    assert!(
+        first.contains("/fns/0/blocks/0/term: bad terminator `retrun`"),
+        "{text}"
+    );
+    assert!(text.contains("(1 of 2 problems)"), "{text}");
+    assert!(
+        text.contains("/fns/0/blocks/0/ops/0: cannot infer the result type of `r`"),
+        "{text}"
+    );
 }

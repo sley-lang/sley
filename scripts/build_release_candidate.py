@@ -29,7 +29,7 @@ import generate_third_party_licenses as third_party  # noqa: E402  (sibling modu
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-ARTIFACT_STEM = "sley-2.0.2-linux-x86_64"
+ARTIFACT_STEM = "sley-2.0.3-linux-x86_64"
 ARTIFACT_NAME = f"{ARTIFACT_STEM}.tar.gz"
 # Release link contract (cross-host reproducibility repair): the candidate
 # links self-contained static (musl) with the rust-lld and musl runtime from

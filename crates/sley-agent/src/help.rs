@@ -1,6 +1,6 @@
 //! `sley-agent help [topic]`: the agent guide and on-demand reference.
 //!
-//! The guide (`data/GUIDE.md`, at most 8 KiB) covers the workflow; the
+//! The guide (`data/GUIDE.md`, at most 3,500 bytes) covers the workflow; the
 //! schema-sized material loads only when asked for. Every example in these
 //! texts is executed by the crate's tests.
 
@@ -13,13 +13,21 @@ use crate::opcodes::{ImmediateKind, OPCODES};
 pub const GUIDE: &str = include_str!("../data/GUIDE.md");
 /// The AF1 reference.
 pub const AF1: &str = include_str!("../data/help-af1.md");
+/// The AF1-X (authoring dialect) reference.
+pub const AFX: &str = include_str!("../data/help-afx.md");
 /// The type shorthand reference.
 pub const TYPES: &str = include_str!("../data/help-types.md");
 /// The `TestCase` reference.
 pub const TESTS: &str = include_str!("../data/help-tests.md");
+/// The drafts and delta-repair reference.
+pub const DRAFTS: &str = include_str!("../data/help-drafts.md");
+/// The verified search reference.
+pub const SEARCH: &str = include_str!("../data/help-search.md");
 
 /// Topic names.
-pub const TOPICS: &[&str] = &["guide", "af1", "opcodes", "types", "tests", "refusals"];
+pub const TOPICS: &[&str] = &[
+    "guide", "af1", "afx", "drafts", "opcodes", "types", "tests", "search", "refusals",
+];
 
 /// Returns a topic's text.
 #[must_use]
@@ -27,8 +35,11 @@ pub fn topic(name: &str) -> Option<String> {
     Some(match name {
         "" | "guide" => GUIDE.to_owned(),
         "af1" | "frames" => AF1.to_owned(),
+        "afx" | "af1-x" | "dialect" => AFX.to_owned(),
         "types" => TYPES.to_owned(),
         "tests" | "testcase" => TESTS.to_owned(),
+        "drafts" | "draft" | "fill" => DRAFTS.to_owned(),
+        "search" => SEARCH.to_owned(),
         "opcodes" => opcodes(),
         "refusals" => refusals(),
         _ => return None,

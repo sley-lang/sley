@@ -11,7 +11,7 @@ compiles it into one mutation candidate and the kernel never sees AF1.
      "edit":   [edit...],        replace single operations
      "tests":  [test...],        create or update TestCases
      "delete": ["name", ...],    delete top-level entities
-     "namespace": "name"}        namespace for new entities (default: the only one)
+     "namespace": "name"}        namespace new entities join (default: the only one; null: none)
 
 Every key is optional except "af1". Names are `[A-Za-z_][A-Za-z0-9_-]*`.
 A frame or a block may carry a "comment" string; it is ignored.

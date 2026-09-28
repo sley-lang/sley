@@ -335,6 +335,10 @@ def evaluate() -> dict[str, dict]:
 
     shell_users = []
     for path in sources:
+        # Integration tests spawn the executable under test. They are not a
+        # process surface exposed by the shipped kernel or agent binary.
+        if "tests" in path.relative_to(ROOT).parts:
+            continue
         source = path.read_text(encoding="utf-8", errors="ignore")
         if "std::process::Command" not in source:
             continue

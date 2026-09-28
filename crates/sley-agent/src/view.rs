@@ -13,7 +13,7 @@ use sley_mutate::value::EntityBodyValue;
 use sley_mutate::value::{BlockBody, FunctionBody, OperationBody, TestCaseBody};
 use sley_ssmc::{
     CaseKey, ExpectedOutcome, Immediate, Reachability, SwitchArgument, TargetEdge, Terminator,
-    TrapCode, TypeDefForm, Visibility,
+    TrapCode, TypeDefForm, ValueRef, Visibility,
 };
 
 use crate::hex;
@@ -38,8 +38,18 @@ pub struct ViewOptions {
 /// The AV1 header line.
 #[must_use]
 pub fn header(program: &Program, after: Option<&str>) -> String {
+    header_as("AV1, non-canonical", program, after)
+}
+
+/// The AV1-X header line (`view --x`).
+#[must_use]
+pub fn header_x(program: &Program, after: Option<&str>) -> String {
+    header_as("AV1-X, non-canonical, output only", program, after)
+}
+
+fn header_as(notation: &str, program: &Program, after: Option<&str>) -> String {
     let mut line = format!(
-        "# sley view (AV1, non-canonical) root={}",
+        "# sley view ({notation}) root={}",
         hex::short(program.root().as_bytes())
     );
     if let Some(handle) = after {
@@ -53,48 +63,66 @@ pub fn header(program: &Program, after: Option<&str>) -> String {
 /// whole function.
 #[must_use]
 pub fn entity(program: &Program, names: &Names, id: &EntityId, options: ViewOptions) -> String {
+    entity_with(program, names, id, options, render_function)
+}
+
+/// A function renderer (AV1, or AV1-X for `view --x`).
+pub(crate) type FunctionRenderer =
+    fn(&Program, &Names, &EntityId, &FunctionBody, ViewOptions) -> String;
+
+/// `entity` with the given function renderer.
+pub(crate) fn entity_with(
+    program: &Program,
+    names: &Names,
+    id: &EntityId,
+    options: ViewOptions,
+    render: FunctionRenderer,
+) -> String {
     let Some(body) = program.body(id) else {
         return format!("# {} is not live in this state\n", names.name(id));
     };
+    let owner = |function: &EntityId| match program.body(function) {
+        Some(EntityBodyValue::Function(body)) => render(program, names, function, body, options),
+        _ => format!("# owner {} is not a live function\n", names.name(function)),
+    };
     match body {
-        EntityBodyValue::Function(function) => {
-            render_function(program, names, id, function, options)
-        }
-        EntityBodyValue::Block(block) => owner_function(program, names, &block.function, options),
+        EntityBodyValue::Function(function) => render(program, names, id, function, options),
+        EntityBodyValue::Block(block) => owner(&block.function),
         EntityBodyValue::Operation(operation) => match program.body(&operation.block) {
-            Some(EntityBodyValue::Block(block)) => {
-                owner_function(program, names, &block.function, options)
-            }
+            Some(EntityBodyValue::Block(block)) => owner(&block.function),
             _ => format!("# orphan operation {}\n", names.name(id)),
         },
         EntityBodyValue::Parameter(parameter) => match program.body(&parameter.owner) {
-            Some(EntityBodyValue::Function(_)) => {
-                owner_function(program, names, &parameter.owner, options)
-            }
-            Some(EntityBodyValue::Block(block)) => {
-                owner_function(program, names, &block.function, options)
-            }
+            Some(EntityBodyValue::Function(_)) => owner(&parameter.owner),
+            Some(EntityBodyValue::Block(block)) => owner(&block.function),
             _ => format!("# orphan parameter {}\n", names.name(id)),
         },
         _ => top_level(program, names, id, body, options),
     }
 }
 
-fn owner_function(
-    program: &Program,
-    names: &Names,
-    function: &EntityId,
-    options: ViewOptions,
-) -> String {
-    match program.body(function) {
-        Some(EntityBodyValue::Function(body)) => {
-            render_function(program, names, function, body, options)
-        }
-        _ => format!("# owner {} is not a live function\n", names.name(function)),
+/// The function a function-scoped entity belongs to (itself for a
+/// function), when it is live.
+#[must_use]
+pub fn owner_function(program: &Program, id: &EntityId) -> Option<EntityId> {
+    match program.body(id)? {
+        EntityBodyValue::Function(_) => Some(*id),
+        EntityBodyValue::Block(block) => Some(block.function),
+        EntityBodyValue::Operation(operation) => match program.body(&operation.block)? {
+            EntityBodyValue::Block(block) => Some(block.function),
+            _ => None,
+        },
+        EntityBodyValue::Parameter(parameter) => match program.body(&parameter.owner)? {
+            EntityBodyValue::Function(_) => Some(parameter.owner),
+            EntityBodyValue::Block(block) => Some(block.function),
+            _ => None,
+        },
+        _ => None,
     }
+    .filter(|function| matches!(program.body(function), Some(EntityBodyValue::Function(_))))
 }
 
-fn id_suffix(id: &EntityId, options: ViewOptions) -> String {
+pub(crate) fn id_suffix(id: &EntityId, options: ViewOptions) -> String {
     if options.ids {
         format!("   [{}]", hex::encode(id.as_bytes()))
     } else {
@@ -119,7 +147,38 @@ fn param_list(program: &Program, names: &Names, parameters: &[EntityId]) -> Stri
         .join(", ")
 }
 
-fn render_function(
+pub(crate) fn render_function(
+    program: &Program,
+    names: &Names,
+    id: &EntityId,
+    function: &FunctionBody,
+    options: ViewOptions,
+) -> String {
+    let mut out = signature(program, names, id, function, options);
+    if !function.blocks.contains(&function.entry_block) {
+        let _ = writeln!(
+            out,
+            "  # entry block {} is not listed",
+            names.name(&function.entry_block)
+        );
+    }
+    for block_id in &function.blocks {
+        match program.body(block_id) {
+            Some(EntityBodyValue::Block(block)) => {
+                render_block(&mut out, program, names, id, block_id, block, options);
+            }
+            _ => {
+                let _ = writeln!(out, "  {}:   # missing block", names.leaf(block_id));
+            }
+        }
+    }
+    orphans(&mut out, program, names, id, function);
+    out
+}
+
+/// A function's signature line (with its newline): the first line of its
+/// AV1 rendering.
+pub(crate) fn signature(
     program: &Program,
     names: &Names,
     id: &EntityId,
@@ -169,24 +228,6 @@ fn render_function(
     } else {
         let _ = writeln!(out, "   [{}]", hex::short(id.as_bytes()));
     }
-    if !function.blocks.contains(&function.entry_block) {
-        let _ = writeln!(
-            out,
-            "  # entry block {} is not listed",
-            names.name(&function.entry_block)
-        );
-    }
-    for block_id in &function.blocks {
-        match program.body(block_id) {
-            Some(EntityBodyValue::Block(block)) => {
-                render_block(&mut out, program, names, id, block_id, block, options);
-            }
-            _ => {
-                let _ = writeln!(out, "  {}:   # missing block", names.leaf(block_id));
-            }
-        }
-    }
-    orphans(&mut out, program, names, id, function);
     out
 }
 
@@ -197,7 +238,7 @@ fn list_names(names: &Names, ids: &[EntityId]) -> String {
         .join(", ")
 }
 
-const fn visibility(visibility: Visibility) -> &'static str {
+pub(crate) const fn visibility(visibility: Visibility) -> &'static str {
     match visibility {
         Visibility::Private => "private",
         Visibility::Package => "package",
@@ -206,7 +247,7 @@ const fn visibility(visibility: Visibility) -> &'static str {
     }
 }
 
-fn render_block(
+pub(crate) fn render_block(
     out: &mut String,
     program: &Program,
     names: &Names,
@@ -215,27 +256,7 @@ fn render_block(
     block: &BlockBody,
     options: ViewOptions,
 ) {
-    let params = if block.parameters.is_empty() {
-        String::new()
-    } else {
-        format!("({})", param_list(program, names, &block.parameters))
-    };
-    let dead = if block.reachability == Reachability::ExplicitlyUnreachable {
-        " unreachable"
-    } else {
-        ""
-    };
-    let foreign = if block.function == *function {
-        String::new()
-    } else {
-        format!("   # owned by {}", names.name(&block.function))
-    };
-    let _ = writeln!(
-        out,
-        "  {}{params}:{dead}{foreign}{}",
-        names.leaf(id),
-        id_suffix(id, options)
-    );
+    block_header(out, program, names, function, id, block, options);
     for (position, operation_id) in block.operations.iter().enumerate() {
         match program.body(operation_id) {
             Some(EntityBodyValue::Operation(operation)) => {
@@ -265,6 +286,39 @@ fn render_block(
     );
 }
 
+/// A block's header line: its leaf, parameters and notes.
+pub(crate) fn block_header(
+    out: &mut String,
+    program: &Program,
+    names: &Names,
+    function: &EntityId,
+    id: &EntityId,
+    block: &BlockBody,
+    options: ViewOptions,
+) {
+    let params = if block.parameters.is_empty() {
+        String::new()
+    } else {
+        format!("({})", param_list(program, names, &block.parameters))
+    };
+    let dead = if block.reachability == Reachability::ExplicitlyUnreachable {
+        " unreachable"
+    } else {
+        ""
+    };
+    let foreign = if block.function == *function {
+        String::new()
+    } else {
+        format!("   # owned by {}", names.name(&block.function))
+    };
+    let _ = writeln!(
+        out,
+        "  {}{params}:{dead}{foreign}{}",
+        names.leaf(id),
+        id_suffix(id, options)
+    );
+}
+
 /// Renders one operation line (without indentation).
 #[must_use]
 pub fn render_operation(
@@ -275,11 +329,39 @@ pub fn render_operation(
     operation: &OperationBody,
     options: ViewOptions,
 ) -> String {
-    let row = opcodes::by_tag(operation.opcode);
-    let mnemonic = row.map_or_else(
-        || format!("op{}", operation.opcode),
-        |row| row.mnemonic.to_owned(),
-    );
+    let operands = operation
+        .operands
+        .iter()
+        .map(|value| names.value(value, Some(block)))
+        .collect::<Vec<_>>();
+    operation_line(program, names, id, operation, options, &operands)
+}
+
+/// An operation's mnemonic (`op<tag>` for an unknown opcode).
+pub(crate) fn mnemonic(opcode: u32) -> String {
+    opcodes::by_tag(opcode).map_or_else(|| format!("op{opcode}"), |row| row.mnemonic.to_owned())
+}
+
+/// An operation's rendered immediate (empty when it has none).
+pub(crate) fn immediate(program: &Program, names: &Names, operation: &OperationBody) -> String {
+    render_immediate(
+        program,
+        names,
+        &operation.immediate,
+        opcodes::by_tag(operation.opcode).map(|row| row.immediate),
+    )
+}
+
+/// One operation line with operands already rendered by the caller.
+pub(crate) fn operation_line(
+    program: &Program,
+    names: &Names,
+    id: &EntityId,
+    operation: &OperationBody,
+    options: ViewOptions,
+    operands: &[String],
+) -> String {
+    let mnemonic = mnemonic(operation.opcode);
     let mut line = names.leaf(id);
     if options.types && !operation.result_types.is_empty() {
         let _ = write!(
@@ -294,23 +376,12 @@ pub fn render_operation(
         );
     }
     let _ = write!(line, " = {mnemonic}");
-    let immediate = render_immediate(
-        program,
-        names,
-        &operation.immediate,
-        row.map(|row| row.immediate),
-    );
+    let immediate = immediate(program, names, operation);
     if !immediate.is_empty() {
         let _ = write!(line, " {immediate}");
     }
-    let operands = operation
-        .operands
-        .iter()
-        .map(|value| names.value(value, Some(block)))
-        .collect::<Vec<_>>()
-        .join(", ");
     if !operands.is_empty() {
-        let _ = write!(line, " {operands}");
+        let _ = write!(line, " {}", operands.join(", "));
     }
     let _ = write!(line, "{}", id_suffix(id, options));
     line
@@ -359,7 +430,7 @@ fn render_immediate(
     }
 }
 
-fn edge(names: &Names, block: &EntityId, edge: &TargetEdge) -> String {
+fn edge(names: &Names, edge: &TargetEdge, value: &dyn Fn(&ValueRef) -> String) -> String {
     if edge.arguments.is_empty() {
         names.leaf(&edge.target)
     } else {
@@ -368,7 +439,7 @@ fn edge(names: &Names, block: &EntityId, edge: &TargetEdge) -> String {
             names.leaf(&edge.target),
             edge.arguments
                 .iter()
-                .map(|value| names.value(value, Some(block)))
+                .map(value)
                 .collect::<Vec<_>>()
                 .join(", ")
         )
@@ -383,14 +454,26 @@ pub fn render_terminator(
     block: &EntityId,
     terminator: &Terminator,
 ) -> String {
+    terminator_with(program, names, terminator, &|value| {
+        names.value(value, Some(block))
+    })
+}
+
+/// `render_terminator` with a value renderer given by the caller.
+pub(crate) fn terminator_with(
+    program: &Program,
+    names: &Names,
+    terminator: &Terminator,
+    value: &dyn Fn(&ValueRef) -> String,
+) -> String {
     match terminator {
-        Terminator::Return(ret) => format!("return {}", names.value(&ret.value, Some(block))),
-        Terminator::Branch(branch) => format!("br {}", edge(names, block, &branch.edge)),
+        Terminator::Return(ret) => format!("return {}", value(&ret.value)),
+        Terminator::Branch(branch) => format!("br {}", edge(names, &branch.edge, value)),
         Terminator::CondBranch(cond) => format!(
             "cond {} -> {}, {}",
-            names.value(&cond.condition, Some(block)),
-            edge(names, block, &cond.if_true),
-            edge(names, block, &cond.if_false)
+            value(&cond.condition),
+            edge(names, &cond.if_true, value),
+            edge(names, &cond.if_false, value)
         ),
         Terminator::VariantSwitch(switch) => {
             let cases = switch
@@ -406,7 +489,7 @@ pub fn render_terminator(
                         .arguments
                         .iter()
                         .map(|argument| match argument {
-                            SwitchArgument::Value(value) => names.value(value, Some(block)),
+                            SwitchArgument::Value(argument) => value(argument),
                             SwitchArgument::CasePayload => "$".to_owned(),
                         })
                         .collect::<Vec<_>>();
@@ -422,10 +505,7 @@ pub fn render_terminator(
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!(
-                "switch {}: {cases}",
-                names.value(&switch.value, Some(block))
-            )
+            format!("switch {}: {cases}", value(&switch.value))
         }
         Terminator::Trap(trap) => {
             let code = match trap.code {
@@ -435,7 +515,7 @@ pub fn render_terminator(
                 TrapCode::InternalInvariant => "internal_invariant",
             };
             match &trap.payload {
-                Some(value) => format!("trap {code} {}", names.value(value, Some(block))),
+                Some(payload) => format!("trap {code} {}", value(payload)),
                 None => format!("trap {code}"),
             }
         }
@@ -450,7 +530,7 @@ fn member_key(program: &Program, names: &Names, member: &sley_ssmc::MemberId) ->
 
 /// Lists blocks, parameters, and operations that claim this function as
 /// owner but that no function list reaches (they refuse validation).
-fn orphans(
+pub(crate) fn orphans(
     out: &mut String,
     program: &Program,
     names: &Names,
@@ -609,6 +689,16 @@ pub fn render_test(
 /// tests, each group in name order.
 #[must_use]
 pub fn package(program: &Program, names: &Names, options: ViewOptions) -> String {
+    package_with(program, names, options, render_function)
+}
+
+/// `package` with the given function renderer.
+pub(crate) fn package_with(
+    program: &Program,
+    names: &Names,
+    options: ViewOptions,
+    render: FunctionRenderer,
+) -> String {
     let mut groups: [Vec<(String, EntityId)>; 6] = Default::default();
     for object in program.objects() {
         let record = object.record();
@@ -627,7 +717,7 @@ pub fn package(program: &Program, names: &Names, options: ViewOptions) -> String
     for (slot, group) in groups.iter_mut().enumerate() {
         group.sort();
         for (_, id) in group.iter() {
-            out.push_str(&entity(program, names, id, options));
+            out.push_str(&entity_with(program, names, id, options, render));
             if slot == 3 {
                 out.push('\n');
             }

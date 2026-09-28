@@ -66,6 +66,10 @@ pub fn default_test_limits(ceilings: &sley_policy::PolicyResourceCeilings) -> Re
     }
 }
 
+/// The limit keys a `TestCase` may declare (`sley-agent help tests`).
+pub const LIMIT_KEYS: &str =
+    "fuel, memory_bytes, output_bytes, effect_count, call_depth, wall_timeout_millis";
+
 /// The compiled frame.
 #[derive(Clone, Debug, Default)]
 pub struct Compiled {
@@ -85,6 +89,11 @@ pub struct Compiled {
     pub tests: Vec<EntityId>,
     /// Notes for the author (auto-deleted dependents, ...).
     pub notes: Vec<String>,
+    /// Derived authoring artifacts kept with a draft revision, by file name
+    /// (the expanded frame and its source map for an AF1-X frame).
+    pub artifacts: Vec<(String, Value)>,
+    /// Authoring statistics for the events ledger (feature use counts).
+    pub stats: serde_json::Map<String, Value>,
 }
 
 /// Compiles an AF1 frame against the accepted program.
@@ -111,6 +120,15 @@ pub fn compile(
         Some(Value::Number(version)) if version.as_u64() == Some(1) => {}
         _ => return Err(frame("/af1", "declare \"af1\": 1")),
     }
+    if let Some(afx) = object.get("afx") {
+        if afx.as_u64() != Some(1) || !afx.is_number() {
+            return Err(frame(
+                "/afx",
+                "declare \"afx\": 1 for the authoring dialect, or remove the key",
+            ));
+        }
+        return compile_extended(program, names, ceilings, frame_value, nonce, random);
+    }
     for key in object.keys() {
         if !matches!(
             key.as_str(),
@@ -126,6 +144,14 @@ pub fn compile(
                 | "namespace"
                 | "comment"
         ) {
+            if matches!(key.as_str(), "ripple" | "test_tables") {
+                return Err(frame(
+                    &format!("/{key}"),
+                    format!(
+                        "`{key}` belongs to the authoring dialect: add \"afx\": 1 to the frame (the AF1-X envelope) to use it"
+                    ),
+                ));
+            }
             return Err(frame(&format!("/{key}"), "unknown frame key"));
         }
     }
@@ -151,6 +177,65 @@ pub fn compile(
     };
     compiler.run(object, random)?;
     compiler.finish()
+}
+
+/// An AF1-X frame: expanded into plain AF1, compiled by the unchanged
+/// path, and every compiler problem pointer mapped back to the authored
+/// frame. The expansion and its source map become artifacts.
+fn compile_extended(
+    program: &Program,
+    names: &Names,
+    ceilings: &sley_policy::PolicyResourceCeilings,
+    frame_value: &Value,
+    nonce: CandidateNonce,
+    random: &mut dyn FnMut() -> Result<[u8; 32]>,
+) -> Result<Compiled> {
+    let expansion = crate::afx::expand(program, names, frame_value)?;
+    if !expansion.obligations.is_empty() {
+        // The rest of the frame is compiled too, so one refusal lists its
+        // problems beside the open decisions.
+        let rest = if expansion.discloses_the_rest() {
+            compile(program, names, ceilings, &expansion.frame, nonce, random)
+                .err()
+                .map(|error| expansion.map.rewrite(&error))
+        } else {
+            None
+        };
+        return Err(crate::afx::refusal_beside(
+            &expansion.obligations,
+            rest.as_ref(),
+        ));
+    }
+    let mut compiled = compile(program, names, ceilings, &expansion.frame, nonce, random)
+        .map_err(|error| expansion.map.rewrite(&error))?;
+    compiled
+        .artifacts
+        .push(("expanded.json".to_owned(), expansion.frame));
+    compiled
+        .artifacts
+        .push(("sourcemap.json".to_owned(), expansion.map.to_json()));
+    if let Some(inventory) = expansion.ripple {
+        compiled
+            .artifacts
+            .push(("ripple.json".to_owned(), inventory));
+    }
+    compiled.stats = expansion.stats.to_json();
+    Ok(compiled)
+}
+
+/// The authoring statistics of an AF1-X frame's expansion, for the events
+/// ledger of a frame refused before its statistics were compiled; `None`
+/// for plain AF1 and for a frame that does not expand.
+#[must_use]
+pub fn expansion_stats(
+    program: &Program,
+    names: &Names,
+    frame_value: &Value,
+) -> Option<serde_json::Map<String, Value>> {
+    frame_value.get("afx")?;
+    crate::afx::expand(program, names, frame_value)
+        .ok()
+        .map(|expansion| expansion.stats.to_json())
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -697,7 +782,11 @@ impl Compiler<'_> {
                 .as_object()
                 .ok_or_else(|| frame(&pointer, "expected an object"))?;
             let target_name = name_of(decl, &["fn", "target", "function"], &pointer)?;
-            let target = self.resolve_top(target_name, 5, &pointer)?;
+            let key = ["fn", "target", "function"]
+                .into_iter()
+                .find(|key| decl.contains_key(*key))
+                .unwrap_or("fn");
+            let target = self.resolve_top(target_name, 5, &format!("{pointer}/{key}"))?;
             let name = match decl.get("name") {
                 Some(_) => name_of(decl, &["name"], &pointer)?.to_owned(),
                 None => self.fresh_test_name(target_name),
@@ -1197,13 +1286,22 @@ impl Compiler<'_> {
                 }
                 let (b, o) = next[0];
                 let op = &blocks[b].ops[o];
-                return Err(frame(
+                // A malformed terminator removes the use that would type a
+                // result: name it first, as the cause.
+                let mut causes = malformed_terminators(&blocks);
+                let consequence = if causes.is_empty() {
+                    ""
+                } else {
+                    " (after the terminator problem above is fixed, its use may determine it)"
+                };
+                causes.push(frame(
                     &op.pointer,
                     format!(
-                        "cannot infer the result type of `{}`; add \"type\" (object form) to the operation",
+                        "cannot infer the result type of `{}`; add \"type\" (object form) to the operation{consequence}",
                         op.leaf
                     ),
                 ));
+                return Err(combined(causes));
             }
             pending = next;
         }
@@ -2151,7 +2249,10 @@ impl Compiler<'_> {
             .ok_or_else(|| {
                 frame(
                     pointer,
-                    format!("no operation `{op_leaf}` in `{block_leaf}`"),
+                    format!(
+                        "no operation `{op_leaf}` in `{block_leaf}`{}",
+                        self.expanded_home(&body.blocks, block_leaf, op_leaf, function_name)
+                    ),
                 )
             })?;
         let replacement = match with {
@@ -2175,6 +2276,41 @@ impl Compiler<'_> {
             operation,
             replacement,
         ))
+    }
+
+    /// Where an authored operation of a block the authoring dialect split
+    /// now lives (a generated block `block__...` holding `op`, or `op__r`
+    /// for a checked operation), with the fix; empty when nowhere.
+    fn expanded_home(
+        &self,
+        blocks: &[EntityId],
+        block_leaf: &str,
+        op_leaf: &str,
+        function_name: &str,
+    ) -> String {
+        let piece_prefix = format!("{block_leaf}__");
+        let checked = format!("{op_leaf}__r");
+        for block in blocks {
+            let piece = self.names.leaf(block);
+            if !piece.starts_with(&piece_prefix) {
+                continue;
+            }
+            let Some(EntityBodyValue::Block(body)) = self.program.body(block) else {
+                continue;
+            };
+            let Some(found) = body
+                .operations
+                .iter()
+                .map(|op| self.names.leaf(op))
+                .find(|leaf| *leaf == op_leaf || *leaf == checked)
+            else {
+                continue;
+            };
+            return format!(
+                "; the authoring dialect's expansion holds it as `{piece}.{found}` (block `{block_leaf}` was split into generated blocks): to change it, restate block `{block_leaf}` with patch: {{\"af1\": 1, \"afx\": 1, \"patch\": [{{\"fn\": \"{function_name}\", \"blocks\": {{\"{block_leaf}\": {{...}}}}}}]}}"
+            );
+        }
+        String::new()
     }
 
     /// Applies every edit of the frame. Edits are grouped by function: each
@@ -2435,7 +2571,17 @@ impl Compiler<'_> {
             ),
         };
         let mut limits = default_test_limits(&self.ceilings);
-        if let Some(Value::Object(object)) = decl.get("limits") {
+        let object = match decl.get("limits") {
+            None => None,
+            Some(Value::Object(object)) => Some(object),
+            Some(_) => {
+                return Err(frame(
+                    &format!("{pointer}/limits"),
+                    format!("limits are an object of integers, keyed by {LIMIT_KEYS}"),
+                ));
+            }
+        };
+        if let Some(object) = object {
             for (key, value) in object {
                 let number = value.as_u64().ok_or_else(|| {
                     frame(&format!("{pointer}/limits/{key}"), "expected an integer")
@@ -2447,7 +2593,12 @@ impl Compiler<'_> {
                     "effect_count" => limits.effect_count = number,
                     "call_depth" => limits.call_depth = number,
                     "wall_timeout_millis" => limits.wall_timeout_millis = number,
-                    _ => return Err(frame(&format!("{pointer}/limits/{key}"), "unknown limit")),
+                    _ => {
+                        return Err(frame(
+                            &format!("{pointer}/limits/{key}"),
+                            format!("unknown limit `{key}`: the limits are {LIMIT_KEYS}"),
+                        ));
+                    }
                 }
             }
         }
@@ -2468,7 +2619,9 @@ impl Compiler<'_> {
 
     /// Keeps namespace membership consistent: deleted members leave every
     /// namespace; created top-level entities (not tests) join the named
-    /// namespace, or the only namespace when there is exactly one.
+    /// namespace, or the only namespace when there is exactly one. With
+    /// `"namespace": null` they join none; existing members stay and deleted
+    /// members still leave.
     fn namespaces(&mut self, requested: Option<&Value>) -> Result<()> {
         let namespaces: Vec<(EntityId, NamespaceBody)> = self
             .program
@@ -2482,8 +2635,11 @@ impl Compiler<'_> {
             })
             .collect();
         let target = match requested {
+            Some(Value::Null) => None,
             Some(value) => {
-                let name = string(value, "/namespace")?;
+                let name = value
+                    .as_str()
+                    .ok_or_else(|| frame("/namespace", "a namespace name, or null to join none"))?;
                 Some(self.resolve_top(name, 3, "/namespace")?)
             }
             None if namespaces.len() == 1 => Some(namespaces[0].0),
@@ -2597,7 +2753,7 @@ fn read_visibility(value: Option<&Value>, pointer: &str) -> Result<Visibility> {
 
 /// Infers an operation's result type from its opcode, operand types, and
 /// context; `None` when the context does not determine it.
-fn infer(
+pub(crate) fn infer(
     row: &OpcodeRow,
     operands: &[TypeExpr],
     hint: Option<&TypeExpr>,
@@ -2854,6 +3010,35 @@ struct PlannedBlock {
     keep: bool,
 }
 
+/// The terminators of frame blocks whose word or item count no terminator
+/// form accepts, as frame problems at their pointers.
+fn malformed_terminators(blocks: &[PlannedBlock]) -> Vec<AgentError> {
+    let mut problems = Vec::new();
+    for block in blocks {
+        let Some(term) = &block.term else { continue };
+        let pointer = format!("{}/term", block.pointer);
+        let Some(items) = term.as_array() else {
+            problems.push(frame(&pointer, "expected an array"));
+            continue;
+        };
+        let Some(word) = items.first().and_then(Value::as_str) else {
+            problems.push(frame(&pointer, "a terminator starts with its word"));
+            continue;
+        };
+        let shaped = match word {
+            "return" => items.len() == 2,
+            "br" | "jump" | "switch" => items.len() >= 2 + usize::from(word == "switch"),
+            "cond" => items.len() == 4,
+            "trap" => true,
+            _ => false,
+        };
+        if !shaped {
+            problems.push(frame(&pointer, terminator_shape(word, items)));
+        }
+    }
+    problems
+}
+
 /// Why a terminator with a known or unknown word has the wrong shape, with
 /// the fix.
 fn terminator_shape(word: &str, items: &[Value]) -> String {
@@ -2891,7 +3076,7 @@ fn terminator_shape(word: &str, items: &[Value]) -> String {
 
 /// The problem lines of a refusal: one line, or a combined refusal's
 /// headline problem and its indented continuation lines.
-fn problem_lines(error: &AgentError) -> Vec<String> {
+pub(crate) fn problem_lines(error: &AgentError) -> Vec<String> {
     let mut lines: Vec<String> = error
         .detail()
         .lines()
@@ -2910,7 +3095,7 @@ fn problem_lines(error: &AgentError) -> Vec<String> {
 /// One refusal for several frame problems. The headline is the first
 /// problem, pointer included, so the refusal line itself says where; the
 /// others follow one per line.
-fn combined(mut errors: Vec<AgentError>) -> AgentError {
+pub(crate) fn combined(mut errors: Vec<AgentError>) -> AgentError {
     if errors.len() == 1 {
         return errors.remove(0);
     }
@@ -2965,7 +3150,7 @@ fn unresolved(text: &str, base: &str, block: usize, scope: &FunctionScope) -> St
 }
 
 /// Why a switch case key is not a case of the scrutinee's type.
-fn not_a_case(key: &str, scrutinee: Option<&TypeExpr>) -> String {
+pub(crate) fn not_a_case(key: &str, scrutinee: Option<&TypeExpr>) -> String {
     match scrutinee {
         Some(TypeExpr::Result { .. }) => format!(
             "`{key}` is not a case of a Result; a Result switch lists [\"Ok\", block, args...] and [\"Err\", block, args...], and `$` passes the payload"
