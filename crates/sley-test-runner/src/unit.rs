@@ -53,12 +53,26 @@ pub const REQUIRED_PROPERTIES: [(&str, &str); 14] = [
 fn manager_property_arg(name: &str, normalized_value: &str) -> String {
     // SLEYNHC1 names the empty capability set as `empty`; systemd's unit
     // syntax installs it with an empty right-hand side.
-    let value = if name == "CapabilityBoundingSet" {
-        ""
-    } else {
-        normalized_value
-    };
-    format!("--property={name}={value}")
+    if name == "CapabilityBoundingSet" {
+        return "--property=CapabilityBoundingSet=".to_owned();
+    }
+    // systemd-run accepts unit-file directive names, while the attested
+    // projection and D-Bus verifier use the typed microsecond property names.
+    if matches!(name, "TimeoutStopUSec" | "RuntimeMaxUSec") {
+        let micros: u64 = normalized_value.parse().expect("generated duration");
+        assert_eq!(
+            micros % 1_000,
+            0,
+            "generated duration is whole milliseconds"
+        );
+        let directive = if name == "TimeoutStopUSec" {
+            "TimeoutStopSec"
+        } else {
+            "RuntimeMaxSec"
+        };
+        return format!("--property={directive}={}ms", micros / 1_000);
+    }
+    format!("--property={name}={normalized_value}")
 }
 
 /// Constructs the exact configuration the administrator and selected run
@@ -203,7 +217,10 @@ pub fn render_transient_unit(
         argv.push(manager_property_arg(name, value));
     }
     argv.push(format!("--property=MemoryMax={installed_memory}"));
-    argv.push(format!("--property=RuntimeMaxUSec={runtime_max}"));
+    argv.push(manager_property_arg(
+        "RuntimeMaxUSec",
+        &runtime_max.to_string(),
+    ));
     // Fixed launch_profile1 mapping: the manager copies the root-only input
     // into the dynamic worker's private credential directory. The worker
     // path stays read-only; the lifetime binding is fixed.
@@ -396,9 +413,9 @@ mod tests {
             "--property=ProtectSystem=strict",
             "--property=SendSIGKILL=yes",
             "--property=TasksMax=1",
-            "--property=TimeoutStopUSec=2000000",
+            "--property=TimeoutStopSec=2000ms",
             "--property=MemoryMax=8192",
-            "--property=RuntimeMaxUSec=3000000",
+            "--property=RuntimeMaxSec=3000ms",
             "--property=LoadCredential=sley-input:/run/sley-test-supervisor/input/9f2c.bin",
             "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker",
             "--property=Slice=system.slice",
@@ -409,6 +426,19 @@ mod tests {
         ];
         assert_eq!(unit.argv, expected);
         assert!(argv.contains("--property=MemorySwapMax=0"));
+        let varied_wall = render_transient_unit(
+            &runner_config(),
+            NONCE,
+            "/run/sley-test-supervisor/input/9f2c.bin",
+            8_193,
+            1_001,
+        )
+        .expect("renders a millisecond-precise wall budget");
+        assert!(
+            varied_wall
+                .argv
+                .contains(&"--property=RuntimeMaxSec=3001ms".to_owned())
+        );
     }
 
     #[test]
