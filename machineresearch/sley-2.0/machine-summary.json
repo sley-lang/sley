@@ -4904,7 +4904,7 @@
     "contract_revision": 9,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.0.2-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.0.3-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
@@ -4931,8 +4931,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "5d6bdc31306c2c3c7d61c3130ef8c0a4e0f2ac757e5907218f7620c181492a30",
-    "candidate_artifact_size_bytes": 4868674,
+    "candidate_artifact_sha256": "4a9aef6962795f49f6e9c13dfe2cd6815a9392106708cccbc491367c4ca3c2a3",
+    "candidate_artifact_size_bytes": 5883672,
     "candidate_member_count": 17,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4940,22 +4940,22 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "d0a806a1ff1e4761b4244d914870d18a5c18afec52a8ae6416b3370f948e3fc6",
-    "candidate_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+    "candidate_manifest_digest": "2e010379c095e53c130314659e13d1929cde23bee70b31849d669013c1a74b1d",
+    "candidate_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.0.2 release, built from commit d7d13464 of sley-lang/sley (two clean musl builds, REPRODUCIBLE) and independently rebuilt on the secondary host the same day from a transferred Git bundle (make release-candidate-build in a detached clean clone, REPRODUCIBLE, the same artifact digest) through the tracked scripts/second_host_attest.sh. The secondary attestation is merged into the tracked report (MULTI_HOST_REPRODUCIBLE, merge commit 1c457d5b) and retained as evidence/release/attestations/d7d1346-secondary.json, with its custody receipt in evidence/release/second-host-lane-records.json.",
+    "candidate_evidence_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+    "candidate_second_host_note": "The 2.0.3 candidate has two identical clean musl builds on the primary host. Its independent secondary-host build is pending; no cross-host result is claimed here.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
-    "mint_method": "primary clean-tree mint via make release-candidate-smoke in a detached linked worktree of the candidate commit (two clean musl builds, REPRODUCIBLE); independently repeated on secondary-host from the transferred Git bundle under the S20-730 second-host runbook (make release-candidate-build, REPRODUCIBLE, same artifact digest; tracked runbook, no deviation)",
+    "mint_method": "Primary clean-tree build via build_release_candidate.py --timeout-seconds 1800 --require-clean; two clean musl builds, archive comparison, source-independent demo and conformance subset.",
     "p1_open_count": 0,
     "p1_open": [],
-    "mint_worktree": "primary: detached linked worktree of the candidate commit under /home/dev/Work/checkpoints (clean by construction); secondary: detached clean clone /home/lab/sley2-attest-515cc4a of the transferred bundle (the superseded 8d063f00 lane used /home/lab/sley2-attest-8d063f0, the 45b2cd98 mint /home/lab/sley2-repair-45b2cd9-v1)",
+    "mint_worktree": "Dedicated clean release worktree on the primary host; a separate clone from a transferred Git bundle on the secondary host.",
     "offline_tests_note": "test methods in bench/release/tests/test_packaging.py; scripts/check_release_candidate_packaging.py pins the count against the def test_ census",
     "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_2_P2_2_P3",
     "nabu_architecture_review_revision_2": "PASS_0_P0_0_P1_0_P2_3_P3_CLOSED",
@@ -6237,10 +6237,10 @@
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
     "independent_conformance_report": "evidence/conformance/independent-conformance-report.json",
-    "reproducibility_result": "MULTI_HOST_REPRODUCIBLE",
-    "second_host_status": "ATTESTED",
+    "reproducibility_result": "SINGLE_HOST_REPRODUCIBLE",
+    "second_host_status": "GATED_OPERATOR_LANE",
     "required_hosts": 2,
-    "attested_hosts": 2,
+    "attested_hosts": 1,
     "second_host_lane_record": "evidence/release/second-host-lane-records.json",
     "fixture_directories": 27,
     "tracked_corpus_directories": 32,
@@ -6252,6 +6252,7 @@
     "ga_claimed": false,
     "publication_authorized": true,
     "blockers": [
+      "second_host_attestation_operator_lane",
       "standards_sbom_and_provenance_s20_710_full",
       "succession_thresholds_s20_640",
       "council_reviews"
@@ -6313,7 +6314,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
+    "attested_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -7093,6 +7094,12 @@
           "primary",
           "secondary"
         ]
+      },
+      {
+        "commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+        "hosts": [
+          "primary"
+        ]
       }
     ],
     "vulcan_surface_review_revision_11": "REVISE_0_P0_0_P1_0_P2_2_P3_6_P4",
@@ -7538,7 +7545,8 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews"
+      "council_reviews",
+      "second_host_attestation_operator_lane"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3_4_P4",
@@ -8030,9 +8038,10 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "19 GA acceptance criteria are not evidenced",
+      "22 GA acceptance criteria are not evidenced",
       "27 review obligations are open",
       "no succession trial has been executed",
+      "only one host has attested the candidate",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -8411,12 +8420,15 @@
     "criterion_count": 52,
     "states": {
       "AWAITS_REVIEW": 17,
-      "EVIDENCED": 33,
-      "GATED": 2
+      "EVIDENCED": 30,
+      "GATED": 5
     },
     "gated": [
       "no P0/P1/P2 finding remains open",
-      "every section 22 threshold passes"
+      "every section 22 threshold passes",
+      "artifact name sley-2.0.3-linux-x86_64.tar.gz",
+      "artifact is built from the final candidate commit",
+      "second clean build establishes reproducibility"
     ],
     "ga_claimed": false,
     "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim; every state is derived from the fact its evidence names, package completion and lane clearance are the finding register's predicates, and the report is digest-bound to the register",
