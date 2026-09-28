@@ -1701,7 +1701,7 @@ mod tests {
             WorkspaceId::from_bytes([3; 32]),
             principal,
         ));
-        let duplicated = vec![callers[0].clone(), callers[0].clone()];
+        let duplicated = vec![callers[0], callers[0]];
         assert!(!exact_caller_grant(
             &duplicated,
             1_000,

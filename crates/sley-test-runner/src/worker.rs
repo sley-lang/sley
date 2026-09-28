@@ -373,15 +373,6 @@ pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Wr
 // pinned root fd with O_NOFOLLOW on every component keeps the same no-symlink,
 // no-parent-traversal boundary without loosening the transient unit.
 fn open_components_no_symlinks(root: &File, relative: &std::path::Path) -> Result<OwnedFd, Errno> {
-    let components = relative.iter().collect::<Vec<_>>();
-    if components.is_empty()
-        || components.len() > 64
-        || relative
-            .components()
-            .any(|part| !matches!(part, Component::Normal(_)))
-    {
-        return Err(Errno::EINVAL);
-    }
     fn walk<Fd: AsFd>(directory: Fd, components: &[&OsStr]) -> Result<OwnedFd, Errno> {
         let (first, rest) = components.split_first().ok_or(Errno::EINVAL)?;
         if rest.is_empty() {
@@ -399,6 +390,15 @@ fn open_components_no_symlinks(root: &File, relative: &std::path::Path) -> Resul
             Mode::empty(),
         )?;
         walk(&next, rest)
+    }
+    let components = relative.iter().collect::<Vec<_>>();
+    if components.is_empty()
+        || components.len() > 64
+        || relative
+            .components()
+            .any(|part| !matches!(part, Component::Normal(_)))
+    {
+        return Err(Errno::EINVAL);
     }
     walk(root.as_fd(), &components)
 }
