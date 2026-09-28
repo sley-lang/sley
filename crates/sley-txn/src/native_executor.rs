@@ -1,39 +1,42 @@
-//! Candidate-commit dispatch to the authenticated native supervisor.
+//! Native commit and diagnostic dispatch to the authenticated supervisor.
 //!
-//! This adapter derives each request from the protected plan and validated
-//! proposed Sley state, uses a fresh kernel-random nonce, and preserves only
+//! This adapter derives each request from the protected plan and the
+//! validator-owned proposed or owner-loaded accepted state, uses a fresh
+//! kernel-random nonce, and preserves only
 //! request-bound, receiver-trusted response evidence. Its socket peer must be
 //! root. Provisioning this adapter does not by itself qualify the supervisor
 //! or enable native test admission on an untested host.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::Read;
 use std::path::Component;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use sley_id::{EntityId, ObjectId};
 use sley_policy::ValidatedCandidatePlan;
+use sley_state_root::AcceptedStateRoot;
 use sley_test_runner::{
     client::{ClientError, run_native_test},
     config::SOCKET_NAME,
-    protocol::RunStatus,
+    protocol::{RunRequest, RunStatus},
 };
 use sley_tests::{HistoricalTrustPolicyV1, NativeTestPlanV1};
 
 use crate::native_commit::{
     ExecutedNativeTest, NativeCommitError, NativeTestExecutor, SupervisorEvidenceError,
-    build_candidate_supervisor_request, verified_supervisor_execution,
+    build_candidate_supervisor_request, build_explicit_supervisor_request,
+    verified_supervisor_execution,
 };
 
 /// Whole-batch preparation, execution, and evidence watchdog.
 pub const NATIVE_EXECUTOR_WATCHDOG: Duration = Duration::from_secs(35);
 
-/// Production candidate-commit adapter for the root-owned local supervisor.
+/// Production candidate and explicit-root adapter for the root-owned local supervisor.
 ///
 /// An operator must provision this together with the matching receiver trust
-/// manifest and acceptance authority. Replay and explicit-root diagnostics
-/// remain unsupported by this candidate-only adapter.
+/// manifest and acceptance authority. Replay remains unsupported.
 #[derive(Clone, Debug)]
 pub struct SocketNativeCommitExecutor {
     socket_path: PathBuf,
@@ -73,6 +76,46 @@ impl SocketNativeCommitExecutor {
     #[must_use]
     pub fn socket_path(&self) -> &std::path::Path {
         &self.socket_path
+    }
+
+    fn run_selected(
+        &self,
+        plan: &NativeTestPlanV1,
+        mut build: impl FnMut(EntityId, u64, [u8; 32]) -> Result<RunRequest, NativeCommitError>,
+    ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+        if plan.selected().is_empty() {
+            return Ok(Vec::new());
+        }
+        let deadline = Instant::now()
+            .checked_add(NATIVE_EXECUTOR_WATCHDOG)
+            .ok_or(NativeCommitError::ExecutorUnavailable)?;
+        let mut entropy =
+            File::open("/dev/urandom").map_err(|_| NativeCommitError::ExecutorUnavailable)?;
+        let mut used = BTreeSet::new();
+        let mut executions = Vec::with_capacity(plan.selected().len());
+        for selected in plan.selected() {
+            let nonce = new_nonce(&mut entropy, &mut used)?;
+            let request = build(
+                selected.test_entity,
+                selected.declared_limits.wall_timeout_millis,
+                nonce,
+            )?;
+            let timeout = deadline
+                .checked_duration_since(Instant::now())
+                .filter(|remaining| !remaining.is_zero())
+                .ok_or(NativeCommitError::OutcomeUnknown)?;
+            let frame =
+                run_native_test(&self.socket_path, &request, timeout).map_err(client_failure)?;
+            let execution = verified_supervisor_execution(
+                &request,
+                &frame,
+                self.caller_uid,
+                &self.measurement_trust,
+            )
+            .map_err(evidence_failure)?;
+            executions.push(execution);
+        }
+        Ok(executions)
     }
 }
 
@@ -126,42 +169,22 @@ impl NativeTestExecutor for SocketNativeCommitExecutor {
         plan: &NativeTestPlanV1,
         validated: &ValidatedCandidatePlan,
     ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
-        if plan.selected().is_empty() {
-            return Ok(Vec::new());
-        }
-        let deadline = Instant::now()
-            .checked_add(NATIVE_EXECUTOR_WATCHDOG)
-            .ok_or(NativeCommitError::ExecutorUnavailable)?;
-        let mut entropy =
-            File::open("/dev/urandom").map_err(|_| NativeCommitError::ExecutorUnavailable)?;
-        let mut used = BTreeSet::new();
-        let mut executions = Vec::with_capacity(plan.selected().len());
-        for selected in plan.selected() {
-            let nonce = new_nonce(&mut entropy, &mut used)?;
-            let request = build_candidate_supervisor_request(
-                plan,
-                validated,
-                selected.test_entity,
-                selected.declared_limits.wall_timeout_millis,
-                nonce,
-            )
-            .map_err(|_| NativeCommitError::ExecutorUnavailable)?;
-            let timeout = deadline
-                .checked_duration_since(Instant::now())
-                .filter(|remaining| !remaining.is_zero())
-                .ok_or(NativeCommitError::OutcomeUnknown)?;
-            let frame =
-                run_native_test(&self.socket_path, &request, timeout).map_err(client_failure)?;
-            let execution = verified_supervisor_execution(
-                &request,
-                &frame,
-                self.caller_uid,
-                &self.measurement_trust,
-            )
-            .map_err(evidence_failure)?;
-            executions.push(execution);
-        }
-        Ok(executions)
+        self.run_selected(plan, |test_entity, wall_ms, nonce| {
+            build_candidate_supervisor_request(plan, validated, test_entity, wall_ms, nonce)
+                .map_err(|_| NativeCommitError::ExecutorUnavailable)
+        })
+    }
+
+    fn execute_diagnostic(
+        &self,
+        plan: &NativeTestPlanV1,
+        root: &AcceptedStateRoot,
+        objects: &BTreeMap<ObjectId, &[u8]>,
+    ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+        self.run_selected(plan, |test_entity, wall_ms, nonce| {
+            build_explicit_supervisor_request(plan, root, objects, test_entity, wall_ms, nonce)
+                .map_err(|_| NativeCommitError::ExecutorUnavailable)
+        })
     }
 }
 

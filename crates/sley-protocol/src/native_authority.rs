@@ -151,7 +151,7 @@ pub fn load_native_authority(path: &Path) -> Result<NativeAuthority, &'static st
         measurement_trust,
         acceptance_trust,
     )
-    .with_candidate_diagnostic_executor(Box::new(executor)))
+    .with_diagnostic_executor(Box::new(executor)))
 }
 
 #[cfg(test)]

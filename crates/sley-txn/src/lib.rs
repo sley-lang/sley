@@ -54,9 +54,9 @@ pub use native_commit::{
     NativeAttemptScope, NativeCommitError, NativeCommitInput, NativeCommitOutcome,
     NativeCommitOutput, NativeRejection, NativeTestExecutor, NativeVerifiedRevision,
     SupervisorEvidenceError, attempt_path, build_candidate_supervisor_request,
-    check_execution_coverage, commit_needs_executor, native_receipt_committed_root,
-    verified_supervisor_execution, verify_acceptance_statement, verify_acceptance_trust,
-    verify_measurement_attestation, verify_measurement_trust,
+    build_explicit_supervisor_request, check_execution_coverage, commit_needs_executor,
+    native_receipt_committed_root, verified_supervisor_execution, verify_acceptance_statement,
+    verify_acceptance_trust, verify_measurement_attestation, verify_measurement_trust,
 };
 pub use native_executor::SocketNativeCommitExecutor;
 pub use repository::{

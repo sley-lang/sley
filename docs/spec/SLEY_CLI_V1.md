@@ -650,10 +650,12 @@ cause, writes no protocol stdout, and does not start serving. The configured
 commit executor connects only to
 `/run/sley-test-supervisor/supervisor.sock`; it still requires the separately
 installed, authenticated, qualified root supervisor. The receiver also
-provisions that candidate-bound executor for `tests.affected`, which uses the
-validated proposed state and does not commit. `tests.selected` remains
-unprovisioned: the current diagnostic executor interface lacks the complete
-accepted-root snapshot needed by the portable worker program. Replacing the
-receiver authority clears any previously configured diagnostic executor.
+provisions that socket executor for `tests.affected`, which uses the validated
+proposed state, and `tests.selected`, which uses the complete owner-loaded
+accepted root and objects. Neither diagnostic method commits. Explicit-root
+requests carry the plan's zero diagnostic principal, which the administrator
+must grant for the intended workspace/UID in the supervisor's `allowed_callers`.
+Replacing the receiver authority clears any previously configured diagnostic
+executor.
 This development-core addition is not part of the selected 2.0.1 release and
 does not itself demonstrate native test admission.

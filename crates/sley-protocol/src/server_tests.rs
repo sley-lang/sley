@@ -3683,6 +3683,7 @@ impl sley_txn::NativeTestExecutor for DiagnosticRejector {
     fn execute_diagnostic(
         &self,
         plan: &sley_tests::NativeTestPlanV1,
+        _root: &sley_state_root::AcceptedStateRoot,
         _objects: &std::collections::BTreeMap<sley_id::ObjectId, &[u8]>,
     ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
         use sley_tests::{
@@ -3903,6 +3904,109 @@ fn selected_runs_replays_and_conflicts_on_attempt_binding() {
         selected_body(root, &[41], [0xA2; 16]),
     );
     assert_eq!(unknown.symbol, "NATIVE_TEST_SELECTION_INVALID");
+}
+
+#[test]
+fn explicit_supervisor_request_binds_owner_loaded_root_and_objects() {
+    use sley_repo::test_support::id;
+
+    let (temp, _server, _session) = diagnostic_server("v3-selected-portable-request");
+    let head = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap();
+    let revision = head.verified_revision();
+    let selected = [id(40)];
+    let plan =
+        sley_policy::native_test_plan_explicit_root(&sley_policy::NativeExplicitRootInputs {
+            head_transaction_id: revision.transaction_id(),
+            state: revision.state_root(),
+            objects: revision.objects(),
+            policy: revision.policy_root(),
+            caller_selected: &selected,
+            limits: sley_policy::CandidateValidationLimits::full_v1(),
+            implementation_limits: sley_tests::NativeImplementationLimits::HARD_MAXIMA,
+            aggregate: sley_tests::NativeAggregateLimits::HARD_MAXIMA,
+        })
+        .unwrap();
+    let mut objects = revision
+        .objects()
+        .iter()
+        .map(|object| (object.object_id(), object.stored_bytes()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let entry = plan.selected()[0];
+    let request = sley_txn::build_explicit_supervisor_request(
+        &plan,
+        revision.state_root(),
+        &objects,
+        selected[0],
+        entry.declared_limits.wall_timeout_millis,
+        [0x55; 32],
+    )
+    .unwrap();
+    assert_eq!(request.plan_id, plan.plan_id());
+    assert_eq!(request.test_entity, selected[0]);
+    assert_eq!(request.candidate_id, None);
+    assert_eq!(request.principal, sley_id::PrincipalId::from_bytes([0; 32]));
+
+    let mut wrong_root = revision.state_root().clone();
+    wrong_root.root = sley_id::StateRoot::from_bytes([0xFF; 32]);
+    assert!(
+        sley_txn::build_explicit_supervisor_request(
+            &plan,
+            &wrong_root,
+            &objects,
+            selected[0],
+            entry.declared_limits.wall_timeout_millis,
+            [0x56; 32],
+        )
+        .is_err()
+    );
+    objects.remove(&entry.test_object);
+    assert!(
+        sley_txn::build_explicit_supervisor_request(
+            &plan,
+            revision.state_root(),
+            &objects,
+            selected[0],
+            entry.declared_limits.wall_timeout_millis,
+            [0x57; 32],
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn receiver_authority_routes_explicit_selected_without_commit() {
+    use sley_id::{PrincipalId, WorkspaceId};
+
+    let (temp, mut server, session) = diagnostic_server("v3-authority-selected");
+    let workspace = WorkspaceId::from_bytes([1; 32]);
+    server.set_native_authority(
+        commit_authority(workspace).with_diagnostic_executor(Box::new(DiagnosticRejector::new(
+            workspace,
+            PrincipalId::from_bytes([2; 32]),
+        ))),
+    );
+    let before = diagnostic_head_root(&temp);
+    let frame = call_v3_ok(
+        &mut server,
+        session,
+        1,
+        TESTS_SELECTED_TAG,
+        selected_body(before, &[40], [0x58; 16]),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(
+        fields[2],
+        encode_uvar(3),
+        "test double returned a diagnostic rejection"
+    );
+    assert_eq!(fields[3], encode_uvar(1), "one test was selected");
+    assert_eq!(
+        diagnostic_head_root(&temp),
+        before,
+        "diagnostic did not commit"
+    );
 }
 
 #[test]
@@ -4411,6 +4515,7 @@ impl sley_txn::NativeTestExecutor for EmptyDiagnosticExecutor {
     fn execute_diagnostic(
         &self,
         _plan: &sley_tests::NativeTestPlanV1,
+        _root: &sley_state_root::AcceptedStateRoot,
         _objects: &std::collections::BTreeMap<sley_id::ObjectId, &[u8]>,
     ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
         Ok(Vec::new())
@@ -4470,8 +4575,7 @@ fn configured_candidate_diagnostics_use_receiver_executor_only_for_affected() {
     assert_eq!(absent.symbol, "NATIVE_EXECUTOR_UNAVAILABLE");
 
     server.set_native_authority(
-        commit_authority(workspace)
-            .with_candidate_diagnostic_executor(Box::new(EmptyNativeExecutor)),
+        commit_authority(workspace).with_diagnostic_executor(Box::new(EmptyNativeExecutor)),
     );
     let affected = call_v3_ok(
         &mut server,

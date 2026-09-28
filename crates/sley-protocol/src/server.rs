@@ -288,9 +288,9 @@ struct ReplayAttempt {
 pub struct NativeAuthority {
     /// Qualified test-execution dispatch for commit and replay.
     executor: Box<dyn NativeTestExecutor>,
-    /// Separately provisioned candidate-selection dispatch for 602. A
+    /// Separately provisioned diagnostic dispatch for 601 and 602. A
     /// replacement authority must not retain an earlier diagnostic route.
-    candidate_diagnostic_executor: Option<Box<dyn NativeTestExecutor>>,
+    diagnostic_executor: Option<Box<dyn NativeTestExecutor>>,
     /// Configured acceptance signer claiming statements.
     signer: Box<dyn NativeAcceptanceSigner>,
     /// Receiver-provisioned trust manifests: measurement first, then
@@ -313,22 +313,18 @@ impl NativeAuthority {
     ) -> Self {
         Self {
             executor,
-            candidate_diagnostic_executor: None,
+            diagnostic_executor: None,
             signer,
             trust_manifests: [measurement_trust, acceptance_trust],
         }
     }
 
-    /// Provisions 602 `tests.affected` through the same receiver-selected
-    /// candidate executor as native commit. This does not grant an explicit
-    /// accepted-root 601 `tests.selected` route: an executor without
-    /// `execute_diagnostic` support still refuses that method.
+    /// Provisions 601 `tests.selected` and 602 `tests.affected` through a
+    /// receiver-selected executor. The executor may refuse either method;
+    /// the socket adapter implements both from owner-loaded snapshots.
     #[must_use]
-    pub fn with_candidate_diagnostic_executor(
-        mut self,
-        executor: Box<dyn NativeTestExecutor>,
-    ) -> Self {
-        self.candidate_diagnostic_executor = Some(executor);
+    pub fn with_diagnostic_executor(mut self, executor: Box<dyn NativeTestExecutor>) -> Self {
+        self.diagnostic_executor = Some(executor);
         self
     }
 
@@ -704,7 +700,7 @@ impl Server {
     /// authority every native commit refuses before any journal or
     /// accepted-state write.
     pub fn set_native_authority(&mut self, mut authority: NativeAuthority) {
-        self.executor = authority.candidate_diagnostic_executor.take();
+        self.executor = authority.diagnostic_executor.take();
         self.native_authority = Some(authority);
     }
 
@@ -1481,7 +1477,7 @@ impl Server {
         .map_err(native_plan_failure)?;
         let (object_bytes, test_cases) = diagnostic_test_cases(head);
         let executions = executor
-            .execute_diagnostic(&plan, &object_bytes)
+            .execute_diagnostic(&plan, head.state_root(), &object_bytes)
             .map_err(|error| owner(error.symbol(), 0))?;
         let assembly = assemble_diagnostic_report(
             &plan,

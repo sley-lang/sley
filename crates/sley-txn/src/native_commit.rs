@@ -37,14 +37,16 @@ use sley_id::{
     CandidateId, NativeAdmissionProfileId, ObjectId, PrincipalId, ReceiptId, StateRoot,
     TransactionId, WorkspaceId,
 };
+use sley_mutate::import_entity_object;
 use sley_policy::ValidatedCandidatePlan;
 use sley_scb1::{ScbError, ScbErrorCode};
+use sley_state_root::AcceptedStateRoot;
 use sley_test_runner::{
     enforce::{check_elapsed, check_memory_evidence, floor_page_cap, runtime_max_usec},
     program::PortableTestProgram,
     protocol::{RunRequest, RunResponse, RunStatus},
 };
-use sley_tests::plan::SELECTION_MODE_CANDIDATE_AFFECTED;
+use sley_tests::plan::{SELECTION_MODE_CANDIDATE_AFFECTED, SELECTION_MODE_EXPLICIT_ROOT};
 use sley_tests::{
     HistoricalTrustPolicyV1, MeasuredTestAttestationV1, NATIVE_WALL_CAP_MILLIS,
     NativeExecutionEvidence, NativeExecutionReportV1, NativeTestApprovalV1, NativeTestPlanV1,
@@ -525,13 +527,56 @@ pub fn build_candidate_supervisor_request(
     RunRequest::from_portable_program(&program, wall_ms, nonce)
 }
 
+/// Builds one explicit-root diagnostic request from the owner-loaded
+/// accepted snapshot. The selected test, every object, and the complete root
+/// must bind to the protected plan; transport bytes grant no commit authority.
+///
+/// # Errors
+///
+/// Refuses any plan/root/object mismatch, invalid source, or oversized
+/// supervisor request before contacting the socket.
+pub fn build_explicit_supervisor_request(
+    plan: &NativeTestPlanV1,
+    root: &AcceptedStateRoot,
+    objects: &BTreeMap<ObjectId, &[u8]>,
+    test_entity: sley_id::EntityId,
+    wall_ms: u64,
+    nonce: [u8; 32],
+) -> Result<RunRequest, ScbError> {
+    if plan.selection_mode() != SELECTION_MODE_EXPLICIT_ROOT
+        || plan.candidate_id().is_some()
+        || plan.parent_root() != root.root
+        || plan.proposed_root() != root.root
+        || plan.workspace() != root.record.workspace_id
+        || plan.semantic_epoch() != root.record.schema_epoch_id
+        || plan.policy_root() != root.record.policy_root
+        || plan.resource_policy().principal() != PrincipalId::from_bytes([0; 32])
+        || objects.len() != root.record.entity_bindings.len()
+    {
+        return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+    }
+    let mut accepted_objects = Vec::with_capacity(objects.len());
+    for (_, object_id) in &root.record.entity_bindings {
+        let stored = objects
+            .get(object_id)
+            .ok_or_else(|| ScbError::new(ScbErrorCode::ContractUnknown))?;
+        let object = import_entity_object(root.record.schema_epoch_id, stored)?;
+        if object.object_id() != *object_id {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        }
+        accepted_objects.push(object);
+    }
+    let program = PortableTestProgram::build(plan, root, &accepted_objects, test_entity)?;
+    RunRequest::from_portable_program(&program, wall_ms, nonce)
+}
+
 /// Test-execution dispatch: the qualified supervisor connection in
 /// production, an explicitly test-only double in tests.
 ///
-/// The executor receives the owner-derived plan and the validator-owned
-/// proposed state it was derived from. It must return exactly one evidence
-/// pair per selected test in plan order; the commit owner re-verifies every
-/// binding and never trusts executor claims about selection.
+/// The executor receives the owner-derived plan and the validated proposed
+/// state or owner-loaded accepted snapshot it was derived from. It must
+/// return exactly one evidence pair per selected test in plan order; the
+/// owning path re-verifies coverage and never trusts executor selection.
 pub trait NativeTestExecutor {
     /// Executes every selected test in plan order.
     ///
@@ -574,8 +619,8 @@ pub trait NativeTestExecutor {
     }
 
     /// Diagnostically executes one explicit-root plan over accepted objects
-    /// for the 601 selection read: the owner supplies the stored plan and
-    /// the accepted object bytes keyed by object identity. The owner checks
+    /// for the 601 selection read: the owner supplies the stored plan, full
+    /// accepted root, and object bytes keyed by object identity. The owner checks
     /// coverage and builds the diagnostic report itself; no approval,
     /// bundle, transaction, receipt, journal record, or head change
     /// results, so this entry point can never commit.
@@ -592,9 +637,10 @@ pub trait NativeTestExecutor {
     fn execute_diagnostic(
         &self,
         plan: &NativeTestPlanV1,
+        root: &AcceptedStateRoot,
         objects: &BTreeMap<ObjectId, &[u8]>,
     ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
-        let _ = (plan, objects);
+        let _ = (plan, root, objects);
         Err(NativeCommitError::ExecutorUnavailable)
     }
 }

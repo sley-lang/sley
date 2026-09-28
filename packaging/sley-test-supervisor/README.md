@@ -22,10 +22,13 @@ an explicit `--native-authority-config` file for the receiver's separate
 acceptance key and trust manifests. Its file shape and permission checks are
 in [the CLI contract](../../docs/spec/SLEY_CLI_V1.md#11-explicit-native-commit-authority-development-revision-12).
 It supplies the existing native commit route with a socket executor and signer.
-The same receiver-selected adapter now serves candidate-bound `tests.affected`;
-explicit accepted-root `tests.selected` still refuses until its complete root
-snapshot can be supplied to the executor. Neither path qualifies this root
-service or enables native tests on the selected 2.0.1 release binary.
+The same receiver-selected adapter serves candidate-bound `tests.affected`
+and explicit accepted-root `tests.selected`. The latter receives the complete
+owner-loaded root and object snapshot; its request uses the zero diagnostic
+principal defined by the native plan. An administrator must explicitly grant
+that workspace/principal pair in `allowed_callers` to run it. Neither route
+qualifies this root service or enables native tests on the selected 2.0.1
+release binary.
 
 ## Protected administrator configuration
 
