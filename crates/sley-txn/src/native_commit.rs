@@ -896,15 +896,12 @@ fn host_measurement_admits(
         return Err(mismatch);
     }
     let caller_uid = attestation.parts().caller_uid;
-    let mut caller_matches = config
-        .callers()
-        .iter()
-        .filter(|caller| caller.uid == caller_uid);
-    let caller = caller_matches.next().ok_or(mismatch)?;
-    if caller_matches.next().is_some()
-        || caller.workspace != request.workspace
-        || caller.principal != request.principal
-    {
+    if !exact_caller_grant(
+        config.callers(),
+        caller_uid,
+        request.workspace,
+        request.principal,
+    ) {
         return Err(mismatch);
     }
     let (_, expected_cap) = floor_page_cap(
@@ -938,6 +935,18 @@ fn host_measurement_admits(
         )
         .is_ok()
         && check_elapsed(attestation.elapsed_ns(), request.wall_ms).is_ok())
+}
+
+fn exact_caller_grant(
+    callers: &[sley_tests::Caller],
+    uid: u32,
+    workspace: WorkspaceId,
+    principal: PrincipalId,
+) -> bool {
+    let mut matches = callers.iter().filter(|caller| {
+        caller.uid == uid && caller.workspace == workspace && caller.principal == principal
+    });
+    matches.next().is_some() && matches.next().is_none()
 }
 
 /// Verifies executor-returned evidence covers exactly the plan selection.
@@ -1666,6 +1675,39 @@ mod tests {
                 code: 7,
             })
         );
+    }
+
+    #[test]
+    fn same_uid_grants_select_the_exact_workspace_and_principal() {
+        let workspace = WorkspaceId::from_bytes([1; 32]);
+        let principal = PrincipalId::from_bytes([2; 32]);
+        let callers = vec![
+            sley_tests::Caller {
+                uid: 1_000,
+                workspace,
+                principal,
+            },
+            sley_tests::Caller {
+                uid: 1_000,
+                workspace,
+                principal: PrincipalId::from_bytes([0; 32]),
+            },
+        ];
+        assert!(exact_caller_grant(&callers, 1_000, workspace, principal));
+        assert!(!exact_caller_grant(&callers, 1_001, workspace, principal));
+        assert!(!exact_caller_grant(
+            &callers,
+            1_000,
+            WorkspaceId::from_bytes([3; 32]),
+            principal,
+        ));
+        let duplicated = vec![callers[0].clone(), callers[0].clone()];
+        assert!(!exact_caller_grant(
+            &duplicated,
+            1_000,
+            workspace,
+            principal
+        ));
     }
 
     #[test]
