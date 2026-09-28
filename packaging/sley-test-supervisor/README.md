@@ -44,7 +44,7 @@ without symlinks. The closed JSON object requires these fields:
 | `worker_sha256` | Lowercase SHA-256 hex of the installed worker bytes |
 | `supervisor_sha256` | Lowercase SHA-256 hex of the installed daemon bytes |
 | `page_size` | Host page size as a power of two |
-| `allowed_callers` | Nonempty array of unique `uid`, `workspace`, and `principal` identities; each identity is lowercase 32-byte hex |
+| `allowed_callers` | Nonempty array of unique `(uid, workspace, principal)` grants; one UID may have multiple explicit scopes; each identity is lowercase 32-byte hex |
 | `measurement_key_path` | Root-only Ed25519 measurement key file |
 | `trust_manifest_dir` | Root-owned directory containing `measurement.sleyntr1` |
 

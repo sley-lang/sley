@@ -80,10 +80,9 @@ pub fn expected_supervisor_config(
     let mismatch = || ScbError::new(ScbErrorCode::ContractUnknown);
     config.validate().map_err(|_| mismatch())?;
     request.verified_program()?;
-    let caller = config.caller_for_uid(caller_uid).ok_or_else(mismatch)?;
-    if caller.workspace != request.workspace || caller.principal != request.principal {
-        return Err(mismatch());
-    }
+    config
+        .caller_for_scope(caller_uid, request.workspace, request.principal)
+        .ok_or_else(mismatch)?;
     let (_, installed_memory) =
         floor_page_cap(request.declared_limits.memory_bytes, config.page_size)
             .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
@@ -300,7 +299,18 @@ mod tests {
                 .code(),
             ScbErrorCode::ContractUnknown
         );
-        config.allowed_callers[0].principal = PrincipalId::from_bytes([0xff; 32]);
+        config.allowed_callers.insert(
+            0,
+            crate::config::AllowedCaller {
+                uid: 1_000,
+                workspace: request.workspace,
+                principal: PrincipalId::from_bytes([0xff; 32]),
+            },
+        );
+        let multi_grant_config = expected_supervisor_config(&config, &request, 1_000)
+            .expect("request selects the exact grant after another same-UID grant");
+        assert_eq!(multi_grant_config.callers().len(), 2);
+        config.allowed_callers[1].principal = PrincipalId::from_bytes([0xfe; 32]);
         assert_eq!(
             expected_supervisor_config(&config, &request, 1_000)
                 .expect_err("wrong principal mapping")

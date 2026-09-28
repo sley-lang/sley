@@ -70,7 +70,7 @@ impl std::error::Error for BinaryPinError {}
 pub enum ConfigError {
     /// A required path, digest, or caller set is missing or malformed.
     InvalidField,
-    /// Duplicate UID or overlapping workspace scope.
+    /// Duplicate UID/workspace/principal grant.
     DuplicateCaller,
 }
 
@@ -122,7 +122,7 @@ pub struct RunnerConfig {
     pub supervisor_sha256: [u8; 32],
     /// Machine page size for cap flooring; defaults to 4096.
     pub page_size: u64,
-    /// Authorized callers; UIDs must be unique.
+    /// Authorized UID/workspace/principal grants; exact tuples must be unique.
     pub allowed_callers: Vec<AllowedCaller>,
     /// Measurement-signing key path, root-only and absent from workers.
     pub measurement_key_path: String,
@@ -134,8 +134,8 @@ impl RunnerConfig {
     /// Validates administrator configuration without touching the filesystem.
     ///
     /// Paths must be absolute; digests must be nonzero; at least one caller
-    /// is required and UIDs must be unique; the page size must be a nonzero
-    /// power of two.
+    /// is required and exact grants must be unique; the page size must be a
+    /// nonzero power of two.
     ///
     /// # Errors
     ///
@@ -157,12 +157,16 @@ impl RunnerConfig {
         if self.page_size == 0 || !self.page_size.is_power_of_two() {
             return Err(ConfigError::InvalidField);
         }
-        if self.allowed_callers.is_empty() {
+        if self.allowed_callers.is_empty() || self.allowed_callers.len() > 256 {
             return Err(ConfigError::InvalidField);
         }
-        let mut uids = BTreeSet::new();
+        let mut grants = BTreeSet::new();
         for caller in &self.allowed_callers {
-            if !uids.insert(caller.uid) {
+            if !grants.insert((
+                caller.uid,
+                *caller.workspace.as_bytes(),
+                *caller.principal.as_bytes(),
+            )) {
                 return Err(ConfigError::DuplicateCaller);
             }
         }
@@ -175,10 +179,23 @@ impl RunnerConfig {
         format!("{}/{}", self.runtime_dir, SOCKET_NAME)
     }
 
-    /// Finds the authorized caller for one peer UID, if any.
+    /// Checks whether the peer UID has any administrator-approved grant.
     #[must_use]
-    pub fn caller_for_uid(&self, uid: u32) -> Option<&AllowedCaller> {
-        self.allowed_callers.iter().find(|caller| caller.uid == uid)
+    pub fn has_caller_uid(&self, uid: u32) -> bool {
+        self.allowed_callers.iter().any(|caller| caller.uid == uid)
+    }
+
+    /// Finds the exact grant for a peer UID and requested scope.
+    #[must_use]
+    pub fn caller_for_scope(
+        &self,
+        uid: u32,
+        workspace: WorkspaceId,
+        principal: PrincipalId,
+    ) -> Option<&AllowedCaller> {
+        self.allowed_callers.iter().find(|caller| {
+            caller.uid == uid && caller.workspace == workspace && caller.principal == principal
+        })
     }
 
     /// Pins the installed worker and running supervisor executables before
@@ -351,8 +368,46 @@ mod tests {
             config.socket_path(),
             "/run/sley-test-supervisor/supervisor.sock"
         );
-        assert_eq!(config.caller_for_uid(1000), Some(&caller(1000)));
-        assert_eq!(config.caller_for_uid(0), None);
+        assert!(config.has_caller_uid(1000));
+        assert!(!config.has_caller_uid(0));
+        assert_eq!(
+            config.caller_for_scope(1000, caller(1000).workspace, caller(1000).principal),
+            Some(&caller(1000))
+        );
+    }
+
+    #[test]
+    fn one_uid_can_have_distinct_explicit_grants_without_cross_product_authority() {
+        let mut config = config();
+        config.allowed_callers.push(AllowedCaller {
+            uid: 1000,
+            workspace: WorkspaceId::from_bytes([13; 32]),
+            principal: PrincipalId::from_bytes([0; 32]),
+        });
+        assert_eq!(config.validate(), Ok(()));
+        assert!(
+            config
+                .caller_for_scope(1000, caller(1000).workspace, caller(1000).principal)
+                .is_some()
+        );
+        assert!(
+            config
+                .caller_for_scope(
+                    1000,
+                    config.allowed_callers[1].workspace,
+                    config.allowed_callers[1].principal
+                )
+                .is_some()
+        );
+        assert!(
+            config
+                .caller_for_scope(
+                    1000,
+                    caller(1000).workspace,
+                    config.allowed_callers[1].principal
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -425,6 +480,9 @@ mod tests {
         let mut no_callers = config();
         no_callers.allowed_callers.clear();
         assert_eq!(no_callers.validate(), Err(ConfigError::InvalidField));
+        let mut too_many = config();
+        too_many.allowed_callers = (0..257).map(caller).collect();
+        assert_eq!(too_many.validate(), Err(ConfigError::InvalidField));
         let mut duplicate = config();
         duplicate.allowed_callers.push(caller(1000));
         assert_eq!(duplicate.validate(), Err(ConfigError::DuplicateCaller));

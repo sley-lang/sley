@@ -655,6 +655,8 @@ proposed state, and `tests.selected`, which uses the complete owner-loaded
 accepted root and objects. Neither diagnostic method commits. Explicit-root
 requests carry the plan's zero diagnostic principal, which the administrator
 must grant for the intended workspace/UID in the supervisor's `allowed_callers`.
+The same receiver UID may hold a separate commit-principal grant; each full
+UID/workspace/principal tuple is checked against the request independently.
 Replacing the receiver authority clears any previously configured diagnostic
 executor.
 This development-core addition is not part of the selected 2.0.1 release and

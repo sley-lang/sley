@@ -257,6 +257,26 @@ mod tests {
     }
 
     #[test]
+    fn protected_document_accepts_distinct_grants_for_one_uid_only() {
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&valid_document()).expect("fixture document");
+        let callers = document["allowed_callers"].as_array_mut().expect("callers");
+        callers.push(serde_json::json!({
+            "uid": 1000,
+            "workspace": "01".repeat(32),
+            "principal": "00".repeat(32)
+        }));
+        let distinct = serde_json::to_vec(&document).expect("distinct document");
+        let parsed = parse_admin_config(&distinct).expect("two distinct grants");
+        assert_eq!(parsed.allowed_callers.len(), 2);
+        document["allowed_callers"][1]["principal"] = serde_json::json!("02".repeat(32));
+        assert_eq!(
+            parse_admin_config(&serde_json::to_vec(&document).expect("duplicate document")),
+            Err(AdminConfigError::Config(ConfigError::DuplicateCaller))
+        );
+    }
+
+    #[test]
     fn protected_file_refuses_symlink_and_unsafe_mode() {
         let directory = std::env::temp_dir().join(format!(
             "sley-admin-config-{}-{}",

@@ -1,7 +1,7 @@
 //! Authenticated, bounded ingress for the native test supervisor socket.
 //!
 //! The kernel supplies the peer UID. An administrator-owned configuration
-//! binds that UID to exactly one workspace and principal. Credentials are
+//! binds that UID to an explicit set of workspace/principal grants. Credentials are
 //! checked before reading any request bytes; the complete frame is bounded
 //! before allocation and must match that scope. This module admits a request
 //! to the runner only. It does not launch a worker or sign a measurement.
@@ -119,9 +119,9 @@ pub fn authenticate_request(
     let uid = getsockopt(stream, PeerCredentials)
         .map_err(|_| IngressError::CredentialsUnavailable)?
         .uid();
-    let caller = config
-        .caller_for_uid(uid)
-        .ok_or(IngressError::UnauthorizedPeer)?;
+    if !config.has_caller_uid(uid) {
+        return Err(IngressError::UnauthorizedPeer);
+    }
     let deadline = Instant::now()
         .checked_add(timeout)
         .ok_or(IngressError::InvalidDeadline)?;
@@ -142,7 +142,10 @@ pub fn authenticate_request(
     read_before(stream, &mut frame[header.len()..], deadline)?;
     let request =
         RunRequest::decode_frame(&frame).map_err(|error| IngressError::Malformed(error.code()))?;
-    if request.workspace != caller.workspace || request.principal != caller.principal {
+    if config
+        .caller_for_scope(uid, request.workspace, request.principal)
+        .is_none()
+    {
         return Err(IngressError::ScopeMismatch);
     }
     Ok(AuthenticatedRunRequest {
@@ -247,6 +250,45 @@ mod tests {
             .expect("authenticated explicit-root request");
         assert_eq!(bound.caller_uid(), uid);
         assert_eq!(bound.request(), &expected);
+    }
+
+    #[test]
+    fn same_uid_can_use_either_granted_principal_but_no_ungranted_scope() {
+        let (mut server, mut client, uid) = pair();
+        let selected = RunRequest {
+            candidate_id: None,
+            principal: PrincipalId::from_bytes([0; 32]),
+            ..request()
+        };
+        let mut grants = config(uid);
+        grants.allowed_callers.push(AllowedCaller {
+            uid,
+            workspace: selected.workspace,
+            principal: selected.principal,
+        });
+        assert_eq!(grants.validate(), Ok(()));
+        client
+            .write_all(&selected.encode_frame().expect("frame"))
+            .expect("write");
+        assert_eq!(
+            authenticate_request(&mut server, &grants, Duration::from_secs(1))
+                .expect("diagnostic grant")
+                .request(),
+            &selected
+        );
+
+        let (mut server, mut client, _) = pair();
+        let ungranted = RunRequest {
+            principal: PrincipalId::from_bytes([3; 32]),
+            ..request()
+        };
+        client
+            .write_all(&ungranted.encode_frame().expect("frame"))
+            .expect("write");
+        assert_eq!(
+            authenticate_request(&mut server, &grants, Duration::from_secs(1)),
+            Err(IngressError::ScopeMismatch)
+        );
     }
 
     #[test]
