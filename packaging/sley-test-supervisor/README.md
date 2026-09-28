@@ -17,8 +17,10 @@ selected execution on that build. A separate 1 ms request returned
 `NATIVE_TEST_RESOURCE_REFUSED` through the trusted signed prelaunch path, with
 an unchanged root and no observed worker unit. The postlaunch timeout path samples
 clean cgroup counters while the exact worker is live, then kills the unit and
-confirms teardown before signing a no-result failure. Its counters are a
-deadline snapshot, not counters read after teardown. OOM and missing or dirty
+confirms teardown before signing a no-result failure. A pinned synthetic worker
+that emitted no VM report exercised this host path at a 1,000 ms limit on
+greyarch; a real Sley worker has not done so. The counters are a deadline
+snapshot, not counters read after teardown. OOM and missing or dirty
 telemetry remain unknown. No released-core compatibility or full host
 qualification follows from these checks. The authenticated refusal-only
 handler remains available for negative protocol tests; the production daemon
