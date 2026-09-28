@@ -8,7 +8,8 @@
 
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record};
 use sley_tests::{
-    MeasuredTestAttestationV1, NativeExecutionEvidence, NativeExecutionReportV1, SupervisorConfigV1,
+    MeasuredTestAttestationV1, NativeExecutionEvidence, NativeExecutionReportV1,
+    SupervisorConfigV1, TERMINATION_PRELAUNCH_REFUSED,
 };
 
 use crate::config::MAX_WORKER_OUTPUT_BYTES;
@@ -62,10 +63,10 @@ impl RunEvidence {
         {
             return Err(mismatch());
         }
-        match attestation.execution_report_id() {
-            Some(id) if id == report.report_id() => {}
-            None if matches!(report.evidence(), NativeExecutionEvidence::Rejected(_)) => {}
-            _ => return Err(mismatch()),
+        if attestation.execution_report_id() != Some(report.report_id())
+            || attestation.parts().termination == TERMINATION_PRELAUNCH_REFUSED
+        {
+            return Err(mismatch());
         }
         Ok(Self {
             report,
@@ -163,6 +164,9 @@ impl RunRequest {
         response: &'a RunResponse,
         caller_uid: u32,
     ) -> Result<&'a RunEvidence, ScbError> {
+        if response.status == RunStatus::Refused {
+            return Err(mismatch());
+        }
         let evidence = response.evidence.as_ref().ok_or_else(mismatch)?;
         let program = self.verified_program()?;
         let report = evidence.report();
@@ -353,7 +357,11 @@ mod tests {
             Some(RunEvidence::build(report, attestation, config).expect("evidence"));
     }
 
-    fn diagnostic_fixture() -> (RunRequest, RunResponse) {
+    fn unlinked_diagnostic_fixture() -> (
+        NativeExecutionReportV1,
+        MeasuredTestAttestationV1,
+        SupervisorConfigV1,
+    ) {
         let (request, complete) = complete_fixture();
         let old = complete.evidence.expect("complete evidence");
         let selected = request.verified_program().expect("program").selected();
@@ -395,16 +403,7 @@ mod tests {
             .sign(&preimage)
             .expect("test signature");
         let attestation = MeasuredTestAttestationV1::build(parts).expect("attestation");
-        let evidence =
-            RunEvidence::build(report, attestation, config).expect("diagnostic evidence");
-        (
-            request,
-            RunResponse {
-                status: RunStatus::Refused,
-                code: 7,
-                evidence: Some(evidence),
-            },
-        )
+        (report, attestation, config)
     }
 
     #[test]
@@ -553,18 +552,53 @@ mod tests {
     }
 
     #[test]
-    fn signed_prelaunch_refusal_preserves_diagnostics_without_an_installed_cap() {
-        let (request, response) = diagnostic_fixture();
-        let frame = response.encode_frame().expect("diagnostic response");
-        let parsed = RunResponse::decode_frame(&frame).expect("parsed diagnostics");
-        let evidence = request
-            .verified_response_evidence(&parsed, 1_000)
-            .expect("request-bound diagnostic evidence");
-        assert!(!evidence.attestation().claims_success());
-        assert_eq!(evidence.attestation().execution_report_id(), None);
-        assert!(matches!(
-            evidence.report().evidence(),
-            NativeExecutionEvidence::Rejected(_)
-        ));
+    fn no_result_attestation_cannot_borrow_a_vm_rejection_report() {
+        let (report, attestation, config) = unlinked_diagnostic_fixture();
+        assert_eq!(
+            RunEvidence::build(report, attestation, config)
+                .expect_err("a host no-result claim cannot borrow VM evidence")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+    }
+
+    #[test]
+    fn prelaunch_refusal_cannot_carry_worker_evidence() {
+        let (request, mut response) = complete_fixture();
+        response.status = RunStatus::Refused;
+        response.code = 7;
+        assert_eq!(
+            response
+                .encode_frame()
+                .expect_err("refusal with worker evidence")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+        assert_eq!(
+            request
+                .verified_response_evidence(&response, 1_000)
+                .expect_err("in-memory refusal with worker evidence")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+    }
+
+    #[test]
+    fn prelaunch_measurement_cannot_name_a_worker_report() {
+        let (_, response) = complete_fixture();
+        let evidence = response.evidence.expect("worker evidence");
+        let mut parts = evidence.attestation().parts().clone();
+        parts.termination = TERMINATION_PRELAUNCH_REFUSED;
+        let impossible = MeasuredTestAttestationV1::build(parts).expect("well-formed envelope");
+        assert_eq!(
+            RunEvidence::build(
+                evidence.report().clone(),
+                impossible,
+                evidence.supervisor_config().clone(),
+            )
+            .expect_err("prelaunch cannot produce a worker report")
+            .code(),
+            ScbErrorCode::ContractUnknown
+        );
     }
 }

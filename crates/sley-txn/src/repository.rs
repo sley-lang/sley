@@ -24037,7 +24037,7 @@ mod native_commit_tests {
         MeasuredTestAttestationV1, MemoryEvents, NativeAggregateLimits, NativeExecutionEvidence,
         NativeExecutionReportParts, NativeExecutionReportV1, NativeImplementationLimits,
         NativeTestPlanV1, Property, REJECT_PHASE_EXECUTION, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
-        RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_PRELAUNCH_REFUSED,
+        RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_KILLED,
         TERMINATION_TIMEOUT, TrustEntry, native_execution_profile_id,
     };
 
@@ -24303,7 +24303,7 @@ mod native_commit_tests {
                     supervisor_config_id: self.supervisor_config_id,
                     plan_id: plan.plan_id(),
                     test_object: entry.test_object,
-                    execution_report_id: None,
+                    execution_report_id: Some(report.report_id()),
                     attempt_nonce: [0xC3; 32],
                     workspace: self.workspace,
                     principal: self.principal,
@@ -24317,8 +24317,8 @@ mod native_commit_tests {
                         oom: 0,
                         oom_kill: 0,
                     },
-                    termination: TERMINATION_PRELAUNCH_REFUSED,
-                    complete_output: false,
+                    termination: TERMINATION_KILLED,
+                    complete_output: true,
                     empty_cgroup_confirmed: true,
                     recorded_unix_millis: self.recorded_millis,
                     signature: [0; 64],

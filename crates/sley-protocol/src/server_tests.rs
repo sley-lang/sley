@@ -3689,7 +3689,7 @@ impl sley_txn::NativeTestExecutor for DiagnosticRejector {
         use sley_tests::{
             MeasuredTestAttestationParts, MeasuredTestAttestationV1, MemoryEvents,
             NativeExecutionEvidence, NativeExecutionReportParts, NativeExecutionReportV1,
-            REJECT_PHASE_EXECUTION, RejectedEvidence, TERMINATION_PRELAUNCH_REFUSED,
+            REJECT_PHASE_EXECUTION, RejectedEvidence, TERMINATION_KILLED,
         };
         self.invocations.set(self.invocations.get() + 1);
         let mut out = Vec::with_capacity(plan.selected().len());
@@ -3714,7 +3714,7 @@ impl sley_txn::NativeTestExecutor for DiagnosticRejector {
                 supervisor_config_id: self.supervisor_config_id,
                 plan_id: plan.plan_id(),
                 test_object: entry.test_object,
-                execution_report_id: None,
+                execution_report_id: Some(report.report_id()),
                 attempt_nonce: [0xC3; 32],
                 workspace: self.workspace,
                 principal: self.principal,
@@ -3724,12 +3724,12 @@ impl sley_txn::NativeTestExecutor for DiagnosticRejector {
                 elapsed_ns: 0,
                 measured_memory_peak: 0,
                 memory_events: MemoryEvents {
-                    max: entry.declared_limits.memory_bytes,
+                    max: 0,
                     oom: 0,
                     oom_kill: 0,
                 },
-                termination: TERMINATION_PRELAUNCH_REFUSED,
-                complete_output: false,
+                termination: TERMINATION_KILLED,
+                complete_output: true,
                 empty_cgroup_confirmed: true,
                 recorded_unix_millis: 1_000,
                 signature: [0xA5; 64],

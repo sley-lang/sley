@@ -10,9 +10,11 @@
 //! have no candidate. Field 13 carries the exact bounded worker frame so
 //! the daemon can stage it read-only after authenticating the outer scope.
 //! Response version 2 carries a bounded optional triple: canonical worker
-//! report, measured attestation, and exact supervisor configuration. Parsing
-//! the triple never grants signature trust or native test admission. This
-//! internal format has not shipped with a daemon.
+//! report, measured attestation, and exact supervisor configuration. Every
+//! triple names its actual worker report. No-result host failures need a
+//! separate signed response form; they cannot borrow a VM-owned rejection
+//! report. Parsing the triple never grants signature trust or native test
+//! admission. This internal format has not shipped with a daemon.
 
 use sley_id::{CandidateId, EntityId, ObjectId, PolicyRootId, PrincipalId, WorkspaceId};
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record, encode_union, encode_uvar};
@@ -105,9 +107,10 @@ pub struct RunResponse {
     pub status: RunStatus,
     /// Stable refusal/failure code; zero for `Complete`.
     pub code: u32,
-    /// Canonical report, measurement claim, and configuration when available.
-    /// A `Complete` response requires this triple; diagnostic refusals may
-    /// have none. Parsing it never verifies measurement trust.
+    /// Canonical worker report, measurement claim, and configuration when
+    /// available. A `Complete` response requires this triple; a prelaunch
+    /// `Refused` response cannot contain a worker report. Parsing never
+    /// verifies measurement trust.
     pub evidence: Option<RunEvidence>,
 }
 
@@ -426,7 +429,8 @@ impl RunResponse {
             {
                 Ok(())
             }
-            RunStatus::Refused | RunStatus::Failed if self.code != 0 => Ok(()),
+            RunStatus::Refused if self.code != 0 && self.evidence.is_none() => Ok(()),
+            RunStatus::Failed if self.code != 0 => Ok(()),
             _ => Err(ScbError::new(ScbErrorCode::ContractUnknown)),
         }
     }

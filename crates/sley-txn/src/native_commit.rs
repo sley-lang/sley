@@ -464,10 +464,9 @@ pub fn verified_supervisor_execution(
         // a test rejection when the owner compares the report, even though
         // the host measurement can truthfully claim a complete run.
         (RunStatus::Complete, _) => true,
-        (
-            RunStatus::Refused | RunStatus::Failed,
-            sley_tests::NativeExecutionEvidence::Rejected(_),
-        ) => !evidence.attestation().claims_success(),
+        (RunStatus::Failed, sley_tests::NativeExecutionEvidence::Rejected(_)) => {
+            !evidence.attestation().claims_success()
+        }
         _ => false,
     };
     if !status_matches_report {
@@ -969,7 +968,6 @@ pub fn check_execution_coverage(
     plan: &NativeTestPlanV1,
     executions: &[ExecutedNativeTest],
 ) -> Result<(), TransactionErrorCode> {
-    use sley_tests::NativeExecutionEvidence;
     if executions.len() != plan.selected().len() {
         return Err(TransactionErrorCode::ReceiptBindingMismatch);
     }
@@ -995,14 +993,8 @@ pub fn check_execution_coverage(
         {
             return Err(TransactionErrorCode::ReceiptBindingMismatch);
         }
-        match (
-            attestation.execution_report_id(),
-            execution_report.evidence(),
-        ) {
-            (Some(expected), _) if expected == execution_report.report_id() => {}
-            // Explicit no-result failures pair only with rejected evidence.
-            (None, NativeExecutionEvidence::Rejected(_)) => {}
-            _ => return Err(TransactionErrorCode::ReceiptBindingMismatch),
+        if attestation.execution_report_id() != Some(execution_report.report_id()) {
+            return Err(TransactionErrorCode::ReceiptBindingMismatch);
         }
     }
     Ok(())
@@ -1387,9 +1379,8 @@ mod tests {
             Caller, HistoricalTrustPolicyParts, MeasuredTestAttestationParts,
             MeasuredTestAttestationV1, MemoryEvents, NativeExecutionEvidence,
             NativeExecutionReportParts, NativeExecutionReportV1, Property, REJECT_PHASE_EXECUTION,
-            RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1,
-            TERMINATION_PRELAUNCH_REFUSED, TrustEntry, measurement_signature_preimage,
-            unsigned_record_prefix,
+            RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_KILLED,
+            TrustEntry, measurement_signature_preimage, unsigned_record_prefix,
         };
 
         let worker = WorkerRequest::decode_frame(include_bytes!(
@@ -1464,13 +1455,13 @@ mod tests {
             supervisor_config_id: *config.id().as_bytes(),
             plan_id: request.plan_id,
             test_object: request.test_object,
-            execution_report_id: None,
+            execution_report_id: Some(report.report_id()),
             attempt_nonce: request.nonce,
             workspace: request.workspace,
             principal: request.principal,
             caller_uid: 1_000,
             declared_limits: request.declared_limits,
-            installed_memory_cap: 0,
+            installed_memory_cap: 4_096,
             elapsed_ns: 0,
             measured_memory_peak: 0,
             memory_events: MemoryEvents {
@@ -1478,8 +1469,8 @@ mod tests {
                 oom: 0,
                 oom_kill: 0,
             },
-            termination: TERMINATION_PRELAUNCH_REFUSED,
-            complete_output: false,
+            termination: TERMINATION_KILLED,
+            complete_output: true,
             empty_cgroup_confirmed: true,
             recorded_unix_millis: 1_000,
             signature: [0; 64],
@@ -1490,13 +1481,36 @@ mod tests {
         let attestation =
             MeasuredTestAttestationV1::build(attestation_parts).expect("signed attestation");
         let response = RunResponse {
-            status: RunStatus::Refused,
+            status: RunStatus::Failed,
             code: 7,
             evidence: Some(
                 RunEvidence::build(report, attestation, config).expect("bound evidence"),
             ),
         };
         (request, response, trust)
+    }
+
+    #[test]
+    fn no_result_measurement_cannot_cover_a_worker_report() {
+        use sley_tests::MeasuredTestAttestationV1;
+
+        let (request, response, _) = signed_diagnostic_fixture();
+        let evidence = response.evidence.expect("worker evidence");
+        let mut parts = evidence.attestation().parts().clone();
+        parts.execution_report_id = None;
+        let unlinked = MeasuredTestAttestationV1::build(parts).expect("diagnostic measurement");
+        let execution = ExecutedNativeTest {
+            test_entity: request.test_entity,
+            execution_stored: evidence.report().stored_bytes().to_vec(),
+            attestation_stored: unlinked.stored_bytes().to_vec(),
+            supervisor_config_stored: evidence.supervisor_config().stored_bytes().to_vec(),
+        };
+        let program = request.verified_program().expect("selected program");
+        assert_eq!(program.plan().selected().len(), 1);
+        assert_eq!(
+            check_execution_coverage(program.plan(), &[execution]),
+            Err(TransactionErrorCode::ReceiptBindingMismatch)
+        );
     }
 
     #[test]
