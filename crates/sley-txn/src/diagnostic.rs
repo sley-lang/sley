@@ -181,14 +181,14 @@ fn diagnostic_status(
 /// Returns whether one attestation measured over its declared limits.
 ///
 /// Breach events, a memory peak or installed cap above declared, or elapsed
-/// nanoseconds past the declared wall (saturating, so an absurd wall never
-/// wraps into admission) each refuse independently of the comparison.
+/// nanoseconds at or past the declared wall (saturating, so an absurd wall
+/// never wraps into admission) each refuse independently of the comparison.
 fn measured_over_declared(
     attestation: &MeasuredTestAttestationV1,
     declared: &NativeDeclaredLimits,
 ) -> bool {
     let events = attestation.memory_events();
-    if events.oom != 0 || events.oom_kill != 0 {
+    if events.max != 0 || events.oom != 0 || events.oom_kill != 0 {
         return true;
     }
     if attestation.measured_memory_peak() > declared.memory_bytes
@@ -196,12 +196,68 @@ fn measured_over_declared(
     {
         return true;
     }
-    attestation.elapsed_ns() > declared.wall_timeout_millis.saturating_mul(1_000_000)
+    attestation.elapsed_ns() >= declared.wall_timeout_millis.saturating_mul(1_000_000)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sley_id::{NativeTestPlanId, ObjectId, PrincipalId, WorkspaceId};
+    use sley_tests::{MeasuredTestAttestationParts, MemoryEvents, TERMINATION_COMPLETE};
+
+    fn measurement(parts: MeasuredTestAttestationParts) -> MeasuredTestAttestationV1 {
+        MeasuredTestAttestationV1::build(parts).expect("well-formed measurement")
+    }
+
+    #[test]
+    fn resource_refusal_counts_max_events_and_strict_wall_boundary() {
+        let declared = NativeDeclaredLimits {
+            fuel: 1,
+            memory_bytes: 4_096,
+            output_bytes: 1,
+            effect_count: 0,
+            call_depth: 1,
+            wall_timeout_millis: 1,
+        };
+        let mut parts = MeasuredTestAttestationParts {
+            key_id: [1; 32],
+            trust_policy_id: [2; 32],
+            supervisor_config_id: [3; 32],
+            plan_id: NativeTestPlanId::from_bytes([4; 32]),
+            test_object: ObjectId::from_bytes([5; 32]),
+            execution_report_id: None,
+            attempt_nonce: [6; 32],
+            workspace: WorkspaceId::from_bytes([7; 32]),
+            principal: PrincipalId::from_bytes([8; 32]),
+            caller_uid: 1_000,
+            declared_limits: declared,
+            installed_memory_cap: 4_096,
+            elapsed_ns: 999_999,
+            measured_memory_peak: 4_096,
+            memory_events: MemoryEvents {
+                max: 0,
+                oom: 0,
+                oom_kill: 0,
+            },
+            termination: TERMINATION_COMPLETE,
+            complete_output: false,
+            empty_cgroup_confirmed: true,
+            recorded_unix_millis: 1,
+            signature: [0; 64],
+        };
+        assert!(!measured_over_declared(
+            &measurement(parts.clone()),
+            &declared
+        ));
+        parts.memory_events.max = 1;
+        assert!(measured_over_declared(
+            &measurement(parts.clone()),
+            &declared
+        ));
+        parts.memory_events.max = 0;
+        parts.elapsed_ns = 1_000_000;
+        assert!(measured_over_declared(&measurement(parts), &declared));
+    }
 
     #[test]
     fn status_tags_and_symbols_are_frozen() {
