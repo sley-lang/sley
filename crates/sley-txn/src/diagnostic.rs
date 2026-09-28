@@ -180,9 +180,10 @@ fn diagnostic_status(
 
 /// Returns whether one attestation measured over its declared limits.
 ///
-/// Breach events, a memory peak or installed cap above declared, or elapsed
-/// nanoseconds at or past the declared wall (saturating, so an absurd wall
-/// never wraps into admission) each refuse independently of the comparison.
+/// Breach events, a peak above the installed cap or declared limit, an
+/// installed cap above declared, or elapsed nanoseconds at or past the
+/// declared wall (saturating, so an absurd wall never wraps into admission)
+/// each refuse independently of the comparison.
 fn measured_over_declared(
     attestation: &MeasuredTestAttestationV1,
     declared: &NativeDeclaredLimits,
@@ -191,7 +192,8 @@ fn measured_over_declared(
     if events.max != 0 || events.oom != 0 || events.oom_kill != 0 {
         return true;
     }
-    if attestation.measured_memory_peak() > declared.memory_bytes
+    if attestation.measured_memory_peak() > attestation.installed_memory_cap()
+        || attestation.measured_memory_peak() > declared.memory_bytes
         || attestation.installed_memory_cap() > declared.memory_bytes
     {
         return true;
@@ -255,6 +257,12 @@ mod tests {
             &declared
         ));
         parts.memory_events.max = 0;
+        parts.installed_memory_cap = 2_048;
+        assert!(measured_over_declared(
+            &measurement(parts.clone()),
+            &declared
+        ));
+        parts.installed_memory_cap = 4_096;
         parts.elapsed_ns = 1_000_000;
         assert!(measured_over_declared(&measurement(parts), &declared));
     }
