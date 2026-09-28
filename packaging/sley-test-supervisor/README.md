@@ -10,14 +10,12 @@ the existing VM. This service is host machinery; it is not a Sley program.
 
 ## Current evidence
 
-Development build `247b15f` is installed on greyarch with its worker and
+Development build `a20d6b3` is installed on greyarch with its worker and
 supervisor hashes pinned in the root configuration. Its service is stopped and
 disabled. A disposable F0 scenario exercised real native test admission and
-selected execution on that build. A separate 1 ms request returned an
-unchanged root and no observed worker unit; its receiver reported the generic
-`NATIVE_EXECUTOR_UNAVAILABLE`. The current source classifies only the trusted,
-signed unsupported-wall refusal as `NATIVE_TEST_RESOURCE_REFUSED`. That last
-receiver change is not installed yet. The postlaunch timeout path samples
+selected execution on that build. A separate 1 ms request returned
+`NATIVE_TEST_RESOURCE_REFUSED` through the trusted signed prelaunch path, with
+an unchanged root and no observed worker unit. The postlaunch timeout path samples
 clean cgroup counters while the exact worker is live, then kills the unit and
 confirms teardown before signing a no-result failure. Its counters are a
 deadline snapshot, not counters read after teardown. OOM and missing or dirty
