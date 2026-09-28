@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
-  <img alt="Version 2.0.2" src="https://img.shields.io/badge/version-2.0.2-38c8e8?style=flat-square">
+  <img alt="Version 2.0.3" src="https://img.shields.io/badge/version-2.0.3-38c8e8?style=flat-square">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
   <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
   <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
@@ -22,7 +22,7 @@
   <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
-  <a href="docs/release/SLEY-2.0.2.md"><b>Release notes</b></a> ·
+  <a href="docs/release/SLEY-2.0.3.md"><b>Release notes</b></a> ·
   <a href="https://sleylang.org/faq"><b>FAQ</b></a>
 </p>
 
@@ -63,7 +63,7 @@ machine code instead of prose.
 > toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
 > and Python 3 for the demo.
 
-**1. Get the `sley` binary.** Download `sley-2.0.2-linux-x86_64.tar.gz` from
+**1. Get the `sley` binary.** Download `sley-2.0.3-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
 ```sh
@@ -204,12 +204,12 @@ workbench.
 
 ## Project status
 
-**Sley 2.0.2** is the current release, a point release of 2.0.1 that adds
-`sley-agent`, the workbench agents use to read, write, test and submit
-programs. It's a *release*, not a GA claim: the
+**Sley 2.0.3** is the current release, a point release of 2.0.2 that adds
+compact authoring, persistent drafts, focused views and checked workbench
+transformations. See the [2.0.3 release notes](docs/release/SLEY-2.0.3.md). It's a *release*, not a GA claim: the
 [2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
 list every acceptance criterion that wasn't met at 2.0.0 and every open
-finding. 2.0.2 makes no new GA claim.
+finding. 2.0.3 makes no new GA claim.
 
 | Track | State |
 |---|---|
