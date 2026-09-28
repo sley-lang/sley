@@ -26,6 +26,15 @@ qualification follows from these checks. The authenticated refusal-only
 handler remains available for negative protocol tests; the production daemon
 uses the root handler.
 
+A separate greyarch disposable 1 MiB OOM unit showed that systemd retains a
+typed `oom-kill` result, killed main PID, installed `MemoryMax`, and
+`MemoryPeak` after removing the cgroup. The runner now has a source-only
+verifier for those retained properties on an exact rendered native worker
+unit, including its launch settings and empty-group confirmation. It does not
+create a signed OOM response or reconstruct missing `memory.events` counters;
+the receiver outcome remains unknown until that evidence contract is designed
+and exercised with a real native worker.
+
 The development `sley serve --protocol-profile v3-capable` command now accepts
 an explicit `--native-authority-config` file for the receiver's separate
 acceptance key and trust manifests. Its file shape and permission checks are
