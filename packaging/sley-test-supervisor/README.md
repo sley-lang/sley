@@ -55,6 +55,39 @@ checks kernel peer credentials against `allowed_callers` **before reading** a
 request. The runtime directory must be root-owned and not writable by other
 users.
 
+## Unprivileged authority preparation
+
+`prepare_authority` is a development example for one F0 fixture. It reads an
+exact staged binary manifest, the toolkit workspace state, and the native
+`TestCase` candidate. It verifies the staged binary hashes and candidate's
+canonical workspace, principal, parent, policy, epoch, and ID. It derives the
+same per-limit `SupervisorConfigV1` that the daemon checks, plus the fixed
+native admission profile. It creates a new mode `0700` output directory with
+mode `0600` root and receiver configuration drafts, a receiver acceptance key,
+scoped trust manifests, and a public `plan.json`. It requires the measurement
+public key from a separate root-owned key generation step and never creates,
+reads, or stores the measurement seed. Its grants expire after seven days. It
+never writes `/etc`, installs a unit, or starts a supervisor.
+
+```sh
+cargo run --locked --offline -p sley-test-runner --example prepare_authority -- \
+  /path/to/stage/manifest.json \
+  /path/to/workspace/.sley-tools/state.json \
+  /path/to/native-test-candidate.json \
+  "$(id -u)" 4096 ROOT_MEASUREMENT_PUBLIC_KEY_HEX \
+  /absolute/new/private/output-directory
+```
+
+The root configuration draft names `/usr/lib/sley/sley`,
+`/usr/lib/sley/sley-test-supervisor`, and the future root-owned files under
+`/etc/sley-test-supervisor`. It includes separate exact grants for the fixture's
+commit principal and the zero diagnostic principal under the same receiver
+UID. The receiver configuration names the private files in the output
+directory and can be loaded for an unprivileged protocol handshake. Before
+host qualification, an administrator must review and install the exact bytes,
+keep the measurement seed root-only, and verify the profile IDs against a real
+supervised request.
+
 ## Qualification before admission
 
 1. Build and install exact worker and daemon binaries. A copy of `sley` may

@@ -83,11 +83,32 @@ pub fn expected_supervisor_config(
     config
         .caller_for_scope(caller_uid, request.workspace, request.principal)
         .ok_or_else(mismatch)?;
-    let (_, installed_memory) =
-        floor_page_cap(request.declared_limits.memory_bytes, config.page_size)
-            .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
-    let manager_runtime = runtime_max_usec(request.wall_ms)
+    configured_supervisor_profile(
+        config,
+        request.declared_limits.memory_bytes,
+        request.wall_ms,
+    )
+}
+
+/// Derives the exact per-limit configuration ID an administrator may grant
+/// before a request exists. This describes one configured worker profile; it
+/// authenticates no request and grants no signing authority by itself.
+///
+/// # Errors
+///
+/// Refuses invalid administrator settings or resource limits.
+pub fn configured_supervisor_profile(
+    config: &RunnerConfig,
+    requested_memory_bytes: u64,
+    wall_ms: u64,
+) -> Result<SupervisorConfigV1, ScbError> {
+    config
+        .validate()
+        .map_err(|_| ScbError::new(ScbErrorCode::ContractUnknown))?;
+    let (_, installed_memory) = floor_page_cap(requested_memory_bytes, config.page_size)
         .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
+    let manager_runtime =
+        runtime_max_usec(wall_ms).map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
     let mut properties = REQUIRED_PROPERTIES
         .iter()
         .map(|(name, value)| Property {
@@ -277,6 +298,28 @@ mod tests {
         config.allowed_callers[0].principal = request.principal;
         let expected = expected_supervisor_config(&config, &request, 1_000)
             .expect("expected attested projection");
+        assert_eq!(
+            configured_supervisor_profile(
+                &config,
+                request.declared_limits.memory_bytes,
+                request.wall_ms
+            )
+            .expect("precomputed administrator profile")
+            .id(),
+            expected.id()
+        );
+        assert_eq!(
+            configured_supervisor_profile(&config, 0, request.wall_ms)
+                .expect_err("zero memory cannot be granted")
+                .code(),
+            ScbErrorCode::ResourceLimit
+        );
+        assert_eq!(
+            configured_supervisor_profile(&config, request.declared_limits.memory_bytes, 0)
+                .expect_err("zero wall budget cannot be granted")
+                .code(),
+            ScbErrorCode::ResourceLimit
+        );
         let unit = render_transient_unit(
             &config,
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
