@@ -3811,6 +3811,9 @@ impl<'c, 'a> FnExp<'c, 'a> {
         base: &str,
         depth: usize,
     ) -> Vec<Sym> {
+        if self.wrapped_scalar_operands(st.b, node, types) {
+            return vec![Sym::Raw(Value::Null); node.args.len()];
+        }
         // An operand that names no value leaves its partner literal
         // untyped: report the name, not the literal.
         let untyped = node.args.iter().enumerate().any(|(position, arg)| {
@@ -3843,6 +3846,46 @@ impl<'c, 'a> FnExp<'c, 'a> {
         }
         st.quiet = quiet;
         out
+    }
+
+    /// Refuse wrapped scalar operands before their types reach partner
+    /// literals, which would otherwise hide the cause in a const error.
+    fn wrapped_scalar_operands(&mut self, b: usize, node: &Node, types: &NodeTypes) -> bool {
+        if !matches!(node.row.tag, 64..=71 | 80..=85 | 98..=101) {
+            return false;
+        }
+        let checked = if matches!(node.row.tag, 70 | 71) {
+            1
+        } else {
+            node.args.len()
+        };
+        let mut refused = false;
+        for (position, arg) in node.args.iter().enumerate().take(checked) {
+            let (label, ty) = match &arg.operand {
+                Operand::Name(name) => (format!("`{name}`"), self.value_type(b, name)),
+                Operand::Nested(child) => (
+                    format!("nested `{}`", child.word),
+                    self.node_types(b, child, types.contexts[position].as_ref())
+                        .value,
+                ),
+                Operand::Literal {
+                    typed: Some(ty), ..
+                } => ("the literal".to_owned(), types::read(ty, self.cx, "").ok()),
+                _ => continue,
+            };
+            if let Some(ty @ (TypeExpr::Result { .. } | TypeExpr::Option(_))) = ty {
+                self.oblige(
+                    AgentErrorCode::FrameInvalid,
+                    &arg.pointer,
+                    format!(
+                        "{label} has type {}; `{}` needs an unwrapped value: use `?Case` on the producing operation, or switch on its Ok/Some case and use `$`",
+                        self.cx.render(&ty), node.word
+                    ),
+                );
+                refused = true;
+            }
+        }
+        refused
     }
 
     fn lower_operand(

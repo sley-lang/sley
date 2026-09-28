@@ -1,8 +1,7 @@
 # Sley agent guide
 
-A Sley program is a graph of typed entities in a repository; there are no
-source files. Read it with `view`; change it with a frame: JSON that
-`sley-agent` expands, compiles and validates as one candidate.
+A Sley program is a graph of typed entities. Read it with `view`; change
+it with a JSON frame that `sley-agent` expands, compiles and validates.
 
     sley-agent find                  # functions, types, constants, tests
     sley-agent view --focus f --x    # f compactly, with its context
@@ -35,6 +34,8 @@ source files. Read it with `view`; change it with a frame: JSON that
 - `op?Case` unwraps a checked result (`add sub mul div rem neg`, a `call`
   returning Result or Option); a failure returns `Err(Case)`. `op?` passes
   the failure on; `op?block` goes to a handler block.
+  Plain arithmetic returns Result: unwrap each step before using it in
+  another operation, e.g. `add?Overflow` then `div?Overflow`.
 - `["!Case", "if", cond]` returns `Err(Case)` when `cond` is true.
 - Terminators: `["ok", v]`, `["fail", "Case"]`, `["return", v]`,
   `["br", ["join", "x"]]`, `["cond", "c", ["t", "x"], "f"]`,
@@ -60,8 +61,7 @@ For a function the draft does not define, `edit` takes plain AF1: use
 
 ## Refusals and repair
 
-A `try` keeps a draft revision even when its frame is refused, and lists
-every problem with its JSON pointer; repair those pointers, not the file:
+A refused `try` keeps a draft and lists problem pointers. Repair them:
 
 ```json
 {"set": [{"at": "/fns/0/blocks/0/term", "value": ["ok", "a"]}]}

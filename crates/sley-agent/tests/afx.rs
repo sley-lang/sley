@@ -230,6 +230,50 @@ fn refused(dir: &Path, frame: &Value) -> (String, String) {
     )
 }
 
+#[test]
+fn scalar_operations_report_wrapped_operands_before_partner_literals() {
+    let temp = workspace("wrapped-operands");
+    let frame = |ops: Value| {
+        json!({"af1": 1, "afx": 1,
+            "types": [{"name": "MathError", "variant": ["Overflow"]}],
+            "fns": [{"fn": "scale", "params": [["x", "i64"]],
+                "returns": "Result<i64,MathError>",
+                "blocks": [{"name": "entry", "ops": ops, "term": ["ok", "y"]}]}]})
+    };
+    for (ops, pointer) in [
+        (
+            json!([["n", "add", "x", 9], ["y", "div?Overflow", "n", 10]]),
+            "/fns/0/blocks/0/ops/1/2",
+        ),
+        (
+            json!([["n", "add", "x", 9], ["y", "div?Overflow", 10, "n"]]),
+            "/fns/0/blocks/0/ops/1/3",
+        ),
+        (
+            json!([["y", "div?Overflow", ["add", "x", 9], 10]]),
+            "/fns/0/blocks/0/ops/0/2",
+        ),
+    ] {
+        let (symbol, detail) = refused(&temp.path, &frame(ops));
+        assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+        assert!(detail.starts_with(pointer), "{detail}");
+        assert!(detail.contains("Result<i64,ArithmeticError>"), "{detail}");
+        assert!(detail.contains("unwrap"), "{detail}");
+        assert!(detail.contains("?Case"), "{detail}");
+        assert!(!detail.contains("expected {\"Ok\""), "{detail}");
+    }
+    let fixed = frame(json!([
+        ["n", "add?Overflow", "x", 9],
+        ["y", "div?Overflow", "n", 10]
+    ]));
+    let mut runner = Runner::new(&temp.path, &fixed);
+    assert_eq!(runner.call("scale", &[json!(11)]), json!({"Ok": 2}));
+    assert_eq!(
+        runner.call("scale", &[json!(i64::MAX)]),
+        json!({"Err": "Overflow"})
+    );
+}
+
 /// A Valid candidate of `frame`, compiled and validated in process, with
 /// an executor over the state it proposes.
 struct Runner {
