@@ -16,14 +16,14 @@
     "state": "RELEASE_APPROVED",
     "authority": "operator",
     "decided": "2026-09-24",
-    "release": "2.0.2",
+    "release": "2.0.3",
     "release_name": "Sley 2.0",
-    "label": "plain 2.0.2, a point release of 2.0.1 that adds the agent workbench, with no preview or alpha label (operator decisions 2026-09-24 and 2026-09-25); publication and tag v2.0.2 by operator decision (2026-09-26)",
+    "label": "plain 2.0.3, a point release of 2.0.2 adding compact authoring, persistent drafts, focused views and checked workbench transformations; operator publication authorization 2026-09-27",
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "d7d134641b0d687229e2c64774456a6f38a5df3b",
-    "final_commit_note": "the official Sley 2.0.2 release, built from commit d7d13464 of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
+    "final_commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+    "final_commit_note": "Selected Sley 2.0.3 source commit, built reproducibly on two hosts. The release records and publication decision are filed in records-only descendants.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
       "EVIDENCED": 32,
@@ -56,9 +56,10 @@
     "open_p1_p2_at_decision": "rw075_correction 4 P1 + 4 P2 (AR-02 large-preimage design and AR-06 transcript binding; the self-hosting/REWEAVE line, 2.1); finding-ledger mechanism P2s in release_candidate_packaging (4), reproducibility_and_independent_conformance (3) and standards_sbom_and_provenance (2) against scripts/build_finding_register.py and scripts/retire_review_claims.py",
     "council_reviews": "no longer used (operator decision 2026-09-24); criteria that wait on a Council or independent review stay AWAITS_REVIEW",
     "deferred_to_2_1": "self-hosting (REWEAVE / SH2)",
-    "release_notes": "docs/release/SLEY-2.0.2.md",
+    "release_notes": "docs/release/SLEY-2.0.3.md",
     "decided_2_0_1": "2026-09-25",
-    "decided_2_0_2": "2026-09-25"
+    "decided_2_0_2": "2026-09-25",
+    "decided_2_0_3": "2026-09-27"
   },
   "status": "IN_PROGRESS",
   "locator": {
@@ -184,12 +185,14 @@
       "GitHub release v2.0.0 carrying sley-2.0.0-linux-x86_64.tar.gz and its SHA-256",
       "the sleylang.org website describing Sley 2.0.0",
       "the 2.0.1 patch release (GitHub release v2.0.1 with sley-2.0.1-linux-x86_64.tar.gz): operator direction 2026-09-25 to merge the contributor fixes and fix every issue found in the post-release verification",
-      "the 2.0.2 point release (GitHub release v2.0.2 with sley-2.0.2-linux-x86_64.tar.gz): operator direction 2026-09-26 to release the agent workbench and its fixes"
+      "the 2.0.2 point release (GitHub release v2.0.2 with sley-2.0.2-linux-x86_64.tar.gz): operator direction 2026-09-26 to release the agent workbench and its fixes",
+      "the 2.0.3 point release (GitHub release v2.0.3 with sley-2.0.3-linux-x86_64.tar.gz): operator direction 2026-09-27 to verify a workbench improvement over 2.0.2 and then release it; the improvement was verified before publication preparation"
     ],
     "authorized_tags": [
       "v2.0.0",
       "v2.0.1",
-      "v2.0.2"
+      "v2.0.2",
+      "v2.0.3"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry."
@@ -8037,7 +8040,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "20 GA acceptance criteria are not evidenced",
+      "19 GA acceptance criteria are not evidenced",
       "27 review obligations are open",
       "no succession trial has been executed",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
@@ -8418,13 +8421,12 @@
     "criterion_count": 52,
     "states": {
       "AWAITS_REVIEW": 17,
-      "EVIDENCED": 32,
-      "GATED": 3
+      "EVIDENCED": 33,
+      "GATED": 2
     },
     "gated": [
       "no P0/P1/P2 finding remains open",
-      "every section 22 threshold passes",
-      "artifact is built from the final candidate commit"
+      "every section 22 threshold passes"
     ],
     "ga_claimed": false,
     "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim; every state is derived from the fact its evidence names, package completion and lane clearance are the finding register's predicates, and the report is digest-bound to the register",

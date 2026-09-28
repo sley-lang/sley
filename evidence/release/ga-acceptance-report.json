@@ -270,7 +270,7 @@
       "criterion": "artifact is built from the final candidate commit",
       "evidence": "attested commit 69d57b1d8fac0ef9d9f639cb606ded9be6289760; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
       "group": "26.8 packaging",
-      "state": "GATED"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "artifact runs with no source-tree access",
@@ -337,18 +337,17 @@
   "ga_claimed": false,
   "gated": [
     "no P0/P1/P2 finding remains open",
-    "every section 22 threshold passes",
-    "artifact is built from the final candidate commit"
+    "every section 22 threshold passes"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "517a972593be52c2078d0893cd917b38a5796618cb2f350189026b119d0c5df3",
   "register_digest": "d315bbb614c8f07193a6ed5b3ced48749fb9b37a6fce320a37ebd99e45545640",
-  "report_digest": "ea39ae430cbdb31ae1b6a30701fd5965a05f590136194df7224d2d8874cbdd0c",
+  "report_digest": "8c05b88c4b13c78525e838356661151e2049ff1eb51fb5107d427ea4f6b39a86",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,
-    "EVIDENCED": 32,
-    "GATED": 3
+    "EVIDENCED": 33,
+    "GATED": 2
   },
   "thresholds_source": "evidence/release/succession-accounting-report.json"
 }
