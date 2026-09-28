@@ -185,8 +185,11 @@ impl UnitGuard {
         let deadline = Instant::now()
             .checked_add(Duration::from_micros(REAP_BUDGET_USEC))
             .ok_or(OwnerError::CleanupUnconfirmed)?;
-        signal_system_unit(&self.unit_name, deadline);
+        // Stop the piped launcher before a possibly slow manager kill call.
+        // Its open pipe can otherwise keep the gated worker alive until the
+        // entire confirmation budget has been spent.
         let _ = self.child.kill();
+        signal_system_unit(&self.unit_name, deadline);
         let _ = wait_child(&mut self.child, deadline, None);
         confirm_reap_before(&self.unit_name, deadline)
             .map_err(|_| OwnerError::CleanupUnconfirmed)?;
