@@ -21,8 +21,11 @@ use sley_test_runner::{
     client::{ClientError, run_native_test},
     config::SOCKET_NAME,
     protocol::{RunRequest, RunStatus},
+    service::RUN_REFUSAL_WALL_UNSUPPORTED,
 };
-use sley_tests::{HistoricalTrustPolicyV1, NativeTestPlanV1, TERMINATION_TIMEOUT};
+use sley_tests::{
+    HistoricalTrustPolicyV1, NativeTestPlanV1, TERMINATION_PRELAUNCH_REFUSED, TERMINATION_TIMEOUT,
+};
 
 use crate::native_commit::{
     ExecutedNativeTest, NativeCommitError, NativeTestExecutor, SupervisorEvidenceError,
@@ -150,6 +153,16 @@ fn client_failure(error: ClientError) -> NativeCommitError {
 
 fn evidence_failure(error: SupervisorEvidenceError) -> NativeCommitError {
     match error {
+        SupervisorEvidenceError::SignedNoResult {
+            status: RunStatus::Refused,
+            termination: TERMINATION_PRELAUNCH_REFUSED,
+            code: RUN_REFUSAL_WALL_UNSUPPORTED,
+        }
+        | SupervisorEvidenceError::SignedNoResult {
+            status: RunStatus::Failed,
+            termination: TERMINATION_TIMEOUT,
+            ..
+        } => NativeCommitError::ResourceRefused,
         SupervisorEvidenceError::NoEvidence {
             status: RunStatus::Refused,
             ..
@@ -158,11 +171,6 @@ fn evidence_failure(error: SupervisorEvidenceError) -> NativeCommitError {
             status: RunStatus::Refused,
             ..
         } => NativeCommitError::ExecutorUnavailable,
-        SupervisorEvidenceError::SignedNoResult {
-            status: RunStatus::Failed,
-            termination: TERMINATION_TIMEOUT,
-            ..
-        } => NativeCommitError::ResourceRefused,
         SupervisorEvidenceError::NoEvidence {
             status: RunStatus::Failed | RunStatus::Complete,
             ..
@@ -219,6 +227,29 @@ mod tests {
             evidence_failure(SupervisorEvidenceError::NoEvidence {
                 status: RunStatus::Refused,
                 code: 1,
+            }),
+            NativeCommitError::ExecutorUnavailable
+        );
+        assert_eq!(
+            evidence_failure(SupervisorEvidenceError::NoEvidence {
+                status: RunStatus::Refused,
+                code: RUN_REFUSAL_WALL_UNSUPPORTED,
+            }),
+            NativeCommitError::ExecutorUnavailable
+        );
+        assert_eq!(
+            evidence_failure(SupervisorEvidenceError::SignedNoResult {
+                status: RunStatus::Refused,
+                termination: TERMINATION_PRELAUNCH_REFUSED,
+                code: RUN_REFUSAL_WALL_UNSUPPORTED,
+            }),
+            NativeCommitError::ResourceRefused
+        );
+        assert_eq!(
+            evidence_failure(SupervisorEvidenceError::SignedNoResult {
+                status: RunStatus::Refused,
+                termination: TERMINATION_PRELAUNCH_REFUSED,
+                code: sley_test_runner::service::RUN_REFUSAL_STAGE_FAILED,
             }),
             NativeCommitError::ExecutorUnavailable
         );

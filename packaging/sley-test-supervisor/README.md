@@ -10,19 +10,21 @@ the existing VM. This service is host machinery; it is not a Sley program.
 
 ## Current evidence
 
-An earlier development build is installed on greyarch with its worker and
+Development build `247b15f` is installed on greyarch with its worker and
 supervisor hashes pinned in the root configuration. Its service is stopped and
-disabled. A disposable F0 scenario exercised a real native test, but
-postlaunch resource failures still returned an unknown receiver outcome. The
-current source adds signed prelaunch refusals and a signed postlaunch wall
-timeout when clean cgroup counters are sampled while the worker is live and
-the unit is subsequently killed and confirmed empty. The timeout counters
-are a deadline snapshot, not counters read after teardown. OOM and missing
-or dirty telemetry remain unknown. These changes are not in the installed
-binaries and have not been live-qualified. No released-core compatibility or
-full native test admission claim follows from these source tests. The
-authenticated refusal-only handler remains available for negative protocol
-tests; the production daemon uses the root handler.
+disabled. A disposable F0 scenario exercised real native test admission and
+selected execution on that build. A separate 1 ms request returned an
+unchanged root and no observed worker unit; its receiver reported the generic
+`NATIVE_EXECUTOR_UNAVAILABLE`. The current source classifies only the trusted,
+signed unsupported-wall refusal as `NATIVE_TEST_RESOURCE_REFUSED`. That last
+receiver change is not installed yet. The postlaunch timeout path samples
+clean cgroup counters while the exact worker is live, then kills the unit and
+confirms teardown before signing a no-result failure. Its counters are a
+deadline snapshot, not counters read after teardown. OOM and missing or dirty
+telemetry remain unknown. No released-core compatibility or full host
+qualification follows from these checks. The authenticated refusal-only
+handler remains available for negative protocol tests; the production daemon
+uses the root handler.
 
 The development `sley serve --protocol-profile v3-capable` command now accepts
 an explicit `--native-authority-config` file for the receiver's separate
