@@ -272,6 +272,32 @@ fn measurement_matches_request(
         })
 }
 
+fn expected_config_cap(request: &RunRequest, config: &SupervisorConfigV1) -> Result<u64, ScbError> {
+    let config_parts = config.parts();
+    if !config_parts.page_size.is_power_of_two() {
+        return Err(mismatch());
+    }
+    let (_, expected_cap) =
+        floor_page_cap(request.declared_limits.memory_bytes, config_parts.page_size)
+            .map_err(|_| mismatch())?;
+    let expected_runtime = runtime_max_usec(request.wall_ms).map_err(|_| mismatch())?;
+    let expected_cap_text = expected_cap.to_string();
+    let expected_runtime_text = expected_runtime.to_string();
+    let property = |name: &str| {
+        config
+            .properties()
+            .iter()
+            .find(|property| property.name == name)
+            .map(|property| property.value.as_str())
+    };
+    if property("MemoryMax") != Some(expected_cap_text.as_str())
+        || property("RuntimeMaxUSec") != Some(expected_runtime_text.as_str())
+    {
+        return Err(mismatch());
+    }
+    Ok(expected_cap)
+}
+
 impl RunRequest {
     /// Checks a typed response against the exact requested test and socket UID.
     ///
@@ -304,31 +330,12 @@ impl RunRequest {
         {
             return Err(mismatch());
         }
+        let expected_cap = expected_config_cap(self, config)?;
+        if attestation.installed_memory_cap() != expected_cap {
+            return Err(mismatch());
+        }
         if response.status == RunStatus::Complete {
             if !attestation.claims_success() || attestation.execution_report_id().is_none() {
-                return Err(mismatch());
-            }
-            let config_parts = config.parts();
-            if !config_parts.page_size.is_power_of_two() {
-                return Err(mismatch());
-            }
-            let (_, expected_cap) =
-                floor_page_cap(self.declared_limits.memory_bytes, config_parts.page_size)
-                    .map_err(|_| mismatch())?;
-            let expected_runtime = runtime_max_usec(self.wall_ms).map_err(|_| mismatch())?;
-            let expected_cap_text = expected_cap.to_string();
-            let expected_runtime_text = expected_runtime.to_string();
-            let property = |name: &str| {
-                config
-                    .properties()
-                    .iter()
-                    .find(|property| property.name == name)
-                    .map(|property| property.value.as_str())
-            };
-            if attestation.installed_memory_cap() != expected_cap
-                || property("MemoryMax") != Some(expected_cap_text.as_str())
-                || property("RuntimeMaxUSec") != Some(expected_runtime_text.as_str())
-            {
                 return Err(mismatch());
             }
             let events = attestation.memory_events();
@@ -373,6 +380,7 @@ impl RunRequest {
         {
             return Err(mismatch());
         }
+        let expected_cap = expected_config_cap(self, config)?;
         match response.status {
             RunStatus::Refused
                 if attestation.parts().termination == TERMINATION_PRELAUNCH_REFUSED
@@ -386,7 +394,8 @@ impl RunRequest {
                 Ok(evidence)
             }
             RunStatus::Failed
-                if attestation.parts().termination > TERMINATION_PRELAUNCH_REFUSED =>
+                if attestation.parts().termination > TERMINATION_PRELAUNCH_REFUSED
+                    && attestation.installed_memory_cap() == expected_cap =>
             {
                 Ok(evidence)
             }
@@ -539,14 +548,7 @@ mod tests {
             ),
         })
         .expect("rejected report");
-        let mut config_parts = old.supervisor_config().parts().clone();
-        config_parts
-            .properties
-            .iter_mut()
-            .find(|property| property.name == "MemoryMax")
-            .expect("memory property")
-            .value = "8192".to_owned();
-        let config = SupervisorConfigV1::build(config_parts).expect("diagnostic config");
+        let config = old.supervisor_config().clone();
         let mut parts = old.attestation().parts().clone();
         parts.supervisor_config_id = *config.id().as_bytes();
         parts.execution_report_id = None;
@@ -751,6 +753,13 @@ mod tests {
         wrong_nonce.nonce[0] ^= 1;
         assert!(
             wrong_nonce
+                .verified_no_result_evidence(&decoded, 1_000)
+                .is_err()
+        );
+        let mut wrong_wall = request.clone();
+        wrong_wall.wall_ms = request.wall_ms - 1;
+        assert!(
+            wrong_wall
                 .verified_no_result_evidence(&decoded, 1_000)
                 .is_err()
         );

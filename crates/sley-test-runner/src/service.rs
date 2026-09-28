@@ -34,6 +34,12 @@ pub const RUN_REFUSAL_PROGRAM_INVALID: u32 = 2;
 pub const RUN_REFUSAL_TRUST_NOT_GRANTED: u32 = 3;
 /// Stable signed refusal when worker input cannot be staged before launch.
 pub const RUN_REFUSAL_STAGE_FAILED: u32 = 4;
+/// Stable signed refusal for a wall budget below this systemd profile's
+/// currently supported minimum.
+pub const RUN_REFUSAL_WALL_UNSUPPORTED: u32 = 5;
+/// This initial systemd profile has only been observed to complete native
+/// tests at a one-second wall budget; shorter requests refuse before launch.
+pub const MIN_SUPPORTED_WALL_MILLIS: u64 = 1_000;
 /// Hard deadline for writing one complete bounded supervisor response.
 pub const RESPONSE_WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -138,10 +144,11 @@ pub fn handle_connection(
 
 /// Handles one socket run using authority loaded before accepting work.
 ///
-/// Invalid selected programs receive a closed prelaunch refusal. Staging
-/// failures under provisioned trust receive a signed no-result refusal. Once
-/// worker launch is attempted, internal failures close the connection without
-/// a signed result. `CleanupUnconfirmed` requires the outer daemon
+/// Invalid selected programs receive a closed prelaunch refusal. Unsupported
+/// short wall budgets and staging failures under provisioned trust receive a
+/// signed no-result refusal. Once worker launch is attempted, internal
+/// failures close the connection without a signed result. `CleanupUnconfirmed`
+/// requires the outer daemon
 /// to stop accepting work until orphan reconciliation succeeds.
 ///
 /// # Errors
@@ -193,6 +200,17 @@ pub fn handle_root_connection(
                 no_result: None,
             },
         );
+    }
+    if authenticated.request().wall_ms < MIN_SUPPORTED_WALL_MILLIS {
+        let response = sign_prelaunch_refusal(
+            config,
+            &authenticated,
+            authority.trust(),
+            authority.signer(),
+            RUN_REFUSAL_WALL_UNSUPPORTED,
+        )
+        .map_err(ServiceError::Attestation)?;
+        return write_response(stream, &response);
     }
     let Ok(staged) = stage_worker_input(config, authenticated.request()) else {
         let response = sign_prelaunch_refusal(
@@ -333,6 +351,31 @@ mod tests {
             }],
         })
         .expect("test trust");
+        ProvisionedMeasurementAuthority::for_test(config, trust, signer)
+    }
+
+    fn granted_authority(
+        config: RunnerConfig,
+        request: &RunRequest,
+        uid: u32,
+    ) -> ProvisionedMeasurementAuthority {
+        let profile = *expected_supervisor_config(&config, request, uid)
+            .expect("exact profile")
+            .id()
+            .as_bytes();
+        let signer = Ed25519MeasurementSigner::from_secret_bytes([3; 32]);
+        let trust = HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [6; 32],
+            entries: vec![TrustEntry {
+                key_id: signer.public_key(),
+                role: ROLE_MEASUREMENT,
+                workspaces: vec![*request.workspace.as_bytes()],
+                profiles: vec![profile],
+                valid_from_unix_millis: 0,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .expect("exact trust");
         ProvisionedMeasurementAuthority::for_test(config, trust, signer)
     }
 
@@ -525,24 +568,7 @@ mod tests {
             .with_extension("missing-runtime")
             .to_string_lossy()
             .into_owned();
-        let profile = *expected_supervisor_config(&config, &request, uid)
-            .expect("exact profile")
-            .id()
-            .as_bytes();
-        let signer = Ed25519MeasurementSigner::from_secret_bytes([3; 32]);
-        let trust = HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
-            policy_nonce: [6; 32],
-            entries: vec![TrustEntry {
-                key_id: signer.public_key(),
-                role: ROLE_MEASUREMENT,
-                workspaces: vec![*request.workspace.as_bytes()],
-                profiles: vec![profile],
-                valid_from_unix_millis: 0,
-                valid_until_unix_millis: u64::MAX,
-            }],
-        })
-        .expect("exact trust");
-        let authority = ProvisionedMeasurementAuthority::for_test(config, trust, signer);
+        let authority = granted_authority(config, &request, uid);
         let client = std::thread::spawn({
             let path = path.clone();
             let request = request.clone();
@@ -569,6 +595,44 @@ mod tests {
             .expect("bound refusal");
         assert_eq!(evidence.attestation().execution_report_id(), None);
         assert_eq!(evidence.attestation().installed_memory_cap(), 0);
+        std::fs::remove_file(path).expect("remove socket");
+    }
+
+    #[test]
+    fn root_handler_signs_an_unsupported_short_wall_refusal_before_launch() {
+        let (listener, path) = test_listener();
+        let uid = std::fs::symlink_metadata(&path)
+            .expect("socket metadata")
+            .uid();
+        let mut request = request();
+        request.wall_ms = MIN_SUPPORTED_WALL_MILLIS - 1;
+        let authority = granted_authority(config(uid), &request, uid);
+        let client = std::thread::spawn({
+            let path = path.clone();
+            let request = request.clone();
+            move || {
+                let mut stream = UnixStream::connect(path).expect("connect");
+                stream
+                    .write_all(&request.encode_frame().expect("frame"))
+                    .expect("write request");
+                let mut bytes = Vec::new();
+                stream.read_to_end(&mut bytes).expect("read refusal");
+                bytes
+            }
+        });
+        assert_eq!(
+            serve_one_root(&listener, &authority, Duration::from_secs(1)),
+            Ok(())
+        );
+        let response = RunResponse::decode_frame(&client.join().expect("client thread"))
+            .expect("signed refusal frame");
+        assert_eq!(response.status, RunStatus::Refused);
+        assert_eq!(response.code, RUN_REFUSAL_WALL_UNSUPPORTED);
+        let evidence = request
+            .verified_no_result_evidence(&response, uid)
+            .expect("bound prelaunch refusal");
+        assert_eq!(evidence.attestation().execution_report_id(), None);
+        assert_eq!(evidence.attestation().elapsed_ns(), 0);
         std::fs::remove_file(path).expect("remove socket");
     }
 }
