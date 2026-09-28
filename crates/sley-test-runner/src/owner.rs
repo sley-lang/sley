@@ -157,6 +157,11 @@ struct UnitGuard {
 }
 
 impl UnitGuard {
+    fn spawn_for_peer(unit: &TransientUnit, peer: &UnixStream) -> Result<Self, OwnerError> {
+        check_peer_connected(peer).map_err(|_| OwnerError::PeerLost)?;
+        Self::spawn(unit)
+    }
+
     fn spawn(unit: &TransientUnit) -> Result<Self, OwnerError> {
         let child = Command::new(&unit.argv[0])
             .args(&unit.argv[1..])
@@ -248,7 +253,7 @@ pub fn run_owned_system_unit(
     let deadline = started
         .checked_add(Duration::from_millis(wall_ms))
         .ok_or(OwnerError::InvalidDeadline)?;
-    let mut guard = UnitGuard::spawn(unit)?;
+    let mut guard = UnitGuard::spawn_for_peer(unit, peer)?;
     let phase = {
         let control = guard
             .child
@@ -289,10 +294,52 @@ pub fn run_owned_system_unit(
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use sley_id::{PrincipalId, WorkspaceId};
 
     use super::*;
     use crate::config::{AllowedCaller, default_config};
+
+    static NEXT_MARKER: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn disconnected_peer_never_starts_launcher() {
+        let marker = std::env::temp_dir().join(format!(
+            "sley-disconnected-peer-{}-{}",
+            std::process::id(),
+            NEXT_MARKER.fetch_add(1, Ordering::Relaxed)
+        ));
+        assert!(!marker.exists());
+        let unit = TransientUnit {
+            unit_name: format!("{UNIT_PREFIX}{}", "b".repeat(64)),
+            argv: vec![
+                "/usr/bin/touch".to_owned(),
+                marker.to_str().unwrap().to_owned(),
+            ],
+            requested_memory: 4096,
+            installed_memory: 4096,
+            runtime_max_usec: 3_000_000,
+        };
+        let (peer, client) = UnixStream::pair().unwrap();
+        drop(client);
+        let result = UnitGuard::spawn_for_peer(&unit, &peer);
+        let error = match result {
+            Ok(mut guard) => {
+                guard.child.wait().unwrap();
+                guard.reaped = true;
+                None
+            }
+            Err(error) => Some(error),
+        };
+        let launched = marker.exists();
+        if launched {
+            fs::remove_file(marker).unwrap();
+        }
+        assert_eq!(error, Some(OwnerError::PeerLost));
+        assert!(!launched);
+    }
 
     #[test]
     fn refuses_every_change_to_the_frozen_launch_argv() {
