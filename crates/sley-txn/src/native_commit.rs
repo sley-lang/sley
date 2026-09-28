@@ -427,6 +427,15 @@ pub enum SupervisorEvidenceError {
         /// Stable supervisor refusal or failure code.
         code: u32,
     },
+    /// Trusted no-result host diagnostic, never a native test report.
+    SignedNoResult {
+        /// Refused before launch or failed after a host attempt.
+        status: RunStatus,
+        /// Signed termination tag from the measured attestation.
+        termination: u32,
+        /// Stable supervisor refusal or failure code.
+        code: u32,
+    },
     /// The signed measurement lacks receiver trust or has an invalid signature.
     MeasurementTrust(NativeCommitError),
 }
@@ -450,6 +459,22 @@ pub fn verified_supervisor_execution(
 ) -> Result<ExecutedNativeTest, SupervisorEvidenceError> {
     let response = RunResponse::decode_frame(response_frame)
         .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+    if response.no_result.is_some() {
+        let evidence = request
+            .verified_no_result_evidence(&response, caller_uid)
+            .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+        verify_measurement_attestation(
+            evidence.attestation(),
+            request.workspace,
+            measurement_trust,
+        )
+        .map_err(SupervisorEvidenceError::MeasurementTrust)?;
+        return Err(SupervisorEvidenceError::SignedNoResult {
+            status: response.status,
+            termination: evidence.attestation().parts().termination,
+            code: response.code,
+        });
+    }
     if response.evidence.is_none() {
         return Err(SupervisorEvidenceError::NoEvidence {
             status: response.status,
@@ -1486,6 +1511,7 @@ mod tests {
             evidence: Some(
                 RunEvidence::build(report, attestation, config).expect("bound evidence"),
             ),
+            no_result: None,
         };
         (request, response, trust)
     }
@@ -1510,6 +1536,76 @@ mod tests {
         assert_eq!(
             check_execution_coverage(program.plan(), &[execution]),
             Err(TransactionErrorCode::ReceiptBindingMismatch)
+        );
+    }
+
+    #[test]
+    fn signed_no_result_refusal_verifies_but_never_becomes_execution() {
+        use sley_test_runner::response::RunNoResultEvidence;
+        use sley_tests::{
+            TERMINATION_PRELAUNCH_REFUSED, measurement_signature_preimage, unsigned_record_prefix,
+        };
+
+        let (request, mut response, trust) = signed_diagnostic_fixture();
+        let old = response.evidence.take().expect("worker evidence");
+        let mut parts = old.attestation().parts().clone();
+        parts.execution_report_id = None;
+        parts.installed_memory_cap = 0;
+        parts.elapsed_ns = 0;
+        parts.measured_memory_peak = 0;
+        parts.termination = TERMINATION_PRELAUNCH_REFUSED;
+        parts.complete_output = false;
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned measurement");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        parts.signature = SigningKey::from_bytes(&[3; 32]).sign(&preimage).to_bytes();
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("attestation"),
+                old.supervisor_config().clone(),
+            )
+            .expect("no-result pair"),
+        );
+        response.status = RunStatus::Refused;
+        response.code = 4;
+        let frame = response.encode_frame().expect("refusal frame");
+        let expected = Err(SupervisorEvidenceError::SignedNoResult {
+            status: RunStatus::Refused,
+            termination: TERMINATION_PRELAUNCH_REFUSED,
+            code: 4,
+        });
+        assert_eq!(
+            verified_supervisor_execution(&request, &frame, 1_000, &trust),
+            expected
+        );
+        let mut wrong_nonce = request.clone();
+        wrong_nonce.nonce[0] ^= 1;
+        assert_eq!(
+            verified_supervisor_execution(&wrong_nonce, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::InvalidResponse(
+                ScbErrorCode::ContractUnknown
+            ))
+        );
+        let old = response.no_result.take().expect("no-result pair");
+        let mut parts = old.attestation().parts().clone();
+        parts.signature[63] ^= 1;
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("tampered attestation"),
+                old.supervisor_config().clone(),
+            )
+            .expect("tampered no-result pair"),
+        );
+        assert_eq!(
+            verified_supervisor_execution(
+                &request,
+                &response.encode_frame().expect("tampered frame"),
+                1_000,
+                &trust,
+            ),
+            Err(SupervisorEvidenceError::MeasurementTrust(
+                NativeCommitError::TrustRejected
+            ))
         );
     }
 
@@ -1676,6 +1772,7 @@ mod tests {
             status: RunStatus::Refused,
             code: 7,
             evidence: None,
+            no_result: None,
         };
         assert_eq!(
             verified_supervisor_execution(
@@ -1757,6 +1854,7 @@ mod tests {
             evidence: Some(
                 RunEvidence::build(report.clone(), attestation, config).expect("evidence"),
             ),
+            no_result: None,
         };
         let frame = response.encode_frame().expect("complete frame");
         let executed = verified_supervisor_execution(&request, &frame, 1_000, &trust)

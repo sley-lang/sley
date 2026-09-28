@@ -9,9 +9,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use sley_scb1::ScbErrorCode;
 use sley_tests::{
-    HistoricalTrustPolicyV1, MeasuredTestAttestationParts, MeasuredTestAttestationV1,
-    NativeExecutionEvidence, ROLE_MEASUREMENT, measurement_signature_preimage,
-    unsigned_record_prefix,
+    HistoricalTrustPolicyV1, MeasuredTestAttestationParts, MeasuredTestAttestationV1, MemoryEvents,
+    NativeExecutionEvidence, ROLE_MEASUREMENT, TERMINATION_PRELAUNCH_REFUSED,
+    measurement_signature_preimage, unsigned_record_prefix,
 };
 
 use crate::config::RunnerConfig;
@@ -22,7 +22,7 @@ use crate::outcome::{
 };
 use crate::owner::OwnedWorkerResult;
 use crate::protocol::{RunRequest, RunResponse, RunStatus};
-use crate::response::RunEvidence;
+use crate::response::{RunEvidence, RunNoResultEvidence};
 use crate::unit::expected_supervisor_config;
 
 /// Refusal before a successful host measurement can be signed.
@@ -79,6 +79,93 @@ fn bind_worker_report(
             .map_err(|error| AttestationError::Binding(error.code()))?;
     }
     Ok(())
+}
+
+/// Signs a refusal after authenticated admission but before any worker unit
+/// is launched. The zero host facts are valid only for that boundary.
+///
+/// # Errors
+/// Refuses invalid request bindings, absent measurement trust, clock failure,
+/// or signing failure. The caller must establish that launch did not occur.
+pub fn sign_prelaunch_refusal(
+    config: &RunnerConfig,
+    authenticated: &AuthenticatedRunRequest,
+    trust: &HistoricalTrustPolicyV1,
+    signer: &dyn Signer,
+    code: u32,
+) -> Result<RunResponse, AttestationError> {
+    if code == 0 {
+        return Err(AttestationError::Binding(ScbErrorCode::ContractUnknown));
+    }
+    let request = authenticated.request();
+    request
+        .verified_program()
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let caller_uid = authenticated.caller_uid();
+    let supervisor_config = expected_supervisor_config(config, request, caller_uid)
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let recorded_unix_millis = u64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| AttestationError::ClockUnavailable)?
+            .as_millis(),
+    )
+    .map_err(|_| AttestationError::ClockUnavailable)?;
+    let key_id = signer.public_key();
+    if !trust.grants(
+        &key_id,
+        ROLE_MEASUREMENT,
+        request.workspace.as_bytes(),
+        supervisor_config.id().as_bytes(),
+        recorded_unix_millis,
+    ) {
+        return Err(AttestationError::TrustRejected);
+    }
+    let mut parts = MeasuredTestAttestationParts {
+        key_id,
+        trust_policy_id: *trust.id().as_bytes(),
+        supervisor_config_id: *supervisor_config.id().as_bytes(),
+        plan_id: request.plan_id,
+        test_object: request.test_object,
+        execution_report_id: None,
+        attempt_nonce: request.nonce,
+        workspace: request.workspace,
+        principal: request.principal,
+        caller_uid,
+        declared_limits: request.declared_limits,
+        installed_memory_cap: 0,
+        elapsed_ns: 0,
+        measured_memory_peak: 0,
+        memory_events: MemoryEvents {
+            max: 0,
+            oom: 0,
+            oom_kill: 0,
+        },
+        termination: TERMINATION_PRELAUNCH_REFUSED,
+        complete_output: false,
+        empty_cgroup_confirmed: true,
+        recorded_unix_millis,
+        signature: [0; 64],
+    };
+    let unsigned =
+        unsigned_record_prefix(&parts).map_err(|error| AttestationError::Binding(error.code()))?;
+    let preimage = measurement_signature_preimage(&unsigned)
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    parts.signature = signer.sign(&preimage).map_err(AttestationError::Signing)?;
+    let attestation = MeasuredTestAttestationV1::build(parts)
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let no_result = RunNoResultEvidence::build(attestation, supervisor_config)
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    let response = RunResponse {
+        status: RunStatus::Refused,
+        code,
+        evidence: None,
+        no_result: Some(no_result),
+    };
+    request
+        .verified_no_result_evidence(&response, caller_uid)
+        .map_err(|error| AttestationError::Binding(error.code()))?;
+    Ok(response)
 }
 
 /// Signs a completed, already reaped worker attempt under provisioned trust.
@@ -179,6 +266,7 @@ pub fn sign_complete_attempt(
         status: RunStatus::Complete,
         code: 0,
         evidence: Some(evidence),
+        no_result: None,
     };
     request
         .verified_response_evidence(&response, caller_uid)
@@ -313,6 +401,45 @@ mod tests {
             .expect("public key")
             .verify_strict(&preimage, &Signature::from_bytes(&parts.signature))
             .expect("signed measurement verifies");
+    }
+
+    #[test]
+    fn prelaunch_refusal_is_signed_without_a_worker_report() {
+        let (config, authenticated, _, signer) = fixture();
+        let request = authenticated.request();
+        let profile = *expected_supervisor_config(&config, request, authenticated.caller_uid())
+            .expect("config profile")
+            .id()
+            .as_bytes();
+        let trusted = trust(request, &signer, ROLE_MEASUREMENT, profile);
+        let response = sign_prelaunch_refusal(&config, &authenticated, &trusted, &signer, 4)
+            .expect("signed refusal");
+        assert_eq!(response.status, RunStatus::Refused);
+        assert!(response.evidence.is_none());
+        let frame = response.encode_frame().expect("canonical response");
+        let parsed = RunResponse::decode_frame(&frame).expect("parsed response");
+        let evidence = request
+            .verified_no_result_evidence(&parsed, authenticated.caller_uid())
+            .expect("request-bound refusal");
+        let parts = evidence.attestation().parts();
+        assert_eq!(parts.execution_report_id, None);
+        assert_eq!(parts.installed_memory_cap, 0);
+        assert_eq!(parts.termination, TERMINATION_PRELAUNCH_REFUSED);
+        let unsigned = unsigned_record_prefix(parts).expect("canonical unsigned measurement");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        VerifyingKey::from_bytes(&parts.key_id)
+            .expect("public key")
+            .verify_strict(&preimage, &Signature::from_bytes(&parts.signature))
+            .expect("signed refusal verifies");
+        assert_eq!(
+            sign_prelaunch_refusal(&config, &authenticated, &trusted, &signer, 0),
+            Err(AttestationError::Binding(ScbErrorCode::ContractUnknown))
+        );
+        let wrong_trust = trust(request, &signer, ROLE_MEASUREMENT, [4; 32]);
+        assert_eq!(
+            sign_prelaunch_refusal(&config, &authenticated, &wrong_trust, &signer, 4),
+            Err(AttestationError::TrustRejected)
+        );
     }
 
     #[test]

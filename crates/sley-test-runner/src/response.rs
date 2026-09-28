@@ -9,7 +9,7 @@
 use sley_scb1::{ScbError, ScbErrorCode, ScbValueCursor, encode_record};
 use sley_tests::{
     MeasuredTestAttestationV1, NativeExecutionEvidence, NativeExecutionReportV1,
-    SupervisorConfigV1, TERMINATION_PRELAUNCH_REFUSED,
+    SupervisorConfigV1, TERMINATION_COMPLETE, TERMINATION_PRELAUNCH_REFUSED,
 };
 
 use crate::config::MAX_WORKER_OUTPUT_BYTES;
@@ -23,6 +23,9 @@ pub const MAX_RESPONSE_CONFIG_BYTES: usize = 65_536;
 /// Maximum evidence record bytes, including its three SCB1 field wrappers.
 pub const MAX_RESPONSE_EVIDENCE_BYTES: usize =
     MAX_WORKER_OUTPUT_BYTES + MAX_RESPONSE_ATTESTATION_BYTES + MAX_RESPONSE_CONFIG_BYTES + 512;
+/// Maximum no-result record bytes, including its two SCB1 field wrappers.
+pub const MAX_NO_RESULT_EVIDENCE_BYTES: usize =
+    MAX_RESPONSE_ATTESTATION_BYTES + MAX_RESPONSE_CONFIG_BYTES + 256;
 /// Maximum complete supervisor response frame bytes.
 pub const MAX_RESPONSE_FRAME_BYTES: usize = MAX_RESPONSE_EVIDENCE_BYTES + 64;
 
@@ -148,6 +151,127 @@ impl RunEvidence {
     }
 }
 
+/// Signed host diagnostic with no worker-owned execution report.
+///
+/// This pair is never a native test result or receipt entry. In particular it
+/// cannot be substituted for a VM-owned `Rejected` report.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RunNoResultEvidence {
+    attestation: MeasuredTestAttestationV1,
+    supervisor_config: SupervisorConfigV1,
+}
+
+impl RunNoResultEvidence {
+    /// Joins one no-result attestation to its exact supervisor configuration.
+    /// Signature trust is checked by the receiver, not this constructor.
+    ///
+    /// # Errors
+    /// Refuses a report ID, complete termination or output, mismatched
+    /// configuration identity, or oversized canonical bytes.
+    pub fn build(
+        attestation: MeasuredTestAttestationV1,
+        supervisor_config: SupervisorConfigV1,
+    ) -> Result<Self, ScbError> {
+        if attestation.stored_bytes().len() > MAX_RESPONSE_ATTESTATION_BYTES
+            || supervisor_config.stored_bytes().len() > MAX_RESPONSE_CONFIG_BYTES
+        {
+            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+        }
+        if attestation.execution_report_id().is_some()
+            || attestation.parts().termination == TERMINATION_COMPLETE
+            || attestation.parts().complete_output
+            || attestation.supervisor_config_id() != *supervisor_config.id().as_bytes()
+        {
+            return Err(mismatch());
+        }
+        Ok(Self {
+            attestation,
+            supervisor_config,
+        })
+    }
+
+    /// Parsed measurement claim; signature verification remains separate.
+    #[must_use]
+    pub const fn attestation(&self) -> &MeasuredTestAttestationV1 {
+        &self.attestation
+    }
+
+    /// Exact supervisor configuration bound by the measurement.
+    #[must_use]
+    pub const fn supervisor_config(&self) -> &SupervisorConfigV1 {
+        &self.supervisor_config
+    }
+
+    /// Encodes the two complete artifacts as a bounded SCB1 record.
+    ///
+    /// # Errors
+    /// Returns `SCB_RESOURCE_LIMIT` if the record exceeds its cap.
+    pub fn encode_record(&self) -> Result<Vec<u8>, ScbError> {
+        let record = encode_record(&[
+            (1, self.attestation.stored_bytes().to_vec()),
+            (2, self.supervisor_config.stored_bytes().to_vec()),
+        ])?;
+        if record.len() > MAX_NO_RESULT_EVIDENCE_BYTES {
+            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+        }
+        Ok(record)
+    }
+
+    /// Strictly parses one bounded no-result evidence record.
+    ///
+    /// # Errors
+    /// Refuses oversized, malformed, noncanonical, or mismatched artifacts.
+    pub fn parse_record(record: &[u8]) -> Result<Self, ScbError> {
+        if record.len() > MAX_NO_RESULT_EVIDENCE_BYTES {
+            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+        }
+        let mut cursor = ScbValueCursor::new(record)?;
+        if cursor.read_record_field_count()? != 2 {
+            return Err(ScbError::new(ScbErrorCode::FieldMissing));
+        }
+        let mut values = Vec::with_capacity(2);
+        for expected_tag in 1..=2 {
+            if cursor.read_uvar(32)? != expected_tag {
+                return Err(ScbError::new(ScbErrorCode::FieldOrder));
+            }
+            values.push(cursor.read_sized_payload()?);
+        }
+        cursor.check_finished()?;
+        if values[0].len() > MAX_RESPONSE_ATTESTATION_BYTES
+            || values[1].len() > MAX_RESPONSE_CONFIG_BYTES
+        {
+            return Err(ScbError::new(ScbErrorCode::ResourceLimit));
+        }
+        let attestation = MeasuredTestAttestationV1::parse(values[0])?;
+        let config = SupervisorConfigV1::parse(values[1])?;
+        let evidence = Self::build(attestation, config)?;
+        if evidence.encode_record()? != record {
+            return Err(mismatch());
+        }
+        Ok(evidence)
+    }
+}
+
+fn measurement_matches_request(
+    request: &RunRequest,
+    attestation: &MeasuredTestAttestationV1,
+    config: &SupervisorConfigV1,
+    caller_uid: u32,
+) -> bool {
+    attestation.plan_id() == request.plan_id
+        && attestation.test_object() == request.test_object
+        && attestation.parts().attempt_nonce == request.nonce
+        && attestation.workspace() == request.workspace
+        && attestation.principal() == request.principal
+        && attestation.parts().caller_uid == caller_uid
+        && attestation.declared_limits() == request.declared_limits
+        && config.callers().iter().any(|caller| {
+            caller.uid == caller_uid
+                && caller.workspace == request.workspace
+                && caller.principal == request.principal
+        })
+}
+
 impl RunRequest {
     /// Checks a typed response against the exact requested test and socket UID.
     ///
@@ -157,8 +281,8 @@ impl RunRequest {
     /// # Errors
     ///
     /// Refuses absent or cross-boundary substituted evidence. Successful-run
-    /// cap and deadline checks apply only to `Complete`; a signed diagnostic
-    /// refusal may have no installed cap or worker output.
+    /// cap and deadline checks apply only to `Complete`; no-result host
+    /// diagnostics use `verified_no_result_evidence`.
     pub fn verified_response_evidence<'a>(
         &self,
         response: &'a RunResponse,
@@ -176,18 +300,7 @@ impl RunRequest {
             || report.test_entity() != self.test_entity
             || report.test_object() != self.test_object
             || report.target_object() != program.selected().target_object
-            || attestation.plan_id() != self.plan_id
-            || attestation.test_object() != self.test_object
-            || attestation.parts().attempt_nonce != self.nonce
-            || attestation.workspace() != self.workspace
-            || attestation.principal() != self.principal
-            || attestation.parts().caller_uid != caller_uid
-            || attestation.declared_limits() != self.declared_limits
-            || !config.callers().iter().any(|caller| {
-                caller.uid == caller_uid
-                    && caller.workspace == self.workspace
-                    && caller.principal == self.principal
-            })
+            || !measurement_matches_request(self, attestation, config, caller_uid)
         {
             return Err(mismatch());
         }
@@ -234,6 +347,51 @@ impl RunRequest {
             }
         }
         Ok(evidence)
+    }
+
+    /// Checks a no-result host diagnostic against this request and socket UID.
+    /// This verifies bindings and failure shape, not signature trust or host
+    /// telemetry. A no-result pair cannot become a native test receipt entry.
+    ///
+    /// # Errors
+    /// Refuses substituted scope, contradictory status, or a prelaunch claim
+    /// that says any unit was installed or measured.
+    pub fn verified_no_result_evidence<'a>(
+        &self,
+        response: &'a RunResponse,
+        caller_uid: u32,
+    ) -> Result<&'a RunNoResultEvidence, ScbError> {
+        let evidence = response.no_result.as_ref().ok_or_else(mismatch)?;
+        if response.evidence.is_some() {
+            return Err(mismatch());
+        }
+        self.verified_program()?;
+        let attestation = evidence.attestation();
+        let config = evidence.supervisor_config();
+        if !measurement_matches_request(self, attestation, config, caller_uid)
+            || !attestation.parts().empty_cgroup_confirmed
+        {
+            return Err(mismatch());
+        }
+        match response.status {
+            RunStatus::Refused
+                if attestation.parts().termination == TERMINATION_PRELAUNCH_REFUSED
+                    && attestation.installed_memory_cap() == 0
+                    && attestation.elapsed_ns() == 0
+                    && attestation.measured_memory_peak() == 0
+                    && attestation.memory_events().max == 0
+                    && attestation.memory_events().oom == 0
+                    && attestation.memory_events().oom_kill == 0 =>
+            {
+                Ok(evidence)
+            }
+            RunStatus::Failed
+                if attestation.parts().termination > TERMINATION_PRELAUNCH_REFUSED =>
+            {
+                Ok(evidence)
+            }
+            _ => Err(mismatch()),
+        }
     }
 }
 
@@ -331,6 +489,7 @@ mod tests {
                 status: RunStatus::Complete,
                 code: 0,
                 evidence: Some(evidence),
+                no_result: None,
             },
         )
     }
@@ -560,6 +719,50 @@ mod tests {
                 .code(),
             ScbErrorCode::ContractUnknown
         );
+    }
+
+    #[test]
+    fn signed_prelaunch_pair_roundtrips_and_stays_out_of_worker_results() {
+        let (request, _) = complete_fixture();
+        let (_, attestation, config) = unlinked_diagnostic_fixture();
+        let no_result = RunNoResultEvidence::build(attestation, config).expect("no-result pair");
+        let response = RunResponse {
+            status: RunStatus::Refused,
+            code: 4,
+            evidence: None,
+            no_result: Some(no_result.clone()),
+        };
+        let frame = response.encode_frame().expect("no-result frame");
+        let decoded = RunResponse::decode_frame(&frame).expect("canonical response");
+        assert_eq!(decoded, response);
+        assert_eq!(
+            request
+                .verified_no_result_evidence(&decoded, 1_000)
+                .expect("bound host refusal"),
+            &no_result
+        );
+        assert!(request.verified_response_evidence(&decoded, 1_000).is_err());
+        assert!(
+            request
+                .verified_no_result_evidence(&decoded, 1_001)
+                .is_err()
+        );
+        let mut wrong_nonce = request.clone();
+        wrong_nonce.nonce[0] ^= 1;
+        assert!(
+            wrong_nonce
+                .verified_no_result_evidence(&decoded, 1_000)
+                .is_err()
+        );
+        let mut failed = decoded.clone();
+        failed.status = RunStatus::Failed;
+        assert!(failed.encode_frame().is_err());
+        let mut both = decoded;
+        both.evidence = complete_fixture().1.evidence;
+        assert!(both.encode_frame().is_err());
+        let mut malformed = frame;
+        malformed.pop();
+        assert!(RunResponse::decode_frame(&malformed).is_err());
     }
 
     #[test]

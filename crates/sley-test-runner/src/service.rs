@@ -4,8 +4,9 @@
 //! ingress deadline before responding. The legacy one-shot handler explicitly
 //! refuses execution. The root handler requires startup-provisioned authority,
 //! stages one checked worker input, owns the system unit through exit/reap,
-//! and signs only the resulting complete measurement. Internal failures yield
-//! no result; unconfirmed cleanup has a distinct error for daemon degradation.
+//! and signs complete measurements or an authenticated prelaunch staging
+//! refusal. Postlaunch failures yield no result; unconfirmed cleanup has a
+//! distinct error for daemon degradation.
 //! The root daemon binds the production listener and calls this boundary.
 //! Installation and privileged qualification remain separate work.
 
@@ -15,7 +16,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use sley_tests::ROLE_MEASUREMENT;
 
-use crate::attest::{AttestationError, sign_complete_attempt};
+use crate::attest::{AttestationError, sign_complete_attempt, sign_prelaunch_refusal};
 use crate::config::RunnerConfig;
 use crate::enforce::EnforceError;
 use crate::ingress::{IngressError, authenticate_request};
@@ -31,6 +32,8 @@ pub const RUN_REFUSAL_EXECUTION_NOT_WIRED: u32 = 1;
 pub const RUN_REFUSAL_PROGRAM_INVALID: u32 = 2;
 /// Stable prelaunch refusal when the signer lacks this run's exact scope.
 pub const RUN_REFUSAL_TRUST_NOT_GRANTED: u32 = 3;
+/// Stable signed refusal when worker input cannot be staged before launch.
+pub const RUN_REFUSAL_STAGE_FAILED: u32 = 4;
 /// Hard deadline for writing one complete bounded supervisor response.
 pub const RESPONSE_WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -128,15 +131,17 @@ pub fn handle_connection(
         status: RunStatus::Refused,
         code,
         evidence: None,
+        no_result: None,
     };
     write_response(stream, &response)
 }
 
 /// Handles one socket run using authority loaded before accepting work.
 ///
-/// Invalid selected programs receive a closed prelaunch refusal. Once a
-/// worker launch is attempted, any internal failure closes the connection
-/// without a signed result. `CleanupUnconfirmed` requires the outer daemon
+/// Invalid selected programs receive a closed prelaunch refusal. Staging
+/// failures under provisioned trust receive a signed no-result refusal. Once
+/// worker launch is attempted, internal failures close the connection without
+/// a signed result. `CleanupUnconfirmed` requires the outer daemon
 /// to stop accepting work until orphan reconciliation succeeds.
 ///
 /// # Errors
@@ -158,6 +163,7 @@ pub fn handle_root_connection(
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_PROGRAM_INVALID,
                 evidence: None,
+                no_result: None,
             },
         );
     }
@@ -184,11 +190,21 @@ pub fn handle_root_connection(
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_TRUST_NOT_GRANTED,
                 evidence: None,
+                no_result: None,
             },
         );
     }
-    let staged =
-        stage_worker_input(config, authenticated.request()).map_err(ServiceError::Stage)?;
+    let Ok(staged) = stage_worker_input(config, authenticated.request()) else {
+        let response = sign_prelaunch_refusal(
+            config,
+            &authenticated,
+            authority.trust(),
+            authority.signer(),
+            RUN_REFUSAL_STAGE_FAILED,
+        )
+        .map_err(ServiceError::Attestation)?;
+        return write_response(stream, &response);
+    };
     let unit = staged.render_unit().map_err(ServiceError::Unit)?;
     let input_path = staged.path().to_str().ok_or(ServiceError::InputPath)?;
     let result = run_owned_system_unit(
@@ -349,6 +365,7 @@ mod tests {
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_EXECUTION_NOT_WIRED,
                 evidence: None,
+                no_result: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");
@@ -415,6 +432,7 @@ mod tests {
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_PROGRAM_INVALID,
                 evidence: None,
+                no_result: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");
@@ -454,6 +472,7 @@ mod tests {
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_PROGRAM_INVALID,
                 evidence: None,
+                no_result: None,
             }
         );
         std::fs::remove_file(path).expect("remove socket");
@@ -488,8 +507,68 @@ mod tests {
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_TRUST_NOT_GRANTED,
                 evidence: None,
+                no_result: None,
             }
         );
+        std::fs::remove_file(path).expect("remove socket");
+    }
+
+    #[test]
+    fn root_handler_signs_a_staging_failure_before_launch() {
+        let (listener, path) = test_listener();
+        let uid = std::fs::symlink_metadata(&path)
+            .expect("socket metadata")
+            .uid();
+        let request = request();
+        let mut config = config(uid);
+        config.runtime_dir = path
+            .with_extension("missing-runtime")
+            .to_string_lossy()
+            .into_owned();
+        let profile = *expected_supervisor_config(&config, &request, uid)
+            .expect("exact profile")
+            .id()
+            .as_bytes();
+        let signer = Ed25519MeasurementSigner::from_secret_bytes([3; 32]);
+        let trust = HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [6; 32],
+            entries: vec![TrustEntry {
+                key_id: signer.public_key(),
+                role: ROLE_MEASUREMENT,
+                workspaces: vec![*request.workspace.as_bytes()],
+                profiles: vec![profile],
+                valid_from_unix_millis: 0,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .expect("exact trust");
+        let authority = ProvisionedMeasurementAuthority::for_test(config, trust, signer);
+        let client = std::thread::spawn({
+            let path = path.clone();
+            let request = request.clone();
+            move || {
+                let mut stream = UnixStream::connect(path).expect("connect");
+                stream
+                    .write_all(&request.encode_frame().expect("frame"))
+                    .expect("write request");
+                let mut bytes = Vec::new();
+                stream.read_to_end(&mut bytes).expect("read refusal");
+                bytes
+            }
+        });
+        assert_eq!(
+            serve_one_root(&listener, &authority, Duration::from_secs(1)),
+            Ok(())
+        );
+        let response = RunResponse::decode_frame(&client.join().expect("client thread"))
+            .expect("signed refusal frame");
+        assert_eq!(response.status, RunStatus::Refused);
+        assert_eq!(response.code, RUN_REFUSAL_STAGE_FAILED);
+        let evidence = request
+            .verified_no_result_evidence(&response, uid)
+            .expect("bound refusal");
+        assert_eq!(evidence.attestation().execution_report_id(), None);
+        assert_eq!(evidence.attestation().installed_memory_cap(), 0);
         std::fs::remove_file(path).expect("remove socket");
     }
 }

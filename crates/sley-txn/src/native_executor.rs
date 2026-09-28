@@ -153,8 +153,16 @@ fn evidence_failure(error: SupervisorEvidenceError) -> NativeCommitError {
         SupervisorEvidenceError::NoEvidence {
             status: RunStatus::Refused,
             ..
+        }
+        | SupervisorEvidenceError::SignedNoResult {
+            status: RunStatus::Refused,
+            ..
         } => NativeCommitError::ExecutorUnavailable,
         SupervisorEvidenceError::NoEvidence {
+            status: RunStatus::Failed | RunStatus::Complete,
+            ..
+        }
+        | SupervisorEvidenceError::SignedNoResult {
             status: RunStatus::Failed | RunStatus::Complete,
             ..
         }

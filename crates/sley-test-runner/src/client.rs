@@ -304,6 +304,7 @@ mod tests {
                 status: RunStatus::Refused,
                 code: RUN_REFUSAL_EXECUTION_NOT_WIRED,
                 evidence: None,
+                no_result: None,
             }
         );
         service.join().expect("service thread");
@@ -352,6 +353,7 @@ mod tests {
                         status: RunStatus::Refused,
                         code: 1,
                         evidence: None,
+                        no_result: None,
                     }
                     .encode_frame()
                     .expect("response frame");
