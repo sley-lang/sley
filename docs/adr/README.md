@@ -63,3 +63,4 @@ Current records:
 - ADR-0051: the agent workbench as a separate tool over the kernel libraries (Sley 2.0.2)
 - ADR-0052: the sley-agent binary's allocator, the workspace's one unsafe exception (Sley 2.0.2)
 - ADR-0053: decision-only authoring in the workbench: AF1-X, drafts, delta repair, test tables
+- ADR-0054: structured function bodies and checked integer conversion in AF1-X (familiar text frontend proposed)

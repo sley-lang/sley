@@ -165,6 +165,9 @@ pub struct SourceMap {
     pub blocks: BTreeMap<String, BTreeMap<String, String>>,
     /// Per function: generated value names only.
     pub values: BTreeMap<String, BTreeMap<String, String>>,
+    /// When the frame had structured bodies: lowered-frame pointer to the
+    /// authored pointer ([`crate::structured`]), applied after `entries`.
+    pub lowered: Vec<(String, String)>,
 }
 
 impl SourceMap {
@@ -179,7 +182,13 @@ impl SourceMap {
                        "role": entry.role.name(), "name": entry.name})
             })
             .collect();
-        json!({"entries": entries, "names": self.names, "blocks": self.blocks, "values": self.values})
+        let lowered: Vec<Value> = self
+            .lowered
+            .iter()
+            .map(|(lowered, authored)| json!({"lowered": lowered, "authored": authored}))
+            .collect();
+        json!({"entries": entries, "names": self.names, "blocks": self.blocks, "values": self.values,
+               "structured": lowered})
     }
 
     /// The authored pointer for an expanded pointer: the entry with the
@@ -196,13 +205,18 @@ impl SourceMap {
                 best = Some(entry);
             }
         }
-        best.map(|entry| {
+        let found = best.map(|entry| {
             if entry.role.carries() {
                 format!("{}{}", entry.authored, &pointer[entry.expanded.len()..])
             } else {
                 entry.authored.clone()
             }
-        })
+        });
+        if self.lowered.is_empty() {
+            return found;
+        }
+        let lowered = found.unwrap_or_else(|| pointer.to_owned());
+        Some(crate::structured::authored(&self.lowered, &lowered))
     }
 
     /// A compiler refusal on the expanded frame, with every problem line's
@@ -524,6 +538,9 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
             "declare \"afx\": 1 for the authoring dialect, or remove the key",
         ));
     }
+    if crate::structured::uses_bodies(object) {
+        return expand_structured(program, names, object);
+    }
     let context = Context::new(program, names, object);
     let mut out = object.clone();
     out.remove("afx");
@@ -609,6 +626,51 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
         obligations: expander.obligations,
         ripple,
     })
+}
+
+/// A frame with structured function bodies: lowered to block functions
+/// ([`crate::structured`]), then expanded like any AF1-X frame, with every
+/// pointer mapped through both steps back to the authored body.
+fn expand_structured(
+    program: &Program,
+    names: &Names,
+    object: &Map<String, Value>,
+) -> Result<Expansion> {
+    let context = Context::new(program, names, object);
+    let lowered = match crate::structured::lower(&context, object) {
+        Ok(lowered) => lowered,
+        Err(obligations) => {
+            let mut out = object.clone();
+            out.remove("afx");
+            out.remove("test_tables");
+            out.remove("ripple");
+            return Ok(Expansion {
+                frame: Value::Object(out),
+                map: SourceMap::default(),
+                stats: AfxStats::default(),
+                obligations,
+                ripple: None,
+            });
+        }
+    };
+    let mut expansion = expand(program, names, &Value::Object(lowered.frame))?;
+    let origins = lowered.origins;
+    for obligation in &mut expansion.obligations {
+        obligation.at = crate::structured::authored(&origins, &obligation.at);
+    }
+    for table in [
+        &mut expansion.map.names,
+        &mut expansion.map.blocks,
+        &mut expansion.map.values,
+    ] {
+        for pointers in table.values_mut() {
+            for pointer in pointers.values_mut() {
+                *pointer = crate::structured::authored(&origins, pointer);
+            }
+        }
+    }
+    expansion.map.lowered = origins;
+    Ok(expansion)
 }
 
 /// Whether an `edit.with` operation uses an AF1-X form.

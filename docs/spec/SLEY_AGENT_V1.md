@@ -2260,6 +2260,41 @@ never patched, since AF1 cannot restate either. A frame refused before it
 compiles still records its expansion counts (the ripple counts among them)
 in the events ledger.
 
+### 5.4 Structured function bodies
+
+An AF1-X function may carry `"body"`, a list of statements, instead of `"blocks"` (ADR-0054). The
+workbench lowers it to ordinary blocks before expansion; everything after that (expansion, compilation,
+validation, tests, submission) is unchanged, and `view --after cN` shows the lowered blocks.
+
+    {"fn": "f", "params": [["xs", "Vec<i64>"]], "returns": "i64", "body": [statement, ...]}
+
+Statements: `["let", x, e]`; `["var", x, T, e]` and `["set", x, e]` (only a `var` may be set);
+`["if", c, [..], [..]]` (else optional); `["for", x, xs, [..]]` (elements of a vector, in order; the
+index is not visible); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
+`["ok", e]` and `["fail", "Case"]`; `["trap"]`. Variables declared in a branch or loop body go out of
+scope at its end. A body must not reach its end without returning, and a statement after one that
+returns is refused.
+
+Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "value": v}`, or
+`[op, args...]` with
+
+- `add sub mul div rem neg abs`: checked; a failure traps, `op?` returns the `ArithmeticError` from a
+  Result function, `op?Case` returns `Err(Case)`; `div` truncates toward zero, `rem` takes the
+  dividend's sign; `abs` of the minimum value fails like `neg`;
+- `to`: `["to", T, x]` converts between integer types; a value outside `T` fails like a checked
+  operation (`to?`, `to?Case`);
+- `min max clamp`: total; `clamp(x, lo, hi)` is `min(max(x, lo), hi)`;
+- `eq ne lt le gt ge not`, and `and or`, which evaluate both operands;
+- `if`: `["if", c, a, b]` evaluates only the chosen value;
+- `len` (`u64`), `get` (`[xs, i]`, `u64` index; out of range traps or `get?Case`), `field`
+  (`[r, "name"]`), `call` (`["f", args...]`; `call?` unwraps a Result).
+
+Integer literals take the type of the other operand, the declared variable or the return type, else
+`i64`; integer types never mix. A refusal names the authored location (`/fns/0/body/2/1`); a compiler
+refusal inside lowered blocks is mapped back to the statement that produced it, with the lowered
+pointer beside it. A `body` in `patch` is refused: restate a body function through `fns`.
+`help structured` is the short reference.
+
 ## 6. Opcodes
 
 The mnemonic table maps every epoch-1 opcode one to one:

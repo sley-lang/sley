@@ -31,6 +31,9 @@ pub const RESIDUAL: &str = include_str!("../data/help-residual.md");
 /// The default residual guide; the full contract is loaded on demand.
 pub const RESIDUAL_QUICK: &str = include_str!("../data/help-residual-quick.md");
 
+/// Structured function bodies (`"body"` instead of `"blocks"`).
+pub const STRUCTURED: &str = include_str!("../data/help-structured.md");
+
 /// Topic names.
 pub const TOPICS: &[&str] = &[
     "guide",
@@ -43,6 +46,7 @@ pub const TOPICS: &[&str] = &[
     "types",
     "tests",
     "search",
+    "structured",
     "residual",
     "residual-quick",
     "residual-reference",
@@ -61,6 +65,7 @@ pub fn topic(name: &str) -> Option<String> {
         "tests" | "testcase" => TESTS.to_owned(),
         "drafts" | "draft" | "fill" => DRAFTS.to_owned(),
         "search" => SEARCH.to_owned(),
+        "structured" | "body" => STRUCTURED.to_owned(),
         "residual" | "residual-quick" => RESIDUAL_QUICK.to_owned(),
         "residual-reference" => RESIDUAL.to_owned(),
         "opcodes" => opcodes(),

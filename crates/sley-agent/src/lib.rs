@@ -45,6 +45,7 @@ pub mod raw;
 pub mod residual;
 pub mod ripple;
 pub mod search;
+pub(crate) mod structured;
 pub mod tables;
 pub mod types;
 pub mod values;

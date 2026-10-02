@@ -83,6 +83,9 @@ arithmetic overflow. Explicit edge arguments show where loop state goes.
   {"args":[[9223372036854775807,2]],"expect":{"Err":{"ArithmeticError":"Overflow"}}}]}]}
 ```
 
+A function may give a "body" of statements (let, var, if, for, while, return) instead of blocks; Sley
+builds the blocks and loops: `help structured`.
+
 `help afx-reference` gives the full AF1-X rules, including generated names,
 test-table replacement and ripple arity/guard intents. Other references:
 `help af1`, `help types` and `help opcodes`.
