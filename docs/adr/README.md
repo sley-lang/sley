@@ -64,3 +64,4 @@ Current records:
 - ADR-0052: the sley-agent binary's allocator, the workspace's one unsafe exception (Sley 2.0.2)
 - ADR-0053: decision-only authoring in the workbench: AF1-X, drafts, delta repair, test tables
 - ADR-0054: structured function bodies and checked integer conversion in AF1-X (familiar text frontend proposed)
+- ADR-0055: optional, noncanonical authoring frontends (familiar text proposals); amends the source-syntax/parser anti-goal narrowly
