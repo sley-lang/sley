@@ -2272,8 +2272,11 @@ Statements: `["let", x, e]`; `["var", x, T, e]` and `["set", x, e]` (only a `var
 `["if", c, [..], [..]]` (else optional); `["for", x, xs, [..]]` (elements of a vector, in order; the
 index is not visible); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
 `["ok", e]` and `["fail", "Case"]`; `["trap"]`. Variables declared in a branch or loop body go out of
-scope at its end. A body must not reach its end without returning, and a statement after one that
-returns is refused.
+scope at its end. A `let` or `var` in the same statement list as an earlier declaration of the name
+rebinds it; inside a nested branch or loop body, declaring a name that is declared outside that body
+(a variable, a parameter, or a `for` variable) is refused, because hiding and overwriting the outer
+name are both familiar readings. A body must not reach its end without returning, and a statement
+after one that returns is refused.
 
 Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "value": v}`, or
 `[op, args...]` with

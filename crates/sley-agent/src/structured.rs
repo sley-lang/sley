@@ -320,6 +320,9 @@ struct Fn<'c, 'a> {
     origins: Vec<((usize, String), String)>,
     /// The exit block of the loop being lowered, opened before its body.
     pending_exit: Option<Block>,
+    /// How many blocks (`if` branches, loop bodies) enclose the statement
+    /// being lowered; 0 at the top of the body.
+    depth: usize,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -373,6 +376,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             trap: None,
             origins: Vec::new(),
             pending_exit: None,
+            depth: 0,
         })
     }
 
@@ -1022,6 +1026,10 @@ impl<'c, 'a> Fn<'c, 'a> {
     /// `internal` statements come from the lowering itself and may use hidden names.
     #[allow(clippy::too_many_lines)]
     fn stmts(&mut self, body: &[Value], env: &mut Env, at: &str, internal: bool) -> R<bool> {
+        // Names declared before this list: a nested list may not redeclare
+        // them (whether that would hide or overwrite the outer name differs
+        // between the languages authors know, so it is refused, not chosen).
+        let outer = env.0.len();
         for (k, s) in body.iter().enumerate() {
             let here = if internal {
                 at.to_owned()
@@ -1057,6 +1065,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                         return fail(&here, "[\"let\", name, value]");
                     }
                     let n = name_ok(1)?;
+                    self.no_shadow(env, outer, &n, &here, internal)?;
                     let (v, t) = self.expr(&items[2], env, &part(2), None)?;
                     env.set(
                         &n,
@@ -1072,6 +1081,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                         return fail(&here, "[\"var\", name, type, value]");
                     }
                     let n = name_ok(1)?;
+                    self.no_shadow(env, outer, &n, &here, internal)?;
                     let Some(ty) = items[2].as_str().map(normal) else {
                         return fail(&here, "[\"var\", name, type, value]");
                     };
@@ -1150,6 +1160,28 @@ impl<'c, 'a> Fn<'c, 'a> {
         Ok(self.cur.is_some())
     }
 
+    /// Refuses a declaration in a nested block of a name declared outside
+    /// it: a variable from an enclosing list or, inside any block, a
+    /// parameter. Redeclaring in the same list rebinds the name.
+    fn no_shadow(&self, env: &Env, outer: usize, name: &str, at: &str, internal: bool) -> R<()> {
+        if internal || self.depth == 0 {
+            return Ok(());
+        }
+        if env.0[..outer.min(env.0.len())]
+            .iter()
+            .any(|(n, _)| n == name)
+            || self.params.contains_key(name)
+        {
+            return fail(
+                at,
+                format!(
+                    "`{name}` is declared outside this block; a nested block cannot redeclare it: use another name, or assign a var declared before the block"
+                ),
+            );
+        }
+        Ok(())
+    }
+
     fn if_stmt(&mut self, items: &[Value], env: &mut Env, at: &str, internal: bool) -> R<()> {
         if !(3..=4).contains(&items.len()) {
             return fail(at, "[\"if\", condition, [then...], [else...]]");
@@ -1183,7 +1215,10 @@ impl<'c, 'a> Fn<'c, 'a> {
             };
             self.cur = Some(block);
             let mut local = benv;
-            if self.stmts(body, &mut local, &part(key), internal)? {
+            self.depth += 1;
+            let falls = self.stmts(body, &mut local, &part(key), internal)?;
+            self.depth -= 1;
+            if falls {
                 ends.push((self.cur.take(), local.scoped(&before)));
             }
         }
@@ -1263,6 +1298,14 @@ impl<'c, 'a> Fn<'c, 'a> {
         if items.len() != 4 {
             return fail(at, "[\"for\", name, vector, [body...]]");
         }
+        if env.get(var).is_some() || self.params.contains_key(var) {
+            return fail(
+                &format!("{at}/1"),
+                format!(
+                    "`{var}` is declared outside this loop; the loop variable needs a new name"
+                ),
+            );
+        }
         let (vec, vty) = self.expr(list, env, &format!("{at}/2"), None)?;
         let Some(elem) = vec_elem(&vty) else {
             return fail(
@@ -1306,7 +1349,9 @@ impl<'c, 'a> Fn<'c, 'a> {
             },
         );
         let pending = self.pending_exit.take();
+        self.depth += 1;
         let falls = self.stmts(body, &mut inner, &format!("{at}/3"), false)?;
+        self.depth -= 1;
         self.pending_exit = pending;
         if falls {
             let position = inner.operand(&index);
@@ -1360,7 +1405,9 @@ impl<'c, 'a> Fn<'c, 'a> {
         }
         let (mut inner, exit_env) = self.test_loop(&c, &local, at);
         let pending = self.pending_exit.take();
+        self.depth += 1;
         let falls = self.stmts(body, &mut inner, &part(2), internal)?;
+        self.depth -= 1;
         self.pending_exit = pending;
         self.close_loop(
             &header,
