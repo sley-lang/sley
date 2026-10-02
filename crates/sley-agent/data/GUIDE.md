@@ -57,7 +57,7 @@ State only the change and layer it on the draft (`try --on d1 more.json`):
 
 `edit` replaces one operation, `patch` restates blocks, `fns` redefines.
 For a function the draft does not define, `edit` takes plain AF1: use
-`patch`. Earlier tests stay.
+`patch`. Tests stay.
 
 ## Refusals and repair
 
@@ -72,4 +72,4 @@ again. `draft d1` shows its state and obligations; `--expanded` the plain
 frame derived from yours. A kernel refusal prints the phase, symbol,
 `where:`, `authored:` and a hint. `submit` refuses a change no test covers
 (`--untested` overrides).
-More: `sley-agent help afx|af1|drafts|tests|search|types|opcodes|refusals`.
+More: `sley-agent help afx-quick|afx|af1|drafts|tests|search|types|opcodes|refusals`.

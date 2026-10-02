@@ -15,6 +15,8 @@ pub const GUIDE: &str = include_str!("../data/GUIDE.md");
 pub const AF1: &str = include_str!("../data/help-af1.md");
 /// The AF1-X (authoring dialect) reference.
 pub const AFX: &str = include_str!("../data/help-afx.md");
+/// The concise AF1-X reference with an executable collection fold.
+pub const AFX_QUICK: &str = include_str!("../data/help-afx-quick.md");
 /// The type shorthand reference.
 pub const TYPES: &str = include_str!("../data/help-types.md");
 /// The `TestCase` reference.
@@ -26,7 +28,16 @@ pub const SEARCH: &str = include_str!("../data/help-search.md");
 
 /// Topic names.
 pub const TOPICS: &[&str] = &[
-    "guide", "af1", "afx", "drafts", "opcodes", "types", "tests", "search", "refusals",
+    "guide",
+    "af1",
+    "afx",
+    "afx-quick",
+    "drafts",
+    "opcodes",
+    "types",
+    "tests",
+    "search",
+    "refusals",
 ];
 
 /// Returns a topic's text.
@@ -36,6 +47,7 @@ pub fn topic(name: &str) -> Option<String> {
         "" | "guide" => GUIDE.to_owned(),
         "af1" | "frames" => AF1.to_owned(),
         "afx" | "af1-x" | "dialect" => AFX.to_owned(),
+        "afx-quick" => AFX_QUICK.to_owned(),
         "types" => TYPES.to_owned(),
         "tests" | "testcase" => TESTS.to_owned(),
         "drafts" | "draft" | "fill" => DRAFTS.to_owned(),

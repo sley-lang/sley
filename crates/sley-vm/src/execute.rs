@@ -1,7 +1,10 @@
 //! Restricted S20-270 deterministic execution profile.
 
 use core::fmt;
+use std::borrow::Cow;
 use std::sync::Arc;
+
+mod scalar;
 
 use sley_check::{TypeEnvironment, TypeError};
 use sley_id::{BytecodeCacheKey, EntityId, ObservationId, SchemaEpochId, StateRoot, ValueHash};
@@ -473,6 +476,7 @@ struct RuntimeFault;
 
 type RuntimeResult<T> = Result<T, RuntimeFault>;
 
+#[derive(Debug)]
 pub(crate) struct ValidatedInputs {
     pub(crate) hashes: Vec<ValueHash>,
     value_units: u64,
@@ -610,15 +614,50 @@ pub fn execute_loaded_image(
 /// check) depends only on the bytes and the approved digest, so it runs
 /// once; every execution still re-derives the cache key and re-verifies it
 /// and the import set against the inventories it is given, in the same
-/// order and with the same refusals, before validating inputs and running
-/// the same runner.
+/// order and with the same refusals, before validating inputs. Eligible scalar
+/// and read-only collection graphs use compact values with shared arithmetic
+/// and accounting;
+/// other graphs use the reference runner. Both produce the same observations.
 #[derive(Clone, Debug)]
 pub struct VerifiedImage {
     expected: ApprovedImage,
     lowered: LoweredFunction,
+    scalar: Option<scalar::Plan>,
+}
+
+/// One admitted request bound to an immutable image and immutable inventories.
+///
+/// Constructed only by [`VerifiedImage::prepare`]. Inputs and limits are owned
+/// privately; the image and inventories stay immutably borrowed for its lifetime.
+/// Repeated execution reuses admission evidence, never an execution result.
+/// Every run starts fresh runtime state and derives its complete observation.
+/// This is an in-memory advisory handle, not a serialized admission receipt.
+#[derive(Debug)]
+pub struct PreparedExecution<'a> {
+    image: &'a VerifiedImage,
+    source: ExecutionSource<'a>,
+    request: ExecutionRequest,
+    validated: ValidatedInputs,
+}
+
+impl PreparedExecution<'_> {
+    /// Executes the fixed request again, preserving all deterministic limits.
+    /// Unsupported compact plans use the reference runner with fresh input copies.
+    ///
+    /// # Errors
+    /// Preserves the ordinary execution/observation fingerprint failures.
+    pub fn execute(&self) -> Result<ExecutionOutcome, LoadedExecutionError> {
+        self.image
+            .execute_admitted(&self.source, &self.validated, Cow::Borrowed(&self.request))
+    }
 }
 
 impl VerifiedImage {
+    #[cfg(test)]
+    pub(crate) fn has_scalar_plan(&self) -> bool {
+        self.scalar.is_some()
+    }
+
     /// Structurally loads `bytes` and verifies them against the approved
     /// digest: the first two checks of [`execute_loaded_image`].
     ///
@@ -635,6 +674,7 @@ impl VerifiedImage {
         // key per request and refuses unless the two are equal, so the
         // runner and the observation see exactly the key it would.
         Ok(Self {
+            scalar: scalar::Plan::compile(&loaded.entry),
             lowered: LoweredFunction {
                 bytecode: loaded.entry,
                 bytes: bytes.to_vec(),
@@ -653,12 +693,34 @@ impl VerifiedImage {
     ///
     /// The binding mismatch, or the exact preserved failure the lowering
     /// path would report for the same condition.
-    #[allow(clippy::needless_pass_by_value)]
     pub fn execute(
         &self,
         input: LoadedExecutionInput<'_>,
         request: ExecutionRequest,
     ) -> Result<ExecutionOutcome, LoadedExecutionError> {
+        let prepared = self.prepare(input, request)?;
+        self.execute_admitted(
+            &prepared.source,
+            &prepared.validated,
+            Cow::Owned(prepared.request),
+        )
+    }
+
+    /// Binds and admits one fixed request for repeated execution.
+    ///
+    /// Performs the same binding, import, type, canonical-form and input-hash
+    /// checks as [`Self::execute`], in the same order. The returned handle owns
+    /// its inputs and limits and borrows every source of execution state, so
+    /// none can change while the admission evidence is reused. Preparation does
+    /// not execute the program; runtime resource failures occur on each run.
+    ///
+    /// # Errors
+    /// The same binding or input-admission refusal as [`Self::execute`].
+    pub fn prepare<'a>(
+        &'a self,
+        input: LoadedExecutionInput<'a>,
+        request: ExecutionRequest,
+    ) -> Result<PreparedExecution<'a>, LoadedExecutionError> {
         let expected = &self.expected;
         let lowered = &self.lowered;
         let source = ExecutionSource::loaded(&input, lowered.bytecode.function);
@@ -681,7 +743,38 @@ impl VerifiedImage {
         }
         let validated_inputs = validate_loaded_inputs(&source, &lowered.bytecode, &request)
             .map_err(LoadedExecutionError::Execution)?;
-        execute_core(&source, lowered, &validated_inputs, request)
+        Ok(PreparedExecution {
+            image: self,
+            source,
+            request,
+            validated: validated_inputs,
+        })
+    }
+
+    fn execute_admitted(
+        &self,
+        source: &ExecutionSource<'_>,
+        validated_inputs: &ValidatedInputs,
+        request: Cow<'_, ExecutionRequest>,
+    ) -> Result<ExecutionOutcome, LoadedExecutionError> {
+        let lowered = &self.lowered;
+        if source.profile.is_extended()
+            && let Some(plan) = &self.scalar
+            && let Some(result) = plan.execute(source, lowered, validated_inputs, &request)
+        {
+            return finish(
+                source,
+                request.limits,
+                lowered.cache_key,
+                &validated_inputs.hashes,
+                result.termination,
+                result.instruction_count,
+                result.fuel_used,
+                result.peak_value_units,
+            )
+            .map_err(LoadedExecutionError::Execution);
+        }
+        execute_core(source, lowered, validated_inputs, request.into_owned())
             .map_err(LoadedExecutionError::Execution)
     }
 }
@@ -1895,18 +1988,40 @@ fn execute_extended(
             }
         }
         let registers = &runtime.registers;
-        let operands = instruction
-            .operands
-            .iter()
-            .map(|register| {
-                let register = usize::try_from(*register).map_err(|_| RuntimeFault)?;
-                registers
-                    .get(register)
-                    .and_then(Option::as_ref)
-                    .ok_or(RuntimeFault)?
-                    .value()
-            })
-            .collect::<RuntimeResult<Vec<_>>>()?;
+        let read = |register: &Register| {
+            let register = usize::try_from(*register).map_err(|_| RuntimeFault)?;
+            registers
+                .get(register)
+                .and_then(Option::as_ref)
+                .ok_or(RuntimeFault)?
+                .value()
+        };
+        // Most instructions have at most three operands. Borrow those on
+        // the stack instead of allocating a Vec on every loop iteration.
+        // Larger tuples, records and vectors retain the general path.
+        let inline;
+        let overflow;
+        let operands: &[&ConstValue] = match instruction.operands.as_slice() {
+            [] => &[],
+            [a] => {
+                let a = read(a)?;
+                inline = [a, a, a];
+                &inline[..1]
+            }
+            [a, b] => {
+                let a = read(a)?;
+                inline = [a, read(b)?, a];
+                &inline[..2]
+            }
+            [a, b, c] => {
+                inline = [read(a)?, read(b)?, read(c)?];
+                &inline
+            }
+            many => {
+                overflow = many.iter().map(read).collect::<RuntimeResult<Vec<_>>>()?;
+                &overflow
+            }
+        };
         let mut context = crate::extended::ExecutionContext {
             types: source.types,
             constants: source.constants,
@@ -1919,7 +2034,7 @@ fn execute_extended(
             &mut context,
             opcode,
             &instruction.immediate,
-            &operands,
+            operands,
             result_type,
         )
         .map_err(|_| RuntimeFault)?;
@@ -1987,7 +2102,8 @@ pub(crate) fn validate_inputs(
             value_units,
             check_input_shape(input.types, parameter_type, value)?,
         )?;
-        require_canonical_form(value)?;
+        // check_input_shape already judges every nested integer's width.
+        require_canonical_encoding(value)?;
         hashes.push(hash_validated_value(input.schema_epoch, value)?);
     }
     Ok(ValidatedInputs {
@@ -2021,7 +2137,8 @@ fn validate_loaded_inputs(
             value_units,
             check_input_shape(source.types, register, value)?,
         )?;
-        require_canonical_form(value)?;
+        // check_input_shape already judges every nested integer's width.
+        require_canonical_encoding(value)?;
         hashes.push(hash_validated_value(source.schema_epoch, value)?);
     }
     Ok(ValidatedInputs {
@@ -2063,12 +2180,26 @@ fn check_input_shape(
 /// canonical rules), so the VM also requires every integer in the value to
 /// carry data of its declared signedness inside its declared width. The
 /// S20-270 and loaded-image callers run `check_constant` first, which
-/// already refuses such a value with `TYPE_CONST_RANGE`; the package path
-/// judges inputs structurally only, and this is where it refuses one. The
+/// already refuses such a value with `TYPE_CONST_RANGE`, and need only
+/// `require_canonical_encoding`. The package path judges inputs structurally
+/// only, and this is where it refuses an out-of-width integer. The
 /// walk runs after the codec accepted the value, so its depth is already
 /// bounded.
 fn require_canonical_form(value: &ConstValue) -> Result<(), ExecutionError> {
-    if sley_mutate::encode_const_value(value).is_err() || !integers_fit_declared_widths(value) {
+    require_canonical_encoding(value)?;
+    if !integers_fit_declared_widths(value) {
+        return Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical));
+    }
+    Ok(())
+}
+
+/// Checks the codec's complete canonical judgment. Integer range judgment
+/// must precede this via `check_input_shape`, or follow it via
+/// `require_canonical_form` for structurally admitted package inputs.
+fn require_canonical_encoding(value: &ConstValue) -> Result<(), ExecutionError> {
+    // The encoder starts with this same complete canonical measurement. Input
+    // admission needs its judgment, not a subsequent allocation and byte walk.
+    if sley_mutate::measure_const_value_bounded(value, u64::MAX).is_err() {
         return Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical));
     }
     Ok(())

@@ -390,15 +390,246 @@ fn limits() -> ExecutionLimits {
 }
 
 fn run_extended(fixture: &Fixture, inputs: Vec<ConstValue>) -> ExecutionTermination {
-    execute_function(
+    let reference = execute_function(
         fixture.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: inputs.clone(),
+            limits: limits(),
+        },
+    )
+    .expect("executes");
+    let (image, input, approved, bytes) = loaded_fixture(fixture);
+    let reused = image
+        .execute(
+            input,
+            ExecutionRequest {
+                inputs: inputs.clone(),
+                limits: limits(),
+            },
+        )
+        .unwrap();
+    let prepared = image
+        .prepare(
+            input,
+            ExecutionRequest {
+                inputs: inputs.clone(),
+                limits: limits(),
+            },
+        )
+        .unwrap();
+    for _ in 0..2 {
+        assert_eq!(
+            prepared.execute().unwrap(),
+            reused,
+            "prepared repeat preserves complete observation"
+        );
+    }
+    let single = crate::execute_loaded_image(
+        input,
+        &approved,
+        &bytes,
         ExecutionRequest {
             inputs,
             limits: limits(),
         },
     )
-    .expect("executes")
-    .termination
+    .unwrap();
+    assert_eq!(
+        reused, single,
+        "reusable plan preserves complete observation"
+    );
+    assert_eq!(reused, reference, "reusable plan matches lowering path");
+    reference.termination
+}
+
+fn loaded_fixture(
+    fixture: &Fixture,
+) -> (
+    crate::VerifiedImage,
+    crate::LoadedExecutionInput<'_>,
+    crate::ApprovedImage,
+    Vec<u8>,
+) {
+    let input = fixture.input(CacheProfile::EXTENDED_V1);
+    let lowered = lower_function(input).unwrap();
+    let approved = crate::ApprovedImage {
+        digest: crate::host_abi::image_digest(&lowered.bytes),
+        cache_key: lowered.cache_key,
+        imports: fixture.adapters.iter().map(|a| a.entity_id).collect(),
+    };
+    let image = crate::VerifiedImage::load(&approved, &lowered.bytes).unwrap();
+    let input = crate::LoadedExecutionInput {
+        types: &fixture.types,
+        constants: &fixture.constants,
+        globals: &fixture.globals,
+        contracts: &fixture.contracts,
+        adapters: &fixture.adapters,
+        schema_epoch: input.schema_epoch,
+        state_root: input.state_root,
+        profile: input.profile,
+    };
+    (image, input, approved, lowered.bytes)
+}
+
+#[test]
+fn scalar_plan_matches_reference_at_resource_and_arithmetic_boundaries() {
+    for bits in [8, 16, 32, 64, 128] {
+        for signed in [true, false] {
+            let ty = int_value(signed, bits, 0).value_type;
+            let result = TypeExpr::Result {
+                ok: Box::new(ty.clone()),
+                error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
+            };
+            for opcode in [
+                Opcode::IntAddChecked,
+                Opcode::IntSubChecked,
+                Opcode::IntMulChecked,
+                Opcode::IntDivChecked,
+                Opcode::IntRemChecked,
+            ] {
+                let fixture = Fixture::new(
+                    &[ty.clone(), ty.clone()],
+                    &[step(
+                        opcode,
+                        vec![Arg::P(0), Arg::P(1)],
+                        Immediate::None,
+                        result.clone(),
+                    )],
+                    Vec::new(),
+                );
+                let (image, input, approved, bytes) = loaded_fixture(&fixture);
+                assert!(
+                    image.has_scalar_plan(),
+                    "eligible arithmetic must use the scalar plan"
+                );
+                let mut values = vec![(0, 0), (17, 3), (1, 0)];
+                if signed {
+                    let low = if bits == 128 {
+                        i128::MIN
+                    } else {
+                        -(1_i128 << (bits - 1))
+                    };
+                    values.extend([(low, -1), (-17, 3), (low, 1)]);
+                }
+                for (a, b) in values {
+                    let inputs = vec![int_value(signed, bits, a), int_value(signed, bits, b)];
+                    let baseline = image
+                        .execute(
+                            input,
+                            ExecutionRequest {
+                                inputs: inputs.clone(),
+                                limits: limits(),
+                            },
+                        )
+                        .unwrap();
+                    let mut caps = vec![limits()];
+                    for cap in 0..=baseline.fuel_used + 1 {
+                        caps.push(ExecutionLimits {
+                            max_fuel: cap,
+                            ..limits()
+                        });
+                        caps.push(ExecutionLimits {
+                            max_instructions: cap,
+                            ..limits()
+                        });
+                        caps.push(ExecutionLimits {
+                            cancel_at_fuel: Some(cap),
+                            ..limits()
+                        });
+                    }
+                    for cap in [
+                        0,
+                        baseline.peak_value_units - 1,
+                        baseline.peak_value_units,
+                        baseline.peak_value_units + 1,
+                    ] {
+                        caps.push(ExecutionLimits {
+                            max_value_units: cap,
+                            ..limits()
+                        });
+                    }
+                    for cap in [0, 1, 8, 9, 20, 21, 29, 30, 31] {
+                        caps.push(ExecutionLimits {
+                            max_output_units: cap,
+                            ..limits()
+                        });
+                    }
+                    for limits in caps {
+                        let request = ExecutionRequest {
+                            inputs: inputs.clone(),
+                            limits,
+                        };
+                        assert_eq!(
+                            image.execute(input, request.clone()),
+                            crate::execute_loaded_image(input, &approved, &bytes, request),
+                            "{opcode:?}/{bits}/{signed}/{a}/{b}/{limits:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn scalar_plan_rebinds_constants_and_falls_back_for_invalid_inventories() {
+    let constant = id(230);
+    let fixture = Fixture::new(
+        &[],
+        &[step(
+            Opcode::ConstantRef,
+            vec![],
+            Immediate::Entity(constant),
+            u64_type(),
+        )],
+        vec![ConstantDefinition {
+            entity_id: constant,
+            value: uint(1),
+        }],
+    );
+    let (image, input, approved, bytes) = loaded_fixture(&fixture);
+    assert!(image.has_scalar_plan());
+    let inventories = [
+        vec![ConstantDefinition {
+            entity_id: constant,
+            value: uint(2),
+        }],
+        vec![],
+        vec![ConstantDefinition {
+            entity_id: constant,
+            value: boolean(true),
+        }],
+        vec![ConstantDefinition {
+            entity_id: constant,
+            value: ConstValue {
+                value_type: u64_type(),
+                data: ConstData::Bool(true),
+            },
+        }],
+        fixture.constants.clone(),
+    ];
+    for constants in &inventories {
+        let input = crate::LoadedExecutionInput { constants, ..input };
+        for max_value_units in [0, limits().max_value_units] {
+            let request = ExecutionRequest {
+                inputs: vec![],
+                limits: ExecutionLimits {
+                    max_value_units,
+                    ..limits()
+                },
+            };
+            let reference = crate::execute_loaded_image(input, &approved, &bytes, request.clone());
+            assert_eq!(
+                image.execute(input, request.clone()),
+                reference,
+                "inventory={constants:?} max_value_units={max_value_units}",
+            );
+            let prepared = image.prepare(input, request).unwrap();
+            for _ in 0..2 {
+                assert_eq!(prepared.execute(), reference);
+            }
+        }
+    }
 }
 
 fn success(fixture: &Fixture, inputs: Vec<ConstValue>) -> ConstValue {
@@ -406,6 +637,337 @@ fn success(fixture: &Fixture, inputs: Vec<ConstValue>) -> ConstValue {
         ExecutionTermination::Success(value) => value,
         other => panic!("not a success: {other:?}"),
     }
+}
+
+fn assert_compact_budget_parity(fixture: &Fixture, inputs: Vec<ConstValue>) {
+    let (image, input, approved, bytes) = loaded_fixture(fixture);
+    assert!(
+        image.has_scalar_plan(),
+        "fixture must exercise the compact plan"
+    );
+    let request = ExecutionRequest {
+        inputs,
+        limits: limits(),
+    };
+    let reference = crate::execute_loaded_image(input, &approved, &bytes, request.clone()).unwrap();
+    let mut caps = vec![limits()];
+    for cap in 0..=reference.fuel_used + 1 {
+        caps.extend([
+            ExecutionLimits {
+                max_fuel: cap,
+                ..limits()
+            },
+            ExecutionLimits {
+                max_instructions: cap,
+                ..limits()
+            },
+            ExecutionLimits {
+                cancel_at_fuel: Some(cap),
+                ..limits()
+            },
+        ]);
+    }
+    for cap in 0..=reference.peak_value_units + 1 {
+        caps.push(ExecutionLimits {
+            max_value_units: cap,
+            ..limits()
+        });
+    }
+    let output_units = match &reference.termination {
+        ExecutionTermination::Success(value) => crate::execution_value_units(value),
+        _ => 0,
+    };
+    for cap in 0..=output_units + 1 {
+        caps.push(ExecutionLimits {
+            max_output_units: cap,
+            ..limits()
+        });
+    }
+    for limits in caps {
+        let request = ExecutionRequest {
+            limits,
+            ..request.clone()
+        };
+        let reference = crate::execute_loaded_image(input, &approved, &bytes, request.clone());
+        assert_eq!(
+            image.execute(input, request.clone()),
+            reference,
+            "{limits:?}"
+        );
+        let prepared = image.prepare(input, request).unwrap();
+        for _ in 0..2 {
+            assert_eq!(prepared.execute(), reference, "prepared {limits:?}");
+        }
+    }
+}
+
+#[test]
+fn input_admission_keeps_nested_integer_range_and_signedness_checks() {
+    for bits in [8, 16, 32, 64] {
+        for signed in [true, false] {
+            let mut invalid = int_value(signed, bits, 0);
+            invalid.data = if signed {
+                ConstData::SInt(1_i128 << (bits - 1))
+            } else {
+                ConstData::UInt(1_u128 << bits)
+            };
+            let option = ConstValue {
+                value_type: TypeExpr::Option(Box::new(invalid.value_type.clone())),
+                data: ConstData::Option(Some(Box::new(invalid.clone()))),
+            };
+            let nested = ConstValue {
+                value_type: TypeExpr::Vector(Box::new(option.value_type.clone())),
+                data: ConstData::Sequence(vec![option]),
+            };
+            let mut wrong_signedness = int_value(signed, bits, 0);
+            wrong_signedness.data = if signed {
+                ConstData::UInt(0)
+            } else {
+                ConstData::SInt(0)
+            };
+            for (value, code) in [
+                (invalid, sley_check::TypeErrorCode::ConstRange),
+                (nested, sley_check::TypeErrorCode::ConstRange),
+                (wrong_signedness, sley_check::TypeErrorCode::ConstShape),
+            ] {
+                let fixture = Fixture::new(
+                    std::slice::from_ref(&value.value_type),
+                    &[step(
+                        Opcode::Equal,
+                        vec![Arg::P(0), Arg::P(0)],
+                        Immediate::None,
+                        TypeExpr::Bool,
+                    )],
+                    vec![],
+                );
+                let request = ExecutionRequest {
+                    inputs: vec![value],
+                    limits: limits(),
+                };
+                let error =
+                    execute_function(fixture.input(CacheProfile::EXTENDED_V1), request.clone())
+                        .unwrap_err();
+                let ExecutionError::Type(type_error) = &error else {
+                    panic!("expected type refusal, got {error:?}");
+                };
+                assert_eq!(type_error.code(), code);
+                let (image, input, approved, bytes) = loaded_fixture(&fixture);
+                let expected = Err(crate::LoadedExecutionError::Execution(error));
+                assert_eq!(
+                    crate::execute_loaded_image(input, &approved, &bytes, request.clone()),
+                    expected
+                );
+                assert_eq!(image.execute(input, request.clone()), expected);
+                assert_eq!(
+                    image.prepare(input, request).map(|_| ()),
+                    expected.map(|_| ())
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn prepared_requests_preserve_binding_and_input_refusal_order() {
+    let fixture = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::BoolNot,
+            vec![Arg::P(0)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+    );
+    let (image, input, approved, encoded) = loaded_fixture(&fixture);
+    for inputs in [
+        vec![],
+        vec![text("wrong")],
+        vec![boolean(true), boolean(false)],
+    ] {
+        for state_root in [input.state_root, StateRoot::from_bytes([77; 32])] {
+            let source = crate::LoadedExecutionInput {
+                state_root,
+                ..input
+            };
+            let request = ExecutionRequest {
+                inputs: inputs.clone(),
+                limits: limits(),
+            };
+            let reference =
+                crate::execute_loaded_image(source, &approved, &encoded, request.clone());
+            assert!(reference.is_err());
+            assert_eq!(
+                image.prepare(source, request).map(|_| ()),
+                reference.map(|_| ())
+            );
+        }
+    }
+    let mismatched = crate::ApprovedImage {
+        imports: vec![id(77)],
+        ..approved
+    };
+    let image = crate::VerifiedImage::load(&mismatched, &encoded).unwrap();
+    let request = ExecutionRequest {
+        inputs: vec![],
+        limits: limits(),
+    };
+    assert_eq!(
+        image.prepare(input, request.clone()).map(|_| ()),
+        crate::execute_loaded_image(input, &mismatched, &encoded, request).map(|_| ())
+    );
+}
+
+#[test]
+fn borrowed_vector_projection_and_option_switch_preserve_every_resource_cut() {
+    use sley_ssmc::{
+        BuiltinCase, CaseKey, SwitchArgument, SwitchCase, SwitchEdge, TrapCode, TrapTerminator,
+        VariantSwitchTerminator,
+    };
+    let vector = TypeExpr::Vector(Box::new(TypeExpr::Text));
+    let mut fixture = Fixture::new(
+        &[vector.clone(), u64_type()],
+        &[step(
+            Opcode::VectorGet,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::Option(Box::new(TypeExpr::Text)),
+        )],
+        vec![],
+    );
+    let values = ConstValue {
+        value_type: vector.clone(),
+        data: ConstData::Sequence(vec![text(""), text("café🙂")]),
+    };
+    // Covers materializing Some, None, and their distinct dynamic unit charges.
+    for index in [0, 1, 2, u128::from(u64::MAX)] {
+        assert_compact_budget_parity(&fixture, vec![values.clone(), uint(index)]);
+    }
+    fixture.function.result_type = TypeExpr::Text;
+    fixture.function.blocks.extend([id(210), id(211)]);
+    fixture.parameters.push(Parameter {
+        entity_id: id(212),
+        owner: id(210),
+        role: ParameterRole::Block,
+        ordinal: 0,
+        value_type: TypeExpr::Text,
+    });
+    fixture.blocks[0].terminator = Terminator::VariantSwitch(VariantSwitchTerminator {
+        value: ValueRef::OperationResult(OperationResultRef {
+            operation: id(100),
+            result_index: 0,
+        }),
+        cases: vec![
+            SwitchCase {
+                case_key: CaseKey::Builtin(BuiltinCase::None),
+                edge: SwitchEdge {
+                    target: id(211),
+                    arguments: vec![],
+                },
+            },
+            SwitchCase {
+                case_key: CaseKey::Builtin(BuiltinCase::Some),
+                edge: SwitchEdge {
+                    target: id(210),
+                    arguments: vec![SwitchArgument::CasePayload],
+                },
+            },
+        ],
+    });
+    fixture.blocks.extend([
+        Block {
+            entity_id: id(210),
+            function: fixture.function.entity_id,
+            parameters: vec![id(212)],
+            operations: vec![],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::Parameter(id(212)),
+            }),
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: id(211),
+            function: fixture.function.entity_id,
+            parameters: vec![],
+            operations: vec![],
+            terminator: Terminator::Trap(TrapTerminator {
+                code: TrapCode::Unreachable,
+                payload: None,
+            }),
+            reachability: Reachability::Required,
+        },
+    ]);
+    for index in [0, 1, 2] {
+        assert_compact_budget_parity(&fixture, vec![values.clone(), uint(index)]);
+    }
+    let length = Fixture::new(
+        &[vector],
+        &[step(
+            Opcode::VectorLen,
+            vec![Arg::P(0)],
+            Immediate::None,
+            u64_type(),
+        )],
+        vec![],
+    );
+    assert_compact_budget_parity(&length, vec![values]);
+}
+
+#[test]
+fn borrowed_record_projection_rechecks_changed_layouts() {
+    let fixture = Fixture::with_types(
+        &[pair_type()],
+        &[step(
+            Opcode::RecordGet,
+            vec![Arg::P(0)],
+            Immediate::Field(member(0xB2)),
+            TypeExpr::Text,
+        )],
+        vec![],
+        definitions(),
+    );
+    let value = |field| ConstValue {
+        value_type: pair_type(),
+        data: ConstData::Record(RecordConst {
+            definition: id(50),
+            fields: vec![
+                FieldConst {
+                    member_id: member(0xA1),
+                    value: uint(7),
+                },
+                FieldConst {
+                    member_id: member(0xB2),
+                    value: field,
+                },
+            ],
+        }),
+    };
+    assert_compact_budget_parity(&fixture, vec![value(text("東京"))]);
+    let (image, input, approved, bytes) = loaded_fixture(&fixture);
+    let mut changed = definitions();
+    let TypeDefForm::Record(fields) = &mut changed[0].form else {
+        unreachable!()
+    };
+    fields[1].value_type = u64_type();
+    let types = TypeEnvironment::new(changed).unwrap();
+    let input = crate::LoadedExecutionInput {
+        types: &types,
+        ..input
+    };
+    let request = ExecutionRequest {
+        inputs: vec![value(uint(42))],
+        limits: limits(),
+    };
+    let reference = crate::execute_loaded_image(input, &approved, &bytes, request.clone());
+    assert_eq!(
+        reference.as_ref().unwrap().termination,
+        ExecutionTermination::InternalInvariant
+    );
+    assert_eq!(
+        image.execute(input, request),
+        reference,
+        "a stale field layout must use the reference path"
+    );
 }
 
 fn lowering_code(fixture: &Fixture) -> LowerErrorCode {
@@ -474,6 +1036,25 @@ fn bridge_capacity_err(ok: TypeExpr) -> ConstValue {
                 code: crate::extended::BRIDGE_CAPACITY_CODE,
             }),
         }))),
+    }
+}
+
+#[test]
+fn operand_storage_preserves_values_across_inline_and_heap_arities() {
+    for arity in [0, 1, 2, 3, 4, 64] {
+        let fixture = Fixture::new(
+            &vec![u64_type(); arity],
+            &[step(
+                Opcode::VectorNew,
+                (0..arity).rev().map(Arg::P).collect(),
+                Immediate::None,
+                TypeExpr::Vector(Box::new(u64_type())),
+            )],
+            Vec::new(),
+        );
+        let inputs: Vec<_> = (0..arity).map(|i| uint((i as u128) * 7 + 3)).collect();
+        let expected = vector_of(inputs.iter().rev().cloned().collect(), u64_type());
+        assert_eq!(success(&fixture, inputs), expected, "arity {arity}");
     }
 }
 
@@ -1221,6 +1802,116 @@ fn e2_left_shift_is_exact_at_every_width_boundary() {
             Err(3),
             "signed shl at width {bits}"
         );
+    }
+}
+
+#[test]
+fn narrow_integer_arithmetic_matches_a_widened_oracle() {
+    use crate::extended::{Checked, checked_integer_data};
+    let operations = [
+        Opcode::IntAddChecked,
+        Opcode::IntSubChecked,
+        Opcode::IntMulChecked,
+        Opcode::IntDivChecked,
+        Opcode::IntRemChecked,
+    ];
+    for bits in [8_u16, 16, 32, 64] {
+        for signed in [false, true] {
+            let low = if signed { -(1_i128 << (bits - 1)) } else { 0 };
+            let high = if signed {
+                (1_i128 << (bits - 1)) - 1
+            } else {
+                (1_i128 << bits) - 1
+            };
+            let values: Vec<i128> = if bits == 8 {
+                (low..=high).collect()
+            } else {
+                let pivot = 1_i128 << (bits / 2);
+                let mut values = vec![
+                    low,
+                    low + 1,
+                    high - 1,
+                    high,
+                    0,
+                    1,
+                    2,
+                    -1,
+                    -2,
+                    high / 2,
+                    high / 2 + 1,
+                    pivot - 1,
+                    pivot,
+                    pivot + 1,
+                    3_037_000_499,
+                    3_037_000_500,
+                    -3_037_000_499,
+                    -3_037_000_500,
+                ];
+                let mut seed = 2_040_930_u64;
+                let mask = u64::try_from((1_u128 << bits) - 1).unwrap();
+                for _ in 0..64 {
+                    seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                    values.push(i128::from(seed & mask) + low);
+                }
+                values.retain(|v| (low..=high).contains(v));
+                values.sort_unstable();
+                values.dedup();
+                values
+            };
+            let data = |n: i128| {
+                if signed {
+                    ConstData::SInt(n)
+                } else {
+                    ConstData::UInt(u128::try_from(n).unwrap())
+                }
+            };
+            for &left in &values {
+                for &right in &values {
+                    for opcode in operations {
+                        let division =
+                            matches!(opcode, Opcode::IntDivChecked | Opcode::IntRemChecked);
+                        let expected = if division && right == 0 {
+                            Err(2)
+                        } else if division && signed && left == low && right == -1 {
+                            // Sley's remainder shares the declared-width MIN/-1
+                            // overflow rule, even though its mathematical value is zero.
+                            Err(1)
+                        } else {
+                            let wide = match opcode {
+                                Opcode::IntAddChecked => left.checked_add(right),
+                                Opcode::IntSubChecked => left.checked_sub(right),
+                                Opcode::IntMulChecked => left.checked_mul(right),
+                                Opcode::IntDivChecked => left.checked_div(right),
+                                Opcode::IntRemChecked => left.checked_rem(right),
+                                _ => unreachable!(),
+                            };
+                            // Even U64 products may overflow i128, but such a
+                            // product necessarily overflows the declared U64 too.
+                            wide.filter(|v| (low..=high).contains(v)).ok_or(1)
+                        };
+                        let actual = match checked_integer_data(
+                            opcode,
+                            signed,
+                            bits,
+                            &[&data(left), &data(right)],
+                        )
+                        .expect("well-formed bounded operands")
+                        {
+                            Checked::Value(s, u) => Ok(if signed {
+                                s
+                            } else {
+                                i128::try_from(u).unwrap()
+                            }),
+                            Checked::Failure(code) => Err(code),
+                        };
+                        assert_eq!(
+                            actual, expected,
+                            "{opcode:?} signed={signed} bits={bits} left={left} right={right}"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -3886,6 +4577,21 @@ fn e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing() {
         refused,
         ExecutionError::Exec(crate::ExecutionErrorCode::InputNotCanonical),
         "a non-canonical map input is refused, not compared"
+    );
+    let (image, input, approved, encoded) = loaded_fixture(&equality);
+    let request = ExecutionRequest {
+        inputs: vec![canonical.clone(), reversed.clone()],
+        limits: limits(),
+    };
+    let expected = Err(crate::LoadedExecutionError::Execution(refused));
+    assert_eq!(
+        crate::execute_loaded_image(input, &approved, &encoded, request.clone()),
+        expected
+    );
+    assert_eq!(image.execute(input, request.clone()), expected);
+    assert_eq!(
+        image.prepare(input, request).map(|_| ()),
+        expected.map(|_| ())
     );
 
     let hasher = Fixture::new(

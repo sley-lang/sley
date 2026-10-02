@@ -3077,6 +3077,18 @@ pub(crate) fn typed_inputs(
     args: &[Value],
 ) -> Result<Vec<ConstValue>> {
     let types: Vec<TypeExpr> = executor.parameter_types(function);
+    typed_inputs_with_types(program, names, function, args, &types)
+}
+
+/// Reads against a signature already resolved from the selected program.
+/// Batch calls resolve it once; each row still undergoes full value admission.
+fn typed_inputs_with_types(
+    program: &Program,
+    names: &Names,
+    function: &EntityId,
+    args: &[Value],
+    types: &[TypeExpr],
+) -> Result<Vec<ConstValue>> {
     if types.len() != args.len() {
         return Err(AgentError::new(
             AgentErrorCode::InputInvalid,
@@ -3090,7 +3102,7 @@ pub(crate) fn typed_inputs(
     }
     let defs = ProgramTypes { program, names };
     args.iter()
-        .zip(&types)
+        .zip(types)
         .enumerate()
         .map(|(index, (arg, ty))| values::read(arg, ty, &defs, &format!("arg {index}")))
         .collect()
@@ -3456,6 +3468,7 @@ fn call_batch(
     stats: bool,
     out: &mut dyn Write,
 ) -> Result<i32> {
+    let parameter_types = executor.parameter_types(function);
     let text = if path == Path::new("-") {
         let mut text = String::new();
         std::io::stdin()
@@ -3477,8 +3490,14 @@ fn call_batch(
         {
             let as_rows = items.iter().all(|row| {
                 row.as_array().is_some_and(|args| {
-                    typed_inputs(executor, &selected.program, &selected.names, function, args)
-                        .is_ok()
+                    typed_inputs_with_types(
+                        &selected.program,
+                        &selected.names,
+                        function,
+                        args,
+                        &parameter_types,
+                    )
+                    .is_ok()
                 })
             });
             if as_rows {
@@ -3507,7 +3526,13 @@ fn call_batch(
                 "each batch row is an argument list",
             )
         })?;
-        let inputs = typed_inputs(executor, &selected.program, &selected.names, function, args)?;
+        let inputs = typed_inputs_with_types(
+            &selected.program,
+            &selected.names,
+            function,
+            args,
+            &parameter_types,
+        )?;
         let outcome = executor.run(function, inputs, exec::call_limits())?;
         vm_micros += outcome.micros;
         buffer.push_str(&exec::termination_json(&outcome.termination, &selected.names).to_string());

@@ -1794,15 +1794,18 @@ fn test_tables_lower_to_tests_that_point_at_their_rows() {
 }
 
 #[test]
-fn every_example_in_help_afx_runs() {
+fn every_example_in_help_afx_and_quick_runs() {
     let temp = workspace("help-afx");
     // A frame without tests is the live program the ripple examples after
     // it change: it is committed in its own workspace.
     let live = workspace("help-afx-ripple");
-    let examples: Vec<&str> = sley_agent::help::AFX
-        .split("```json\n")
-        .skip(1)
-        .map(|rest| rest.split("```").next().unwrap())
+    let examples: Vec<&str> = [sley_agent::help::AFX, sley_agent::help::AFX_QUICK]
+        .into_iter()
+        .flat_map(|text| {
+            text.split("```json\n")
+                .skip(1)
+                .map(|rest| rest.split("```").next().unwrap())
+        })
         .collect();
     assert!(examples.len() >= 6);
     let mut ripples = 0;

@@ -5328,27 +5328,28 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// pieces that use them, in first-use order.
     fn thread(&mut self) {
         for b in 0..self.blocks.len() {
-            let pieces = self.block_pieces[b].clone();
-            for (position, &piece) in pieces.iter().enumerate().skip(1) {
-                let mut threaded: Vec<(String, Value)> = Vec::new();
-                for &later in &pieces[position..] {
-                    for name in &self.pieces[later].uses {
-                        let Some(def) = self.block_defs[b].get(name) else {
-                            continue;
-                        };
-                        if def.kind == Kind::Op
-                            || self.pieces[def.piece].local >= position
-                            || threaded.iter().any(|(threaded, _)| threaded == name)
-                        {
-                            continue;
-                        }
-                        threaded.push((
-                            name.clone(),
-                            def.ty_json.clone().unwrap_or_else(|| Value::from("unit")),
-                        ));
-                    }
-                }
-                self.pieces[piece].threaded = threaded;
+            let pieces = &self.block_pieces[b];
+            let uses: Vec<&[String]> = pieces
+                .iter()
+                .map(|piece| self.pieces[*piece].uses.as_slice())
+                .collect();
+            let definitions = self.block_defs[b]
+                .iter()
+                .filter(|(_, def)| def.kind != Kind::Op)
+                .map(|(name, def)| (name.clone(), self.pieces[def.piece].local))
+                .collect();
+            let threaded = threaded_suffixes(&uses, &definitions);
+            for (&piece, names) in pieces.iter().zip(threaded).skip(1) {
+                self.pieces[piece].threaded = names
+                    .into_iter()
+                    .map(|name| {
+                        let ty = self.block_defs[b][&name]
+                            .ty_json
+                            .clone()
+                            .unwrap_or_else(|| Value::from("unit"));
+                        (name, ty)
+                    })
+                    .collect();
             }
         }
     }
@@ -5896,6 +5897,46 @@ impl<'c, 'a> FnExp<'c, 'a> {
     }
 }
 
+/// Values defined before each continuation and used in its suffix, ordered
+/// by first use. A reverse sweep maintains the next use of each live value,
+/// avoiding a fresh scan of every later piece at every split. Work is bounded
+/// by uses plus the parameters actually emitted (up to map lookup factors).
+fn threaded_suffixes(
+    uses: &[&[String]],
+    definitions: &BTreeMap<String, usize>,
+) -> Vec<Vec<String>> {
+    let mut defined_at = vec![Vec::new(); uses.len()];
+    for (name, &position) in definitions {
+        defined_at[position].push(name.as_str());
+    }
+    let mut next_use: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
+    let mut ordered: BTreeMap<(usize, usize), &str> = BTreeMap::new();
+    let mut result = vec![Vec::new(); uses.len()];
+    for position in (1..uses.len()).rev() {
+        // A value defined here is supplied by this piece itself, not by
+        // an incoming edge. It ceases to be live when crossing its definition.
+        for name in &defined_at[position] {
+            if let Some(old) = next_use.remove(name) {
+                ordered.remove(&old);
+            }
+        }
+        // Visit uses backwards so the first occurrence in the current
+        // piece wins, including when one operand is repeated.
+        for (index, name) in uses[position].iter().enumerate().rev() {
+            if definitions.get(name).is_none_or(|&def| def >= position) {
+                continue;
+            }
+            let key = (position, index);
+            if let Some(old) = next_use.insert(name, key) {
+                ordered.remove(&old);
+            }
+            ordered.insert(key, name);
+        }
+        result[position] = ordered.values().map(|name| (*name).to_owned()).collect();
+    }
+    result
+}
+
 /// The immediate dominator of each node reachable from `entry` (the entry
 /// is its own), and whether the iteration settled within its bound.
 fn immediate_dominators(succ: &[Vec<usize>], entry: usize) -> (Vec<Option<usize>>, bool) {
@@ -6082,6 +6123,46 @@ pub(crate) fn shorten(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reverse_threading_matches_the_suffix_scan() {
+        // Reference is the original scan, exercised on forward references,
+        // duplicate operands, unused definitions and differently ordered uses.
+        let mut state = 204_u64;
+        let mut random = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            usize::try_from(state >> 32).unwrap()
+        };
+        for count in 1..40 {
+            let definitions: BTreeMap<_, _> = (0..24)
+                .map(|n| (format!("v{n}"), random() % count))
+                .collect();
+            let uses: Vec<Vec<String>> = (0..count)
+                .map(|_| {
+                    (0..random() % 12)
+                        .map(|_| format!("v{}", random() % 28))
+                        .collect()
+                })
+                .collect();
+            let slices: Vec<_> = uses.iter().map(Vec::as_slice).collect();
+            let actual = threaded_suffixes(&slices, &definitions);
+            for position in 1..count {
+                let mut expected = Vec::new();
+                for later in &uses[position..] {
+                    for name in later {
+                        if definitions.get(name).is_some_and(|&def| def < position)
+                            && !expected.contains(name)
+                        {
+                            expected.push(name.clone());
+                        }
+                    }
+                }
+                assert_eq!(actual[position], expected, "piece {position}/{count}");
+            }
+        }
+    }
 
     #[test]
     fn long_generated_names_stay_within_the_grammar() {
