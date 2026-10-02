@@ -1,7 +1,7 @@
 {
   "clippy_clean": true,
   "clippy_warnings": 0,
-  "commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
+  "commit": "f7833fd75bab695b6a4d2140e623e3dd8a76366c",
   "contract": "sley2.lint-report.v1",
   "dirty_lint_inputs": [],
   "dirty_paths": [],
