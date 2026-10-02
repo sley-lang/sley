@@ -2298,6 +2298,47 @@ refusal inside lowered blocks is mapped back to the statement that produced it, 
 pointer beside it. A `body` in `patch` is refused: restate a body function through `fns`.
 `help structured` is the short reference.
 
+### 5.5 Familiar text proposals (optional frontend)
+
+`try --familiar <file | ->` reads a textual proposal and parses it into exactly the structured-body
+frame of section 5.4 (ADR-0055). The frontend is the cargo feature `familiar` of `sley-agent`;
+building without it removes the switch (it is then refused with a message naming the feature) and
+changes nothing else. The switch must be given: no input is detected or treated as text otherwise,
+and inline text is not accepted.
+
+    fn name(p: T, q: T) -> T {
+        let x = e            var t: T = e          t = e
+        if c { .. } else if c { .. } else { .. }
+        for x in xs { .. }   while c { .. }
+        return e             return ok(e)          return err(Case)      trap
+    }
+
+Each construct maps to one structured form: `let`, `var`, `set`, `if`, `for`, `while`, `return`,
+`ok`, `fail`, `trap`. Expressions, loosest first: `a if c else b` (`["if", c, a, b]`, only when `if`
+is on the line of `a`), `or`, `and`, `not`, `== != < <= > >=` (`eq` ... `ge`, no chaining), `+ -`,
+`* / %` (`add sub mul div rem`), unary `-` (`neg`; a minus before a literal makes a negative
+literal), then `f(args)` (`call`), `x.field`, `xs[i]` (`get`). `min max abs clamp len` are the
+built-ins of the same names, `to(T, x)` is `["to", T, x]`, and `try(e)` / `try(e, Case)` give every
+failing operation in `e` without its own mode the `?` / `?Case` mode (helper calls become `tcall?`,
+which unwraps a returned Result). Literals: decimal integers (the 64-bit range; `-9223372036854775808`
+is accepted), typed integers (`7u64`), `true`, `false`, and JSON-escaped text in double quotes.
+Comments run from `#` to the end of the line, or fill a line that starts with `//`. Newlines and
+optional `;` separate statements.
+
+There is no other syntax. Methods, ranges, `break`/`continue`, compound assignment, floating-point
+or hexadecimal literals, slices, tuples, bitwise operators, a trailing `//` and spellings from other
+languages (`&&`, `!`, `elif`, `let mut`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
+their line and column, and the revision is recorded as a text draft: its `input.txt` keeps the
+text and no frame or candidate is made. A function may not be named after a built-in.
+
+The parsed frame then takes the ordinary path, so arithmetic, conversion, scoping and failure are
+exactly those of section 5.4. The draft revision keeps the text as `input.txt` and the structured
+frame as `frame.json`; later steps (`try --on`, `fill`, `submit`, `commit`) read the frame, never
+the text. Refusals keep the frame's pointers (`/fns/0/body/2/1`) and add, for familiar input, each
+pointer's line and column (`"text": {"line": L, "column": C}` on the obligation, and a line in the
+refusal). Positions are diagnostics: they never enter canonical bytes, identities or the program.
+Nothing renders a program back into this syntax. `help familiar` is the short reference.
+
 ## 6. Opcodes
 
 The mnemonic table maps every epoch-1 opcode one to one:

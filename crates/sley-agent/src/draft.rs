@@ -992,6 +992,23 @@ pub fn text_obligation(detail: &str, line: usize, column: usize, byte: usize) ->
     })
 }
 
+/// The obligation of a refused familiar proposal (ADR-0055): the
+/// frontend's message and location in the text.
+#[must_use]
+pub fn familiar_obligation(detail: &str, line: usize, column: usize, byte: usize) -> Value {
+    json!({
+        "id": "o1",
+        "symbol": AgentErrorCode::FrameInvalid.symbol(),
+        "at": "",
+        "expected": "familiar syntax",
+        "available": null,
+        "decision": format!("familiar text refused at line {line}, column {column} (byte {byte}): {detail}; fix the text"),
+        "text": {"line": line, "column": column},
+        "kernel": null,
+        "count": 1,
+    })
+}
+
 /// The obligation of a kernel refusal: the kernel's symbol, phase and
 /// locator, never reinterpreted. The verdict's authored frame positions, or
 /// else `positions` (those of a refused `TestCase`), give `at` (the first)

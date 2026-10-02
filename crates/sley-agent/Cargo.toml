@@ -10,6 +10,13 @@ description = "Sley 2 agent workbench: derived AV1 views, AF1 authoring frames, 
 name = "sley-agent"
 path = "src/main.rs"
 
+# The optional familiar authoring frontend (ADR-0055): a textual proposal
+# syntax parsed into structured bodies at the authoring boundary. Building
+# with `--no-default-features` removes it; every other path is unchanged.
+[features]
+default = ["familiar"]
+familiar = []
+
 [dependencies]
 serde = "=1.0.228"
 serde_json = "=1.0.145"

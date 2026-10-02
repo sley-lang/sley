@@ -34,6 +34,14 @@ pub const RESIDUAL_QUICK: &str = include_str!("../data/help-residual-quick.md");
 /// Structured function bodies (`"body"` instead of `"blocks"`).
 pub const STRUCTURED: &str = include_str!("../data/help-structured.md");
 
+/// The optional familiar authoring syntax (ADR-0055).
+#[cfg(feature = "familiar")]
+pub const FAMILIAR: &str = include_str!("../data/help-familiar.md");
+/// What `help familiar` says when the frontend is not built in.
+#[cfg(not(feature = "familiar"))]
+pub const FAMILIAR: &str = "# Familiar syntax\nThis sley-agent was built without the optional familiar frontend \
+(cargo feature `familiar`). Author with JSON frames: `help structured`, `help afx`.\n";
+
 /// Topic names.
 pub const TOPICS: &[&str] = &[
     "guide",
@@ -47,6 +55,7 @@ pub const TOPICS: &[&str] = &[
     "tests",
     "search",
     "structured",
+    "familiar",
     "residual",
     "residual-quick",
     "residual-reference",
@@ -66,6 +75,7 @@ pub fn topic(name: &str) -> Option<String> {
         "drafts" | "draft" | "fill" => DRAFTS.to_owned(),
         "search" => SEARCH.to_owned(),
         "structured" | "body" => STRUCTURED.to_owned(),
+        "familiar" => FAMILIAR.to_owned(),
         "residual" | "residual-quick" => RESIDUAL_QUICK.to_owned(),
         "residual-reference" => RESIDUAL.to_owned(),
         "opcodes" => opcodes(),

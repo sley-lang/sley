@@ -624,12 +624,14 @@ fn read_argument(argument: &str) -> Result<Vec<u8>> {
     }
 }
 
-/// Where an input failed to parse as JSON.
+/// Where an input failed to parse as JSON (or, with `--familiar`, as
+/// familiar syntax).
 struct TextFailure {
     detail: String,
     line: usize,
     column: usize,
     byte: usize,
+    familiar: bool,
 }
 
 fn parse_input(bytes: &[u8]) -> std::result::Result<Value, TextFailure> {
@@ -640,8 +642,94 @@ fn parse_input(bytes: &[u8]) -> std::result::Result<Value, TextFailure> {
             line,
             column,
             byte,
+            familiar: false,
         }
     })
+}
+
+/// Structured-frame pointers to familiar text positions; empty without the
+/// frontend.
+#[cfg(feature = "familiar")]
+type FamiliarPositions = crate::familiar::Positions;
+#[cfg(not(feature = "familiar"))]
+struct FamiliarPositions;
+
+/// Reads `try --familiar` input: a file or `-`, never inline text.
+fn read_familiar(argument: &str) -> Result<Vec<u8>> {
+    if argument == "-" || Path::new(argument).is_file() {
+        return read_argument(argument);
+    }
+    Err(usage(format!(
+        "try --familiar reads a file or - (standard input); {argument} is neither"
+    )))
+}
+
+/// Parses familiar text (ADR-0055) into a structured-body frame, with the
+/// positions its pointers came from.
+#[cfg(feature = "familiar")]
+fn parse_familiar(
+    bytes: &[u8],
+) -> Result<(
+    std::result::Result<Value, TextFailure>,
+    Option<FamiliarPositions>,
+)> {
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| crate::error::frame("", "familiar text must be UTF-8"))?;
+    Ok(match crate::familiar::parse(text) {
+        Ok(parsed) => (Ok(parsed.frame), Some(parsed.positions)),
+        Err(error) => (
+            Err(TextFailure {
+                detail: error.message,
+                line: error.at.line,
+                column: error.at.column,
+                byte: error.at.byte,
+                familiar: true,
+            }),
+            None,
+        ),
+    })
+}
+
+#[cfg(not(feature = "familiar"))]
+fn parse_familiar(
+    _bytes: &[u8],
+) -> Result<(
+    std::result::Result<Value, TextFailure>,
+    Option<FamiliarPositions>,
+)> {
+    Err(usage(
+        "this sley-agent was built without the optional familiar frontend (cargo feature `familiar`); give a JSON frame",
+    ))
+}
+
+/// Line and column of a pointer into a familiar proposal's frame.
+#[cfg(feature = "familiar")]
+fn familiar_locate(positions: &FamiliarPositions, pointer: &str) -> Option<(usize, usize)> {
+    positions.locate(pointer).map(|pos| (pos.line, pos.column))
+}
+
+#[cfg(not(feature = "familiar"))]
+fn familiar_locate(_positions: &FamiliarPositions, _pointer: &str) -> Option<(usize, usize)> {
+    None
+}
+
+/// Adds the familiar text position of each obligation's pointer (`text`:
+/// line and column, diagnostic only) and returns one line per located
+/// obligation.
+fn familiar_positions(obligations: &mut [Value], positions: &FamiliarPositions) -> Vec<String> {
+    let mut lines = Vec::new();
+    for record in obligations {
+        let Some(at) = record["at"].as_str().map(str::to_owned) else {
+            continue;
+        };
+        if let Some((line, column)) = familiar_locate(positions, &at) {
+            record["text"] = json!({"line": line, "column": column});
+            lines.push(format!(
+                "{at} is line {line}, column {column} of the familiar text"
+            ));
+        }
+    }
+    lines
 }
 
 /// The switches of every command that makes a draft revision.
@@ -745,6 +833,9 @@ struct Proposal {
     import: Option<Value>,
     residual: Option<residual::Prepared>,
     artifacts: Vec<(String, Value)>,
+    /// With `try --familiar`: where the frame's pointers came from in the
+    /// text, for diagnostics.
+    familiar: Option<FamiliarPositions>,
 }
 
 impl Proposal {
@@ -771,6 +862,7 @@ impl Proposal {
             import: None,
             residual: None,
             artifacts: Vec::new(),
+            familiar: None,
         }
     }
 
@@ -916,20 +1008,32 @@ fn base_frame(workspace: &Workspace, on: &str) -> Result<Value> {
 }
 
 fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let words = words(args, &["--public", "--on"], &TRIAL_SWITCHES)?;
+    let mut switches = TRIAL_SWITCHES.to_vec();
+    switches.push("--familiar");
+    let words = words(args, &["--public", "--on"], &switches)?;
     let [frame_argument] = words.positional.as_slice() else {
         return Err(usage(
-            "try <frame.json | - | '{\"af1\":1,...}'> [--on <handle|draft>] [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]",
+            "try <frame.json | - | '{\"af1\":1,...}'> [--familiar] [--on <handle|draft>] [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]",
         ));
     };
+    let familiar = words.has("--familiar");
     let on = words.value("--on");
     if words.has("--rebase") && !on.is_some_and(draft::is_draft_ref) {
         return Err(usage("--rebase goes with try --on <draft>"));
     }
     let options = TrialOptions::of(&words);
-    let input = read_argument(frame_argument)?;
+    let input = if familiar {
+        read_familiar(frame_argument)?
+    } else {
+        read_argument(frame_argument)?
+    };
     global.note("input_bytes", input.len());
-    let parsed = parse_input(&input);
+    let (parsed, positions) = if familiar {
+        global.note("frontend", "familiar");
+        parse_familiar(&input)?
+    } else {
+        (parse_input(&input), None)
+    };
     let workspace = workspace(global)?;
     let head = workspace.head()?;
     let proposal = match on {
@@ -1003,6 +1107,8 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             proposal
         }
     };
+    let mut proposal = proposal;
+    proposal.familiar = positions;
     run_trial(global, &workspace, &head, proposal, &options, out)
 }
 
@@ -2102,6 +2208,48 @@ fn run_trial(
     let relayer = proposal.on.as_deref().filter(|_| unlayered);
     let frame_value = match proposal.frame {
         Input::Frame(value) => value,
+        Input::Text(failure) if failure.familiar => {
+            let obligations = vec![draft::familiar_obligation(
+                &failure.detail,
+                failure.line,
+                failure.column,
+                failure.byte,
+            )];
+            status["state"] = json!(State::Text.as_str());
+            status["text"] =
+                json!({"line": failure.line, "column": failure.column, "byte": failure.byte});
+            status["obligations"] = json!(obligations);
+            drafts.record(
+                &mut claim,
+                &Revision {
+                    input: &proposal.input,
+                    frame: None,
+                    artifacts: &proposal.artifacts,
+                    status: &status,
+                },
+            )?;
+            let error = crate::error::frame(
+                "",
+                format!(
+                    "familiar text refused at line {}, column {}: {}",
+                    failure.line, failure.column, failure.detail
+                ),
+            );
+            let summary = format!(
+                "draft {reference}: text (refused familiar syntax at line {}, column {}); the input is kept{skip_suffix}",
+                failure.line, failure.column
+            );
+            let next = "next: fix the text and run try --familiar again".to_owned();
+            return unfinished(
+                global,
+                out,
+                &error,
+                &reference,
+                State::Text,
+                &obligations,
+                [summary, next],
+            );
+        }
         Input::Text(failure) => {
             let message = failure
                 .detail
@@ -2280,6 +2428,10 @@ fn run_trial(
         Err(error) => {
             let mut obligations = draft::obligations_of(&error);
             draft::anchor(&mut obligations, Some(&frame_value));
+            let located = proposal
+                .familiar
+                .as_ref()
+                .map(|positions| familiar_positions(&mut obligations, positions));
             let provenance = json!({"provided": provided_tests(head, None, &restated), "imported": imported_tests, "authored": authored});
             status["obligations"] = json!(obligations);
             status["tests"] = provenance.clone();
@@ -2299,10 +2451,21 @@ fn run_trial(
                     status: &status,
                 },
             )?;
-            let error = if obligations.iter().any(|record| record["at"].is_string()) {
-                pointer_hint(error, &proposal.origin, &frame_path, &handle)
-            } else {
-                error
+            let error = match located {
+                // Pointers index the structured frame the text parsed to
+                // (the draft's frame.json); the text positions locate them.
+                Some(lines) if !lines.is_empty() => AgentError::new(
+                    error.code(),
+                    format!(
+                        "{}\n  {}\n  pointers refer to the structured frame built from the familiar text ({frame_path}); fix the text and run try --familiar again",
+                        error.detail(),
+                        lines.join("\n  ")
+                    ),
+                ),
+                _ if obligations.iter().any(|record| record["at"].is_string()) => {
+                    pointer_hint(error, &proposal.origin, &frame_path, &handle)
+                }
+                _ => error,
             };
             let summary = format!(
                 "draft {reference}: incomplete, {} obligation(s) ({}); list: sley-agent draft {handle} --obligations{skip_suffix}",
@@ -2434,6 +2597,11 @@ fn run_trial(
         vec![draft::kernel_obligation(&verdict, &positions)]
     };
     draft::anchor(&mut obligations, Some(&frame_value));
+    let located = proposal
+        .familiar
+        .as_ref()
+        .map(|positions| familiar_positions(&mut obligations, positions))
+        .unwrap_or_default();
     // Live tests the candidate replaces count where their new entry comes
     // from, never also as provided.
     let derived = ripple_restated(&compiled.artifacts, &names);
@@ -2541,6 +2709,7 @@ fn run_trial(
         );
     }
     notes.splice(0..0, compiled.notes.iter().cloned());
+    notes.extend(located);
     if !skipped_note.is_empty() {
         notes.push(skipped_note);
     }
