@@ -1,12 +1,17 @@
 {
   "contract": "sley2.declared-limits.v1",
-  "declared_limits": 187,
-  "documented_limits": 8,
+  "declared_limits": 209,
+  "documented_limits": 10,
   "result": "PASS",
   "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
   "undocumented": [],
   "undocumented_limits": 0,
   "unevaluated_initializers": [
+    {
+      "constant": "MAX_BOUND_ARTIFACT_BYTES",
+      "initializer": "16 * 1024 * 1024",
+      "source": "crates/sley-agent/src/residual/binding.rs"
+    },
     {
       "constant": "MAX_COMMIT_WALL_MILLIS",
       "initializer": "NATIVE_WALL_CAP_MILLIS",
@@ -14,6 +19,106 @@
     }
   ],
   "weak_evidence": [
+    {
+      "constant": "MAX_EXPR_DEPTH",
+      "source": "crates/sley-agent/src/afx.rs",
+      "value": 32
+    },
+    {
+      "constant": "MAX_EXPANDED_OPS_PER_FUNCTION",
+      "source": "crates/sley-agent/src/afx.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_GENERATED_BLOCKS_PER_FUNCTION",
+      "source": "crates/sley-agent/src/afx.rs",
+      "value": 1024
+    },
+    {
+      "constant": "MAX_NAME",
+      "source": "crates/sley-agent/src/afx.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_EDIT_TARGETS",
+      "source": "crates/sley-agent/src/residual/edit.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_SOURCE_OBJECTS",
+      "source": "crates/sley-agent/src/residual/edit.rs",
+      "value": 65536
+    },
+    {
+      "constant": "MAX_FRAGMENT_ITEMS",
+      "source": "crates/sley-agent/src/residual/fragments.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_CONSTRUCTION_ITEMS",
+      "source": "crates/sley-agent/src/residual/fragments.rs",
+      "value": 1024
+    },
+    {
+      "constant": "MAX_DESCRIPTIONS",
+      "source": "crates/sley-agent/src/residual/frontier.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_FIELDS",
+      "source": "crates/sley-agent/src/residual/frontier.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_DECISIONS",
+      "source": "crates/sley-agent/src/residual/plan.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_REQUEST_BYTES",
+      "source": "crates/sley-agent/src/residual.rs",
+      "value": 1048576
+    },
+    {
+      "constant": "MAX_JSON_DEPTH",
+      "source": "crates/sley-agent/src/residual.rs",
+      "value": 32
+    },
+    {
+      "constant": "MAX_JSON_VALUES",
+      "source": "crates/sley-agent/src/residual.rs",
+      "value": 100000
+    },
+    {
+      "constant": "MAX_RIPPLE_INTENTS",
+      "source": "crates/sley-agent/src/ripple.rs",
+      "value": 32
+    },
+    {
+      "constant": "MAX_RIPPLE_SITES",
+      "source": "crates/sley-agent/src/ripple.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_GUARD_SIZE",
+      "source": "crates/sley-agent/src/ripple.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_MATCH_STEPS",
+      "source": "crates/sley-agent/src/ripple.rs",
+      "value": 1024
+    },
+    {
+      "constant": "MAX_NEIGHBORS",
+      "source": "crates/sley-agent/src/search.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_MILLIS",
+      "source": "crates/sley-agent/src/search.rs",
+      "value": 10000
+    },
     {
       "constant": "MAX_CFG_BLOCKS",
       "source": "crates/sley-check/src/cfg.rs",
@@ -910,5 +1015,5 @@
       "value": 67108864
     }
   ],
-  "weak_limits": 179
+  "weak_limits": 199
 }

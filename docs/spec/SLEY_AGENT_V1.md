@@ -210,7 +210,8 @@ Capture requires two matching observations. `Binding::recheck` captures
 again and refuses changed or unavailable dependencies with
 `AGENT_RESIDUAL_BINDING_STALE`. Hashes use domain-separated SHA-256 and
 length-delimited, typed canonical encoding; booleans and integers stay
-distinct. Per-artifact reads are capped at 16 MiB. Raw artifact hashes
+distinct. Per-artifact reads are capped at 16 MiB (`MAX_BOUND_ARTIFACT_BYTES`,
+16,777,216 bytes). Raw artifact hashes
 conservatively invalidate formatting-only changes.
 
 A binding is an integrity record, not a lock or authority. The CLI rechecks
@@ -970,7 +971,7 @@ actual index in the layered frame. Composed-map coverage is explicitly
 limited to the residual target; unrelated base-frame entries are counted
 as unmapped rather than assigned invented provenance.
 
-Bounds are eight nested fragment applications, 64 guards/steps/cases or
+Bounds are eight nested fragment applications (`MAX_FRAGMENT_DEPTH` = 8), 64 guards/steps/cases or
 join arguments per application, and 1,024 aggregate construction items,
 followed by existing AF1-X expansion limits. Exhaustion refuses; it never
 truncates the program. These are structural limits, not evidence of the
