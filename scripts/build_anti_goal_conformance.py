@@ -117,6 +117,37 @@ def code_of(path: Path) -> str:
     return rust_code(path.read_text(encoding="utf-8", errors="ignore"))
 
 
+CFG_TEST_MODULE = re.compile(r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{")
+
+
+def without_test_modules(source: str) -> str:
+    """The source with every inline `#[cfg(test)] mod name { ... }` blanked.
+
+    Test modules compile only into test binaries, never into a shipped
+    kernel or agent executable. Braces are matched on the masked code, so
+    braces inside comments and literals do not count; an unbalanced module
+    is left in place (it then still counts, which fails closed).
+    """
+    code = rust_code(source)
+    out = list(source)
+    for match in CFG_TEST_MODULE.finditer(code):
+        depth, end = 0, None
+        for index in range(match.end() - 1, len(code)):
+            if code[index] == "{":
+                depth += 1
+            elif code[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        if end is None:
+            continue
+        for index in range(match.start(), end + 1):
+            if out[index] != "\n":
+                out[index] = " "
+    return "".join(out)
+
+
 def uses_unsafe(code: str) -> bool:
     return bool(UNSAFE_TOKEN.search(code) or UNSAFE_LINT_RELAX.search(code))
 
@@ -387,7 +418,8 @@ def evaluate() -> dict[str, dict]:
         if "tests" in path.relative_to(ROOT).parts:
             continue
         source = path.read_text(encoding="utf-8", errors="ignore")
-        if "std::process::Command" not in source:
+        # Inline test modules are test-binary code, like integration tests.
+        if "std::process::Command" not in without_test_modules(source):
             continue
         relative = path.relative_to(ROOT)
         if relative == PROBE_SOURCE and approved_probe_process_surface(source):
