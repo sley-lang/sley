@@ -305,6 +305,163 @@ fn integer_conversions_are_exact_in_range_and_fail_outside_it() {
     );
 }
 
+/// (function, source type, target type, rows of (argument, expected result)).
+type ConversionCase = (
+    &'static str,
+    &'static str,
+    &'static str,
+    Vec<(Value, Value)>,
+);
+
+#[test]
+#[allow(clippy::too_many_lines)] // one row per boundary
+fn conversion_boundaries_hold_for_signed_and_unsigned_targets() {
+    let temp = workspace("to-bounds");
+    let overflow = json!({"Err": {"ArithmeticError": "Overflow"}});
+    // (name, from, to, [(argument, expected)]) with `["ok", ["to?", to, x]]`;
+    // results wider than i64 are converted back to check exactness.
+    let cases: Vec<ConversionCase> = vec![
+        (
+            "u2i",
+            "u64",
+            "i64",
+            vec![
+                (json!(0), json!({"Ok": 0})),
+                (json!(i64::MAX as u64), json!({"Ok": i64::MAX})),
+                (json!(1_u64 << 63), overflow.clone()),
+                (json!(u64::MAX), overflow.clone()),
+            ],
+        ),
+        (
+            "i2u",
+            "i64",
+            "u64",
+            vec![
+                (json!(0), json!({"Ok": 0})),
+                (json!(-1), overflow.clone()),
+                (json!(i64::MIN), overflow.clone()),
+                (json!(i64::MAX), json!({"Ok": i64::MAX})),
+            ],
+        ),
+        (
+            "i2i8",
+            "i64",
+            "i8",
+            vec![
+                (json!(-128), json!({"Ok": -128})),
+                (json!(-129), overflow.clone()),
+                (json!(127), json!({"Ok": 127})),
+                (json!(128), overflow.clone()),
+                (json!(i64::MIN), overflow.clone()),
+            ],
+        ),
+        (
+            "i2i32",
+            "i64",
+            "i32",
+            vec![
+                (json!(i64::MIN), overflow.clone()),
+                (json!(i32::MAX), json!({"Ok": i32::MAX})),
+                (json!(i64::from(i32::MAX) + 1), overflow.clone()),
+            ],
+        ),
+        (
+            "u2u8",
+            "u64",
+            "u8",
+            vec![
+                (json!(255), json!({"Ok": 255})),
+                (json!(256), overflow.clone()),
+            ],
+        ),
+        (
+            "u2u32",
+            "u64",
+            "u32",
+            vec![
+                (json!(u32::MAX), json!({"Ok": u32::MAX})),
+                (json!(u64::MAX), overflow.clone()),
+            ],
+        ),
+        (
+            "i8u8",
+            "i8",
+            "u8",
+            vec![
+                (json!(-1), overflow.clone()),
+                (json!(-128), overflow.clone()),
+                (json!(127), json!({"Ok": 127})),
+            ],
+        ),
+        (
+            "u8i8",
+            "u8",
+            "i8",
+            vec![
+                (json!(127), json!({"Ok": 127})),
+                (json!(128), overflow.clone()),
+                (json!(255), overflow.clone()),
+            ],
+        ),
+    ];
+    for (name, from, to, rows) in cases {
+        let frame = function(
+            name,
+            json!([["x", from]]),
+            &format!("Result<{to},ArithmeticError>"),
+            json!([["ok", ["to?", to, "x"]]]),
+        );
+        let handle = valid(&temp.path, &frame);
+        for (argument, expected) in rows {
+            assert_eq!(
+                call(&temp.path, &handle, name, std::slice::from_ref(&argument)),
+                expected,
+                "{name}({argument})"
+            );
+        }
+    }
+    // Widening is exact at the minimum signed values: through i128 and back,
+    // and i8 -> i64 -> i8.
+    let round = function(
+        "round",
+        json!([["x", "i64"], ["y", "i8"]]),
+        "Result<i64,ArithmeticError>",
+        json!([
+            ["let", "wide", ["to?", "i128", "x"]],
+            ["let", "back", ["to?", "i64", "wide"]],
+            ["let", "small", ["to?", "i8", ["to?", "i64", "y"]]],
+            ["ok", ["add?", "back", ["to?", "i64", "small"]]]
+        ]),
+    );
+    let handle = valid(&temp.path, &round);
+    assert_eq!(
+        call(&temp.path, &handle, "round", &[json!(i64::MIN), json!(0)]),
+        json!({"Ok": i64::MIN})
+    );
+    assert_eq!(
+        call(&temp.path, &handle, "round", &[json!(0), json!(-128)]),
+        json!({"Ok": -128})
+    );
+    assert_eq!(
+        call(&temp.path, &handle, "round", &[json!(i64::MAX), json!(0)]),
+        json!({"Ok": i64::MAX})
+    );
+    // Without `?`, a conversion outside the target traps.
+    let trapping = function(
+        "t",
+        json!([["x", "i64"]]),
+        "u8",
+        json!([["return", ["to", "u8", "x"]]]),
+    );
+    let handle = valid(&temp.path, &trapping);
+    assert_eq!(call(&temp.path, &handle, "t", &[json!(200)]), json!(200));
+    assert!(
+        call(&temp.path, &handle, "t", &[json!(-5)])
+            .to_string()
+            .contains("trap")
+    );
+}
+
 #[test]
 fn unsupported_constructs_are_refused_at_their_authored_location() {
     let temp = workspace("refusals");

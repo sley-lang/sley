@@ -1118,3 +1118,215 @@ impl Parser {
         Ok(Node::op(pos, "call", items))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body(text: &str) -> Value {
+        parse(text).unwrap().frame["fns"][0]["body"].clone()
+    }
+
+    fn refused(text: &str) -> FamiliarError {
+        parse(text).expect_err("refused")
+    }
+
+    #[test]
+    fn statements_and_precedence_match_the_structured_tree() {
+        let got = body(
+            "fn f(xs: Vec<i64>, k: i64) -> i64 {\n  var s: i64 = 0\n  for x in xs { s = s + x * k }\n  return s if s > 0 else -s\n}",
+        );
+        assert_eq!(
+            got,
+            json!([
+                ["var", "s", "i64", 0],
+                [
+                    "for",
+                    "x",
+                    "xs",
+                    [["set", "s", ["add", "s", ["mul", "x", "k"]]]]
+                ],
+                ["return", ["if", ["gt", "s", 0], "s", ["neg", "s"]]]
+            ])
+        );
+    }
+
+    #[test]
+    fn try_marks_failing_operations_and_calls() {
+        let got = body(
+            "fn f(a: i64, xs: Vec<i64>) -> Result<i64,ArithmeticError> { return ok(try(a * g(xs[0]) + to(i64, len(xs)))) }",
+        );
+        assert_eq!(
+            got,
+            json!([[
+                "ok",
+                [
+                    "add?",
+                    ["mul?", "a", ["tcall?", "g", ["get?", "xs", 0]]],
+                    ["to?", "i64", ["len", "xs"]]
+                ]
+            ]])
+        );
+        let case = body("fn f(a: i64) -> Result<i64,E> { return ok(try(a + 1, Big)) }");
+        assert_eq!(case, json!([["ok", ["add?Big", "a", 1]]]));
+    }
+
+    #[test]
+    fn literals_cover_the_64_bit_edges() {
+        let got = body(
+            "fn f() -> i64 { let a = -9223372036854775808\n let b = 18446744073709551615u64\n let c = -5i32\n return 0 }",
+        );
+        assert_eq!(got[0][2], json!(i64::MIN));
+        assert_eq!(got[1][2], json!({"type": "u64", "value": u64::MAX}));
+        assert_eq!(got[2][2], json!({"type": "i32", "value": -5}));
+        assert!(
+            refused("fn f() -> i64 { return -9223372036854775809 }")
+                .message
+                .contains("below")
+        );
+        assert!(
+            refused("fn f() -> i64 { return 18446744073709551616 }")
+                .message
+                .contains("beyond")
+        );
+        assert!(
+            refused("fn f() -> u64 { return -1u64 }")
+                .message
+                .contains("unsigned")
+        );
+    }
+
+    #[test]
+    fn a_conditional_value_continues_only_on_its_line() {
+        let got =
+            body("fn f(c: bool) -> i64 {\n var x: i64 = 1\n x = 2\n if c { x = 3 }\n return x\n}");
+        assert_eq!(got[2][0], json!("if"));
+        assert_eq!(got[1], json!(["set", "x", 2]));
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)] // one row per refused construct
+    fn foreign_and_ambiguous_syntax_is_refused_with_its_position() {
+        for (text, needle, line, column) in [
+            (
+                "fn f(a: i64) -> i64 {\n  return a // 2\n}",
+                "`//` is not an operator",
+                2,
+                12,
+            ),
+            (
+                "fn f(a: i64) -> i64 {\n  a += 1\n}",
+                "compound assignment",
+                2,
+                5,
+            ),
+            (
+                "fn f(a: i64) -> i64 { return a.abs() }",
+                "methods are not supported",
+                1,
+                32,
+            ),
+            (
+                "fn f(a: i64) -> i64 {\n  for i in 0..a { }\n  return a\n}",
+                "ranges",
+                2,
+                13,
+            ),
+            (
+                "fn f(a: i64) -> i64 { if a > 0: return a }",
+                "blocks are written",
+                1,
+                31,
+            ),
+            (
+                "fn f(a: i64) -> i64 { return a < 1 < 2 }",
+                "do not chain",
+                1,
+                36,
+            ),
+            (
+                "fn f(a: i64) -> i64 { let mut x = a\n return x }",
+                "var x: T = e",
+                1,
+                27,
+            ),
+            (
+                "fn f(a: i64) -> i64 { while true { break } return a }",
+                "`break`",
+                1,
+                36,
+            ),
+            (
+                "fn f(a: i64) -> i64 { return 1.5 }",
+                "floating-point",
+                1,
+                30,
+            ),
+            ("fn f(a: i64) -> i64 { return a && a }", "write and", 1, 32),
+            ("fn f(a: bool) -> bool { return !a }", "write not", 1, 32),
+            (
+                "fn f(a: i64) -> Result<i64,E> { return ok(g(a)?) }",
+                "try(e)",
+                1,
+                47,
+            ),
+            (
+                "fn f(a: i64) -> i64 { return True }",
+                "true or false",
+                1,
+                30,
+            ),
+            (
+                "fn f(a: i64) -> i64 { let x: i64 = a\n return x }",
+                "let takes no type",
+                1,
+                28,
+            ),
+            ("def f(a):\n  return a", "fn name", 1, 1),
+            ("fn f(a: i64) -> i64 { elif a { } }", "else if", 1, 23),
+            ("fn len(a: i64) -> i64 { return a }", "built-in", 1, 1),
+            (
+                "fn f(a: i64) -> i64 { f(a) }",
+                "expected a statement",
+                1,
+                23,
+            ),
+            ("fn f(a: i64) -> i64 { return }", "needs a value", 1, 23),
+            (
+                "fn f(a: i64) -> i64 { return 0x10 }",
+                "unsupported number",
+                1,
+                30,
+            ),
+            (
+                "fn f(a: i64) -> i64 { let x = ok(a)\n return x }",
+                "return ok(e)",
+                1,
+                31,
+            ),
+            ("fn f(a: i64) -> i64 {\n  return a\n", "never closed", 1, 21),
+        ] {
+            let error = refused(text);
+            assert!(error.message.contains(needle), "{text}: {}", error.message);
+            assert_eq!(
+                (error.at.line, error.at.column),
+                (line, column),
+                "{text}: {}",
+                error.message
+            );
+        }
+    }
+
+    #[test]
+    fn positions_map_body_pointers_to_lines() {
+        let parsed = parse("fn f(xs: Vec<i64>) -> i64 {\n  var s: i64 = 0\n  for x in xs {\n    s = s + x\n  }\n  return s\n}").unwrap();
+        let at = |pointer: &str| {
+            let pos = parsed.positions.locate(pointer).unwrap();
+            (pos.line, pos.column)
+        };
+        assert_eq!(at("/fns/0/body/1/3/0"), (4, 5));
+        assert_eq!(at("/fns/0/body/1/3/0/2"), (4, 11));
+        assert_eq!(at("/fns/0/body/2"), (6, 3));
+        assert_eq!(at("/fns/0/body/1/3/0/2/9/9"), (4, 11));
+    }
+}
