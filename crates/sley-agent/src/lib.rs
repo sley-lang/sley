@@ -42,6 +42,7 @@ pub mod locate;
 pub mod names;
 pub mod opcodes;
 pub mod raw;
+pub mod residual;
 pub mod ripple;
 pub mod search;
 pub mod tables;

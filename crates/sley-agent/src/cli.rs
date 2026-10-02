@@ -4,6 +4,8 @@
 //! `--json`. Exit status: 0 success, 1 a negative outcome (refused
 //! candidate, failing test), 2 a workbench refusal (`AGENT_*`).
 
+mod residual;
+
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -35,11 +37,13 @@ use crate::xview;
 /// Every command `dispatch` accepts (help examples are checked against it).
 pub const COMMANDS: &[&str] = &[
     "view", "find", "try", "fill", "import", "draft", "submit", "status", "call", "test",
-    "explain", "search", "init", "commit", "export", "help", "version",
+    "explain", "search", "residual", "init", "commit", "export", "help", "version",
 ];
 
 /// The commands that use a workspace, and so append an events-ledger line
 /// (`help`, `version` and `init` do not).
+/// Residual authoring registers its workspace after strict request parsing:
+/// a malformed residual request must not create a ledger or other state.
 const LEDGERED: &[&str] = &[
     "view", "find", "try", "fill", "import", "draft", "submit", "status", "call", "test",
     "explain", "search", "commit", "export",
@@ -227,6 +231,7 @@ fn dispatch(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32
         "test" => test_command(global, rest, out),
         "explain" => explain_command(global, rest, out),
         "search" => search_command(global, rest, out),
+        "residual" => residual::command(global, rest, out),
         "init" => init_command(global, rest, out),
         "commit" => commit_command(global, rest, out),
         "export" => export_command(global, rest, out),
@@ -725,6 +730,7 @@ enum Origin {
 
 /// One draft revision to record and try.
 struct Proposal {
+    staged: Option<Staged>,
     made_by: &'static str,
     input: Vec<u8>,
     frame: Input,
@@ -737,6 +743,8 @@ struct Proposal {
     sources: Vec<Value>,
     tables: Value,
     import: Option<Value>,
+    residual: Option<residual::Prepared>,
+    artifacts: Vec<(String, Value)>,
 }
 
 impl Proposal {
@@ -748,6 +756,7 @@ impl Proposal {
         origin: Origin,
     ) -> Self {
         Self {
+            staged: None,
             made_by,
             input,
             frame,
@@ -760,6 +769,8 @@ impl Proposal {
             sources: Vec::new(),
             tables: json!({}),
             import: None,
+            residual: None,
+            artifacts: Vec::new(),
         }
     }
 
@@ -1260,17 +1271,20 @@ fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
 
 /// Everything before a candidate handle: compile the frame (or raw
 /// operation list), assemble the record over the head, validate it.
+type Staged = (
+    frame::Compiled,
+    sley_mutate::ImportedCandidate,
+    sley_policy::CandidateValidationOutput,
+);
+
 fn stage(
     head: &Head,
     authority: &Authority,
     names: &Names,
     frame_value: &Value,
     nonce: sley_id::CandidateNonce,
-) -> Result<(
-    frame::Compiled,
-    sley_mutate::ImportedCandidate,
-    sley_policy::CandidateValidationOutput,
-)> {
+    before_candidate: impl FnOnce(&frame::Compiled) -> Result<()>,
+) -> Result<Staged> {
     let mut compiled = if frame_value.is_array() {
         let (ops, new_names) = crate::raw::compile(head.program(), names, frame_value, nonce)?;
         let count = |class: sley_mutate::MutationClass| {
@@ -1300,6 +1314,7 @@ fn stage(
             "the frame changes nothing: everything it states is already live as stated",
         ));
     }
+    before_candidate(&compiled)?;
     let ops = std::mem::take(&mut compiled.ops);
     let imported = candidate::assemble(head, authority, nonce, ops)?;
     let output = candidate::validate(head, authority, &imported.stored_bytes)?;
@@ -1756,6 +1771,9 @@ struct Change {
     mark: char,
     /// An exported function that existed before the candidate.
     exported: bool,
+    /// A created function's visibility, or a changed function's new one.
+    /// Absent when `exported` already describes an unchanged visibility.
+    visibility: Option<sley_ssmc::Visibility>,
 }
 
 /// The functions, types, constants and `TestCases` a candidate creates,
@@ -1816,11 +1834,21 @@ fn changes(
                     Some(EntityBodyValue::Function(function))
                         if function.visibility == sley_ssmc::Visibility::Exported
                 );
+            let function_visibility = |program: &Program| match program.body(&id) {
+                Some(EntityBodyValue::Function(function)) => Some(function.visibility),
+                _ => None,
+            };
+            let visibility = match mark {
+                '-' => None,
+                _ => function_visibility(after)
+                    .filter(|now| mark == '+' || function_visibility(head.program()) != Some(*now)),
+            };
             Change {
                 kind,
                 name,
                 mark,
                 exported,
+                visibility,
             }
         })
         .collect();
@@ -1833,7 +1861,7 @@ fn changes_json(changes: &[Change]) -> Value {
         changes
             .iter()
             .map(|change| {
-                json!({
+                let mut row = json!({
                     "kind": crate::names::kind_prefix(change.kind),
                     "name": change.name,
                     "change": match change.mark {
@@ -1841,8 +1869,12 @@ fn changes_json(changes: &[Change]) -> Value {
                         '-' => "deleted",
                         _ => "replaced",
                     },
-                    "exported": change.exported,
-                })
+                    "existing_export": change.exported,
+                });
+                if let Some(visibility) = change.visibility {
+                    row["visibility"] = json!(crate::view::visibility(visibility));
+                }
+                row
             })
             .collect(),
     )
@@ -1968,10 +2000,13 @@ fn run_trial(
     global: &Global,
     workspace: &Workspace,
     head: &Head,
-    proposal: Proposal,
+    mut proposal: Proposal,
     options: &TrialOptions,
     out: &mut dyn Write,
 ) -> Result<i32> {
+    if let Some(residual) = &proposal.residual {
+        residual.recheck(workspace, head, &proposal.input)?;
+    }
     // The case file is checked before anything is recorded or stored.
     let public_cases = options
         .public
@@ -2042,6 +2077,9 @@ fn run_trial(
     if let Some(import) = &proposal.import {
         status["import"] = import.clone();
     }
+    if let Some(residual) = &proposal.residual {
+        status["residual"] = residual.summary();
+    }
     let abandoned: Vec<u64> = claim
         .passed()
         .iter()
@@ -2084,7 +2122,7 @@ fn run_trial(
                 &Revision {
                     input: &proposal.input,
                     frame: None,
-                    artifacts: &[],
+                    artifacts: &proposal.artifacts,
                     status: &status,
                 },
             )?;
@@ -2120,7 +2158,7 @@ fn run_trial(
                 &Revision {
                     input: &proposal.input,
                     frame: Some(&follow_up),
-                    artifacts: &[],
+                    artifacts: &proposal.artifacts,
                     status: &status,
                 },
             )?;
@@ -2197,10 +2235,38 @@ fn run_trial(
             "table `{table}` made `{test}`, but another change has replaced it: it is no longer the table's and stays as it is"
         ));
     }
-    let staged = match (
-        stage(head, &authority, &names, &compile_frame, nonce),
-        tables.problems.is_empty(),
-    ) {
+    let staged = if let Some(staged) = proposal.staged.take() {
+        proposal
+            .residual
+            .as_ref()
+            .expect("bound staged residual")
+            .recheck(workspace, head, &proposal.input)?;
+        Ok(staged)
+    } else {
+        stage(
+            head,
+            &authority,
+            &names,
+            &compile_frame,
+            nonce,
+            |compiled| {
+                proposal.residual.as_ref().map_or(Ok(()), |residual| {
+                    residual.recheck(workspace, head, &proposal.input)?;
+                    residual.check(head.program(), compiled)
+                })
+            },
+        )
+    };
+    let staged = match (staged, tables.problems.is_empty()) {
+        (Err(error), _)
+            if matches!(
+                error.code(),
+                AgentErrorCode::ResidualBindingStale | AgentErrorCode::ResidualPreserve
+            ) =>
+        {
+            // Dropping the claim removes the unpublished partial revision.
+            return Err(error);
+        }
         (Ok(staged), true) => Ok(staged),
         (Ok(_), false) => Err(crate::afx::refusal(&tables.problems)),
         (Err(error), true) => Err(error),
@@ -2209,7 +2275,7 @@ fn run_trial(
             &error,
         )),
     };
-    let (compiled, imported, output) = match staged {
+    let (mut compiled, imported, output) = match staged {
         Ok(staged) => staged,
         Err(error) => {
             let mut obligations = draft::obligations_of(&error);
@@ -2229,7 +2295,7 @@ fn run_trial(
                 &Revision {
                     input: &proposal.input,
                     frame: Some(&frame_value),
-                    artifacts: &[],
+                    artifacts: &proposal.artifacts,
                     status: &status,
                 },
             )?;
@@ -2255,12 +2321,29 @@ fn run_trial(
             );
         }
     };
+    if let Some(residual) = &proposal.residual {
+        residual.note_outcome(json!({
+            "construction":"complete", "kernel":if output.is_valid() {"valid"} else {"refused"},
+            "public_checks":"not_run", "native_admission":"not_attempted",
+        }));
+    }
+    compiled.artifacts.extend(proposal.artifacts);
+    if proposal.residual.is_some() {
+        residual::attach_sources(&mut compiled.artifacts, &frame_value)?;
+        global.note("valid", output.is_valid());
+    }
     let counts = (compiled.created, compiled.replaced, compiled.deleted);
-    remember_names(workspace, &compiled.names)?;
-    map.extend(&compiled.names);
     let program = candidate::proposed_program(head, &output)
         .or_else(|| candidate::applied_program(head, &imported))
         .unwrap_or_else(|| head.program().clone());
+    if let Some(residual) = &proposal.residual {
+        residual.verify(head.program(), &program)?;
+        if status["residual"].get("edit").is_some() {
+            status["residual"]["edit"]["verification"] = json!("passed");
+        }
+    }
+    remember_names(workspace, &compiled.names)?;
+    map.extend(&compiled.names);
     let after_names = Names::build(&program, &map);
     let mut verdict = Verdict::of(&output, &program, &after_names);
     let source = Source::of_try(&frame_value, &compiled.artifacts);
@@ -2417,6 +2500,23 @@ fn run_trial(
             status["results"]["public_refusal"] = json!(error.code().symbol());
         }
     }
+    if let Some(residual) = &proposal.residual {
+        if let Err(error) = &ran {
+            status["results"] = json!({"execution_refusal":error.code().symbol()});
+        }
+        status["residual"]["outcome"] = residual::outcomes(&status, options.no_test);
+        residual.note_outcome(status["residual"]["outcome"].clone());
+    }
+    if let Some(graph) = status["residual"].get_mut("draft_graph") {
+        graph["publication"] = json!({"draft":reference});
+        if let Some((_, artifact)) = compiled
+            .artifacts
+            .iter_mut()
+            .find(|(file, _)| file == "residual-draft-graph.json")
+        {
+            artifact["publication"] = graph["publication"].clone();
+        }
+    }
     drafts.record(
         &mut claim,
         &Revision {
@@ -2443,6 +2543,20 @@ fn run_trial(
     notes.splice(0..0, compiled.notes.iter().cloned());
     if !skipped_note.is_empty() {
         notes.push(skipped_note);
+    }
+    if let Err(error) = &ran
+        && proposal.residual.is_some()
+    {
+        write_json(
+            out,
+            &json!({
+                "draft":reference, "handle":candidate_handle,
+                "state":state.as_str(), "verdict":verdict.to_json(),
+                "error":error.code().symbol(), "detail":error.detail(),
+                "obligations":obligations,
+            }),
+        )?;
+        return Ok(EXIT_REFUSED);
     }
     let (tests, public) = ran?;
     let (public, public_refusal) = match public {
@@ -2477,6 +2591,36 @@ fn run_trial(
     let raw = options
         .raw
         .then(|| crate::hex::encode(&imported.stored_bytes));
+    let layerable = frame_value.is_object();
+    // A follow-up keeps the dialect of the frame it is layered on.
+    let envelope = if frame_value.get("afx") == Some(&Value::from(1)) {
+        "\"af1\": 1, \"afx\": 1"
+    } else {
+        "\"af1\": 1"
+    };
+    // The next step of a Valid candidate, the same in text and JSON: a JSON
+    // reader must not see `Valid` without learning that a test failed.
+    let next = if !verdict.valid || public_refusal.is_some() {
+        None
+    } else if failed == 0 && tests.is_empty() && !options.no_test {
+        Some(if layerable {
+            format!(
+                "add tests without restating the frame: sley-agent try --on {handle} '{{{envelope}, \"tests\": [...]}}' (submit refuses an untested change; --untested overrides)"
+            )
+        } else {
+            format!(
+                "add AF1 \"tests\" for what {candidate_handle} changes and try again (submit refuses an untested change; --untested overrides)"
+            )
+        })
+    } else if failed == 0 {
+        Some(format!("sley-agent submit {handle}"))
+    } else if layerable {
+        Some(format!(
+            "fix only what failed on top of {handle}: sley-agent try --on {handle} '{{{envelope}, \"edit\": [...]}}' (or \"patch\", \"tests\")"
+        ))
+    } else {
+        None
+    };
     if global.json {
         let mut value = json!({
             "handle": candidate_handle,
@@ -2494,6 +2638,12 @@ fn run_trial(
         });
         if let Some(raw) = &raw {
             value["stored_hex"] = json!(raw);
+        }
+        if failed > 0 {
+            value["tests_failed"] = json!(failed);
+        }
+        if let Some(next) = &next {
+            value["next"] = json!(next);
         }
         if let Some(error) = &public_refusal {
             value["error"] = json!(error.code().symbol());
@@ -2547,32 +2697,8 @@ fn run_trial(
         write_text(out, &text)?;
         return Ok(exit);
     }
-    let layerable = frame_value.is_object();
-    // A follow-up keeps the dialect of the frame it is layered on.
-    let envelope = if frame_value.get("afx") == Some(&Value::from(1)) {
-        "\"af1\": 1, \"afx\": 1"
-    } else {
-        "\"af1\": 1"
-    };
-    if verdict.valid && failed == 0 && tests.is_empty() && !options.no_test {
-        if layerable {
-            let _ = writeln!(
-                text,
-                "next: add tests without restating the frame: sley-agent try --on {handle} '{{{envelope}, \"tests\": [...]}}' (submit refuses an untested change; --untested overrides)"
-            );
-        } else {
-            let _ = writeln!(
-                text,
-                "next: add AF1 \"tests\" for what {candidate_handle} changes and try again (submit refuses an untested change; --untested overrides)"
-            );
-        }
-    } else if verdict.valid && failed == 0 {
-        let _ = writeln!(text, "next: sley-agent submit {handle}");
-    } else if verdict.valid && layerable {
-        let _ = writeln!(
-            text,
-            "next: fix only what failed on top of {handle}: sley-agent try --on {handle} '{{{envelope}, \"edit\": [...]}}' (or \"patch\", \"tests\")"
-        );
+    if let Some(next) = &next {
+        let _ = writeln!(text, "next: {next}");
     } else if !verdict.valid {
         let _ = writeln!(text, "more: sley-agent explain {candidate_handle}");
         // A function a ripple intent derived is repaired at the intent.

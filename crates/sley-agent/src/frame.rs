@@ -113,6 +113,23 @@ pub fn compile(
     nonce: CandidateNonce,
     random: &mut dyn FnMut() -> Result<[u8; 32]>,
 ) -> Result<Compiled> {
+    compile_inner(program, names, ceilings, frame_value, nonce, random, None)
+}
+
+pub(crate) mod constants;
+pub(crate) mod replay;
+pub(crate) mod signatures;
+
+#[allow(clippy::too_many_arguments)]
+fn compile_inner(
+    program: &Program,
+    names: &Names,
+    ceilings: &sley_policy::PolicyResourceCeilings,
+    frame_value: &Value,
+    nonce: CandidateNonce,
+    random: &mut dyn FnMut() -> Result<[u8; 32]>,
+    identities: Option<replay::Identities<'_>>,
+) -> Result<Compiled> {
     let object = frame_value
         .as_object()
         .ok_or_else(|| frame("", "an AF1 frame is a JSON object"))?;
@@ -121,6 +138,9 @@ pub fn compile(
         _ => return Err(frame("/af1", "declare \"af1\": 1")),
     }
     if let Some(afx) = object.get("afx") {
+        if identities.is_some() {
+            return Err(frame("/afx", "identity replay requires expanded AF1"));
+        }
         if afx.as_u64() != Some(1) || !afx.is_number() {
             return Err(frame(
                 "/afx",
@@ -174,6 +194,7 @@ pub fn compile(
         functions: Vec::new(),
         tests: Vec::new(),
         ceilings: *ceilings,
+        identities,
     };
     compiler.run(object, random)?;
     compiler.finish()
@@ -271,6 +292,7 @@ struct Compiler<'a> {
     functions: Vec<EntityId>,
     tests: Vec<EntityId>,
     ceilings: sley_policy::PolicyResourceCeilings,
+    identities: Option<replay::Identities<'a>>,
 }
 
 fn array<'v>(value: &'v Value, pointer: &str) -> Result<&'v Vec<Value>> {
@@ -375,13 +397,25 @@ impl TypeDefs for Compiler<'_> {
 }
 
 impl Compiler<'_> {
-    fn allocate(&mut self, kind: u16, leaf: &str) -> EntityId {
-        let id = EntityId::derive(
-            self.program.workspace(),
-            self.nonce,
-            u32::from(kind),
-            self.ordinal,
-        );
+    fn allocate(&mut self, kind: u16, leaf: &str, scope: Scope) -> Result<EntityId> {
+        let id = if let Some(identities) = &self.identities {
+            let id = identities.entity(kind, leaf, scope)?;
+            if self.program.contains(&id) {
+                return Err(frame("", "replay creation aliases an accepted identity"));
+            }
+            id
+        } else {
+            EntityId::derive(
+                self.program.workspace(),
+                self.nonce,
+                u32::from(kind),
+                self.ordinal,
+            )
+        };
+        Ok(self.record_allocation(id, kind, leaf))
+    }
+
+    fn record_allocation(&mut self, id: EntityId, kind: u16, leaf: &str) -> EntityId {
         self.ordinal += 1;
         self.creates.push((id, kind));
         self.new_names.insert(*id.as_bytes(), leaf);
@@ -428,7 +462,7 @@ impl Compiler<'_> {
                     format!("`{name}` already names a different kind of entity"),
                 ));
             }
-            let id = self.allocate(kind, name);
+            let id = self.allocate(kind, name, Scope::Top)?;
             self.created_top.push((id, kind));
             id
         };
@@ -597,7 +631,11 @@ impl Compiler<'_> {
                 let member = match self.names.resolve_member_leaf(&id, leaf) {
                     Some(member) if !self.is_new(&id) => member,
                     _ => {
-                        let member = MemberId::from_bytes(random()?);
+                        let member = if let Some(identities) = &self.identities {
+                            identities.member(id, leaf)?
+                        } else {
+                            MemberId::from_bytes(random()?)
+                        };
                         self.new_names.insert(*member.as_bytes(), leaf);
                         member
                     }
@@ -712,11 +750,8 @@ impl Compiler<'_> {
             let name = name_of(decl, &["fn", "name"], pointer)?;
             let id = self.top[name].id;
             let params = self.read_params(decl.get("params"), &format!("{pointer}/params"))?;
-            let result = self.read_type(
-                decl.get("returns")
-                    .ok_or_else(|| frame(pointer, "missing \"returns\""))?,
-                &format!("{pointer}/returns"),
-            )?;
+            let result =
+                signatures::read_result(decl, pointer, &mut |value, at| self.read_type(value, at))?;
             self.signatures.insert(
                 id,
                 (
@@ -862,26 +897,10 @@ impl Compiler<'_> {
     }
 
     fn read_params(&self, value: Option<&Value>, pointer: &str) -> Result<Vec<(String, TypeExpr)>> {
-        let Some(value) = value else {
-            return Ok(Vec::new());
-        };
-        let mut out: Vec<(String, TypeExpr)> = Vec::new();
-        for (index, param) in array(value, pointer)?.iter().enumerate() {
-            let param_pointer = format!("{pointer}/{index}");
-            let pair = param
-                .as_array()
-                .filter(|pair| pair.len() == 2)
-                .ok_or_else(|| frame(&param_pointer, "a parameter is [\"name\", type]"))?;
-            let name = string(&pair[0], &param_pointer)?;
-            if !is_identifier(name) || out.iter().any(|(existing, _)| existing == name) {
-                return Err(frame(
-                    &param_pointer,
-                    format!("`{name}` is not a fresh parameter name ({NAME_GRAMMAR}, distinct)"),
-                ));
-            }
-            out.push((name.to_owned(), self.read_type(&pair[1], &param_pointer)?));
-        }
-        Ok(out)
+        signatures::read_params(value, pointer, &mut || Ok(()), &mut |value, at| {
+            self.read_type(value, at)
+        })
+        .map_err(signatures::ParameterError::into_error)
     }
 
     /// Deletes a top-level entity with everything it owns, `TestCases` that
@@ -1026,12 +1045,14 @@ impl Compiler<'_> {
             Some(params) => params
                 .into_iter()
                 .map(|(leaf, ty)| {
-                    let param =
-                        child(self, &old_params, &leaf).unwrap_or_else(|| self.allocate(6, &leaf));
+                    let param = match child(self, &old_params, &leaf) {
+                        Some(id) => id,
+                        None => self.allocate(6, &leaf, Scope::Function(id))?,
+                    };
                     kept.insert(param);
-                    (leaf, param, ty)
+                    Ok((leaf, param, ty))
                 })
-                .collect(),
+                .collect::<Result<_>>()?,
             None => old_params
                 .iter()
                 .map(|param| {
@@ -1112,8 +1133,10 @@ impl Compiler<'_> {
                     if blocks.iter().any(|b| b.leaf == leaf) {
                         return Err(frame(&pointer, format!("block `{leaf}` is declared twice")));
                     }
-                    let block =
-                        child(self, &old_blocks, &leaf).unwrap_or_else(|| self.allocate(7, &leaf));
+                    let block = match child(self, &old_blocks, &leaf) {
+                        Some(id) => id,
+                        None => self.allocate(7, &leaf, Scope::Function(id))?,
+                    };
                     kept.insert(block);
                     let (old_block_params, old_ops) = match self.program.body(&block) {
                         Some(EntityBodyValue::Block(body)) if !self.is_new(&block) => {
@@ -1124,8 +1147,10 @@ impl Compiler<'_> {
                     let mut block_params = Vec::new();
                     for (index, (param_leaf, ty)) in params.iter().enumerate() {
                         let ty = self.read_type(ty, &format!("{pointer}/params/{index}"))?;
-                        let param = child(self, &old_block_params, param_leaf)
-                            .unwrap_or_else(|| self.allocate(6, param_leaf));
+                        let param = match child(self, &old_block_params, param_leaf) {
+                            Some(id) => id,
+                            None => self.allocate(6, param_leaf, Scope::Block(block))?,
+                        };
                         kept.insert(param);
                         block_params.push((param_leaf.clone(), param, ty));
                     }
@@ -1141,8 +1166,10 @@ impl Compiler<'_> {
                                 format!("value `{op_leaf}` is defined twice in block `{leaf}`"),
                             ));
                         }
-                        let operation = child(self, &old_ops, &op_leaf)
-                            .unwrap_or_else(|| self.allocate(8, &op_leaf));
+                        let operation = match child(self, &old_ops, &op_leaf) {
+                            Some(id) => id,
+                            None => self.allocate(8, &op_leaf, Scope::Block(block))?,
+                        };
                         kept.insert(operation);
                         planned_ops.push(PlannedOp1 {
                             leaf: op_leaf,
@@ -1456,10 +1483,10 @@ impl Compiler<'_> {
                 .cloned()
         };
         let mut slot = slot.ok_or_else(|| frame(pointer, unresolved(text, base, block, scope)))?;
-        if index != 0 {
-            if let ValueRef::OperationResult(result) = &mut slot.reference {
-                result.result_index = index;
-            }
+        if index != 0
+            && let ValueRef::OperationResult(result) = &mut slot.reference
+        {
+            result.result_index = index;
             slot.ty = None;
         }
         Ok(slot)
@@ -1523,7 +1550,7 @@ impl Compiler<'_> {
             if let ValueRef::OperationResult(result) = slot.reference
                 && result.result_index == 0
             {
-                hints.entry(result.operation).or_insert_with(|| ty.clone());
+                constants::hint(&mut hints, result.operation, ty);
             }
         };
         for (index, block) in blocks.iter().enumerate() {
@@ -1941,18 +1968,10 @@ impl Compiler<'_> {
                 .ok_or_else(|| frame(pointer, format!("`{name}` is not a constant")))?;
             return Ok((id, value));
         }
-        let (ty, data) = match arg {
-            Value::Object(object) if object.contains_key("value") => (
-                self.read_type(object.get("type").unwrap_or(&Value::from("i64")), pointer)?,
-                &object["value"],
-            ),
-            Value::Bool(_) => (TypeExpr::Bool, arg),
-            _ => (
-                hint.filter(|ty| matches!(ty, TypeExpr::SInt(_) | TypeExpr::UInt(_)))
-                    .cloned()
-                    .unwrap_or(TypeExpr::SInt(IntegerWidth::from_bits(64))),
-                arg,
-            ),
+        let ty = constants::immediate_type(arg, hint, self, pointer)?;
+        let data = match arg {
+            Value::Object(object) if object.contains_key("value") => &object["value"],
+            _ => arg,
         };
         let value = values::read(data, &ty, self, pointer)
             .map_err(|error| frame(pointer, error.detail()))?;
@@ -1981,7 +2000,12 @@ impl Compiler<'_> {
             _ => "k_const".to_owned(),
         };
         let leaf = self.fresh_name(&base, false);
-        let id = self.allocate(9, &leaf);
+        let id = if let Some(identities) = &self.identities {
+            let id = identities.constant(&value, self.program)?;
+            self.record_allocation(id, 9, &leaf)
+        } else {
+            self.allocate(9, &leaf, Scope::Top)?
+        };
         self.created_top.push((id, 9));
         self.top.insert(leaf, TopEntry { id, kind: 9 });
         self.constants.insert(id, value.clone());

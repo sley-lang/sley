@@ -1839,8 +1839,14 @@ fn every_example_in_help_afx_and_quick_runs() {
         );
     }
     assert_eq!(ripples, 2, "both enabled intents have an example");
+    for topic in ["afx", "af1-x", "dialect", "afx-quick"] {
+        assert_eq!(
+            sley_agent::help::topic(topic).as_deref(),
+            Some(sley_agent::help::AFX_QUICK)
+        );
+    }
     assert_eq!(
-        sley_agent::help::topic("afx").as_deref(),
+        sley_agent::help::topic("afx-reference").as_deref(),
         Some(sley_agent::help::AFX)
     );
     let (status, text) = run(&temp.path, &["help", "afx"]);
@@ -2624,6 +2630,25 @@ fn an_unknown_type_callee_or_constant_is_the_reported_root_cause() {
         let (symbol, detail) = refused(&temp.path, &frame);
         assert_eq!(symbol, "AGENT_FRAME_INVALID", "{frame}: {detail}");
         assert_eq!(detail, want, "{frame}");
+    }
+}
+
+#[test]
+fn an_unknown_opcode_is_reported_before_a_checked_use_of_its_result() {
+    let temp = workspace("unknown-opcode-before-check");
+    for first in [json!(["p", "phi"]), json!({"name": "p", "op": "phi"})] {
+        let frame = json!({"af1": 1, "afx": 1,
+            "fns": [{"fn": "f", "params": [["x", "i64"]],
+                "returns": "Result<i64,ArithmeticError>",
+                "blocks": [{"name": "entry",
+                    "ops": [first, ["m", "mul?", "p", "x"]],
+                    "term": ["ok", "m"]}]}]});
+        let (symbol, detail) = refused(&temp.path, &frame);
+        assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+        assert_eq!(
+            detail,
+            "/fns/0/blocks/0/ops/0: unknown opcode `phi` (see `sley-agent help opcodes`)"
+        );
     }
 }
 

@@ -65,6 +65,38 @@ pub enum AgentErrorCode {
     RippleGuardShape,
     /// The guard placement or equivalence cannot be established.
     RippleGuardOrder,
+    /// A residual envelope is malformed or contains a duplicate JSON member.
+    ResidualParse,
+    /// A residual envelope declares an unsupported version.
+    ResidualVersion,
+    /// The accepted head, policy, draft, or other bound dependency changed.
+    ResidualBindingStale,
+    /// The selected fragment identity or version is unavailable.
+    ResidualFragmentUnknown,
+    /// The selected fragment does not match the bound graph or input shape.
+    ResidualFragmentShape,
+    /// A required author decision was not supplied.
+    ResidualChoiceMissing,
+    /// An author decision is not a member of its declared domain.
+    ResidualChoiceUnknown,
+    /// A semantic decision has no adequate authored, inherited, fragment, or rule provenance.
+    ResidualSemanticUnresolved,
+    /// The declared construction constraints admit no completion.
+    ResidualFamilyEmpty,
+    /// The declared construction family cannot be shown complete.
+    ResidualFamilyIncomplete,
+    /// The decision vocabulary cannot distinguish required completions.
+    ResidualVocabularyIncomplete,
+    /// Explicit residual bindings or policies contradict each other.
+    ResidualConstraintConflict,
+    /// A residual planner or expander reached a declared resource limit.
+    ResidualLimit,
+    /// A bounded oracle could not establish the requested result.
+    ResidualInconclusive,
+    /// The edit scope is invalid or not exactly identified.
+    ResidualScope,
+    /// A residual edit omitted or violated its explicit preservation request.
+    ResidualPreserve,
     /// No permitted, independent public cases are available to search against.
     SearchNoOracle,
     /// The search seed is not a usable candidate or complete draft.
@@ -103,6 +135,22 @@ impl AgentErrorCode {
             Self::RippleLimit => "AGENT_RIPPLE_LIMIT",
             Self::RippleGuardShape => "AGENT_RIPPLE_GUARD_SHAPE",
             Self::RippleGuardOrder => "AGENT_RIPPLE_GUARD_ORDER",
+            Self::ResidualParse => "AGENT_RESIDUAL_PARSE",
+            Self::ResidualVersion => "AGENT_RESIDUAL_VERSION",
+            Self::ResidualBindingStale => "AGENT_RESIDUAL_BINDING_STALE",
+            Self::ResidualFragmentUnknown => "AGENT_RESIDUAL_FRAGMENT_UNKNOWN",
+            Self::ResidualFragmentShape => "AGENT_RESIDUAL_FRAGMENT_SHAPE",
+            Self::ResidualChoiceMissing => "AGENT_RESIDUAL_CHOICE_MISSING",
+            Self::ResidualChoiceUnknown => "AGENT_RESIDUAL_CHOICE_UNKNOWN",
+            Self::ResidualSemanticUnresolved => "AGENT_RESIDUAL_SEMANTIC_UNRESOLVED",
+            Self::ResidualFamilyEmpty => "AGENT_RESIDUAL_FAMILY_EMPTY",
+            Self::ResidualFamilyIncomplete => "AGENT_RESIDUAL_FAMILY_INCOMPLETE",
+            Self::ResidualVocabularyIncomplete => "AGENT_RESIDUAL_VOCABULARY_INCOMPLETE",
+            Self::ResidualConstraintConflict => "AGENT_RESIDUAL_CONSTRAINT_CONFLICT",
+            Self::ResidualLimit => "AGENT_RESIDUAL_LIMIT",
+            Self::ResidualInconclusive => "AGENT_RESIDUAL_INCONCLUSIVE",
+            Self::ResidualScope => "AGENT_RESIDUAL_SCOPE",
+            Self::ResidualPreserve => "AGENT_RESIDUAL_PRESERVE",
             Self::SearchNoOracle => "AGENT_SEARCH_NO_ORACLE",
             Self::SearchSeedInvalid => "AGENT_SEARCH_SEED_INVALID",
         }

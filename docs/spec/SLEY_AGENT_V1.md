@@ -1,13 +1,19 @@
 # Sley Agent Workbench v1
 
-Status: revision 2 (2026-09-27). Revision 1 (2026-09-25) was the Sley
+Status: revision 3 (2026-09-28, implementation in progress). Revision 1 (2026-09-25) was the Sley
 2.0.2 contract implementing `SLEY-2.0.2-BR` Track A (BR-01 through BR-12).
 Revision 2 adds decision-only authoring: the AF1-X dialect and test tables
 (sections 5.1 and 5.2), drafts and delta repair (section 12), focused and
 AV1-X views (sections 4.1 and 4.2), the namespace opt-out, and authored
 locators. ADR-0051 records the boundary decisions and ADR-0053 the
-revision-2 decisions. The implementation is `crates/sley-agent`, binary
-`sley-agent`.
+revision-2 decisions. Revision 3 registers the GHOSTWEAVE residual request
+envelope, strict parser, read-only state binding, and deterministic fragment
+expansion APIs, with `residual try/plan/fill/show` using ordinary trials and
+an accepted/draft-graph integer-literal edit lens. Further sparse edit lenses,
+independent factoring, aggregate resource enforcement, and full cost accounting
+remain in progress. Explicit author-declared finite relations now use a
+checked greedy frontier. The implementation is
+`crates/sley-agent`, binary `sley-agent`.
 
 The workbench is the interface Sley offers to the agents that author
 programs. It is a separate binary over the kernel libraries. The thin
@@ -67,11 +73,21 @@ sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats]
 sley-agent test [<ref>] [--public <cases.json>]
 sley-agent explain [<ref>]
 sley-agent search <fn> --public <cases.json> [--from <handle|draft>[@r<N>]] [--max-neighbors <n>] [--max-millis <ms>]
+sley-agent residual try <request.json> [--no-test] [--all-tests] [--public <cases.json>] [--raw] [--verbose]
+sley-agent residual plan <request.json>
+sley-agent residual fill <rN@1> <decisions.json>
+sley-agent residual show <dN@rK | rN@1> [--expanded | --decisions | --provenance | --targets]
 sley-agent init [<dir>] [--seed <64-hex>]
 sley-agent commit [<ref>]
 sley-agent export <file.pack>
-sley-agent help [guide|af1|afx|drafts|types|tests|opcodes|search|refusals]
+sley-agent help [guide|af1|afx|afx-quick|afx-reference|drafts|types|tests|opcodes|search|residual|residual-quick|residual-reference|refusals]
 ```
+
+`help residual` and `help residual-quick` return the compact fragment guide.
+`help residual-reference` loads the full planning, repair and provenance contract
+on demand. The compact guide is capped at 3,500 UTF-8 bytes; its examples run
+through the ordinary workbench and kernel in the help tests. This byte bound
+does not establish a model-token or cost reduction.
 
 A `<ref>` is a handle (`c3`), `latest`, a file holding stored candidate
 hex, raw stored candidate hex, or a bare candidate record (which is framed
@@ -144,6 +160,1616 @@ select TestCases are refused there until native test evidence (N5) exists.
 identity derived from a genesis nonce (random, or `--seed`), the principal
 of that identity, and a policy that grants it the workbench ceilings
 (section 7). It then exports `base.pack`.
+
+### 2.1 GHOSTWEAVE residual request parser
+
+The Rust workbench API `sley_agent::residual::parse_request` accepts a UTF-8
+JSON object with exactly these required members: `residual` (integer `1`),
+`base`, `operation` (`derive` or `edit`), `fragment`, `bindings`, and `scope`.
+`preserve` is forbidden for `derive` and required for `edit`. Optional
+`choices` declares a versioned, closed relation over missing fields (section 2.5);
+it is not a sampled candidate list.
+
+`base` is `current`, a 64-digit lowercase accepted-state root, or an explicit
+draft revision such as `d1@r2`; a latest-only draft reference is refused.
+`fragment` is exactly `{"id": <lowercase-id>, "version": <positive-u32>}`.
+`bindings` is an object. `scope` is an exact-target array or a typed-selector
+object. `preserve`, when present, is an array or object. Fragment versions
+must validate the nested binding, scope, and preservation schemas before any
+expansion or state write.
+
+The parser rejects duplicate object members at every depth, unknown envelope
+and fragment members, floating-point values, invalid UTF-8, and requests over
+1 MiB, 32 container levels, or 100,000 JSON values. It does not bind a plan,
+expand a fragment, write workspace state, create a candidate, or add a CLI
+command. Those paths remain subject to the GHOSTWEAVE feature specification
+and must reuse the existing AF1-X, draft, and kernel flows.
+
+### 2.2 GHOSTWEAVE state binding API
+
+`residual::binding::Binding::capture` snapshots an already initialized
+workspace without seeding it or creating local directories. It binds the
+strict request, canonical workspace path and identity, accepted transaction,
+state and policy roots, epoch, both name-map files and their merged mapping,
+and an explicitly selected draft revision. A draft must still be latest,
+be based on the accepted head, and contain a layered frame. Incomplete and
+refused drafts remain usable for repair; text and unlayered drafts do not.
+Draft input, frame, status, and any recorded candidate bytes are bound.
+
+The caller supplies a `RuntimeIdentity` from the actual running implementation:
+fragment and grammar manifests, expander build identity, semantic profile,
+and optional cost-model/tokenizer versions. Request data cannot substitute
+for these values. The CLI constructs this identity from the shipped fragment
+manifest, compiled-in grammar contracts, and a streamed SHA-256 digest of
+the actual running executable (cached within that process). Linux uses
+`/proc/self/exe` so replacement of the installation path does not substitute
+another build. The cost profile is `disclosed-field-json-bytes-v1`; the
+tokenizer version is null because no provider token estimate is made.
+
+Capture requires two matching observations. `Binding::recheck` captures
+again and refuses changed or unavailable dependencies with
+`AGENT_RESIDUAL_BINDING_STALE`. Hashes use domain-separated SHA-256 and
+length-delimited, typed canonical encoding; booleans and integers stay
+distinct. Per-artifact reads are capped at 16 MiB. Raw artifact hashes
+conservatively invalidate formatting-only changes.
+
+A binding is an integrity record, not a lock or authority. The CLI rechecks
+before expansion, before claiming a draft, and after ordinary compilation
+immediately before candidate assembly. It also checks that the trial's head
+is the captured head. Existing draft revision and kernel mutation checks
+remain authoritative. Both explicit-decision and closed-relation plans persist
+this binding, including the complete original relation and its constraints.
+
+### 2.3 GHOSTWEAVE fragment expansion API
+
+`residual::fragments::expand` deterministically lowers a derive request to
+ordinary AF1-X. It returns the entire frame and a JSON-pointer provenance
+map; it reads no files and does not validate, store, submit, or commit a
+candidate. Callers must use the existing compiler and kernel. Full expression typing,
+exhaustiveness, effects, and control-flow compatibility remain compiler/kernel
+checks. The CLI now performs the initial interface preflight below before
+calling the structural expander; direct users of this low-level expansion API
+must arrange their own bound interface check.
+
+All three version-1 families require exactly one function name in `scope`,
+explicit AF1 `params` and `returns` in `bindings`, and the following
+family parameters. Nested applications carry `fragment` and `bindings`
+without another function signature.
+
+| Family | Parameters and disclosed behavior |
+|---|---|
+| `ordered_guard_chain` | Ordered `guards`, each with `when` and an explicit `fail` terminator; `success` is a nested fragment or an explicit `{"ops": [...], "term": [...]}` region. Evaluate guards in written order; the first true predicate selects its failure exit. |
+| `checked_pipeline` | Ordered `steps`, each `[name, expression]`; explicit `arithmetic_failure` (error variant case name or `{"propagate":true}`), `rounding`, and `result`. Check each arithmetic node, preserve nesting and step order, map failures to the supplied route, and package the final value with `ok`. Version 1 accepts only `toward_zero` rounding and integer `neg/add/sub/mul/div/rem/shl/shr`. Widths come from explicit typed operands/signature under ordinary AF1-X inference. |
+| `typed_branch_result` | `input`, ordered `cases`, and `join`. Each case supplies `case`, `payload` (null or `[name, type]`), `ops`, and `values`. The join supplies `params`, `ops`, and an explicit `return`, `ok`, or `fail` terminator. Evaluate the switch once, execute only the chosen case, and pass its values to the shared join. No fallback case is invented; inputs with a resolved parameter or direct-call result type require exact case coverage before expansion; other computed inputs retain compiler/kernel obligations. |
+
+`residual::interfaces::check` resolves declared function parameters/results,
+branch payload annotations and join parameter types through the existing
+AF1-X `Context` and type reader, using accepted declarations or the exact source
+draft frame. Duplicate parameters report both authored locators. Nested guards
+share the outer signature; a pipeline requires `Result<integer,error>` and bare
+arithmetic propagation must preserve `ArithmeticError`. For Option/Result/named-variant
+inputs whose parameter or direct-call result type is known, branch cases must
+cover exactly the bound variant and payload declarations must match the selected case. Duplicate,
+unknown or missing cases refuse with authored locators. Record and scalar
+inputs are not switch variants. Source-draft member type errors are checked
+using the existing AF1-X declaration obligations before member inspection.
+Branch values with resolved types must match join types and arity even when
+the case contains authored operations. Types are compared as resolved
+`TypeExpr` values, not text spellings.
+
+Before expansion, the complete inventory of function parameter/result, branch
+payload and join parameter types also undergoes the canonical closed-type
+judgment, including unused bindings. Reachable accepted/draft definitions are
+hydrated using the shared invocation budget. Free type parameters, incorrect
+named argument counts, definition cycles and invalid canonical map-key types
+refuse at the declared type's locator. Resource/depth failures remain
+`AGENT_RESIDUAL_LIMIT`. An incomplete or unavailable definition used by a
+known interface refuses with `AGENT_RESIDUAL_CONSTRAINT_CONFLICT` at the bound
+type's locator before fragment expansion. The diagnostic identifies the type
+and asks for ordinary AF1-X declaration repair; it never invents a shape or
+payload. Independent known-invalid declarations are still checked rather than
+hidden by an unavailable definition. Successful reports have checked declared
+types and an empty `deferred_interface_types` list. This inventory does not
+establish body validity or replace operation-specific VM restrictions.
+
+Checked pipeline preflight separately queries the ordinary checked arithmetic
+AST with original `/bindings/steps/<index>/1/...` and `/bindings/result`
+locators. Pipeline type equalities do not supply literal contexts that ordinary
+AF1-X lacks. `ordinary_literal_contexts`, `literal_contexts` and
+`untyped_literal_contexts` disclose that distinction. Library analysis retains
+missing contexts; the CLI refuses them before expansion or draft creation.
+An explicitly typed operand, an actual parameter context, or a direct `ok`
+endpoint can supply a valid ordinary context. No literal is annotated or
+rewritten, and no fragment blocks or graph entities are generated by this query.
+
+Explicit authored operation result annotations, bound direct-call parameter and
+result types, and constant/global/function-reference types also receive canonical
+closed-type checks. Unused results and unresolved argument expressions do not
+bypass these checks. `closed_types` expression evidence records the use location,
+type source and `checked` status. Incomplete definitions refuse at the authored
+use or annotation locator even when a result type is known. Annotation
+checks use the original `/type` locator and apply to the wrapped result of a
+checked operation. A valid annotation does not establish the validity of an
+unknown operation or a declared callee body. These checks use the invocation
+budget and preserve canonical depth/resource refusals.
+
+Before generation, parsed value operands in authored definitions and patched
+blocks also check local declaration order and qualified parameter ownership.
+Self/forward reads, including indexed and nested uses, retain original use and
+declaration locators; local names shadow function parameters. Another block's
+parameter or AF1-X checked continuation requires an explicit edge argument.
+Literal contents, opcode immediates and type annotations are not scanned as reads.
+`declared_body_control_flow.value_availability_scope` and per-function `value_reads`
+record this partial scope. Complete current authored/retained block-start graphs
+now project the entry, ordinary successors, checked handlers and early exits.
+Qualified operation uses check dominance at symbolic continuation slots for
+checked/nested operations and early exits, including definitions after a split.
+Exact retained canonical operation and terminator operands consult current
+entry/types without rebinding accepted IDs/indexes. Per-function
+`control_projection` records named starts, symbolic sites and checked authored/
+retained reachability declarations. Missing/non-bool flags keep ordinary AF1's
+required interpretation. Canonical shape recognition excludes unreferenced old
+generated shared-exit bodies from unchanged-consumer checks; future allocation/
+reuse stays deferred. Generated-looking user blocks keep their flag obligation.
+Known bare AF1-X names select the nearest dominating operation at symbolic sites;
+nearer parameters hide outer operations and intervening same-name declarations
+refuse path rebinding. Known foreign bare names in plain AF1 require qualification.
+Result-index spelling follows the ordinary unsigned-u32 parser; known authored
+and retained operation cardinalities are checked. Recognized fragment-region
+operations retain their definition and result kind even when their value type
+is unresolved: nonzero ordinary-operation indexes refuse before expansion;
+checked continuation parameters retain the ordinary parameter-reference rule.
+Unknown operation syntax and unresolved value types remain deferred in library
+analysis. CLI fragment expressions must resolve before expansion; an unresolved
+connection requires complete supported authoring or the ordinary AF1-X path.
+Source-helper graph and generated-identity limits remain separately reported.
+Valid numeric parameter
+suffixes preserve ordinary parameter-reference identity. Source condition,
+selector, edge and function-exit checks consume resolved read-site types; nested
+result inference uses the same read-only type map. Retained operations read the
+exact accepted result slot. Unknown references retain deferred types. Ordinary
+inference parses the same numeric selectors and keeps the declared type of
+parameters, including checked continuation parameters. Operation references
+retain result bounds; an unavailable local result cannot fall through to a
+same-named function parameter.
+No hint or authored reference is rewritten. Missing/ambiguous graph views,
+unknown availability, generated shared-terminal identities/
+flags and full expanded inventory remain deferred; this is not a full expansion/
+body-validity proof.
+
+Source-definition and retained-patch exits also connect known return values to
+the current function result before generation. Trap payloads receive the canonical
+closed-type and persistability judgments through the same budgeted reachable
+accepted/draft definition environment used by fragment checks. Retained consumers
+keep accepted value IDs/result indexes and use the current declaration overlay.
+AF1-X `ok` requires Result; bare `fail` keeps Option None behavior, and nongeneric
+named Result failures check exact ordinary case leaves and payload presence/types.
+Generic failure construction and incomplete/unknown type views remain deferred.
+Plain-AF1 sugary terms and lenient trap shapes retain ordinary compiler obligations;
+trap codes are not rewritten. `declared_body_control_flow.function_exit_scope` and
+per-function `terminator_inputs` record this partial scope. Known types do not
+prove literal admission, value order/availability, dominance or generated CFG.
+
+Guard exits check the return interface: bare `fail` requires Option; named
+failures require a case of the Result's named error variant, with the correct
+payload presence. Parameter, primitive literal and direct-call payload
+connections must match its type; other computed payload values stay deferred.
+Named arithmetic mappings either drop
+the native error into an explicitly selected unit case or preserve it in a
+case carrying exactly `ArithmeticError`. A checked-pipeline fragment creates
+no authored handler blocks; use ordinary AF1-X to author such handlers.
+`connections` evidence records checked branch coverage and error routing,
+and marks coverage of branch inputs with unresolved types as deferred. The branch's
+64-case ceiling applies to exhaustive branching, not to looking up one error
+case in a larger variant. All member/case checks share the invocation budget.
+
+Named branch coverage, guard/terminal failures and arithmetic mappings require
+a complete bound variant definition before claiming a checked destination.
+Malformed or duplicate draft members never establish an exhaustive member list
+or a unit payload. A partial replacement masks the accepted definition and a
+known fragment interface using that incomplete type refuses before expansion.
+Authored join values and failure payload expressions are still checked
+independently; no destination or payload is invented. Nested fragments retain
+their authored locators. Repair the bound declaration through ordinary AF1-X,
+then retry composition against the resulting exact draft revision. Unknown
+expression types remain deferred and cannot establish validity.
+
+Guard predicate preflight checks direct parameter reads, boolean literals,
+typed primitive literals, boolean operators and comparison type connections.
+Boolean operators require boolean operands; comparisons require matching operand
+types. Ordering admits only bool, integers, bytes, text, f32 and f64, matching
+the VM scalar comparison profile. Equality checks canonical hashability and the
+VM's comparison judgment, including its composite-float exclusions. Reachable
+accepted/draft named definitions use the same bounded hydration as map-key
+checks; known interfaces with malformed or incomplete shapes refuse. Literal values
+are checked with the existing typed-value reader when a type is explicit or
+supplied by a known comparison partner. Both operand orders receive that context.
+Unchecked integer arithmetic cannot directly supply a boolean condition.
+Unknown names and conflicting connections refuse at the authored expression use.
+
+Reference operations check arity and resolve constants, globals and functions
+through the bound interface. Named constants use accepted/draft types;
+typed `const` immediates use the existing value reader. Bare numeric `const`
+immediates use the shared ordinary immediate-type rule and read-only AF1-X
+use-site inventory: direct returns, target-edge arguments and direct call
+arguments supply hints; comparison partners and constructor payload contexts
+do not. Within an emitted piece, terminal hints precede calls. Earlier pieces
+retain priority across checked operations or conditional exits; the first hint
+wins, and every edge argument is lowered before its final terminal hints.
+The same ordinary first-use inventory covers unannotated Option/Result
+constructors. Named `none`, `ok`, and `err` results retain their emitted type
+at later uses: conflicting return/call widths refuse before expansion. Terminal
+uses precede calls within a continuation piece; earlier pieces precede later
+ones. Checked outputs remain continuation parameters rather than direct results.
+Empty vectors and maps use the same direct emitted hints when no operand fixes
+their types. Short variant constructor cases resolve through their hinted named
+result. Nonempty containers and qualified variant members keep their operand or
+definition types, so use hints cannot silently retag them.
+Explicit annotations override use hints. Without an integer hint, an untyped
+numeric immediate is i64. The read-only inventory creates no operations/blocks
+and shares the invocation budget. This resolves constant connections, not all
+ordinary AF1-X body inference: internal inference and emitted-use hints remain
+distinct, and unchanged ordinary typing refusals still apply.
+Literals with complete type definitions validate nested
+contents through the ordinary typed-value reader and canonical constant checker.
+This includes tuples, vectors, maps, options, results and named records/variants.
+A read-only definition adapter binds accepted or complete draft members; draft
+member identities are never published. Partial replacements mask accepted
+definitions; unavailable definitions for typed contents refuse before expansion.
+Each recursive value read
+charges the shared work budget, with checkpoints around canonical checking.
+This does not establish aggregate allocation accounting or evaluate expressions.
+Explicit integer context checks primitive range constraints.
+
+Terminal regions close with `return`, `ok`, `fail`, or `trap`. Authored `br`,
+`jump`, `cond`, and `switch` terminators refuse before expansion: these regions
+expose no named block targets. Use fragment composition or ordinary AF1-X for
+named control flow. Typed branch joins retain their stricter `return`/`ok`/`fail`
+contract. Unknown or malformed terminal forms also refuse at their authored
+location.
+
+A trap has an optional code (default `unreachable`) and optional payload; extra
+items are refused. The existing trap-code vocabulary is reused. Payload
+expressions receive the same scoped type checks as other expressions, followed
+by the canonical closed-type and persistability judgments using bound named
+definitions. `payload_eligibility` distinguishes `absent`, `persistable_checked`,
+`definition_deferred`, and `unresolved`; `payload_interface` retains independent
+expression obligations even when the result type is known. Terminal evidence
+describes the absence of successor edges, not whole-function CFG validity.
+Checked failures inside a payload retain their written evaluation order and
+failure route. Preflight does not execute the trap or claim kernel validity.
+
+Global reads check the initializer's constant identity and exact type, including
+draft replacement types. Deleting and recreating an initializer's name does not
+retarget an existing global. Function references preserve accepted parameter,
+result and effect types; accepted generic functions refuse. Declared/redeclared
+function references use AF1's emitted empty effect declaration, including
+recursive references to the residual target. Their parameter/result types must
+still resolve; an incomplete signature stays deferred.
+Per-location `references` evidence records source, target, result type and known
+function effect identities. These checks create no constants or runtime values.
+
+Value hashing checks one operand and its canonical hashability through the
+existing type checker, using reachable accepted/draft named definitions. The
+VM's structural exclusion of local cells also applies, including cells inside
+function-reference signatures. Hashing permits hashable float composites; the
+equality operation's separate float-composite restriction does not apply.
+Its result is always bytes, even when operand typing remains unresolved. That
+known result neither supplies an input integer width nor hides deferred operands
+or incomplete definitions. Checked propagation on a hash refuses because its
+result is not Option/Result. Per-location `hashes` evidence records operand type,
+eligibility and result type with `evaluated: false`; preflight computes no digest.
+
+Direct calls in guard predicates, branch inputs, failure payloads and authored
+regions resolve through the same AF1-X context. Preflight checks argument count, known parameter
+types, typed primitive literal ranges and return connections. Nested calls share
+the invocation budget and expression depth bound. Accepted signatures, draft
+declarations and patches are distinguished; deleted or shadowed names cannot
+fall back to an accepted function signature. Calls to the residual target use
+its authored parameter order/result, including when replacing an accepted
+function. No argument is converted, reordered or supplied implicitly.
+
+Accepted callee effect sets must be empty, matching the generated function
+interface. AF1 definitions, patches and operation edits that restate their owner
+emit an empty effect declaration, so draft
+and recursive callee interfaces report `empty_declared_effect_set`; unchanged
+accepted callees report `empty_accepted_effect_set`. This rule follows emitted
+compiler metadata rather than inheriting an old function's effects. It does not
+establish that a draft body obeys the declaration: `effect_body_validation`
+retains that ordinary compiler/kernel obligation. The call
+report records callee, authored location, signature source, result and effect
+evidence. A known return type does not hide deferred arguments. Scoped authored
+regions use the same call checks.
+
+Bound callee signatures must be complete before connecting fragment calls or
+function references. The read-only AF1-X context retains declaration errors
+from the ordinary compiler's shared parameter/result readers. Malformed
+parameter lists, duplicate or invalid parameter names, unresolved parameter or
+result types, and missing full-definition `returns` refuse at the authored use
+with the canonical source declaration locator. Missing full-definition `params`
+still means zero parameters; omitted patch signature fields still inherit the
+accepted interface. The residual target's replacement interface supersedes its
+old declaration. Calls in surviving source helper bodies also require complete
+bound callee signatures. Refusal leaves source draft/candidate/name state intact
+and retains the ordinary refusal event; repair the source using ordinary AF1-X.
+This signature check does not prove unknown body expressions; constant immediate
+widths use the separate ordinary use-site inventory described above.
+
+Surviving authored source definitions and patch blocks also expose
+`operation_signatures` in the control-flow report. A read-only type view reuses
+ordinary literal/nested contexts, direct emitted first-use hints, and resolved
+operation ownership. Complete immediate-free and tuple-index operations use the
+canonical VM signature judge. Direct calls and function references use that same
+judge with bound callee parameter/result/generic/effect headers; this projection creates
+no candidate graph or allocated identity. Known operand, arity or result-type
+conflicts refuse at the operation locator before residual revision publication.
+Bound record, field and variant operations use definition-specific member query
+keys; valid restatements preserve existing member identities. Named constants
+and globals use real constant data and initializer identity. Known literal and
+declared constant data use the ordinary value reader and canonical constant
+checker, including range and endpoint contexts, before expansion. These checks
+allocate no published identities. Retained accepted operations and unchanged callers are also checked against
+current parameter, callee, nominal member, constant and global bindings. Their
+actual operand/result/immediate identities are kept; deleting/recreating a name
+does not retarget its old consumers. Authored replacements expose their emitted
+value types to retained reads, preserving ordinary constant-use hints and split
+identity rules. Other immediates and unknown authored types/literal contexts
+remain explicitly deferred.
+This does not establish complete body conformance or alter ordinary authoring.
+
+`declared_body_effects` separately checks complete `fns`/`functions` definitions
+in a bound source draft before fragment expansion. It reuses the AF1-X parser
+to inspect named and nested operations in statements, conditional exits and
+terminator operands, without interpreting literals or opcode immediates as
+code. Every complete definition's calls must connect to an empty bound effect
+interface, including helper chains and mutually recursive declarations. Known
+excluded opcodes refuse at the original source locator. Each body is scanned
+once per preflight with the shared budget; recursion does not expand callees.
+The residual target's replaced old definition is not checked as if it survived.
+
+`declared_body_control_flow` separately checks explicit authored successor and
+entry targets in complete source definitions and patches. It reuses the ordinary
+AF1-X terminator parser without generating blocks. Duplicate block declarations
+and function-parameter/block namespace collisions refuse at the original source
+locator. Explicit targets must belong to the surviving source function. Patches
+check retained accepted terminator targets after authored replacement/deletion
+and reuse the existing generated-piece removal recognizer. The inventory and
+edge traversal charge the same invocation budget.
+
+Deleting an entry block can be valid ordinary AF1: explicit replacement is
+checked, while implicit replacement by the first remaining block stays deferred
+to the ordinary builder. Targets containing `__` in AF1-X remain deferred because
+actual expansion can regenerate, remove or collide with those names. Later
+Ripple/edit transformations, incomplete bodies and unknown terminators retain
+explicit deferred evidence. The replaced residual target's old body is skipped.
+`explicit_targets_checked` covers this inventory only; `composition` remains
+`partial`. Generated edges, dominance, reachability and full kernel
+control-flow/ownership judgment are not established by this pass.
+
+For complete parsed source definitions, `edge_arguments` connects explicit
+branch/conditional/switch arguments to destination block parameter count and
+known types before generation. The view reuses AF1-X's preparatory declaration
+and worklist inference, nested expression contexts and switch payload rules;
+no lowering or generated block is invoked. Both passes share the invocation
+budget through fallible checkpoints; ordinary expansion uses infallible wrappers.
+Plain AF1 requires exact argument count, while AF1-X rejects surplus arguments
+and leaves omitted trailing arguments to ordinary X4 derivation. Conflicts name
+the authored argument locator and destination parameter's declared type.
+
+Unknown references/types, nonzero result suffixes, literal admission, parser
+failures, implicit fills and unresolved generated value identities remain deferred.
+Shared far-result inference without a dominator tree establishes a common type
+only across agreeing candidates, not dominance or value availability. Known
+argument types do not establish expression correctness or literal bounds.
+`edge_argument_scope` records these limits; the report retains `authority: none`
+and `composition: partial`.
+
+Accepted patches also connect explicit authored edges and retained canonical
+edges to the post-patch destination arity/known types. A preparatory declaration
+view overlays function/block parameters and ordinary operation result types;
+retained values keep their accepted entity IDs and exact result indexes. The
+ordinary builder can reuse an identity by its existing owner/leaf and role.
+Deleting a parameter/operation, replacing its role or moving an operation into
+a generated continuation does not move or silently rebind the old identity.
+Conflicts name the retained consuming block and original value. Potential
+regeneration/collisions at generated-looking names remain deferred.
+
+Retained canonical edges require exact argument count in both AF1 and AF1-X;
+X4 fills only authored trailing arguments. Option, Result and nominal switch
+payloads use the current type/member declarations and existing case rules.
+Nominal case payloads substitute the scrutinee's ordered type arguments before
+comparison, including nested containers and function-reference parameters/results;
+function-reference effects remain unchanged. This instantiation does not add
+VM support for generic construction operations.
+Renaming destination parameters and reordering function parameters preserve
+ordinary identity rules; known compatible restatements are admitted. This
+establishes edge argument connections. A separate preparatory terminator-input
+pass requires known branch conditions to be bool and known switch selectors to
+be Option, Result or nominal variants. Complete recognizable case sets reject
+missing, duplicate and unexpected keys. Current declaration overlays participate;
+retained cases preserve exact member identity under the selector definition,
+including nominal cases whose leaves match builtin names. Unknown selectors,
+incomplete declarations and unresolved case keys remain explicitly deferred.
+These passes do not establish return/trap type connections, literal admission,
+value availability/dominance or generated CFG.
+Later Ripple/edit transforms and incomplete parser views remain deferred.
+
+Patches of accepted functions check both authored replacement blocks and
+surviving accepted operations. AF1-X's existing `LiveGraph` recognizer identifies
+generated continuation pieces removed by restating/deleting their source block;
+plain AF1 retains those pieces unless explicitly replaced/deleted. Generated
+shared exits recognized as pure none/err/variant-return plumbing require no
+effect connection. Retained calls keep their original callee entity identity:
+deleting/recreating its name cannot retarget the old call. Reports include the
+retained operation's identity/name; conflicts identify it alongside the patch
+and callee. Signature-only patches check the retained body too.
+
+Patch targets are checked before body inventory. Unavailable accepted owners,
+invalid block maps/names, non-object block bodies and deletion of missing blocks
+refuse with escaped source locations. New object blocks are allowed. AF1-X can
+emit a generated block over a null/raw entry: possible collisions at names
+containing `__` remain deferred until actual expansion, with `pending_expansion`
+target evidence. Reports include `patch_targets` with source owner/block IDs
+(null for absent blocks) and the authored create/restate/delete action. These
+source references confer no authority and do not establish the final expanded
+block set, typing, ownership or control flow. Signature-only patches have an
+empty target list. Target traversal charges the shared invocation budget.
+
+Standalone ordinary `edit` groups on accepted functions are also checked.
+Edits of distinct operations are combined per function; old replaced operations
+are removed before checking their replacements and surviving calls. The pass
+uses the existing AF1-X plain-edit eligibility rule and parser. Replacement
+diagnostics point to `/edit/<index>/with`.
+
+Edit targets are checked before replacement inventory. Missing/deleted owners,
+missing blocks or operations, malformed `block.operation` paths, missing or
+non-operation replacement containers, and repeated targets refuse with authored
+locations. Duplicate-target diagnostics identify both edits. A valid target does
+not resolve an unknown replacement: its body checks remain deferred. Reports
+include `edit_targets` with the accepted owner/block/operation IDs and source
+locations; these are references to the source graph, not authority or claims
+that replacement operations retain those identities. Target traversal charges
+the shared invocation budget.
+
+Ordinary edits restate edited blocks through AF1 authoring. Existing calls in
+those blocks resolve their callee names again, while calls in untouched blocks
+retain entity bindings. Reports distinguish `restated_operation` and
+`callee_binding` (`authoring_name` or `retained_entity`). A `retained_operation`
+identity in such a report identifies the source operation; it does not assert
+that an operation in a restated block keeps its identity. The edited owner's
+signature remains inherited, and its empty emitted effect declaration is
+checked against actual ordinary compiler output.
+
+Repeated function definitions/patches and combinations of definitions, patches
+and edit groups on one function refuse before expansion, matching the ordinary
+compiler's one-restatement-per-function rule. Diagnostics identify both source
+locations. Multiple ordinary edits to distinct operations form one edit group,
+and transformations on different function owners remain compatible. The source
+body being replaced by the residual target retains its existing exception.
+
+Unknown syntax, missing callee metadata, unresolved edit shapes or extended edits,
+edits on the residual target itself, and Ripple transformations remain
+explicitly deferred. A checked effect
+connection is not proof of body typing, ownership, control flow, admission or
+execution. The ordinary compiler/kernel obligations remain in force.
+
+The current candidate-analysis profile excludes `contract_assert` (144),
+`test_observe` (145), `effect_request` (160), `adapter_invoke` (161) and
+`capability_narrow` (162). Residual preflight refuses these with
+`AGENT_RESIDUAL_FRAGMENT_SHAPE` at the authored operation before expansion or
+publication, including nested uses, aliases and checked forms. The diagnostic
+identifies the candidate profile's `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`
+exclusion; it does not claim the kernel ran. Some malformed operations and test
+observations receive an earlier owner-phase refusal in ordinary authoring. VM
+execution support alone does not establish candidate admissibility. The ordinary
+authoring path and kernel phases are unchanged.
+
+The opcode table supplies mnemonic, schema-name and numeric-word aliases.
+This check does not evaluate predicates or change guard order. Other AF1-X operations,
+literal values with incomplete definitions and comparisons with unanchored literals retain exact
+`deferred_expressions` locators. A comparison can have a checked boolean result
+while its operands remain partially checked. `guard_result`, `expression_types`
+and deferred locators distinguish those cases. Per-location `comparisons`
+evidence records operand type, eligibility (`checked`, `definition_deferred`, or
+`unresolved`) and whether both operand types resolved. Eligibility alone does
+not establish that unresolved expressions produce the required operands.
+Remaining effects and control flow still require ordinary compiler checks. No expression is
+rewritten, no type is guessed and no unknown operation is silently forbidden.
+
+Success regions, branch cases and joins now track locally authored operation
+results. Known arithmetic/boolean/comparison/call results and explicit unchecked result
+annotations connect to later operands, branch arguments and returns. Array and
+object operation syntax retain their actual authored operand pointers. All local
+names mask outer bindings throughout the region; an unresolved operation result
+never borrows the type of an outer parameter with the same name. Duplicate local
+names refuse. Case payloads/results do not leak into sibling cases or the join;
+join parameters have their own scope. A separate operand walk checks local
+use-before-definition even when the operation's type is unresolved. Forward and
+self-references identify both the use and definition; shadowing cannot fall back
+to a function parameter. The walk follows the existing opcode immediate schema,
+including aliases and checked suffixes. Callee/type/constant/field immediates and
+typed literal payloads are not local reads. Conditional exit conditions/payloads
+are walked too. Earlier results with unknown types remain available.
+
+The region report records `local_definition_order`, resolved reads and definition
+locators, and `deferred_operands`. Unrecognized syntax retains explicit partial
+evidence. Local order does not prove
+operation validity, handler edges, reachability or cross-block dominance. Those
+remaining control-flow checks are still ordinary compiler obligations.
+
+Value operands also receive a region-scope check. A fragment creates private
+block names chosen to avoid all authored references, so qualified block operands
+and special references cannot reach another region. Such operands refuse before
+expansion, with the exact authored locator. Function parameters, current payload/
+join parameters and available operation results are the local value vocabulary.
+`value_bindings` records the binding and its definition when known. Typed literal
+contents and opcode immediates (callee, constant, type and qualified member names)
+are not value-reference reads and retain their existing interpretation.
+
+Zero result indexes, including `#0` and `#00`, preserve the local binding type.
+Malformed or overflowing indexes refuse. Parameter bindings retain their declared
+type for every valid u32 suffix, matching the ordinary compiler's parameter
+reference resolution. Evidence records the binding kind and parsed index.
+Known checked payloads, including nested operands and terminal/branch/failure
+values, also use the existing AF1-X preparatory inference before expansion. If
+the authored payload conflicts with the ordinary continuation parameter type,
+preflight refuses at the expression locator without creating a draft. Untyped
+numeric literals use the actual ordinary operand context. An ordinary literal
+with no type context is recorded in the library analysis. The CLI refuses it
+before expansion, after other known interface diagnostics, rather than creating
+a draft with a speculative width. Explicit literal
+and constant types remain authoritative. Failure payloads retain the full
+region inventory rather than discarding prior definitions. These read-only
+checks neither lower blocks nor change ordinary inference. Broader unresolved
+body typing remains separately deferred; this is not whole body conformance.
+
+Checked operation outputs are unwrapped continuation parameters: their known
+payload types also survive every valid u32 suffix, reported with binding kind
+`continuation_parameter`. An unknown checked payload stays unresolved and masks
+any outer binding with the same name; its wrapper annotation cannot supply the
+payload type. Shared ordinary AF1-X inference applies the same binding-kind
+rule to numeric selectors without rewriting authored references or adding
+speculative types. Malformed or overflowing selectors remain unresolved there
+and are refused by canonical reference resolution. Other unresolved expressions
+can still produce an incomplete ordinary trial.
+Recognized ordinary operations reject nonzero result indexes even when their
+value types remain unresolved; checked continuation parameters retain the
+ordinary parameter-reference rule. Unresolved values keep their local scope
+without inventing a type. Unknown operation syntax remains deferred. These checks do not establish the generated graph's complete
+ownership, reachability or dominance invariants.
+
+`return` values must match the function result, and `ok` terminators require
+Result with the matching successful payload. Named `fail` payloads use the
+current region's bindings and distinguish known operation results, parameters and
+unwrapped continuation parameters. Option/Result constructors check arity, wrapper type and known payload
+connections, including primitive literal ranges. Missing type context remains
+deferred in library analysis. The CLI checks unresolved expression locators after
+known conflicts and missing literal contexts, then refuses before draft creation
+with an ordinary AF1-X escape. Unsupported operations retain their deferred
+locators in library reports; an annotation cannot make unknown syntax supported.
+A checked
+operation's explicit wrapped-result annotation is never mistaken for its
+unwrapped continuation value. Unsupported named terminal control flow refuses.
+These checks produce no new blocks, operations, inferred annotations or edits.
+
+Tuple construction checks the expected shape and each known element connection,
+including nested tuples, empty tuples and contextual primitive literal ranges.
+Without a result context, all element types must be known to infer the tuple
+type. `tuple_get` checks its operand count, unsigned 32-bit index, tuple operand
+type and element bounds. The selected type connects to later operations,
+predicates, branch interfaces and returns, or to checked propagation when it is
+an Option/Result. Explicit annotations still describe the raw wrapped result.
+Mnemonic, schema-name and numeric aliases use the same checks. Every element
+is inspected in authored order; selecting one element does not discard checks
+or failure evidence from other elements. Unknown elements and unresolved result
+indexes retain deferred locators. Result context never erases those remaining
+obligations, and no tuple or extraction is evaluated or rewritten.
+
+Named record/variant operations resolve definitions and members through the
+bound accepted/draft interface. Record construction checks field count and types
+in declaration order; field access requires a qualified member and an operand
+of its owning record type. Variant construction checks case payload presence and
+type; a short case name needs a named result context. Variant extraction requires
+a payload-bearing case and its owning variant, yielding `Option<payload>`.
+Checked extraction preserves the authored Option failure route. Record fields
+that themselves contain Option/Result can use ordinary checked propagation too.
+Generic definitions are outside the VM's supported named-operation profile.
+
+The shared bounded definition walk checks reachable types before using the
+member view. Known incomplete/malformed shapes refuse at the immediate's authored
+locator. A short variant case without any named context remains unresolved rather
+than acquiring a guessed definition. `named_values` evidence
+records the immediate, member-check status and raw result type; a known result
+does not erase unknown operand locators. These checks neither construct runtime
+values nor select a variant case, reorder operands, or rewrite the source.
+
+Vector construction checks homogeneous element types, with context from an
+explicit result or any known sibling element. Later typed elements can constrain
+earlier literals and nested expressions; unresolved elements retain their own
+deferred locators. An empty vector needs an element type from context. Vector
+length requires a vector and yields `u64`; reads require a `u64` index and yield
+`Option<element>`. Writes also require a replacement of the exact element type
+and yield `Result<Vec<element>,IndexError>`. Known replacements can constrain
+an unresolved source vector. Raw annotations and checked continuation types
+remain distinct. Checked reads preserve None or map it to a unit error case;
+checked writes preserve IndexError or use a compatible named case. These native
+failure routes can be checked even when the element type remains unresolved.
+
+Vector checks share the invocation budget and expression-depth limit. Index
+values are never used to evaluate or fold the access: missing reads and failed
+writes remain runtime Option/Result outcomes. All operands and failure evidence
+retain authored order, including replacement expressions evaluated before the
+write's own bounds result. Construction and length do not produce a checked
+Result/Option. Type consistency does not guarantee ordinary AF1-X can infer
+every unannotated expression, and other deferred obligations remain explicit.
+
+Ordered-map construction checks alternating key/value pairs and independent
+homogeneity constraints for keys and values. Expected results and later typed
+pairs can constrain earlier literals and nested expressions. The raw result is
+`Result<Map<K,V>,DuplicateKeyError>`, including for empty constructors with a
+supplied type. Lookup requires the exact key type and returns `Option<V>`;
+membership returns bool; insertion requires the exact key/value types and
+returns the map type; removal requires the exact key type and returns the map
+type. Insertion and removal are not checked Result/Option operations. Native
+DuplicateKey/None propagation is checked even with unresolved payload types.
+
+The existing canonical type checker validates map-key admissibility, including
+the reachable named record/variant definitions from accepted and draft state.
+Draft members override accepted members; restated accepted definitions retain
+generic parameter metadata and invariants. The trait-only view uses local member
+identities for draft definitions and never emits or changes a graph entity.
+Malformed, ambiguous or shadowed declarations remain `definition_deferred`;
+they are not treated as empty definitions with admissible traits. Canonical
+checks reject inadmissible key traits, invalid generic arity and definition
+cycles, while depth/work limits use the invocation budget. `maps` records
+key/value types, key-trait status,
+`entries: not_evaluated` and `rewritten: false` per authored operation. Keys are
+not compared, sorted or deduplicated by preflight. Duplicate-key failure,
+insertion/replacement, missing lookups/removals, operand order and runtime map
+ordering remain ordinary compiler/VM behavior. Inference revisits update the
+same evidence entry while preserving unresolved operands and definition checks.
+
+Local-cell construction, reads and writes check operand counts and exact element
+types before expansion. Construction uses an explicit `Cell<T>` result context
+when available and checks persistability through the canonical type environment,
+including reachable accepted/draft named definitions. It also uses the VM's
+structural exclusion of local cells inside initializer types. Incomplete named
+definitions stay deferred; bare literals without a type anchor do not acquire a
+default width from preflight. Reads return the stored element type; writes require
+that same type and return `unit`. A known unit result does not hide unresolved
+operands. Cell creation cannot use checked propagation, while reads of stored
+Option/Result values use their actual failure route. Evidence under `cells`
+records element/result types, storage eligibility and unchanged authored
+locations; no runtime cell is allocated, read or written by these checks.
+
+Every supported operation also applies the VM's structural operand rule:
+operands containing local cells are refused except for `cell_get` and `cell_set`.
+This includes cells nested in container types and function signatures, using
+the VM's existing `contains_cell` judgment. Named definition bodies are not
+newly unfolded by this structural rule. Nested expressions restore the enclosing
+operation's rule before checking their result as an operand. `cell_operands`
+evidence records the operand and operation locations, with `absent_checked`,
+`cell_operation_exempt`, or `type_deferred`; unresolved operands cannot establish
+cell absence. These checks share the invocation budget and do not evaluate cells.
+
+The declared function result is also checked by the existing VM
+`check_result_type` boundary before expansion, rejecting structurally contained
+execution-local cells and host handles. The report records
+`execution_local_return: vm_boundary_checked`. This boundary and cell storage
+checks do not establish full ownership, lifetime, aliasing or control-flow
+compatibility; those remain ordinary compiler/VM obligations.
+
+Integer arithmetic in general AF1-X expressions now checks arity, equal
+integer widths/signedness, primitive literal ranges and `u32` shift counts.
+Known negation operands must be signed integers. An operation without `?`
+produces `Result<integer,ArithmeticError>`; a checked operation exposes its
+successful payload. Nested arithmetic, comparison/call operand context and
+explicit wrapped-result annotations retain this distinction. An unresolved
+integer width stays deferred, even when its failure type is already known.
+
+Floating-point add/subtract/multiply/divide, negation and fused multiply-add
+check operand counts and require exactly matching f32 or f64 types. Result
+context or a known sibling operand can constrain earlier literals and nested
+expressions. Unanchored widths and unsupported operands stay deferred; no
+default width or implicit integer/float conversion is introduced. These
+operations return the float directly and cannot use checked propagation, even
+when their width is unresolved. Aliases and explicit result annotations use the
+same checks. No expression is calculated, rounded, reassociated or rewritten;
+the existing VM profile retains IEEE arithmetic with canonical NaN and positive
+zero results, plus distinct fused-operation semantics.
+
+The existing request parser still rejects decimal JSON numbers. Float parameters,
+contextual integer literals and explicitly typed NaN/inf/-inf literals use the
+ordinary AF1-X/value-reader rules. Supporting these operations does not widen the
+residual envelope grammar.
+
+Checked calls and other supported Result/Option expressions also check their
+failure connection. Bare `?` preserves the failure unchanged and must match the
+enclosing function's Result error or Option return. Named error cases can drop
+the failure into a unit case or carry the exact Result failure payload. None
+cannot supply a payload. A named route absent from the bound error variant
+refuses at its authored location, including when the source expression's result
+type is unresolved. These fragment interfaces expose no authored handler blocks;
+use ordinary AF1-X for such handlers. Incomplete error definitions retain
+`error_definition_deferred` evidence instead of inventing a missing or unit case.
+Reports
+record failure route, source failure type, output locator and known unwrapped
+type. Inference revisits update one evidence entry per authored location,
+preserving first-visit order. No expression is evaluated or reordered, and this
+report does not establish complete control flow or rule out runtime overflow.
+
+Conditional exits check their authored shape, Boolean condition and failure
+payload before expansion. Bare `!` requires an Option return and no payload.
+Resolved named error cases require exactly their declared payload presence and
+type, including primitive literal ranges. Conditional-exit payloads cannot be
+nested operations, matching ordinary AF1-X. Conditions can contain supported
+nested and checked operations; preflight neither evaluates nor reorders them.
+Reports record the condition check, failure route and authored payload locator.
+Unknown condition types and incomplete error definitions remain deferred. A
+provably missing named case refuses even when its condition is false; preflight
+does not prune authored paths. Complete control flow and generated edge threading
+still require the ordinary compiler. Exits define no local operation result.
+
+Checked-pipeline preflight also checks integer type equalities across nested
+arithmetic operands and named intermediate results. Add/subtract/multiply/
+divide/remainder operands have the same integer type; shifts require a `u32`
+count independent of the shifted integer's width. Negation requires a signed
+integer, including when a later constraint establishes its type. The final value must match
+the Result's successful type. Typed literals and referenced parameters provide
+explicit type anchors; parameter/step reads, forward references and duplicate
+step definitions follow the authored block's naming constraints. Literal values
+whose types are resolved are checked with the existing typed-value reader.
+Conflicts identify the authored use and the binding/type sources involved.
+Parameter suffixes use the same u32 parsing and declared types described above;
+step names still shadow parameters and nonzero step result indexes require
+explicit AF1-X. Shared ordinary inference preserves actual parameter types for
+valid numeric selectors, so those types can anchor arithmetic literals and
+constructors. Other unresolved expressions can still produce an incomplete
+ordinary trial; this pass does not invent type anchors.
+
+Pipeline arithmetic accepts the same unmarked opcode spellings as ordinary
+AF1-X: short mnemonic, SSMC1 name or decimal tag for integer opcodes 64–71
+(for example `add`, `int_add_checked` or `64`). Preflight and expansion resolve
+these through the shared opcode table. Expansion preserves the authored spelling
+and adds the explicit checked route selected by `arithmetic_failure`. Authored
+checked suffixes and all other opcode classes remain outside this fragment.
+
+This pass solves consistency constraints without writing inferred types into
+the request or changing expansion. An unused expression containing only
+untyped literals remains deferred; a resolved constraint does not guarantee
+that ordinary AF1-X inference can construct every literal-only expression.
+`connections` records `pipeline_integer_connections`, operation and checked
+literal counts, unresolved type-node counts, and `rewritten: false`. The pass
+shares the original budget and fragment depth/operation bounds. It does not
+evaluate arithmetic, assume overflow cannot happen, or reorder operations.
+
+This initial check generates no blocks or operations and shares the invocation
+budget. It runs before derive expansion for complete plans, direct trials,
+fills, and every declared relation row during bound validation. Its evidence is
+`residual-interfaces.json`, available through `show --provenance`. Reports say
+`composition: partial` and retain deferred expression typing, ownership,
+effects, full control flow and kernel checks. Computed inputs, computed
+payloads and operation-defined join values still need those later
+checks; the initial preflight does not establish full composition conformance.
+Interface conflicts refuse before candidate/draft publication. The ordinary
+command event ledger may still record that refusal.
+
+Generated names avoid authored prefixes. The provenance map records
+`AUTHORED` decision pointers, `FRAGMENT_DEFINED` construction rules, and
+`DERIVED` checked-route transformations. More specific pointers override
+their containing region's origin. `Expansion::origin` resolves AF1-X
+pointers; `Expansion::lowered_origin` composes the existing AF1-X source
+map with residual origins for plain AF1 pointers. Directly copied authored
+subtrees retain their suffixes. AF1-X transformations are recorded as
+`DERIVED` from the mapped construct and its contained decisions: lowered
+operation offsets are not assumed to match authored terminator offsets.
+Derived values retain all decision inputs, and missing origins remain
+missing. These maps are persisted and available through residual show.
+When layering onto another draft, pointers are relocated to the target's
+actual index in the layered frame. Composed-map coverage is explicitly
+limited to the residual target; unrelated base-frame entries are counted
+as unmapped rather than assigned invented provenance.
+
+Bounds are eight nested fragment applications, 64 guards/steps/cases or
+join arguments per application, and 1,024 aggregate construction items,
+followed by existing AF1-X expansion limits. Exhaustion refuses; it never
+truncates the program. These are structural limits, not evidence of the
+planner's required wall/CPU/memory ceilings.
+
+The fragment manifest is available through `residual::fragments::manifest`.
+Further edit lenses, full pre-expansion composition checking, complete
+resource enforcement and full usage accounting remain pending. Frontier
+planning is described in the later sections. This
+implementation is not a release or a cost-reduction result.
+
+### 2.4 Residual CLI and artifacts
+
+`residual try` accepts a file, inline JSON, or stdin (`-`), bounded to
+1 MiB while reading. Strict parsing precedes workspace registration:
+malformed residual requests create neither drafts nor an events ledger.
+An initialized accepted head is required. Derive and the integer-literal
+edit lens below are implemented. Missing fragment fields produce a bound plan
+with explicit unresolved decisions, as described below.
+
+A current/root base starts a new draft. Derivation on an explicit draft base
+layers onto that revision using the existing layer implementation. Literal
+edits compose over the source candidate while retaining its created identities.
+Both draft routes require the selected revision to remain latest. The resulting revision uses the existing atomic draft
+publication, candidate storage, kernel validation, and test runner.
+`--on` and `--rebase` are not residual options: the request's base is
+authoritative and changes require an explicit revised request.
+
+#### Accepted/draft-graph integer-literal lens
+
+An edit selects `checked_pipeline@1`, bindings
+`{"lens":"integer_literal","value":7,"overrides":{"other.entry.amount":9}}`,
+1–64 exact qualified operation names in scope, and exactly
+`{"outside_scope":true,"boundaries":true}` in preserve. Overrides are optional
+and may name only scope members. Each selected operation must load an integer
+constant that directly feeds checked arithmetic. Values are JSON integers
+within the inherited width; strings, booleans and implicit widening refuse.
+The base may be the current accepted graph, its exact root, or an explicit latest
+kernel-valid draft revision (`dN@rK`). Draft editing loads the bound candidate,
+status, frame and name map, validates the source against the accepted head,
+retains its nonce/create order, and appends any new constant identities after
+its original creates. The composed candidate is independently validated. The
+ordinary revision claim, candidate store and test runner publish the result;
+the retained whole frame is not recompiled to create different identities.
+
+Draft edits retain editable AF1/AF1-X syntax via fresh source-map reconstruction,
+then check that literal repair changes only the selected immediates. A subsequent
+preservation step may add explicit inherited constant declarations as described
+below; it checks re-expansion for exactly those additions.
+Source test IDs, assertions, table ownership and imported-test sources survive.
+Expected outputs are never repaired automatically. The records retain the
+sparse expansion/provenance, repaired authoring frame/locations, source binding
+and graph-preservation evidence. Missing or ambiguous authoring sites refuse.
+The bound loader also compiles the source frame's stated definitions and tests
+against the validated source graph, and the retained frame against the composed
+graph. These assertion checks publish nothing. They recover anonymous test
+names and verify already-applied deletions before checking the remaining frame.
+Equal-constant alias differences are allowed only for inline literals; explicit
+named references must agree on identity. Disagreement refuses before revision
+publication or factored plan creation. A second replay compiles the frame against
+the accepted head, borrowing only entity/member identities from the validated
+source. New inline constant identities match the complete authored typed value,
+not generated names. The replay returns expected bodies and deletions, never
+assembly operations. Whole-graph comparison detects omitted definitions, missing
+deletions and unstated inherited-field changes, including object metadata.
+When every entity is accounted for, reports record correspondence verified with
+the inline-constant alias exception. Literal edits can retain created constants
+that the latest frame no longer mentions; these and their namespace memberships
+are counted separately as `unrepresented_created_constants`. Their historical
+provenance remains unproven, so any such remainder keeps
+`complete_candidate_correspondence: not_established`. An unrelated omitted
+function, type, test or accepted-entity mutation is never such an exception.
+For a changed edit, the bound loader makes these constants explicit in the
+retained frame's `consts` array, using the validated source graph as authorized
+side information. Each value must round-trip exactly through AF1; the source
+object must remain byte-identical in the composed graph. Re-expansion must add
+only those declarations. Replay repeats until all entities are accounted for,
+including any inline alias-selection changes caused by explicit declarations.
+Only then may the completed frame be published. The pretty-printed frame plus
+its final newline must fit the 16 MiB receipt read bound, and the frame must
+respect the receipt reader's value-count and nesting limits.
+
+`residual-inherited-constants.json` records source revision, binding, candidate
+SHA-256 and declaration origins (entity/object IDs and authored locations).
+The whole-frame provenance marks these locations `INHERITED` from the validated
+source graph; historical authorship is not asserted. Subsequent ordinary draft
+layers therefore keep these otherwise unstated constants. Source reports still
+describe the original frame honestly. No-op edits do not rewrite a source frame
+or create a revision merely to add declarations; their original correspondence
+limitation remains visible when applicable.
+Complete draft plans perform and report source/composed validation; draft
+closed-relation plans validate every row without filtering by test results.
+The events ledger counts these validations separately from trials. Preparation
+errors without a completed evidence record report kernel state as `unknown`,
+rather than asserting it did not run. Incomplete/refused source drafts,
+some Ripple-derived authoring sites remain open. Factored draft relations use
+the separately validated source path described in section 2.8.
+
+Alternatively, bindings may be
+`{"lens":"integer_literal","values":{"adjust.entry.amount":7,"other.entry.amount":9}}`.
+This mode requires one value for each exact scope member and forbids `value`
+and `overrides`. A partial `values` object makes each absent site a separate
+decision, such as `/bindings/values/other.entry.amount`; `{}` requests all site
+values. Fill supplies all listed decisions in one round and cannot replace an
+already authored value. The existing closed-relation contract may bind these
+paths; every declared row is checked against all inherited widths before the
+plan is published. Separate paths do not establish semantic independence or
+authorize factoring. Sections 2.7–2.8 describe the dependency adapter and the
+explicit factored CLI contract.
+
+Expansion emits ordinary AF1 replace-op edits with namespace changes disabled.
+The changed load affects all of its uses. Old constant objects, including shared
+ones, remain unchanged. The compiler mutation list is checked before assembly:
+only changed target loads may be replaced, with every field except their
+constant reference preserved; new entities must be constants used by those
+loads. The proposed graph is then checked before storing names or candidates:
+every old non-target entity must remain byte-identical and every requested
+typed value must be present. Equal-value targets retain exact identity and bytes.
+The kernel remains the authority on candidate validity.
+
+`residual-edit.json` retains source entity/object versions, constants, widths,
+checked consumers, requested values, preservation policy, and boundary impact.
+The report follows typed static function references transitively to possible
+callers and lists affected exports and entry points. It does not claim caller
+behavior is unchanged or enumerate dynamic/external callers. Compact results
+show at most 16 members per edit inventory list with omission counts; full
+evidence remains local. Provenance links authored values to request pointers
+and inherited fields to source object versions.
+
+If all typed values already match, no candidate or draft is created.
+Construction is complete and native admission is not_attempted. For an
+accepted base, kernel is not_run. Requested public cases run against that head;
+--all-tests selects its existing tests, while --no-test skips execution.
+With neither public cases nor --all-tests, accepted-base checks are zero_ran.
+A draft no-op reports its actual source/composed validation, checks the source
+graph, and selects the inherited candidate tests as an ordinary draft trial
+would. --no-test also skips these checks. A failed or
+unexecutable check is retained as failed. The binding is rechecked before
+publishing a local immutable rN@1 record under `.sley/residual/`, using atomic
+allocation, strict JSON, a typed digest, a 16 MiB record limit and at most
+10,000 numbered records. All residual show views accept these handles.
+Historical inspection checks record integrity; it does not claim current
+binding validity or confer authority.
+
+#### Bound plans and one explicit fill round
+
+`residual plan request.json` previews construction without running a trial.
+`residual try` uses the same path when fragment fields are missing, returning
+construction incomplete and exit 1. A successful explicit plan command exits 0;
+the four result categories still distinguish incomplete construction from
+validation. Plans use immutable rN@1 records in the existing residual store.
+They retain the request, full binding, missing-field inventory, selected
+fragment contract and original trial options. Complete previews retain their
+expansion/provenance; incomplete plans report expanded output as unavailable.
+No candidate or source draft is created or changed by planning.
+
+Without a `choices` declaration, the route is `explicit_author_decisions`,
+with optimization `none`.
+It batches required missing fragment fields across known nested guards,
+pipelines, branch arms and joins. Existing fields stay authored; missing
+fields stay UNRESOLVED even when only one policy value is supported.
+No description enumeration or public-test filtering supplies semantics.
+The inventory checks closed fragment field schemas and supplied field shapes;
+graph types, expression validity, and exhaustiveness still require completed
+authoring and the existing compiler/kernel. Bounds are 64 missing fields,
+eight nested fragments and 1,024 inspected structural objects. The CLI applies
+one aggregate 250 ms fast-path wall budget to this route, including complete
+requests, missing-field inventory, binding, reconstruction and preparation.
+Later stages cannot restart the inventory clock or adopt the frontier's longer
+allowance. This still does not establish the full memory ceiling.
+
+`residual fill rN@1 decisions.json` accepts exactly
+`{"residual":1,"plan":"rN@1","choose":{"/bindings/rounding":"toward_zero"}}`.
+Strict parsing precedes workspace access. Paths must be exactly the recorded
+questions (all missing fields for explicit plans, the frontier for closed
+relations); unknown paths, overwrites, missing answers and answers that
+introduce further unresolved fields refuse. A complete preview requires an
+empty choose object. A missing parent is answered as one complete subtree.
+The filled request is strictly parsed and expanded through the ordinary path.
+
+Fill recaptures the original binding and recomputes the decision inventory,
+then retains that original binding as an additional guard through candidate
+assembly. The completed request receives its own binding. There is no interval
+in which a changed head/name map may be silently adopted as a new base.
+Source draft revision checks and kernel preconditions remain authoritative.
+An atomic, immutable fill marker additionally allows only one trial per plan,
+including current-base plans with no prior draft revision. It is claimed only
+after strict answer validation and successful expansion. A consumed plan cannot
+be retried and its marker must not be automatically removed. After interruption,
+inspect the resulting draft first: a complete published successor can recover a
+lost acknowledgment without another trial. If no complete successor was published,
+explicitly replan; abandoned private revision numbers are skipped. Current-base
+and source-draft process-interruption controls exercise these publication boundaries.
+The CLI's preparation budget also checks a conservative complete resident
+user-address-space memory bound in addition to allocator reservations/peaks.
+It includes stacks, mappings and allocator overhead/cache. Virtual slack and
+preparation-startup virtual peaks may conservatively require ordinary AF1-X
+fallback; unavailable observations refuse rather than claiming enforcement.
+The resource artifact discloses the observation sources and scope. Checks are
+cooperative before publication, not an instantaneous OS allocation cap.
+
+Malformed answers do not consume a plan. No second automatic question round
+is started. Ordinary AF1-X or a complete revised request is always the escape.
+
+Trial options supplied to the original try carry forward. Public-case paths
+are resolved before recording the plan; those files remain external test
+inputs read at trial time, not semantic constraints or binding authorities.
+Filled drafts retain `residual-plan.json` and `residual-fill.json` alongside
+the completed request and its ordinary expansion. The input.txt of a filled
+draft contains that completed residual request; the fill artifact preserves
+the parsed answer and original decision paths. Historical show remains
+available after binding changes or consumption.
+
+Each recorded residual revision retains these local artifacts:
+
+| Artifact | Meaning |
+|---|---|
+| `input.txt`, `residual-request.json` | Direct try: submitted request bytes and parsed request. Fill: completed request; the parsed answer is retained in `residual-fill.json`. |
+| `residual-binding.json` | Full captured binding and digest |
+| `residual-interfaces.json` | Derive interface preflight, typed binding locators and deferred checks; composition remains partial |
+| `residual-budget.json` | Aggregate planning wall/CPU/work and accounted memory observations, explicit coverage and unfinished aggregate memory enforcement; shown by `--provenance` |
+| `residual-resolution.json` | Closed-relation reconstruction, selected original row, completed request and decision origins; present only for relation resolution |
+| `residual-plan.json`, `residual-fill.json` | For fills: original plan with the complete relation, and the actual author answers |
+| `residual-expanded.json` | Fragment-generated AF1-X/AF1 before draft layering |
+| `residual-provenance.json` | Decision/rule origins indexed into the layered `frame.json` |
+| `frame.json` | Complete layered frame, as for ordinary try |
+| `expanded.json`, `sourcemap.json` | Ordinary AF1-X lowering artifacts, when compilation succeeds |
+| `residual-source-map.json` | Composition of final lowering locations with residual origins, with explicit coverage |
+| `status.json` | Existing draft status plus fragment, binding, and independent result categories |
+
+The default response separates `construction`, `kernel`, `public_checks`,
+and `native_admission`. Public checks include externally executed TestCases
+and public cases with separate counts. Skipped checks are `not_run`, an
+empty executed set is `zero_ran`, and failed or unexecutable cases are
+`failed`. Native admission is `not_attempted`: this command never submits
+or commits. Compiler obligations and original kernel refusal symbols survive.
+Behavioral failures retain expected and actual values.
+
+Default changed-target and failure lists show up to 16 records and explicit
+omission counts; full trial output is available with `--verbose`.
+Sparse edit previews include only each target's
+`scope_index`, `name`, `changed`, and `requested` value; `targets_count` and
+`targets_changed` cover the complete inventory, `targets_omitted` counts hidden
+rows, and `target_details_omitted:true` marks hidden source records. The edit's
+`inspect` command retrieves the full inventory, original object identities,
+widths and consumer evidence through `residual show <reference> --provenance`.
+`residual show <reference> --targets` retrieves every saved literal target with
+its scope index, name, width, previous value, requested value and changed flag,
+plus the recorded binding and verification status. It does not include original
+object identities or consumer evidence and does not rerun checks. This historical
+view is available for literal-edit draft revisions and no-change records; plans,
+non-literal edits and incomplete target records refuse. Views are mutually exclusive.
+Full evidence remains in `residual-edit.json`; compact rendering never alters
+stored artifacts, edit verification, boundaries or refusal information. No-op
+replies use the same preview contract, including historical default inspection.
+No-op default replies and historical summaries retain check outcome/count and
+failure details while omitting the complete `tests` and `public` arrays.
+`checks.details_omitted:true`, `tests_omitted`, `public_omitted`, and `inspect`
+disclose this omission. `residual show <record> --provenance` retrieves the
+original complete `checks` from the saved record without rerunning checks;
+`residual try --verbose` continues to return the full arrays. Stored evidence is
+unchanged, including for historical records created before this summary repair.
+Body omission is explicit. `residual show` requires an exact draft revision or residual record and
+inspects its recorded artifacts even after the head changes, labelled `historical: true`. `--expanded`
+identifies whether AF1 or only AF1-X is available; `--decisions` shows the
+request, and `--provenance` shows bindings and source maps. Ordinary draft,
+fill, explain, call and submission paths continue to operate on these drafts.
+
+Events record residual request bytes, expansion bytes and provenance-entry
+counts alongside existing result/input/output counters. These are local byte
+measurements, not provider token counts or a complete paid-attempt ledger.
+Invalid envelopes are deliberately absent from the local ledger because
+parsing must precede writes; an external campaign recorder must account for
+those attempts too.
+
+### 2.5 Finite-description frontier core
+
+`residual::frontier` implements bounded weighted pair separation over an
+explicit finite relation. The mathematical core alone supplies no semantic
+entitlement. The CLI connects it to authoring through the following explicit
+constraint declaration, checked against the fragment's actual missing fields.
+
+#### Author-declared closed relations
+
+An optional request member has exactly this shape:
+
+```json
+{"choices":{"version":1,"contract":"author_closed_relation","rows":[
+  {"/bindings/params":[["x","i8"]],"/bindings/returns":"Result<i8,ArithmeticError>","/bindings/rounding":"toward_zero"},
+  {"/bindings/params":[["x","i64"]],"/bindings/returns":"Result<i64,ArithmeticError>","/bindings/rounding":"toward_zero"}
+]}}
+```
+
+Here the ordinary bindings omit exactly `params`, `returns`, and `rounding`.
+The author declares that these literal rows are the complete permitted
+relation. This constrains the program; it does not assert that enumerated
+examples exhaust an external natural-language task. Sampled-family contracts
+are refused. Every row must supply exactly every missing field, with no
+overwrites, further holes, duplicate rows, or unsupported policies. Declaring
+a relation for a request with no missing fields is a constraint conflict.
+The ordinary request limits apply, with 1–256 rows and at most 64 fields.
+
+Unbound relation analysis checks request schemas and reconstructibility without
+generating code. Before publishing a plan, each derive row undergoes the bound
+interface preflight, then fragment expansion; every completion is also compiled
+in the bound accepted-head/draft context,
+including sparse-edit scope and width checks. One invalid row refuses the
+entire relation with its row locator; no row is filtered out. Public tests
+never prune the family. These checks do not run the kernel or establish task
+correctness. The selected completion still uses the ordinary trial path.
+
+Questions are actual required fragment-field paths, never opaque row IDs.
+Their descriptors disclose all distinct supported values. A field's additive
+cost is the compact JSON byte length of that whole descriptor plus one byte,
+under `disclosed-field-json-bytes-v1`. It is a byte proxy, not billed tokens,
+and excludes interaction costs outside that descriptor. CLI selection uses
+deterministic greedy separation; optional exact refinement remains a library
+operation. Plans report `closed_author_relation` and
+`greedy_additive_byte_surrogate`.
+
+Only the selected frontier fields require answers. Checked unique
+reconstruction supplies the remaining fields from the authored relation. In
+the example, one signature answer distinguishes the two rows; rounding is
+entailed by both rows. A literal singleton can resolve directly with no
+question round. Without the explicit relation, even a sole supported rounding
+policy remains an author decision. Neither case implies task correctness.
+
+`residual-resolution.json` retains the selected original row, completed
+request, family digest and origins. Answered fields are AUTHORED at their
+actual `residual-fill.json` pointers. Reconstructed fields are DERIVED by
+`closed-author-relation-v1`, citing the authored contract, exact row value
+and answer dependencies. Expansion provenance and final source maps retain
+these origins. Direct singleton sources point into `residual-request.json`;
+filled sources point into the original request in `residual-plan.json`.
+
+The full relation remains local and is marked omitted in the compact report.
+Use `residual show rN@1 --decisions` to recover it before answering from a
+new context. Input/disclosure/authoring effort must be included in future
+usage accounting; storing a relation locally does not make it model knowledge.
+The CLI analyzes the relation once per invocation, then carries that analysis
+and one shared budget through reconstruction, preparation, bound-row compilation
+and the final check before publication or fill consumption. Startup executable
+hashing and initial envelope parsing precede that budget; ordinary candidate
+trials begin after it. This scope is recorded in `residual-budget.json`. A fill starts its
+own invocation budget and never resumes a previously spent planning allowance.
+Its initial binding capture is inside this budget. Decision inventory, each
+closed-relation row fill, selected-row reconstruction, factored fills and their
+post-fill inventories all consume this same work/clock budget. Individual inventory
+passes retain their existing 250 ms ceiling as well. Public standalone helpers
+create a budget for that call; composed callers use `fill_with_budget` and
+`Choices::resolve_with_budget` to retain prior consumption. Exhaustion while
+filling a relation row carries the row's source locator and stops before its
+compiler callback.
+
+Fill measures original and answer JSON with the bounded counting writer before
+cloning, charges serialization work, then reserves the completed request's encoding
+buffer against the shared memory ceiling. The original request is never mutated.
+These reservations do not cover JSON tree clones or parser allocations. Aggregate
+memory enforcement and full interaction cost routing remain unfinished; factoring
+is described below.
+
+Expansion also uses the invocation budget. `fragments::expand_with_budget`
+charges input sizing, name-capture traversal, recursive arithmetic, fragment/region
+visits, generated blocks and provenance loops. The builder refuses a block beyond
+the existing AF1-X limit of 1,024 before pushing it. It returns no partial expansion
+on exhaustion. The standalone `expand` helper creates one budget for its call.
+
+`edit::expand_with_budget` charges exact targets, typed consumer scans, static
+caller traversal, exported-function reporting and entry-point scans. Accepted
+edits, validated draft composition and dependency-site inspection carry the
+caller's budget through the shared lens implementation. These checks preserve
+existing frame/provenance and caller-report ordering. Ordinary AF1-X/compiler
+internals and individual JSON clones remain bounded by their existing checks;
+they are not made preemptible by the residual budget.
+
+#### Mathematical API and guarantees
+
+`Family::parse` accepts strict JSON with exactly `fields` and `descriptions`.
+Each field supplies `name`, positive u32 `cost`, and boolean `eligible`.
+Each description is an object containing exactly those names and typed JSON
+values. Unknown members, duplicate decoded keys, duplicate field names,
+duplicate complete descriptions, floats, empty families and incomplete rows
+refuse. The normal 1 MiB/depth/value parser limits apply, with at most 64
+fields and 256 descriptions per coupled component. Names contain 1–256 bytes.
+Costs are declared additive estimates; eligibility is a declared vocabulary,
+not evidence that a question is meaningful or that its meaning was disclosed.
+
+`frontier::plan(&family, &mut budget, refine_exact)` computes coverage of every
+pair of supplied descriptions. It selects the highest newly separated
+pairs-per-cost field using exact integer cross multiplication, breaking ties
+by lexical field name. It then removes redundant fields in descending cost
+and lexical order. Ineligible fields are never selected. An indistinguishable
+pair refuses with VOCABULARY_INCOMPLETE; no sampling or closest match occurs.
+The final feasible projection is checked before it can be returned.
+
+Optional exact refinement enumerates every eligible subset only when there
+are at most 12 eligible fields. Completion is labelled `exact_additive`;
+work/time exhaustion during refinement retains the best already checked feasible projection
+as `bounded_best`, without an optimality claim. Larger vocabularies retain
+`greedy`. No method claims minimum billed cost. A shared `Budget` enforces
+aggregate planning work (12 million charged bitset/work units), a two-second
+wall ceiling, and 64 planned fields across calls; callers may tighten these
+ceilings but cannot raise them. Exhaustion before a checked feasible frontier
+is a LIMIT refusal. These work units are an engineering bound, not CPU seconds
+or tokens. CLI requests without a `choices` contract use the same budget with
+the wall ceiling tightened to 250 ms. `use_fast_path` preserves the original
+start, consumed work and fields, and any tighter caller ceiling. It cannot
+restart spent time or increase an allowance. Explicit `choices` versions 1–2
+select the two-second finite-frontier route even when their family is a
+singleton. `residual-budget.json` reports `planning_route` as
+`explicit_fast_path` or `finite_frontier`, together with the actual ceiling.
+Linux also measures this thread's CPU through the existing
+`/proc/thread-self/schedstat` source and refuses at two CPU-seconds. CPU checks
+run at stage boundaries and every five milliseconds of charged work. A clock
+that becomes unavailable or moves backwards refuses; platforms without that
+clock use the single-thread wall ceiling as a conservative CPU upper bound,
+with measured CPU reported as null. A budget cannot move to another thread.
+Preparation checks the same budget before binding and between binding rechecks,
+resolved-request parsing, expansion, artifact construction, draft layering and
+provenance attachment. Closed-relation validation checks between context setup,
+expansion, layering and compilation for every row. An exhausted stage cannot
+start the following stage with a fresh allowance. Checks are cooperative: one
+bounded expansion/compiler step can cross a deadline before its following
+checkpoint refuses. No over-budget result is
+published or fill consumed by these planning paths. Complete additional working-memory
+enforcement remains pending. Sections 2.6–2.7 describe the mathematical
+constraint-graph core and the literal-edit dependency adapter. Passing
+several families through one budget does not itself prove their independence.
+
+The largest pair-coverage matrix and target bitmap occupy under 266 KiB.
+Construction additionally resolves at most 256 × 64 borrowed value references
+once, avoiding repeated map lookups during pair comparison without copying
+domain values. The implementation is synchronous and creates no workers. This is a bound
+on that matrix, not a claim about the entire process's memory consumption.
+No global Cartesian product is constructed by this API.
+
+Factored component topology uses fixed arrays for at most 64 parent indexes,
+64 component masks and 256 table-to-component indexes. It does not allocate
+parent/scope vectors, group maps or component-name sets. Parent traversals and
+table membership scans charge the invocation's shared work budget. Components
+retain the prior minimum-root order, and each component's descriptors retain
+lexical field order. Constraint and component encoding borrow descriptors and
+row values directly rather than constructing copied JSON envelopes; emitted
+descriptor keys retain their existing byte order. The factored problem identity
+also streams the legacy typed canonical encoding directly from the validated
+fields, table digests and dependencies. Counting and hashing passes share the
+invocation budget; no copied canonical JSON tree or full encoded hash buffer is
+constructed. The hash domain, length prefix and digest bytes remain unchanged.
+Parsing the encoded family, context binding and returned identity strings still
+have the documented memory exclusions below.
+
+Pair-coverage storage, borrowed-value index vectors, greedy scratch, exact
+refinement indexes, borrowed join row buffers, join size indexes, component,
+closed-relation and completed-fill encoding buffers, decision-domain encoding
+keys and borrowed-value vectors, family sorting keys and canonical member indexes reserve
+their requested heap capacities before allocation.
+Reservations share one 256 MiB ceiling and release capacity on drop, including
+error paths. `Budget::limited_with_memory` can tighten this ceiling. A denied or
+overflowing reservation remains exhausted even after live reservations drop;
+neither a new component nor fast-path selection resets it. The report records
+current and peak reserved bytes, the ceiling and exhaustion status. Redundancy
+ordering uses an allocation-free sort with the same total tie order; exact tie
+comparison consumes iterators without allocating temporary vectors.
+
+Ordinary and factored frontiers reserve their retained field vectors, copied names,
+identity strings and component vectors before planning. The initial allowance
+covers every possible selected field; once selection finishes, unused string
+capacity is released. This permits bounded-best refinement to retain an already
+checked projection after work/time exhaustion without acquiring a fresh memory
+allowance. Clones share the immutable payload and its reservation, which releases
+only when the final owner drops. Multiple retained plans share the construction
+budget's ceiling. Reusing an object under another budget does not transfer its charge.
+
+`memory_enforcement` remains `frontier_scratch_and_retained_payload_reservations`.
+These requested-capacity reservations exclude parser peak, map nodes, family
+digest strings, other retained JSON trees, graph/compiler allocations, Arc storage
+and allocator overhead. Their peak is neither process RSS nor total planner memory.
+
+The instrumented workbench binary additionally reports
+`aggregate_memory_enforcement: allocator_peak_checked_at_budget_checkpoints` and
+an `allocator_heap` observation. Its single planning thread observes the process's
+live allocation extents, including size-class rounding, relative to the budget's
+startup baseline. This includes planner/compiler allocations omitted from explicit
+reservations and remembers released transient peaks. System reallocation observes
+source and destination simultaneously, conservatively even for in-place growth.
+Nested budgets retain independent peaks; exhaustion never resets on release.
+An unavailable observer or invalid accounting refuses at a budget checkpoint.
+Library callers without this allocator registration report `not_implemented`.
+
+Observation starts after initial envelope parsing and startup executable hashing,
+and ends before persistence and the ordinary candidate trial. Each checkpoint
+checks the observed peak against the same additional-memory ceiling (at most
+256 MiB); a single allocation can overshoot before that check. Infallible allocation
+and OOM behavior are unchanged. Idle cached blocks, system allocator metadata,
+stacks and OS mappings remain excluded. This is not a physical-memory/RSS limit
+or preallocation cap; the full specification's memory requirement remains open.
+
+Version-1 closed relations use reserved JSON keys and borrowed values to sort and
+deduplicate each disclosed domain in the original byte order. JSON types remain
+distinct, and duplicate keys release their buffers. Disclosure costs are measured
+with the bounded counting writer, without allocating a measurement buffer.
+Family encoding borrows the existing rows and fields instead of cloning an
+intermediate JSON object. Its reserved buffer stays live while strict parsing and
+family canonicalization acquire their own reservations, so their overlapping
+capacities share one ceiling. The buffer drops before frontier construction.
+All serialization uses the existing work/time budget and a 1 MiB byte ceiling.
+Retained request/question trees and parser peak remain excluded as stated above.
+
+Factored joins measure serialized row sizes with a counting writer, without
+allocating temporary JSON buffers. Component encoding borrows joined rows and
+measures the full envelope against the invocation's remaining 1 MiB materialization
+allowance before allocating its reserved output buffer. The second serialization
+pass cannot exceed the measured capacity. Both passes charge the same work/time
+budget at each writer call (one work unit per started 64-byte chunk, minimum one)
+and at entry/exit. Escaped strings and keys use actual JSON byte counts. This
+preserves the prior envelope bytes and family identity without cloning all rows
+into an intermediate JSON value. Intermediate joins hold sorted key/value
+references into the immutable source tables; nested JSON values and key strings
+are never copied into those rows. Row-header and entry-vector capacities are
+reserved before allocation, including simultaneously live input/output buffers.
+The result borrows source tables, so dropping an earlier join releases its
+reservation without invalidating later rows. Final family parsing charges adopted
+payload capacity as described below; parser peak remains outside reservations.
+
+`Family::parse_with_budget` consumes parsed row objects instead of cloning their
+nested values. JSON sorting keys and their outer buffer reserve capacity before
+allocation, share the invocation's work/memory allowance, and release on every
+exit. Canonical family hashing traverses borrowed fields/rows twice: first to
+measure the typed encoding, then to stream the exact length-prefixed bytes into
+SHA-256. It creates neither a copied canonical value tree nor a payload-sized
+encoding buffer. Sorted object-member indexes are reserved across recursive
+visits. Legacy family identities and row ordering are preserved.
+
+Family construction also reserves requested field/row vector capacity, copied
+field-name bytes, and observable capacity of retained keys, strings and nested
+arrays. Adoption traverses the already parsed tree under the shared work/time
+budget before constructing new family buffers. It does not bound the parser's
+prior allocations or estimate opaque map-node storage. Immutable families share
+their fields, rows and reservation across clones; payloads are not deep-copied.
+The charge remains live until the last family owner drops, including when an
+owner is dropped on another thread. Simultaneously retained constraint/component
+families and construction scratch share the same ceiling. A reservation remains
+with its construction budget; callers must use one budget throughout an invocation
+to aggregate these charges with later planning.
+
+`Problem::parse_with_budget` shares one budget across its constraint families;
+bound dependency validation uses it for both original and augmented declarations.
+Standalone `parse` calls use a default budget. Initial JSON parsing still uses
+the existing structural limits and is checked before/after. Parser transient
+allocations and small scalar formatting buffers are not covered by reservations.
+
+Frontiers bind a typed digest of the complete supplied relation, field costs
+and eligibility. Field/row permutations leave identity and tie handling
+unchanged. `encode` requires an actual complete member; `decode` requires
+exactly the selected fields and exactly one matching member. Boolean true,
+integer 1 and string "1" remain distinct. Changed families/costs/vocabularies
+refuse as stale. Frontier fields are private and cannot be loaded from an
+unchecked certificate. Summaries explicitly state that semantic entitlement,
+family completeness for the task, and billed-cost optimality are not established.
+
+Conformance includes the retained research counterexample (greedy 16 versus
+exact 12 additive units), deterministic ties, typed domains, membership and
+binding failures, structural/work/wall bounds, refinement exhaustion without
+false optimality, maximum-size components with u32 costs, and 500 new seeded
+finite families checked against an independent projection-based exact oracle.
+The new seeded audit does not relabel or replace the supplied Python research.
+
+### 2.6 Factored constraint-graph core
+
+`residual::frontier::factors` plans a finite constraint declaration without
+constructing its global Cartesian product. It is a mathematical library API.
+The residual CLI continues to use its existing explicit/closed-relation paths;
+verified dependency extraction from actual program bindings remains unfinished.
+Graph labels supplied to this API are not proof that every semantic dependency
+of a Sley program has been included.
+
+`Problem::parse` accepts exactly this structure:
+
+```json
+{
+  "fields": [
+    {"name":"x","cost":1,"eligible":true},
+    {"name":"y","cost":2,"eligible":true}
+  ],
+  "constraints": [
+    {"fields":["x"],"rows":[{"x":0},{"x":1}]},
+    {"fields":["y"],"rows":[{"y":false},{"y":true}]}
+  ],
+  "dependencies": []
+}
+```
+
+Every field needs a literal domain table. Each table supplies complete rows
+over exactly its named scope; all tables are conjoined by natural joins with
+strict JSON-type equality. Duplicate rows/fields, unknown members, empty
+tables and missing domains refuse. Bounds are 64 fields, 256 tables, 256 rows
+per table/component, 1,024 dependency edges and the existing strict JSON limits.
+
+Every table scope joins its fields into one connected component, even when its
+rows happen to form a Cartesian product. Additional dependency edges have
+exactly `kind` and `fields`; the kinds are `type`, `ownership`, `effect`, `order`,
+`error_route`, `binding` and `author_relation`. Every edge names at least two
+distinct declared fields and merges their components transitively. An edge
+constrains factoring, not row values. Actual correlations/allowed combinations
+belong in the literal constraint tables. The implementation never splits a
+scope because examples appear independent.
+
+`factors::plan(&problem, &mut budget, refine_exact)` joins tables only within a
+component, with restrictive tables first and deterministic digest tie ordering.
+Contradictions return FAMILY_EMPTY. A join exceeding 256 intermediate rows
+returns LIMIT before storing a 257th row. A conservative 1 MiB serialized-byte
+check runs before allocating joined reference rows; final component encodings also share a
+1 MiB aggregate ceiling. These are materialization limits, not a proof of the
+full 256 MiB working-memory requirement. Early limit refusal may occur even if
+a later constraint could reduce the family; no sampling or partial solution is
+reported instead. Every join and component frontier shares the same budget.
+
+The resulting private `FactoredFrontier` projects/reconstructs one description
+component by component, with exact field coverage and membership checks.
+Twenty declared independent binary fields retain forty component rows while
+representing 1,048,576 complete descriptions. The global product is never
+materialized. Cardinality is reported as a decimal string when it fits u128;
+otherwise the count is null with an explicit overflow marker. Reconstruction
+does not depend on computing that count.
+
+Field, table, row and edge ordering leave identity unchanged. Changes to table
+contents, scopes, dependency kinds, costs or eligibility invalidate the bound
+frontier. Summaries distinguish graph-relative independence from unestablished
+program-dependency completeness, semantic entitlement, task completeness and
+billed-cost optimality. Exact additive optimality is reported only when every
+component's subset search completes. A checked bounded-best component prevents
+that global optimality label, and exhaustion cannot grant later components a
+fresh budget.
+
+Conformance covers the million-description case without enumeration, every
+coupling kind, shared variables and transitive edges, contradictory/oversized
+joins, constant-value amplification, stale graph mutation, typed answers,
+aggregate exhaustion and 128 small graphs checked against an independent
+exhaustive conjunction/projection oracle with varied field costs.
+
+### 2.7 Typed dependencies for literal edits (library)
+
+`residual::dependencies::extract(program, names, request, budget)` matches each
+site in an accepted-graph per-target `integer_literal` request and builds a
+conservative local dependency graph. It reuses
+`sley_policy::complete_entities::project_complete_entities` and its complete
+typed reference edges. There is no second reference extractor or execution
+sampling. Missing references, malformed graph inventories, mismatched exact
+roots and unmatched lens sites refuse.
+
+The adapter joins endpoints of typed references, including ownership within
+functions, control flow, types, calls, function references inside constants,
+effects, contracts, initializers and bindings. Thus two sites in one function,
+sites with a common caller, and sites sharing a contract predicate remain
+coupled even if their literal domains form a Cartesian product. The explicit
+exclusions are administrative workspace/package/namespace membership, test
+observations, and value reads of immutable integer constants. This lens
+preserves old constants and changes selected loads by copy-on-write. Shared
+constant identity alone therefore does not connect edits. Workspace contracts
+or capability requirements, external dependency bindings and policies on
+administrative containers conservatively couple every site. Fixed authored
+sites are absent from the question vocabulary but remain in graph traversal.
+
+The private `DependencyGraph` records source versions, matched targets,
+components, inclusion/exclusion counts and its exact graph/request binding.
+`constrain` re-extracts that binding, requires exactly the missing site fields,
+checks every declared domain value against the inherited integer width, and
+adds mandatory coupling edges to an author's finite declaration. Author edges
+can join more components. No alternatives are pruned. Graph context is also
+bound into the resulting `factors::Problem`, so even a changed object with
+unchanged components invalidates an old frontier.
+
+Source extraction caps at 65,535 objects and 8 MiB of stored source bytes;
+the projected graph caps at 262,144 edges. Work and wall/CPU checkpoints share
+the caller's invocation budget. Projection is an existing synchronous bounded
+step, so deadline enforcement remains cooperative. These caps do not establish
+the complete 256 MiB additional-memory requirement. Coupled components still
+obey the factor core's 256-row ceiling and refuse without sampling.
+
+This adapter establishes conservative connectivity in the supplied local typed
+graph for this exact lens. It does not establish task completeness, model cost
+savings, kernel validity, or relationships imposed by unknown external clients.
+The caller must bind the source to the verified workspace head. Section 2.8
+describes the CLI integration that retains and rechecks that original binding.
+
+Conformance includes twenty real independent functions yielding forty component
+rows for 1,048,576 combinations, followed by kernel validation and execution of
+one reconstructed edit. Additional tests use real accepted fixtures and exact
+typed object mutations to check calls, constant-held function references,
+effects, contracts, administrative/global policies, stale objects, invalid
+domains, missing references and shared budget exhaustion. Synthetic graph
+fixtures establish extraction behavior, not kernel acceptance of those fixtures.
+
+### 2.8 Factored author constraints in the residual CLI
+
+Accepted-graph or explicit valid-draft `integer_literal` requests with per-target `values` may use
+this alternative `choices` contract:
+
+```json
+{"choices":{"version":2,"contract":"author_closed_constraints",
+  "constraints":[
+    {"fields":["/bindings/values/adjust.entry.amount"],
+     "rows":[{"/bindings/values/adjust.entry.amount":3},{"/bindings/values/adjust.entry.amount":7}]},
+    {"fields":["/bindings/values/other.entry.amount"],
+     "rows":[{"/bindings/values/other.entry.amount":3},{"/bindings/values/other.entry.amount":9}]}
+  ],"dependencies":[]}}
+```
+
+Here scope names both loads and bindings are
+`{"lens":"integer_literal","values":{}}`. Each table has exact field scope
+and complete rows. The author declares their entire conjunction as the allowed
+domain. Tables may overlap; contradictions refuse. Duplicate rows, partial
+rows, extra members, fields outside the actual missing-site vocabulary and
+unsupported dependency kinds refuse. The optional coupling content is carried
+in the required `dependencies` array, using the factor-core edge schema.
+No author field costs, completeness flags or independence assertions are
+accepted. Mandatory typed graph edges always participate. Default-plus-overrides
+edits do not use this contract. Derived functions use the conservative adapter
+described below.
+
+For a draft base, `DraftSource::analyze_factors` loads the exact bound candidate,
+validates it against the captured accepted head, and uses its complete proposed
+graph and captured names for dependency extraction. It checks the receipt before
+and after analysis. Newly created source entities participate in coupling and
+width checks. The ordinary public accepted-graph extraction/analysis APIs still
+refuse draft requests; a caller cannot replace receipt loading with an assertion
+that an arbitrary graph represents a draft. The dependency report retains the
+source revision, binding, candidate SHA-256 and validation outcome.
+
+Draft planning reports `source_kernel: valid` separately from the selected
+completion's kernel outcome. The events ledger records its one dependency-source
+validation as `source_kernel_validations`; later source/composed edit validations
+are counted separately in `kernel_validations`. Cached binding reentry does not
+repeat dependency analysis. Candidate families remain unmaterialized; the
+selected completion uses the identity-preserving draft route in section 2.4.
+
+`residual plan` and `residual try` capture a workspace binding **before** graph
+analysis, then retain it through preparation/publication and recheck it before
+candidate creation. `fill` checks the saved binding, reconstructs the same
+deterministic frontier once under one invocation budget, and retains the
+original binding as a parent guard. No head or name change silently rebases the
+operation. All earlier width, scope, preservation and one-attempt fill rules
+still apply. Fixed authored values and every declared table value must fit
+their inherited widths, including alternatives that would not be selected.
+
+The route is `closed_author_constraints`; optimization is
+`factored_greedy_additive_byte_surrogate`. Question descriptors list
+`declared_values`, the union of literal table values, with an explicit note that
+the full conjunction applies. These are not a promise that every cross-field
+combination is allowed. The positive additive cost is the full disclosed
+descriptor's compact JSON bytes plus one, not tokens or an invoice. The planner
+asks real missing-site paths in one batch, reconstructs omitted values only
+through checked constraints, and never enumerates independent global products.
+A literal singleton conjunction resolves directly without an answer round.
+
+Plans report inherited-width checks separately. Compiler and kernel outcomes
+remain `not_run`; `compilation_policy` states `selected_completion_on_trial`.
+The selected completion uses ordinary compilation, mutation preservation checks,
+kernel validation and requested public tests. Public tests never filter the
+declared domain. Oversized coupled components refuse before publishing a plan,
+even when their authored tables individually look independent.
+
+Derived `ordered_guard_chain`, `checked_pipeline` and `typed_branch_result`
+requests also accept this contract over their exact missing-field paths.
+Every decision in the single target function belongs to one conservative
+component: its signature, bindings, evaluation order, failure routes and effects
+may couple the choices. An empty author dependency array never asserts
+independence. The joined component retains the 256-description ceiling; requests
+that exceed it must provide tighter explicit constraints or use direct authoring.
+This adapter does not establish finer independence within a function.
+
+After exact table conjunction, every resulting complete description passes the
+existing bound interface preflight. One conflicting completion refuses the whole
+family; invalid alternatives are never pruned into an inferred domain. The
+report labels `interface_preflight` as `all_joined_rows_passed`, gives the checked
+completion count, and retains `composition: partial`. It does not claim inherited
+integer-width checks, full expression/ownership/effect closure, compilation or
+kernel validity. The selected completion still follows ordinary compilation and
+validation. A constraint can supply a whole missing subtree, but that subtree
+cannot introduce another question round.
+
+The dependency identity binds the exact request, source root/workspace/epoch,
+object inventory and resolved entity names. Draft derivations use the same
+receipt-loaded, replay-checked and kernel-validated proposed graph as draft
+dependency analysis, including newly declared types. Public accepted-base
+analysis refuses draft requests. Fill rechecks the original workspace binding;
+neither head nor name drift silently changes the meaning of a table value.
+
+Full `residual-dependencies.json` evidence stays in the plan. Its provenance
+view exposes it; default output retains compact counts and digests. Resolution
+evidence retains component frontier evidence, the matched row of every original
+constraint table, and the completed request. AUTHORED origins point to actual
+fill answers. DERIVED origins cite the full authored contract, exact literal
+value source, answers, checked problem identity and dependency binding.
+Sources use the original table/row order and escaped JSON pointers, including
+direct singleton, filled candidate and no-op records. This evidence establishes
+reconstruction within the declared local family, not task correctness or cost
+savings. Use `residual show rN@1 --decisions` to recover the full contract before
+answering from a new context; relation authoring/disclosure costs still count.
 
 ## 3. Local names
 
@@ -493,7 +2119,8 @@ explicitly.
 ### 5.3 Ripple
 
 An AF1 frame with `"afx": 1` may carry `"ripple": [intent, ...]`: typed
-changes stated once. `sley-agent help afx` is the reference text. Intents
+changes stated once. `sley-agent help afx-reference` is the full reference text;
+`help afx` serves the concise authoring guide. Intents
 apply in written order after the frame's own definitions are expanded, and
 each derives ordinary AF1 edits into the same frame: patches of the live
 functions it rewrites (only the blocks that change, restated with every
@@ -747,6 +2374,22 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_RIPPLE_LIMIT` | a ripple bound was reached |
 | `AGENT_RIPPLE_GUARD_SHAPE` | the checker is not `P -> Result<P,E>` for the guarded parameter |
 | `AGENT_RIPPLE_GUARD_ORDER` | no identical check to replace, or an evaluation order a guard cannot keep |
+| `AGENT_RESIDUAL_PARSE` | malformed residual envelope, duplicate or unknown member, invalid UTF-8, prohibited float, or exceeded parser limit |
+| `AGENT_RESIDUAL_VERSION` | residual envelope version is unsupported |
+| `AGENT_RESIDUAL_BINDING_STALE` | a bound head, policy, name map, draft, implementation identity, or other dependency changed or became unavailable |
+| `AGENT_RESIDUAL_FRAGMENT_UNKNOWN` | fragment family or version is unavailable |
+| `AGENT_RESIDUAL_FRAGMENT_SHAPE` | bindings or source region do not match the fragment's supported shape |
+| `AGENT_RESIDUAL_CHOICE_MISSING` | an explicit required author decision is missing |
+| `AGENT_RESIDUAL_CHOICE_UNKNOWN` | an author decision is outside its declared domain |
+| `AGENT_RESIDUAL_SEMANTIC_UNRESOLVED` | an omitted semantic decision lacks adequate provenance |
+| `AGENT_RESIDUAL_FAMILY_EMPTY` | declared construction constraints admit no completion |
+| `AGENT_RESIDUAL_FAMILY_INCOMPLETE` | completeness of the declared construction family is not established |
+| `AGENT_RESIDUAL_VOCABULARY_INCOMPLETE` | the decision vocabulary cannot distinguish required completions |
+| `AGENT_RESIDUAL_CONSTRAINT_CONFLICT` | supplied policies or bindings conflict |
+| `AGENT_RESIDUAL_LIMIT` | a residual construction or planning bound was reached |
+| `AGENT_RESIDUAL_INCONCLUSIVE` | a bounded oracle cannot establish the requested result |
+| `AGENT_RESIDUAL_SCOPE` | targets are not exactly identified or have an unsupported scope |
+| `AGENT_RESIDUAL_PRESERVE` | an edit lacks an explicit preservation request, or a derive request supplies one |
 | `AGENT_SEARCH_NO_ORACLE` | `search` has no permitted public case for the function: the case file is unreadable, holds no case, none for the function, or none whose arguments fit the function |
 | `AGENT_SEARCH_SEED_INVALID` | the `search` seed is unusable (refused, incomplete, a text draft, not made from a frame), the name is not one of its functions or cannot run, or the attempt has used its searches |
 
@@ -922,7 +2565,11 @@ then lists:
   creates (`+`), replaces or changes a part of (`~`), or deletes (`-`), by
   kind and name (`changed: fn ~bound +area; type +Shape; test +t1`);
 - `exported:` the exported functions that existed before the candidate and
-  are changed or deleted by it;
+  are changed or deleted by it. In JSON each `changed` entry carries this as
+  `existing_export`. A created function's entry, and the entry of a function
+  whose visibility the candidate changes, also carries its `visibility` after
+  the candidate, so a created exported function reads
+  `"existing_export": false, "visibility": "exported"`;
 - `tests: X/Y passed [authored A, imported I, provided P]` (counts that are
   zero are left out; `; replaces provided t_1` names the live tests the
   candidate replaces) and one line per failing test; passing tests are
@@ -930,6 +2577,11 @@ then lists:
 - `tests: 0 ran` when no TestCase ran, as section 2 describes;
 - the `next:` step, which layers on the draft (`try --on d1`), repairs it
   (`fill`) or submits it (`submit d1`).
+
+The JSON result carries the same facts: `next` holds a Valid candidate's next
+step (without the `next: ` prefix), and `tests_failed` counts failing authored
+and public tests when any fail, so a `Valid` verdict with a failed test is not
+read as success.
 
 A `--public` case file is read and checked before anything is recorded or
 stored: a file that cannot be read (`AGENT_IO_FAILED`), is not a JSON
@@ -1100,10 +2752,10 @@ Imported tests never satisfy a requirement to author a test.
 
 ### 12.8 Events ledger
 
-Every command that uses a workspace appends one JSON line to
+Commands that register a workspace append one JSON line to
 `.sley/events.jsonl`, also when it is refused before it opens the
 workspace (an unreadable frame or delta, a malformed case file), with
-exactly these keys: `seq`, `cmd`, `draft`,
+these core keys: `seq`, `cmd`, `draft`,
 `candidate`, `input_bytes` (the frame, delta or case file read, otherwise
 the command line), `output_bytes` (what the command printed),
 `whole_frame`, `rewrite` (a `try` of a whole new frame while drafts
@@ -1116,6 +2768,13 @@ the file: each command takes it and appends its line (one write) under an
 exclusive lock on the ledger, so concurrent commands get unique numbers in
 file order. A failure to append never fails the command, and `help` and
 `version` append nothing.
+
+Residual try registers its workspace only after strict request parsing, so
+invalid residual envelopes create no local ledger. A constructed residual
+request adds a `residual` object with numeric/boolean counters for request
+bytes, expansion bytes, provenance entries and use of residual try. Other
+commands retain their existing key set. Section 2.4 describes the remaining
+external accounting obligations.
 
 `crates/sley-agent/tests/drafts.rs` executes the contract of this section:
 stale revisions, changed heads and explicit rebases, missing, repeated and

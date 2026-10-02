@@ -16,6 +16,7 @@ pub const AF1: &str = include_str!("../data/help-af1.md");
 /// The AF1-X (authoring dialect) reference.
 pub const AFX: &str = include_str!("../data/help-afx.md");
 /// The concise AF1-X reference with an executable collection fold.
+/// Served by default; the full contract is available as `afx-reference`.
 pub const AFX_QUICK: &str = include_str!("../data/help-afx-quick.md");
 /// The type shorthand reference.
 pub const TYPES: &str = include_str!("../data/help-types.md");
@@ -25,6 +26,10 @@ pub const TESTS: &str = include_str!("../data/help-tests.md");
 pub const DRAFTS: &str = include_str!("../data/help-drafts.md");
 /// The verified search reference.
 pub const SEARCH: &str = include_str!("../data/help-search.md");
+/// The implemented residual authoring commands and fragment contracts.
+pub const RESIDUAL: &str = include_str!("../data/help-residual.md");
+/// The default residual guide; the full contract is loaded on demand.
+pub const RESIDUAL_QUICK: &str = include_str!("../data/help-residual-quick.md");
 
 /// Topic names.
 pub const TOPICS: &[&str] = &[
@@ -32,11 +37,15 @@ pub const TOPICS: &[&str] = &[
     "af1",
     "afx",
     "afx-quick",
+    "afx-reference",
     "drafts",
     "opcodes",
     "types",
     "tests",
     "search",
+    "residual",
+    "residual-quick",
+    "residual-reference",
     "refusals",
 ];
 
@@ -46,12 +55,14 @@ pub fn topic(name: &str) -> Option<String> {
     Some(match name {
         "" | "guide" => GUIDE.to_owned(),
         "af1" | "frames" => AF1.to_owned(),
-        "afx" | "af1-x" | "dialect" => AFX.to_owned(),
-        "afx-quick" => AFX_QUICK.to_owned(),
+        "afx" | "af1-x" | "dialect" | "afx-quick" => AFX_QUICK.to_owned(),
+        "afx-reference" => AFX.to_owned(),
         "types" => TYPES.to_owned(),
         "tests" | "testcase" => TESTS.to_owned(),
         "drafts" | "draft" | "fill" => DRAFTS.to_owned(),
         "search" => SEARCH.to_owned(),
+        "residual" | "residual-quick" => RESIDUAL_QUICK.to_owned(),
+        "residual-reference" => RESIDUAL.to_owned(),
         "opcodes" => opcodes(),
         "refusals" => refusals(),
         _ => return None,

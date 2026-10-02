@@ -145,6 +145,16 @@ pub struct Drafts {
 }
 
 impl Drafts {
+    /// Addresses existing drafts without creating workbench directories.
+    pub(crate) fn read_only(workspace: &Workspace) -> Self {
+        Self {
+            dir: workspace
+                .dir()
+                .join(crate::workspace::STATE_DIR)
+                .join(DRAFTS_DIR),
+        }
+    }
+
     /// Opens (creating) the draft store.
     ///
     /// # Errors
