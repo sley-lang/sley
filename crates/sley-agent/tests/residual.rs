@@ -912,6 +912,17 @@ fn residual_fill_duplicate_keys_and_wrong_plan_are_rejected_before_workspace_acc
         assert_eq!(code, 2, "{result}");
         assert!(!fixture.dir.join(".sley").exists());
     }
+    // A fill or request of another envelope version is refused as a version.
+    let fill = r#"{"residual":true,"plan":"r1@1","choose":{}}"#;
+    let (code, result) = cli(&fixture.dir, &["residual", "fill", "r1@1", fill]);
+    assert_eq!(code, 2, "{result}");
+    assert_eq!(result["error"], "AGENT_RESIDUAL_VERSION");
+    let mut request = planning_request();
+    request["residual"] = json!(2);
+    let (code, result) = cli(&fixture.dir, &["residual", "plan", &request.to_string()]);
+    assert_eq!(code, 2, "{result}");
+    assert_eq!(result["error"], "AGENT_RESIDUAL_VERSION");
+    assert!(!fixture.dir.join(".sley").exists());
 }
 
 fn bytes(value: &Value) -> Vec<u8> {

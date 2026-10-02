@@ -134,3 +134,22 @@ fn relation_analysis_refuses_aggregate_memory_and_work_without_retained_buffers(
         assert_eq!(budget.usage()["memory"]["reserved_bytes"], 0);
     }
 }
+
+#[test]
+fn relation_analysis_without_an_authored_relation_is_semantically_unresolved() {
+    let mut value: Value = serde_json::from_str(
+        crate::help::RESIDUAL
+            .lines()
+            .find(|line| line.starts_with("{\"residual\":"))
+            .unwrap(),
+    )
+    .unwrap();
+    value["bindings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("rounding");
+    let request = parse_request(&serde_json::to_vec(&value).unwrap()).unwrap();
+    assert!(request.choices.is_none());
+    let error = super::analyze(&request).err().unwrap();
+    assert_eq!(error.code(), AgentErrorCode::ResidualSemanticUnresolved);
+}
