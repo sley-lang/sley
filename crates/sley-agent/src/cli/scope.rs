@@ -19,12 +19,11 @@ fn scope(detail: impl Into<String>) -> AgentError {
 }
 
 impl Guard {
-    pub(super) fn parse(
-        root: Option<&str>,
-        functions: Option<&str>,
-        head: &Head,
-    ) -> Result<Option<Self>> {
-        let Some(root) = root else { return Ok(None) };
+    pub(super) fn parse(words: &super::Words, head: &Head) -> Result<Option<Self>> {
+        let Some(root) = words.value("--base-root") else {
+            return Ok(None);
+        };
+        let functions = words.value("--functions").or(words.value("--body"));
         if crate::hex::decode32(root).is_none() {
             return Err(usage(
                 "--base-root needs the full 64 lowercase hex root from --json view",

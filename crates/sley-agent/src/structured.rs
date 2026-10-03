@@ -7,6 +7,7 @@
 //!
 //! Statements: `["let", x, e]`, `["var", x, T, e]`, `["set", x, e]`,
 //! `["if", c, [..], [..]?]`, `["for", x, xs, [..]]`, `["while", c, [..]]`,
+//! `["range", i, start, end, [..]]`, `["for-indexed", i, x, xs, [..]]`,
 //! `["return", e]`, `["ok", e]`, `["fail", Case]`, `["trap"]`.
 //!
 //! Expressions: a name, an integer, `true`/`false`, a typed literal
@@ -567,9 +568,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                             .get(args.get(1)?.as_str()?)
                             .cloned()
                     }
-                    "call" => {
+                    "call" | "tcall" => {
                         let (_, returns) = self.signature(args.first()?.as_str()?)?;
-                        if mode.is_some() {
+                        if mode.is_some() && (base == "call" || result_parts(&returns).is_some()) {
                             result_parts(&returns).map(|p| p.0)
                         } else {
                             Some(returns)
@@ -1124,7 +1125,8 @@ impl<'c, 'a> Fn<'c, 'a> {
                     );
                 }
                 "if" => self.if_stmt(items, env, &here, internal)?,
-                "for" => self.for_stmt(items, env, &here)?,
+                "for" | "for-indexed" => self.for_stmt(items, env, &here)?,
+                "range" => self.range_stmt(items, env, &here)?,
                 "while" => self.while_stmt(items, env, &here, internal)?,
                 "return" | "ok" => {
                     if items.len() != 2 {
@@ -1284,32 +1286,133 @@ impl<'c, 'a> Fn<'c, 'a> {
         *env = exit_env.scoped(before);
     }
 
-    fn for_stmt(&mut self, items: &[Value], env: &mut Env, at: &str) -> R<()> {
-        let (Some(var), Some(list), Some(body)) = (
-            items
-                .get(1)
-                .and_then(Value::as_str)
-                .filter(|n| identifier(n)),
-            items.get(2),
-            items.get(3).and_then(Value::as_array),
-        ) else {
-            return fail(at, "[\"for\", name, vector, [body...]]");
+    fn advance(&mut self, env: &mut Env, key: &str, at: &str) {
+        let binding = env.get(key).expect("lowering owns the loop index").clone();
+        let trap = self.trap_block();
+        let next = self.emit_value(
+            &format!("add?{trap}"),
+            vec![binding.operand.clone(), Self::lit(&json!(1), &binding.ty)],
+            at,
+        );
+        env.set(
+            key,
+            Binding {
+                operand: next,
+                ..binding
+            },
+        );
+    }
+
+    fn loop_name<'v>(&self, value: &'v Value, env: &Env, at: &str) -> R<&'v str> {
+        let Some(name) = value.as_str().filter(|name| identifier(name)) else {
+            return fail(at, "a loop variable needs an identifier");
         };
-        if items.len() != 4 {
-            return fail(at, "[\"for\", name, vector, [body...]]");
-        }
-        if env.get(var).is_some() || self.params.contains_key(var) {
+        if env.get(name).is_some() || self.params.contains_key(name) {
             return fail(
-                &format!("{at}/1"),
+                at,
                 format!(
-                    "`{var}` is declared outside this loop; the loop variable needs a new name"
+                    "`{name}` is declared outside this loop; the loop variable needs a new name"
                 ),
             );
         }
-        let (vec, vty) = self.expr(list, env, &format!("{at}/2"), None)?;
+        Ok(name)
+    }
+
+    fn range_stmt(&mut self, items: &[Value], env: &mut Env, at: &str) -> R<()> {
+        if items.len() != 5 {
+            return fail(at, "[\"range\", name, start, end, [body...]]");
+        }
+        let var = self.loop_name(&items[1], env, &format!("{at}/1"))?;
+        let Some(body) = items[4].as_array() else {
+            return fail(&format!("{at}/4"), "a range body is a statement list");
+        };
+        let ty = self
+            .static_type(&items[2], env, None)
+            .or_else(|| self.static_type(&items[3], env, None))
+            .unwrap_or_else(|| "i64".into());
+        if !is_int(&ty) {
+            return fail(at, "range bounds must have the same integer type");
+        }
+        let mut keys = Vec::new();
+        // Keep the start across any control flow in the end expression;
+        // both are evaluated once, left to right, even for an empty range.
+        for (index, bound) in items[2..4].iter().enumerate() {
+            let here = format!("{at}/{}", index + 2);
+            let (value, actual) = self.expr(bound, env, &here, Some(&ty))?;
+            if actual != ty {
+                return fail(&here, format!("range bounds mix {ty} and {actual}"));
+            }
+            keys.push(self.hold(env, value, &ty));
+        }
+        let before = env.clone();
+        let (local, header) = self.enter_loop(env, at);
+        let more = self.emit_value(
+            "lt",
+            vec![local.operand(&keys[0]), local.operand(&keys[1])],
+            at,
+        );
+        let (mut inner, exit_env) = self.test_loop(&more, &local, at);
+        inner.set(
+            var,
+            Binding {
+                operand: inner.operand(&keys[0]),
+                ty: ty.clone(),
+                mutable: false,
+            },
+        );
+        let pending = self.pending_exit.take();
+        self.depth += 1;
+        let falls = self.stmts(body, &mut inner, &format!("{at}/4"), false)?;
+        self.depth -= 1;
+        self.pending_exit = pending;
+        if falls {
+            // Since index < end <= MAX, this checked step cannot overflow.
+            self.advance(&mut inner, &keys[0], at);
+        }
+        self.close_loop(
+            &header,
+            falls.then_some(&inner),
+            &before,
+            &exit_env,
+            env,
+            at,
+        );
+        Self::release(env, &keys);
+        Ok(())
+    }
+
+    fn for_stmt(&mut self, items: &[Value], env: &mut Env, at: &str) -> R<()> {
+        let indexed = items[0] == "for-indexed";
+        let offset = usize::from(indexed);
+        let grammar = if indexed {
+            "[\"for-indexed\", index, element, vector, [body...]]"
+        } else {
+            "[\"for\", element, vector, [body...]]"
+        };
+        if items.len() != 4 + offset {
+            return fail(at, grammar);
+        }
+        let var = self.loop_name(&items[1 + offset], env, &format!("{at}/{}", 1 + offset))?;
+        let visible_index = if indexed {
+            let name = self.loop_name(&items[1], env, &format!("{at}/1"))?;
+            if name == var {
+                return fail(
+                    &format!("{at}/2"),
+                    "index and element need different names",
+                );
+            }
+            Some(name)
+        } else {
+            None
+        };
+        let list = &items[2 + offset];
+        let Some(body) = items[3 + offset].as_array() else {
+            return fail(at, grammar);
+        };
+        let (vec, vty) = self.expr(list, env, &format!("{at}/{}", 2 + offset), None)?;
         let Some(elem) = vec_elem(&vty) else {
             return fail(
-                &format!("{at}/2"),
+                &format!("{at}/{}", 2 + offset),
                 format!("`for` iterates a vector, not {vty}"),
             );
         };
@@ -1340,6 +1443,16 @@ impl<'c, 'a> Fn<'c, 'a> {
         let trap = self.trap_block();
         let (current, position) = (inner.operand(&vector), inner.operand(&index));
         let item = self.emit_value(&format!("vec_get?{trap}"), vec![current, position], at);
+        if let Some(name) = visible_index {
+            inner.set(
+                name,
+                Binding {
+                    operand: inner.operand(&index),
+                    ty: "u64".into(),
+                    mutable: false,
+                },
+            );
+        }
         inner.set(
             var,
             Binding {
@@ -1350,24 +1463,11 @@ impl<'c, 'a> Fn<'c, 'a> {
         );
         let pending = self.pending_exit.take();
         self.depth += 1;
-        let falls = self.stmts(body, &mut inner, &format!("{at}/3"), false)?;
+        let falls = self.stmts(body, &mut inner, &format!("{at}/{}", 3 + offset), false)?;
         self.depth -= 1;
         self.pending_exit = pending;
         if falls {
-            let position = inner.operand(&index);
-            let next = self.emit_value(
-                &format!("add?{trap}"),
-                vec![position, Self::lit(&json!(1), "u64")],
-                at,
-            );
-            inner.set(
-                &index,
-                Binding {
-                    operand: next,
-                    ty: "u64".into(),
-                    mutable: true,
-                },
-            );
+            self.advance(&mut inner, &index, at);
         }
         self.close_loop(
             &header,

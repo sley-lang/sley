@@ -2271,13 +2271,27 @@ validation, tests, submission) is unchanged, and `view --after cN` shows the low
 
 Statements: `["let", x, e]`; `["var", x, T, e]` and `["set", x, e]` (only a `var` may be set);
 `["if", c, [..], [..]]` (else optional); `["for", x, xs, [..]]` (elements of a vector, in order; the
-index is not visible); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
+index is not visible); `["for-indexed", i, x, xs, [..]]` (read-only `u64` index and element);
+`["range", i, start, end, [..]]` (read-only integer induction variable); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
 `["ok", e]` and `["fail", "Case"]`; `["trap"]`. Variables declared in a branch or loop body go out of
 scope at its end. A `let` or `var` in the same statement list as an earlier declaration of the name
 rebinds it; inside a nested branch or loop body, declaring a name that is declared outside that body
 (a variable, a parameter, or a `for` variable) is refused, because hiding and overwriting the outer
 name are both familiar readings. A body must not reach its end without returning, and a statement
 after one that returns is refused.
+
+A range is half-open: visit `start`, `start + 1`, ... while less than `end`.
+Bounds evaluate exactly once, left to right, before testing emptiness. Equal or
+reversed bounds execute no body; bound failures still occur in that order.
+Both bounds must have one identical integer type. Untyped literals use a known
+bound type, otherwise the existing `i64` default; explicit integer types never
+convert implicitly. There is no subtraction of the bounds and no wraparound.
+The checked increment from the last visited value to the exclusive endpoint
+cannot overflow, including endpoints at the maximum of the integer type.
+Range/index/element names must be distinct and absent from enclosing scope.
+They cannot be assigned or redeclared inside the body, and do not escape it.
+Vector iteration evaluates the vector once. Mutating an outer bound or vector
+variable inside a loop does not change that loop's captured input.
 
 Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "value": v}`, or
 `[op, args...]` with
@@ -2329,6 +2343,34 @@ are per-invocation authoring constraints, not capability grants or persistent
 restrictions on subsequent authoring commands. Controllers must carry their
 scope and fresh root on every new attempt. Nothing commits automatically.
 
+### 5.4.2 Body-only proposals
+
+`try body.json --body NAME --base-root ROOT` accepts a JSON statement list
+for one existing function. With `--familiar`, the file contains statements
+without a function header or outer braces. The name, parameter names and types,
+and result type come from the selected accepted graph at ROOT. This is header
+binding, not reconstruction of any previous authoring text. For creation a
+controller can first install a typed stub from the task's declared signature;
+that setup must be counted by a measurement controller.
+
+The command wraps the body into an ordinary structured function frame and
+uses the same lowering, validator, tests and atomic candidate path. The root
+binding is required; `--on` is incompatible. If `--functions` is omitted, the
+scope is the selected function only. An explicit scope must contain the target.
+The selected function's parameter identities/objects, result type, visibility,
+contracts, type parameters and effects are checked for exact preservation.
+Whole body replacement does not preserve interior block/operation identities;
+use a targeted graph edit when those identities are part of the edit contract.
+
+AF1 cannot restate generic or effect-declaring functions, so `--body` refuses
+such targets before recording a trial. Missing targets, an incompatible input
+shape and unsupported signatures are refused, never guessed. In particular a
+text body cannot supply a replacement header or an additional function.
+Diagnostics index the synthesized draft `frame.json`; familiar positions remain
+relative to the original body text, without a fabricated header line offset.
+The input and frame are draft records, never canonical program authority. JSON
+body-only proposals continue to work without the optional familiar feature.
+
 ### 5.5 Familiar text proposals (optional frontend)
 
 `try --familiar <file | ->` reads a textual proposal and parses it into exactly the structured-body
@@ -2340,12 +2382,16 @@ and inline text is not accepted.
     fn name(p: T, q: T) -> T {
         let x = e            var t: T = e          t = e
         if c { .. } else if c { .. } else { .. }
-        for x in xs { .. }   while c { .. }
+        for x in xs { .. }   for i, x in xs { .. }
+        for i in start..end { .. }   while c { .. }
         return e             return ok(e)          return err(Case)      trap
     }
 
 Each construct maps to one structured form: `let`, `var`, `set`, `if`, `for`, `while`, `return`,
-`ok`, `fail`, `trap`. Expressions, loosest first: `a if c else b` (`["if", c, a, b]`, only when `if`
+`ok`, `fail`, `trap`. `for i in start..end` maps to `range`, and
+`for i, x in xs` maps to `for-indexed`, with the semantics of section 5.4.
+Ranges occur only in a `for` header; inclusive ranges, steps and iterable range
+values are refused. Expressions, loosest first: `a if c else b` (`["if", c, a, b]`, only when `if`
 is on the line of `a`), `or`, `and`, `not`, `== != < <= > >=` (`eq` ... `ge`, no chaining), `+ -`,
 `* / %` (`add sub mul div rem`), unary `-` (`neg`; a minus before a literal makes a negative
 literal), then `f(args)` (`call`), `x.field`, `xs[i]` (`get`). `min max abs clamp len` are the
@@ -2356,7 +2402,7 @@ is accepted), typed integers (`7u64`), `true`, `false`, and JSON-escaped text in
 Comments run from `#` to the end of the line, or fill a line that starts with `//`. Newlines and
 optional `;` separate statements.
 
-There is no other syntax. Methods, ranges, `break`/`continue`, compound assignment, floating-point
+There is no other syntax. Methods, inclusive ranges, `break`/`continue`, compound assignment, floating-point
 or hexadecimal literals, slices, tuples, bitwise operators, a trailing `//` and spellings from other
 languages (`&&`, `!`, `elif`, `let mut`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
 their line and column, and the revision is recorded as a text draft: its `input.txt` keeps the
