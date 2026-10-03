@@ -2299,6 +2299,36 @@ refusal inside lowered blocks is mapped back to the statement that produced it, 
 pointer beside it. A `body` in `patch` is refused: restate a body function through `fns`.
 `help structured` is the short reference.
 
+### 5.4.1 Root-bound function proposals
+
+A controller may bind a fresh `try` proposal with `--base-root ROOT`, where
+ROOT is the complete lowercase 64-hex `root` supplied by `--json view`
+(including focused views) of the accepted program. A different accepted root
+is `AGENT_PROPOSAL_STALE`; the guard is checked before constructing a trial
+and again before publishing its candidate. Candidate commit still uses the
+kernel's own exact base preconditions. A view of a candidate is not a fresh
+accepted-program editing context.
+
+`--functions NAME,OTHER` additionally limits the proposal to a nonempty
+function frame: only `af1`, `afx`, and `fns` are allowed at the top level,
+each function name must occur once and belong to the controller's allowlist.
+Names are exact identifiers, not patterns. This switch requires `--base-root`.
+Existing functions outside that set, their parameters, blocks and operations
+must retain their exact object identities in the resulting graph. New functions
+must also belong to the set. The compiler may create the ordinary types,
+constants and namespace membership needed to lower the allowed functions.
+The guard does not promise that callers' behavior is unchanged when an allowed
+callee changes; the caller owns behavioral and effect requirements and tests.
+Violating this authoring constraint is `AGENT_PROPOSAL_SCOPE` and publishes no
+candidate. A malformed root or incompatible switches is `AGENT_USAGE_INVALID`.
+
+Both guards apply to JSON function frames and familiar proposals, and do not
+change the parser, kernel or graph-native lifecycle. Multiple definitions are
+one atomic candidate. A guarded proposal is fresh: `--on` is refused. Guards
+are per-invocation authoring constraints, not capability grants or persistent
+restrictions on subsequent authoring commands. Controllers must carry their
+scope and fresh root on every new attempt. Nothing commits automatically.
+
 ### 5.5 Familiar text proposals (optional frontend)
 
 `try --familiar <file | ->` reads a textual proposal and parses it into exactly the structured-body
@@ -2427,6 +2457,8 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 
 | Symbol | Meaning |
 |---|---|
+| `AGENT_PROPOSAL_STALE` | the accepted state root differs from the proposal's explicit `--base-root`; read fresh context and author again |
+| `AGENT_PROPOSAL_SCOPE` | a function-scoped proposal violates its declared function set or changes protected graph entities |
 | `AGENT_USAGE_INVALID` | the command line names no known command or arguments |
 | `AGENT_WORKSPACE_NOT_FOUND` | no directory at or above the start holds `repo/` or `base.pack` |
 | `AGENT_WORKSPACE_INVALID` | the repository, seed, policy grant or genesis could not be loaded or written |

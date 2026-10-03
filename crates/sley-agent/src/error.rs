@@ -10,6 +10,10 @@ use core::fmt;
 pub enum AgentErrorCode {
     /// The command line does not name a known command or its arguments.
     Usage,
+    /// The proposal was authored against a different accepted state root.
+    ProposalStale,
+    /// The proposal exceeds its explicit function scope.
+    ProposalScope,
     /// No workspace directory (one holding `repo/` or `base.pack`) was found.
     WorkspaceNotFound,
     /// The workspace repository or seed pack could not be loaded.
@@ -109,6 +113,8 @@ impl AgentErrorCode {
     pub const fn symbol(self) -> &'static str {
         match self {
             Self::Usage => "AGENT_USAGE_INVALID",
+            Self::ProposalStale => "AGENT_PROPOSAL_STALE",
+            Self::ProposalScope => "AGENT_PROPOSAL_SCOPE",
             Self::WorkspaceNotFound => "AGENT_WORKSPACE_NOT_FOUND",
             Self::WorkspaceInvalid => "AGENT_WORKSPACE_INVALID",
             Self::NameUnknown => "AGENT_NAME_UNKNOWN",

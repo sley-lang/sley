@@ -788,7 +788,8 @@ fn view_json_shapes() {
     let (status, focus) = run_json(&temp.path, &["view", "--focus", "calc", "--after", "c1"]);
     assert_eq!(status, 0, "{focus}");
     let keys: Vec<&String> = focus.as_object().unwrap().keys().collect();
-    assert_eq!(keys, ["focus", "view"]);
+    assert_eq!(keys, ["focus", "root", "view"]);
+    assert!(sley_agent::hex::decode32(focus["root"].as_str().unwrap()).is_some());
     let lists = &focus["focus"];
     assert_eq!(lists["target"], "calc");
     assert_eq!(lists["kind"], "fn");
@@ -815,7 +816,8 @@ fn view_json_shapes() {
     let (status, x) = run_json(&temp.path, &["view", "--x", "--after", "c1", "calc"]);
     assert_eq!(status, 0, "{x}");
     let keys: Vec<&String> = x.as_object().unwrap().keys().collect();
-    assert_eq!(keys, ["view"]);
+    assert_eq!(keys, ["root", "view"]);
+    assert_eq!(x["root"], focus["root"]);
     assert!(
         x["view"]
             .as_str()
