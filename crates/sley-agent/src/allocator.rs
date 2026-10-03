@@ -66,6 +66,9 @@ thread_local! {
 pub struct SizeClassCache;
 
 impl SizeClassCache {
+    fn extent(layout: Layout) -> usize {
+        Self::class(layout).map_or(layout.size(), |class| Self::block(class).size())
+    }
     /// The class that serves `layout`, or `None` for the system allocator.
     /// A pure function of the layout, so `dealloc` (which receives the
     /// layout `alloc` was given) always finds the class `alloc` used.
@@ -191,7 +194,7 @@ impl SizeClassCache {
 // again. The caches are per thread, so no two threads touch one.
 unsafe impl GlobalAlloc for SizeClassCache {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        match Self::class(layout) {
+        let block = match Self::class(layout) {
             Some(class) => {
                 let cached = Self::pop(class);
                 if cached.is_null() {
@@ -202,15 +205,23 @@ unsafe impl GlobalAlloc for SizeClassCache {
             }
             // SAFETY: the caller's layout, unchanged.
             None => Self::system(|| unsafe { System.alloc(layout) }),
+        };
+        if !block.is_null() {
+            sley_agent::residual::frontier::heap::allocated(Self::extent(layout));
         }
+        block
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        match Self::class(layout) {
+        let block = match Self::class(layout) {
             Some(class) => {
                 let cached = Self::pop(class);
                 if cached.is_null() {
-                    return Self::fresh(class, true);
+                    let block = Self::fresh(class, true);
+                    if !block.is_null() {
+                        sley_agent::residual::frontier::heap::allocated(Self::extent(layout));
+                    }
+                    return block;
                 }
                 // SAFETY: the block holds at least `layout.size()` bytes.
                 unsafe { cached.write_bytes(0, layout.size()) };
@@ -218,10 +229,15 @@ unsafe impl GlobalAlloc for SizeClassCache {
             }
             // SAFETY: the caller's layout, unchanged.
             None => Self::system(|| unsafe { System.alloc_zeroed(layout) }),
+        };
+        if !block.is_null() {
+            sley_agent::residual::frontier::heap::allocated(Self::extent(layout));
         }
+        block
     }
 
     unsafe fn dealloc(&self, block: *mut u8, layout: Layout) {
+        sley_agent::residual::frontier::heap::deallocated(Self::extent(layout));
         match Self::class(layout) {
             Some(class) => {
                 if !Self::push(class, block) {
@@ -252,7 +268,18 @@ unsafe impl GlobalAlloc for SizeClassCache {
             // pointer has the whole block's provenance.
             (Some(old), Some(new)) if old == new => ptr::with_exposed_provenance_mut(block.addr()),
             // SAFETY: the system allocator's block, resized under its own rules.
-            (None, None) => Self::system(|| unsafe { System.realloc(block, layout, new_size) }),
+            (None, None) => {
+                sley_agent::residual::frontier::heap::reallocating(new_size);
+                let resized = Self::system(|| unsafe { System.realloc(block, layout, new_size) });
+                if !resized.is_null() {
+                    if new_size >= layout.size() {
+                        sley_agent::residual::frontier::heap::allocated(new_size - layout.size());
+                    } else {
+                        sley_agent::residual::frontier::heap::deallocated(layout.size() - new_size);
+                    }
+                }
+                resized
+            }
             _ => {
                 // SAFETY: a valid non-zero layout (the caller's alignment and size).
                 let moved = unsafe { self.alloc(new_layout) };
@@ -274,10 +301,160 @@ unsafe impl GlobalAlloc for SizeClassCache {
 #[cfg(test)]
 mod tests {
     use super::{CLASS_BYTES, CLASSES, MAX_CACHED, SLOTS, SizeClassCache};
+    use sley_agent::residual::frontier::{Budget, heap};
     use std::alloc::{GlobalAlloc, Layout};
+    use std::time::Duration;
 
     fn layout(size: usize, align: usize) -> Layout {
         Layout::from_size_align(size, align).unwrap()
+    }
+
+    /// Local-allocation lower bounds require a process with no unrelated live
+    /// baseline being freed by parallel tests. Preserve the real global counter
+    /// and all assertions by selecting this same test in a fresh process.
+    fn isolated_heap_test(name: &str) -> bool {
+        const CHILD_TEST: &str = "SLEY_ALLOCATOR_HEAP_TEST_CASE";
+        // Miri does not support spawning this native test executable. Its
+        // allocator checks run with --test-threads=1 instead.
+        if cfg!(miri) {
+            return false;
+        }
+        let selected = format!("allocator::tests::{name}");
+        if std::env::var(CHILD_TEST).ok().as_deref() == Some(selected.as_str()) {
+            return false;
+        }
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", &selected, "--test-threads=1", "--nocapture"])
+            .env(CHILD_TEST, &selected)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stdout.contains("test result: ok. 1 passed; 0 failed"),
+            "isolated {selected}: {}\n{stdout}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        true
+    }
+
+    #[test]
+    fn heap_budget_retains_a_released_transient_peak_and_exhaustion_is_sticky() {
+        if isolated_heap_test(
+            "heap_budget_retains_a_released_transient_peak_and_exhaustion_is_sticky",
+        ) {
+            return;
+        }
+        heap::enable_current_thread();
+        let mut budget = Budget::limited_with_memory(Duration::from_secs(2), 100_000, 1 << 20);
+        let cache = SizeClassCache;
+        // SAFETY: the non-null block is used within its layout and released
+        // exactly once with that same layout. The allocator observer, not RSS,
+        // is the subject of this test.
+        unsafe {
+            let request = layout(2 << 20, 8);
+            let block = cache.alloc_zeroed(request);
+            assert!(!block.is_null());
+            block.write(42);
+            assert_eq!(block.read(), 42);
+            cache.dealloc(block, request);
+        }
+        assert!(
+            budget
+                .checkpoint()
+                .unwrap_err()
+                .detail()
+                .contains("observed planner heap")
+        );
+        assert!(budget.checkpoint().is_err());
+        let usage = budget.usage();
+        assert_eq!(usage["allocator_heap"]["accounting_valid"], true);
+        assert_eq!(usage["allocator_heap"]["exhausted"], true);
+        assert!(
+            usage["allocator_heap"]["peak_additional_bytes"]
+                .as_u64()
+                .unwrap()
+                >= 2 << 20
+        );
+        assert_eq!(
+            usage["aggregate_memory_enforcement"],
+            "allocator_peak_checked_at_budget_checkpoints"
+        );
+    }
+
+    #[test]
+    fn nested_heap_observations_do_not_erase_the_outer_peak() {
+        if isolated_heap_test("nested_heap_observations_do_not_erase_the_outer_peak") {
+            return;
+        }
+        heap::enable_current_thread();
+        let mut outer = Budget::limited_with_memory(Duration::from_secs(2), 100_000, 1 << 20);
+        let mut inner = Budget::limited_with_memory(Duration::from_secs(2), 100_000, 64 << 20);
+        let cache = SizeClassCache;
+        // SAFETY: successful allocation and exactly matching release.
+        unsafe {
+            let request = layout(2 << 20, 32);
+            let block = cache.alloc(request);
+            assert!(!block.is_null());
+            cache.dealloc(block, request);
+        }
+        inner.checkpoint().unwrap();
+        drop(inner);
+        assert!(outer.checkpoint().is_err());
+    }
+
+    #[test]
+    fn system_reallocation_accounts_for_source_and_destination_scratch() {
+        if isolated_heap_test("system_reallocation_accounts_for_source_and_destination_scratch") {
+            return;
+        }
+        heap::enable_current_thread();
+        let mut budget = Budget::limited_with_memory(Duration::from_secs(2), 100_000, 5 << 18);
+        let cache = SizeClassCache;
+        // SAFETY: both layouts exceed the cache, the successful realloc
+        // preserves the initialized byte, and the final layout matches release.
+        unsafe {
+            let old = layout(1 << 19, 8);
+            let block = cache.alloc(old);
+            assert!(!block.is_null());
+            block.write(7);
+            let resized = cache.realloc(block, old, 1 << 20);
+            assert!(!resized.is_null());
+            assert_eq!(resized.read(), 7);
+            cache.dealloc(resized, layout(1 << 20, 8));
+        }
+        assert!(budget.checkpoint().is_err());
+        let usage = budget.usage();
+        assert!(
+            usage["allocator_heap"]["peak_additional_bytes"]
+                .as_u64()
+                .unwrap()
+                >= 3 << 19,
+            "{usage}"
+        );
+    }
+
+    #[test]
+    fn heap_watch_capacity_fails_closed_and_cross_thread_drop_releases_scope() {
+        heap::enable_current_thread();
+        let mut scopes: Vec<_> = (0..32).map(|_| Budget::default()).collect();
+        let mut unavailable = Budget::default();
+        assert!(
+            unavailable
+                .checkpoint()
+                .unwrap_err()
+                .detail()
+                .contains("observation unavailable")
+        );
+        let scope = scopes.pop().unwrap();
+        std::thread::spawn(move || drop(scope)).join().unwrap();
+        let mut replacement = Budget::default();
+        replacement.checkpoint().unwrap();
+        assert_eq!(
+            replacement.usage()["allocator_heap"]["accounting_valid"],
+            true
+        );
+        assert!(unavailable.checkpoint().is_err());
     }
 
     #[test]

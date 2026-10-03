@@ -2059,6 +2059,13 @@ fn every_refusal_symbol_is_in_the_contract_and_the_reserved_one_says_so() {
     assert_eq!(status, 2, "{text}");
     assert!(text.starts_with("error AGENT_FRAME_INVALID: "), "{text}");
     assert!(text.contains("one path only"), "{text}");
+    // AGENT_X_EFFECT_ORDER stays registered and reserved: the form that would
+    // reorder evaluation is a grammar refusal, never this symbol.
+    assert!(!text.contains("AGENT_X_EFFECT_ORDER"), "{text}");
+    assert_eq!(
+        sley_agent::AgentErrorCode::XEffectOrder.symbol(),
+        "AGENT_X_EFFECT_ORDER"
+    );
     // `help drafts` names the delta refusal.
     assert!(sley_agent::help::DRAFTS.contains("`AGENT_DELTA_INVALID`"));
 }

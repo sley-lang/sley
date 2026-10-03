@@ -39,6 +39,12 @@ use crate::opcodes::{self, ImmediateKind, OpcodeRow};
 use crate::types::{self, TypeNames};
 use crate::workspace::Program;
 
+pub(crate) mod constant_uses;
+mod context;
+pub(crate) mod operations;
+mod references;
+mod traits;
+
 /// Deepest nesting of operations inside one operand.
 pub const MAX_EXPR_DEPTH: usize = 32;
 /// Most operations one expanded function may hold.
@@ -159,6 +165,9 @@ pub struct SourceMap {
     pub blocks: BTreeMap<String, BTreeMap<String, String>>,
     /// Per function: generated value names only.
     pub values: BTreeMap<String, BTreeMap<String, String>>,
+    /// When the frame had structured bodies: lowered-frame pointer to the
+    /// authored pointer ([`crate::structured`]), applied after `entries`.
+    pub lowered: Vec<(String, String)>,
 }
 
 impl SourceMap {
@@ -173,7 +182,13 @@ impl SourceMap {
                        "role": entry.role.name(), "name": entry.name})
             })
             .collect();
-        json!({"entries": entries, "names": self.names, "blocks": self.blocks, "values": self.values})
+        let lowered: Vec<Value> = self
+            .lowered
+            .iter()
+            .map(|(lowered, authored)| json!({"lowered": lowered, "authored": authored}))
+            .collect();
+        json!({"entries": entries, "names": self.names, "blocks": self.blocks, "values": self.values,
+               "structured": lowered})
     }
 
     /// The authored pointer for an expanded pointer: the entry with the
@@ -190,13 +205,18 @@ impl SourceMap {
                 best = Some(entry);
             }
         }
-        best.map(|entry| {
+        let found = best.map(|entry| {
             if entry.role.carries() {
                 format!("{}{}", entry.authored, &pointer[entry.expanded.len()..])
             } else {
                 entry.authored.clone()
             }
-        })
+        });
+        if self.lowered.is_empty() {
+            return found;
+        }
+        let lowered = found.unwrap_or_else(|| pointer.to_owned());
+        Some(crate::structured::authored(&self.lowered, &lowered))
     }
 
     /// A compiler refusal on the expanded frame, with every problem line's
@@ -518,6 +538,9 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
             "declare \"afx\": 1 for the authoring dialect, or remove the key",
         ));
     }
+    if crate::structured::uses_bodies(object) {
+        return expand_structured(program, names, object);
+    }
     let context = Context::new(program, names, object);
     let mut out = object.clone();
     out.remove("afx");
@@ -605,6 +628,51 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
     })
 }
 
+/// A frame with structured function bodies: lowered to block functions
+/// ([`crate::structured`]), then expanded like any AF1-X frame, with every
+/// pointer mapped through both steps back to the authored body.
+fn expand_structured(
+    program: &Program,
+    names: &Names,
+    object: &Map<String, Value>,
+) -> Result<Expansion> {
+    let context = Context::new(program, names, object);
+    let lowered = match crate::structured::lower(&context, object) {
+        Ok(lowered) => lowered,
+        Err(obligations) => {
+            let mut out = object.clone();
+            out.remove("afx");
+            out.remove("test_tables");
+            out.remove("ripple");
+            return Ok(Expansion {
+                frame: Value::Object(out),
+                map: SourceMap::default(),
+                stats: AfxStats::default(),
+                obligations,
+                ripple: None,
+            });
+        }
+    };
+    let mut expansion = expand(program, names, &Value::Object(lowered.frame))?;
+    let origins = lowered.origins;
+    for obligation in &mut expansion.obligations {
+        obligation.at = crate::structured::authored(&origins, &obligation.at);
+    }
+    for table in [
+        &mut expansion.map.names,
+        &mut expansion.map.blocks,
+        &mut expansion.map.values,
+    ] {
+        for pointers in table.values_mut() {
+            for pointer in pointers.values_mut() {
+                *pointer = crate::structured::authored(&origins, pointer);
+            }
+        }
+    }
+    expansion.map.lowered = origins;
+    Ok(expansion)
+}
+
 /// Whether an `edit.with` operation uses an AF1-X form.
 fn is_extended_op(with: &Value) -> bool {
     let (word, args): (Option<&str>, Vec<&Value>) = match with {
@@ -647,13 +715,14 @@ struct FrameType {
     id: EntityId,
     variant: bool,
     members: Vec<(String, Option<TypeExpr>)>,
+    trait_shape_complete: bool,
 }
 
 /// Parameter types and result type, each when known.
 pub(crate) type Signature = (Vec<Option<TypeExpr>>, Option<TypeExpr>);
 
 /// The members of a type definition with their payload or field types.
-type Members = Vec<(String, Option<TypeExpr>)>;
+pub(crate) type Members = Vec<(String, Option<TypeExpr>)>;
 
 /// The read-only typing context: the program, its names, and the frame's
 /// own declarations.
@@ -663,7 +732,10 @@ pub(crate) struct Context<'a> {
     types: BTreeMap<String, FrameType>,
     pub(crate) type_names: BTreeMap<EntityId, String>,
     consts: BTreeMap<String, Option<TypeExpr>>,
+    constant_values: BTreeMap<String, (Option<Value>, String)>,
+    deleted_references: BTreeSet<EntityId>,
     signatures: BTreeMap<String, Signature>,
+    signature_issues: BTreeMap<String, AgentError>,
     pub(crate) top: BTreeSet<String>,
 }
 
@@ -682,130 +754,9 @@ fn list<'v>(frame: &'v Map<String, Value>, key: &str) -> &'v [Value] {
 }
 
 impl<'a> Context<'a> {
-    #[allow(clippy::too_many_lines)]
-    fn new(program: &'a Program, names: &'a Names, frame: &Map<String, Value>) -> Self {
-        let mut cx = Self {
-            program,
-            names,
-            types: BTreeMap::new(),
-            type_names: BTreeMap::new(),
-            consts: BTreeMap::new(),
-            signatures: BTreeMap::new(),
-            top: BTreeSet::new(),
-        };
-        for (index, decl) in list(frame, "types").iter().enumerate() {
-            let Some(name) = decl.get("name").and_then(Value::as_str) else {
-                continue;
-            };
-            cx.top.insert(name.to_owned());
-            let id = names
-                .resolve(name)
-                .filter(|id| {
-                    names.scope(id) == Scope::Top
-                        && matches!(program.body(id), Some(EntityBodyValue::TypeDef(_)))
-                })
-                .unwrap_or_else(|| placeholder(index));
-            cx.types.insert(
-                name.to_owned(),
-                FrameType {
-                    id,
-                    variant: decl.get("variant").is_some(),
-                    members: Vec::new(),
-                },
-            );
-            cx.type_names.insert(id, name.to_owned());
-        }
-        let mut members = Vec::new();
-        for decl in list(frame, "types") {
-            let Some(name) = decl.get("name").and_then(Value::as_str) else {
-                continue;
-            };
-            let cases = decl
-                .get("variant")
-                .or_else(|| decl.get("record"))
-                .and_then(Value::as_array);
-            let read: Vec<(String, Option<TypeExpr>)> = cases
-                .map(|cases| {
-                    cases
-                        .iter()
-                        .filter_map(|case| match case {
-                            Value::String(leaf) => Some((leaf.clone(), None)),
-                            Value::Array(pair) if pair.len() == 2 => Some((
-                                pair[0].as_str()?.to_owned(),
-                                if pair[1].is_null() {
-                                    None
-                                } else {
-                                    types::read(&pair[1], &cx, "").ok()
-                                },
-                            )),
-                            _ => None,
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            members.push((name.to_owned(), read));
-        }
-        for (name, read) in members {
-            if let Some(declared) = cx.types.get_mut(&name) {
-                declared.members = read;
-            }
-        }
-        for decl in list(frame, "consts") {
-            let Some(name) = decl.get("name").and_then(Value::as_str) else {
-                continue;
-            };
-            let ty = types::read(decl.get("type").unwrap_or(&Value::from("i64")), &cx, "").ok();
-            cx.top.insert(name.to_owned());
-            cx.consts.insert(name.to_owned(), ty);
-        }
-        for key in ["fns", "functions"] {
-            for decl in list(frame, key) {
-                let Some(name) = decl
-                    .get("fn")
-                    .or_else(|| decl.get("name"))
-                    .and_then(Value::as_str)
-                else {
-                    continue;
-                };
-                let params = read_params(decl.get("params"), &cx)
-                    .map(|params| params.into_iter().map(|(_, ty, _)| ty).collect())
-                    .unwrap_or_default();
-                let result = decl
-                    .get("returns")
-                    .and_then(|ty| types::read(ty, &cx, "").ok());
-                cx.top.insert(name.to_owned());
-                cx.signatures.insert(name.to_owned(), (params, result));
-            }
-        }
-        for decl in list(frame, "patch") {
-            let Some(name) = decl
-                .get("fn")
-                .or_else(|| decl.get("name"))
-                .and_then(Value::as_str)
-            else {
-                continue;
-            };
-            let Some((live_params, live_result)) = cx.live_signature(name) else {
-                continue;
-            };
-            let params = match decl.get("params") {
-                Some(value) => read_params(Some(value), &cx)
-                    .map(|params| params.into_iter().map(|(_, ty, _)| ty).collect())
-                    .unwrap_or_default(),
-                None => live_params,
-            };
-            let result = match decl.get("returns") {
-                Some(ty) => types::read(ty, &cx, "").ok(),
-                None => live_result,
-            };
-            cx.signatures.insert(name.to_owned(), (params, result));
-        }
-        for decl in list(frame, "tests") {
-            if let Some(name) = decl.get("name").and_then(Value::as_str) {
-                cx.top.insert(name.to_owned());
-            }
-        }
-        cx
+    pub(crate) fn new(program: &'a Program, names: &'a Names, frame: &Map<String, Value>) -> Self {
+        Self::with_checkpoint(program, names, frame, &mut || Ok(()))
+            .expect("infallible context checkpoint")
     }
 
     pub(crate) fn live_function(
@@ -850,6 +801,23 @@ impl<'a> Context<'a> {
         self.live_signature(name)
     }
 
+    pub(crate) fn declared_signature(&self, name: &str) -> bool {
+        self.signatures.contains_key(name)
+    }
+
+    /// Canonical declaration refusal retained beside the partial AF1-X view.
+    pub(crate) fn signature_issue(&self, name: &str) -> Option<&AgentError> {
+        self.signature_issues.get(name)
+    }
+
+    /// Overlay the residual target's authored interface for recursive calls.
+    /// This changes only the read-only type environment, not an authoring frame.
+    pub(crate) fn set_signature(&mut self, name: &str, signature: Signature) {
+        self.top.insert(name.to_owned());
+        self.signatures.insert(name.to_owned(), signature);
+        self.signature_issues.remove(name);
+    }
+
     fn const_type(&self, name: &str) -> Option<TypeExpr> {
         if let Some(ty) = self.consts.get(name) {
             return ty.clone();
@@ -880,7 +848,7 @@ impl<'a> Context<'a> {
 
     /// Whether a definition is a variant, and its members with payload or
     /// field types.
-    fn members(&self, definition: &EntityId) -> Option<(bool, Members)> {
+    pub(crate) fn members(&self, definition: &EntityId) -> Option<(bool, Members)> {
         if let Some(name) = self.type_names.get(definition) {
             let declared = &self.types[name];
             return Some((declared.variant, declared.members.clone()));
@@ -946,20 +914,8 @@ pub(crate) fn read_params(
     value: Option<&Value>,
     cx: &Context<'_>,
 ) -> Option<Vec<(String, Option<TypeExpr>, Value)>> {
-    let Some(value) = value else {
-        return Some(Vec::new());
-    };
-    let mut out = Vec::new();
-    for param in value.as_array()? {
-        let pair = param.as_array().filter(|pair| pair.len() == 2)?;
-        let name = pair[0].as_str()?;
-        out.push((
-            name.to_owned(),
-            types::read(&pair[1], cx, "").ok(),
-            pair[1].clone(),
-        ));
-    }
-    Some(out)
+    context::read_params_with_checkpoint(value, cx, &mut || Ok(()))
+        .expect("infallible parameter checkpoint")
 }
 
 fn named(definition: EntityId) -> TypeExpr {
@@ -2234,7 +2190,7 @@ impl Expander<'_, '_> {
 
 /// Unknown types in the frame's own `types` (member types) and `consts`,
 /// as the compiler reports them.
-fn declared_types(frame: &Map<String, Value>, cx: &Context<'_>) -> Vec<Obligation> {
+pub(crate) fn declared_types(frame: &Map<String, Value>, cx: &Context<'_>) -> Vec<Obligation> {
     let mut out = Vec::new();
     let mut check = |ty: &Value, at: String| {
         if let Err(error) = types::read(ty, cx, &at) {
@@ -2766,6 +2722,26 @@ impl<'c, 'a> FnExp<'c, 'a> {
                             self.check_operand(payload);
                         }
                     }
+                    Stmt::Raw {
+                        value,
+                        pointer,
+                        name: Some(_),
+                    } => {
+                        let word = value
+                            .as_array()
+                            .and_then(|items| items.get(1))
+                            .or_else(|| value.get("op").or_else(|| value.get("opcode")))
+                            .and_then(Value::as_str);
+                        if let Some(word) = word
+                            && opcodes::by_word(split_word(word).0).is_none()
+                        {
+                            self.oblige(
+                                AgentErrorCode::FrameInvalid,
+                                pointer,
+                                format!("unknown opcode `{word}` (see `sley-agent help opcodes`)"),
+                            );
+                        }
+                    }
                     Stmt::Raw { .. } => {}
                 }
             }
@@ -2933,9 +2909,18 @@ impl<'c, 'a> FnExp<'c, 'a> {
 
     /// Authored names: the `__` reservation, duplicates, and the tables the
     /// typing and use-before-definition checks read.
-    #[allow(clippy::too_many_lines)]
     fn declare(&mut self) {
+        self.declare_with_checkpoint(&mut || Ok(()))
+            .expect("infallible ordinary declaration checkpoint");
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn declare_with_checkpoint(
+        &mut self,
+        checkpoint: &mut impl FnMut() -> Result<()>,
+    ) -> Result<()> {
         for (b, block) in self.blocks.iter().enumerate() {
+            checkpoint()?;
             self.block_at.entry(block.name.clone()).or_insert(b);
         }
         // `__` is reserved in the names of blocks that use the dialect's
@@ -2950,15 +2935,18 @@ impl<'c, 'a> FnExp<'c, 'a> {
         let reserved = |name: &str| name.contains("__");
         let mut problems = Vec::new();
         for (index, (name, _)) in self.params.iter().enumerate() {
+            checkpoint()?;
             if reserved(name) && !self.patch && any_dialect {
                 problems.push((format!("{}/params/{index}", self.fn_pointer), name.clone()));
             }
         }
         for (name, _) in &self.params {
+            checkpoint()?;
             self.value_taken.insert(name.clone());
             self.block_taken.insert(name.clone());
         }
         for (b, block) in self.blocks.iter().enumerate() {
+            checkpoint()?;
             if dialect[b] && reserved(&block.name) {
                 problems.push((block.pointer.clone(), block.name.clone()));
             }
@@ -2968,15 +2956,19 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
         }
         for kept in &self.kept {
+            checkpoint()?;
             self.block_taken.insert(kept.leaf.clone());
             for (name, _) in kept.params.iter().chain(&kept.ops) {
+                checkpoint()?;
                 self.value_taken.insert(name.clone());
             }
         }
         let mut duplicates = Vec::new();
         for (b, block) in self.blocks.iter().enumerate() {
+            checkpoint()?;
             let mut defs: BTreeMap<String, ADef> = BTreeMap::new();
             for (index, (name, ty, _)) in block.params.iter().enumerate() {
+                checkpoint()?;
                 if dialect[b] && reserved(name) {
                     problems.push((format!("{}/params/{index}", block.pointer), name.clone()));
                 }
@@ -2991,6 +2983,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
             let mut split = false;
             for stmt in &block.stmts {
+                checkpoint()?;
                 let (name, pointer, kind, first) = match stmt {
                     Stmt::Op(node) => {
                         let kind = if node.check.is_some() {
@@ -3024,21 +3017,27 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 }
             }
             for name in defs.keys() {
+                checkpoint()?;
                 self.value_taken.insert(name.clone());
             }
             self.defs.push(defs);
         }
         for b in 0..self.blocks.len() {
+            checkpoint()?;
             for name in self.defs[b].keys() {
+                checkpoint()?;
                 self.def_index.entry(name.clone()).or_default().push(b);
             }
         }
         for (k, kept) in self.kept.iter().enumerate() {
+            checkpoint()?;
             for (name, _) in kept.params.iter().chain(&kept.ops) {
+                checkpoint()?;
                 self.kept_index.entry(name.clone()).or_default().push(k);
             }
         }
         for (pointer, name) in problems {
+            checkpoint()?;
             self.oblige(
                 AgentErrorCode::FrameInvalid,
                 &pointer,
@@ -3048,12 +3047,14 @@ impl<'c, 'a> FnExp<'c, 'a> {
             );
         }
         for (pointer, name, block) in duplicates {
+            checkpoint()?;
             self.oblige(
                 AgentErrorCode::FrameInvalid,
                 &pointer,
                 format!("value `{name}` is defined twice in block `{block}`: rename one"),
             );
         }
+        Ok(())
     }
 
     /// Whether a block uses any of the dialect's forms: a checked
@@ -3105,27 +3106,42 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// dominance are checked while lowering).
     fn value_type(&self, b: usize, text: &str) -> Option<TypeExpr> {
         let (base, suffix) = split_suffix(text);
-        if !suffix.is_empty() && suffix != "#0" {
-            return None;
-        }
+        let index = if suffix.is_empty() {
+            0
+        } else {
+            suffix.strip_prefix('#')?.parse::<u32>().ok()?
+        };
+        // The canonical reader retains parameter identity for every valid
+        // numeric selector. Operation results still require their real index.
+        let selected = |kind, ty| {
+            if index == 0 || kind != Kind::Op {
+                ty
+            } else {
+                None
+            }
+        };
         if let Some((block, leaf)) = base.split_once('.') {
             if let Some(target) = self.block_index(block) {
-                return self.defs[target].get(leaf).and_then(|def| def.ty.clone());
+                return self.defs[target]
+                    .get(leaf)
+                    .and_then(|def| selected(def.kind, def.ty.clone()));
             }
             return self
                 .kept
                 .iter()
                 .find(|kept| kept.leaf == block)
                 .and_then(|kept| kept.value(leaf))
-                .and_then(|(_, ty)| ty);
+                .and_then(|(kind, ty)| selected(kind, ty));
         }
         if let Some(def) = self.defs[b].get(base) {
-            return def.ty.clone();
+            return selected(def.kind, def.ty.clone());
         }
         if let Some((_, ty)) = self.params.iter().find(|(name, _)| name == base) {
             return ty.clone();
         }
-        self.far_type(b, base)
+        // A far plain name can resolve only to an operation result. Do not
+        // reinterpret an unavailable result as a same-named parameter.
+        (index == 0).then(|| self.far_type(b, base)).flatten()
     }
 
     /// The type of a plain name X4 looks up outside block `b`: the type
@@ -3315,27 +3331,44 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// is typed again only when a name it reads has just been typed, so
     /// each is typed at most once and the work follows the references.
     fn infer_types(&mut self) {
-        fn reads(node: &Node, out: &mut Vec<String>) {
+        self.infer_types_with_checkpoint(&mut || Ok(()))
+            .expect("infallible ordinary inference checkpoint");
+    }
+
+    fn infer_types_with_checkpoint(
+        &mut self,
+        checkpoint: &mut impl FnMut() -> Result<()>,
+    ) -> Result<()> {
+        fn reads(
+            node: &Node,
+            out: &mut Vec<String>,
+            checkpoint: &mut impl FnMut() -> Result<()>,
+        ) -> Result<()> {
             for arg in &node.args {
+                checkpoint()?;
                 match &arg.operand {
                     Operand::Name(text) => {
                         let (base, _) = split_suffix(text);
                         out.push(base.rsplit('.').next().unwrap_or(base).to_owned());
                     }
-                    Operand::Nested(inner) => reads(inner, out),
+                    Operand::Nested(inner) => reads(inner, out, checkpoint)?,
                     Operand::Literal { .. } | Operand::Raw(_) => {}
                 }
             }
+            Ok(())
         }
         let mut users: BTreeMap<String, Vec<(usize, usize)>> = BTreeMap::new();
         let mut queue = std::collections::VecDeque::new();
         let mut queued = BTreeSet::new();
         for (b, block) in self.blocks.iter().enumerate() {
+            checkpoint()?;
             for (s, stmt) in block.stmts.iter().enumerate() {
+                checkpoint()?;
                 let Stmt::Op(node) = stmt else { continue };
                 let mut names = Vec::new();
-                reads(node, &mut names);
+                reads(node, &mut names, checkpoint)?;
                 for name in names {
+                    checkpoint()?;
                     users.entry(name).or_default().push((b, s));
                 }
                 queue.push_back((b, s));
@@ -3343,6 +3376,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             }
         }
         while let Some((b, s)) = queue.pop_front() {
+            checkpoint()?;
             queued.remove(&(b, s));
             let Stmt::Op(node) = &self.blocks[b].stmts[s] else {
                 continue;
@@ -3360,6 +3394,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 def.ty = Some(ty);
             }
             for &user in users.get(&name).map_or(&[][..], Vec::as_slice) {
+                checkpoint()?;
                 let typed = match &self.blocks[user.0].stmts[user.1] {
                     Stmt::Op(Node {
                         name: Some(user_name),
@@ -3374,6 +3409,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 }
             }
         }
+        Ok(())
     }
 
     fn const_immediate_type(
@@ -3383,26 +3419,29 @@ impl<'c, 'a> FnExp<'c, 'a> {
     ) -> Option<TypeExpr> {
         match immediate? {
             Value::String(name) => self.cx.const_type(name),
-            Value::Object(object) if object.contains_key("value") => types::read(
-                object.get("type").unwrap_or(&Value::from("i64")),
-                self.cx,
-                "",
-            )
-            .ok(),
-            Value::Bool(_) => Some(TypeExpr::Bool),
-            _ => Some(
-                hint.filter(|ty| matches!(ty, TypeExpr::SInt(_) | TypeExpr::UInt(_)))
-                    .cloned()
-                    .unwrap_or(TypeExpr::SInt(IntegerWidth::from_bits(64))),
-            ),
+            value => crate::frame::constants::immediate_type(value, hint, self.cx, "").ok(),
         }
     }
 
     /// Result and value types of an operation, and the type each operand
     /// position expects (the typing context of literals and nested
     /// operations).
-    #[allow(clippy::too_many_lines)]
     fn node_types(&self, b: usize, node: &Node, expected: Option<&TypeExpr>) -> NodeTypes {
+        self.node_types_using(node, expected, &|arg| match &arg.operand {
+            Operand::Name(text) => self.value_type(b, text),
+            _ => None,
+        })
+    }
+
+    /// A read-only caller may supply resolved reference types. Ordinary
+    /// inference keeps its existing name lookup through `node_types` above.
+    #[allow(clippy::too_many_lines)]
+    fn node_types_using(
+        &self,
+        node: &Node,
+        expected: Option<&TypeExpr>,
+        values: &impl Fn(&Arg) -> Option<TypeExpr>,
+    ) -> NodeTypes {
         let row = node.row;
         let tag = row.tag;
         let count = node.args.len();
@@ -3554,7 +3593,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             .args
             .iter()
             .map(|arg| match &arg.operand {
-                Operand::Name(text) => self.value_type(b, text),
+                Operand::Name(_) => values(arg),
                 Operand::Literal {
                     typed: Some(ty), ..
                 } => types::read(ty, self.cx, "").ok(),
@@ -3574,7 +3613,9 @@ impl<'c, 'a> FnExp<'c, 'a> {
             let mut changed = false;
             for (position, arg) in node.args.iter().enumerate() {
                 if let (Operand::Nested(child), None) = (&arg.operand, &operand_types[position]) {
-                    let ty = self.node_types(b, child, contexts[position].as_ref()).value;
+                    let ty = self
+                        .node_types_using(child, contexts[position].as_ref(), values)
+                        .value;
                     changed |= ty.is_some();
                     operand_types[position] = ty;
                 }
@@ -4907,7 +4948,10 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 };
                 match member {
                     Some(None) => CasePayload::Unit,
-                    Some(Some(payload)) => CasePayload::Carries(Some(payload)),
+                    Some(Some(payload)) => CasePayload::Carries(Some(crate::values::substitute(
+                        &payload,
+                        &named.arguments,
+                    ))),
                     None => {
                         let cases = self
                             .cx
@@ -5328,27 +5372,28 @@ impl<'c, 'a> FnExp<'c, 'a> {
     /// pieces that use them, in first-use order.
     fn thread(&mut self) {
         for b in 0..self.blocks.len() {
-            let pieces = self.block_pieces[b].clone();
-            for (position, &piece) in pieces.iter().enumerate().skip(1) {
-                let mut threaded: Vec<(String, Value)> = Vec::new();
-                for &later in &pieces[position..] {
-                    for name in &self.pieces[later].uses {
-                        let Some(def) = self.block_defs[b].get(name) else {
-                            continue;
-                        };
-                        if def.kind == Kind::Op
-                            || self.pieces[def.piece].local >= position
-                            || threaded.iter().any(|(threaded, _)| threaded == name)
-                        {
-                            continue;
-                        }
-                        threaded.push((
-                            name.clone(),
-                            def.ty_json.clone().unwrap_or_else(|| Value::from("unit")),
-                        ));
-                    }
-                }
-                self.pieces[piece].threaded = threaded;
+            let pieces = &self.block_pieces[b];
+            let uses: Vec<&[String]> = pieces
+                .iter()
+                .map(|piece| self.pieces[*piece].uses.as_slice())
+                .collect();
+            let definitions = self.block_defs[b]
+                .iter()
+                .filter(|(_, def)| def.kind != Kind::Op)
+                .map(|(name, def)| (name.clone(), self.pieces[def.piece].local))
+                .collect();
+            let threaded = threaded_suffixes(&uses, &definitions);
+            for (&piece, names) in pieces.iter().zip(threaded).skip(1) {
+                self.pieces[piece].threaded = names
+                    .into_iter()
+                    .map(|name| {
+                        let ty = self.block_defs[b][&name]
+                            .ty_json
+                            .clone()
+                            .unwrap_or_else(|| Value::from("unit"));
+                        (name, ty)
+                    })
+                    .collect();
             }
         }
     }
@@ -5896,6 +5941,46 @@ impl<'c, 'a> FnExp<'c, 'a> {
     }
 }
 
+/// Values defined before each continuation and used in its suffix, ordered
+/// by first use. A reverse sweep maintains the next use of each live value,
+/// avoiding a fresh scan of every later piece at every split. Work is bounded
+/// by uses plus the parameters actually emitted (up to map lookup factors).
+fn threaded_suffixes(
+    uses: &[&[String]],
+    definitions: &BTreeMap<String, usize>,
+) -> Vec<Vec<String>> {
+    let mut defined_at = vec![Vec::new(); uses.len()];
+    for (name, &position) in definitions {
+        defined_at[position].push(name.as_str());
+    }
+    let mut next_use: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
+    let mut ordered: BTreeMap<(usize, usize), &str> = BTreeMap::new();
+    let mut result = vec![Vec::new(); uses.len()];
+    for position in (1..uses.len()).rev() {
+        // A value defined here is supplied by this piece itself, not by
+        // an incoming edge. It ceases to be live when crossing its definition.
+        for name in &defined_at[position] {
+            if let Some(old) = next_use.remove(name) {
+                ordered.remove(&old);
+            }
+        }
+        // Visit uses backwards so the first occurrence in the current
+        // piece wins, including when one operand is repeated.
+        for (index, name) in uses[position].iter().enumerate().rev() {
+            if definitions.get(name).is_none_or(|&def| def >= position) {
+                continue;
+            }
+            let key = (position, index);
+            if let Some(old) = next_use.insert(name, key) {
+                ordered.remove(&old);
+            }
+            ordered.insert(key, name);
+        }
+        result[position] = ordered.values().map(|name| (*name).to_owned()).collect();
+    }
+    result
+}
+
 /// The immediate dominator of each node reachable from `entry` (the entry
 /// is its own), and whether the iteration settled within its bound.
 fn immediate_dominators(succ: &[Vec<usize>], entry: usize) -> (Vec<Option<usize>>, bool) {
@@ -6082,6 +6167,46 @@ pub(crate) fn shorten(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reverse_threading_matches_the_suffix_scan() {
+        // Reference is the original scan, exercised on forward references,
+        // duplicate operands, unused definitions and differently ordered uses.
+        let mut state = 204_u64;
+        let mut random = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            usize::try_from(state >> 32).unwrap()
+        };
+        for count in 1..40 {
+            let definitions: BTreeMap<_, _> = (0..24)
+                .map(|n| (format!("v{n}"), random() % count))
+                .collect();
+            let uses: Vec<Vec<String>> = (0..count)
+                .map(|_| {
+                    (0..random() % 12)
+                        .map(|_| format!("v{}", random() % 28))
+                        .collect()
+                })
+                .collect();
+            let slices: Vec<_> = uses.iter().map(Vec::as_slice).collect();
+            let actual = threaded_suffixes(&slices, &definitions);
+            for position in 1..count {
+                let mut expected = Vec::new();
+                for later in &uses[position..] {
+                    for name in later {
+                        if definitions.get(name).is_some_and(|&def| def < position)
+                            && !expected.contains(name)
+                        {
+                            expected.push(name.clone());
+                        }
+                    }
+                }
+                assert_eq!(actual[position], expected, "piece {position}/{count}");
+            }
+        }
+    }
 
     #[test]
     fn long_generated_names_stay_within_the_grammar() {

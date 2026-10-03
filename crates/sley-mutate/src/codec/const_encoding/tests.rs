@@ -42,6 +42,31 @@ fn assert_error_all_caps(value: &ConstValue, expected: ScbErrorCode) {
 }
 
 #[test]
+fn integer_layout_preserves_primitive_bytes_and_depth_limits() {
+    for bit in 0..128 {
+        let middle = 1_u128 << bit;
+        for unsigned in [middle - 1, middle, middle + 1] {
+            let signed = unsigned.cast_signed();
+            let cases = [
+                (Node::UInt(unsigned), sley_scb1::encode_uvar128(unsigned)),
+                (Node::SInt(signed), sley_scb1::encode_sint128(signed)),
+            ];
+            for (node, expected) in cases {
+                assert_eq!(measure(node, 0, true).unwrap(), expected.len());
+                assert_eq!(encode(node, 0).unwrap(), expected);
+                assert_eq!(
+                    measure(node, MAX_NESTING_DEPTH, true).unwrap(),
+                    expected.len()
+                );
+                assert!(measure(node, MAX_NESTING_DEPTH + 1, true).is_err());
+            }
+            assert_caps(&value(ConstData::UInt(unsigned)));
+            assert_caps(&value(ConstData::SInt(signed)));
+        }
+    }
+}
+
+#[test]
 fn boundary_lengths_options_results_and_utf8() {
     for length in [0, 1, 126, 127, 128, 129, 16_382, 16_383, 16_384] {
         assert_caps(&value(ConstData::Bytes(vec![0x55; length])));

@@ -138,6 +138,15 @@ impl Workspace {
     /// `AGENT_WORKSPACE_INVALID` when the head cannot be loaded.
     pub fn head(&self) -> Result<Head> {
         self.ensure_seeded()?;
+        self.read_head()
+    }
+
+    /// Loads an existing accepted head without seeding or writing the workspace.
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_WORKSPACE_INVALID` when no accepted head can be loaded.
+    pub fn read_head(&self) -> Result<Head> {
         let head = TransactionRepository::new(self.repo())
             .accepted_head()
             .map_err(|error| {

@@ -9,8 +9,8 @@ use serde_json::{Map, Value};
 use sley_id::EntityId;
 use sley_mutate::value::EntityBodyValue;
 use sley_ssmc::{
-    BuiltinFailureKind, ConstData, ConstValue, FieldConst, MemberId, NamedType, RecordConst,
-    ResultConst, TypeDefForm, TypeExpr, VariantConst,
+    BuiltinFailureKind, ConstData, ConstValue, FieldConst, FunctionType, MemberId, NamedType,
+    RecordConst, ResultConst, TypeDefForm, TypeExpr, VariantConst,
 };
 
 use crate::error::{AgentError, AgentErrorCode, Result};
@@ -58,6 +58,15 @@ pub fn substitute(ty: &TypeExpr, arguments: &[TypeExpr]) -> TypeExpr {
             ok: Box::new(substitute(ok, arguments)),
             error: Box::new(substitute(error, arguments)),
         },
+        TypeExpr::FunctionRef(function) => TypeExpr::FunctionRef(FunctionType {
+            parameters: function
+                .parameters
+                .iter()
+                .map(|parameter| substitute(parameter, arguments))
+                .collect(),
+            result: Box::new(substitute(&function.result, arguments)),
+            effects: function.effects.clone(),
+        }),
         other => other.clone(),
     }
 }
@@ -114,7 +123,18 @@ pub fn read(
     defs: &dyn TypeDefs,
     pointer: &str,
 ) -> Result<ConstValue> {
-    read_at(value, ty, defs, pointer, 0)
+    read_with_check(value, ty, defs, pointer, &mut |_| Ok(()))
+}
+
+/// The ordinary reader with a caller-owned resource check at every value node.
+pub(crate) fn read_with_check(
+    value: &Value,
+    ty: &TypeExpr,
+    defs: &dyn TypeDefs,
+    pointer: &str,
+    check: &mut dyn FnMut(&Value) -> Result<()>,
+) -> Result<ConstValue> {
+    read_at(value, ty, defs, pointer, 0, check)
 }
 
 #[allow(clippy::too_many_lines)]
@@ -124,7 +144,9 @@ fn read_at(
     defs: &dyn TypeDefs,
     pointer: &str,
     depth: usize,
+    check: &mut dyn FnMut(&Value) -> Result<()>,
 ) -> Result<ConstValue> {
+    check(value)?;
     if depth > DEPTH_LIMIT {
         return Err(invalid(pointer, "value nests too deeply"));
     }
@@ -199,7 +221,14 @@ fn read_at(
                     .zip(items)
                     .enumerate()
                     .map(|(index, (item, ty))| {
-                        read_at(item, ty, defs, &format!("{pointer}/{index}"), depth + 1)
+                        read_at(
+                            item,
+                            ty,
+                            defs,
+                            &format!("{pointer}/{index}"),
+                            depth + 1,
+                            check,
+                        )
                     })
                     .collect::<Result<_>>()?,
             )
@@ -219,6 +248,7 @@ fn read_at(
                             defs,
                             &format!("{pointer}/{index}"),
                             depth + 1,
+                            check,
                         )
                     })
                     .collect::<Result<_>>()?,
@@ -237,8 +267,9 @@ fn read_at(
                     .as_array()
                     .filter(|pair| pair.len() == 2)
                     .ok_or_else(|| invalid(&at, "a map entry is [key, value]"))?;
-                let entry_key = read_at(&pair[0], key, defs, &format!("{at}/0"), depth + 1)?;
-                let entry_value = read_at(&pair[1], item, defs, &format!("{at}/1"), depth + 1)?;
+                let entry_key = read_at(&pair[0], key, defs, &format!("{at}/0"), depth + 1, check)?;
+                let entry_value =
+                    read_at(&pair[1], item, defs, &format!("{at}/1"), depth + 1, check)?;
                 let bytes = sley_mutate::encode_const_value(&entry_key)
                     .map_err(|_| invalid(&at, "the key has no canonical encoding"))?;
                 keyed.push((
@@ -265,6 +296,7 @@ fn read_at(
                     defs,
                     &format!("{pointer}/Some"),
                     depth + 1,
+                    check,
                 )?)))
             }
             other => ConstData::Option(Some(Box::new(read_at(
@@ -273,6 +305,7 @@ fn read_at(
                 defs,
                 pointer,
                 depth + 1,
+                check,
             )?))),
         },
         TypeExpr::Result { ok, error } => {
@@ -287,6 +320,7 @@ fn read_at(
                     defs,
                     &format!("{pointer}/Ok"),
                     depth + 1,
+                    check,
                 )?)))
             } else if let Some(inner) = object.get("Err") {
                 ConstData::Result(ResultConst::Err(Box::new(read_at(
@@ -295,12 +329,13 @@ fn read_at(
                     defs,
                     &format!("{pointer}/Err"),
                     depth + 1,
+                    check,
                 )?)))
             } else {
                 return Err(invalid(pointer, "expected {\"Ok\": v} or {\"Err\": e}"));
             }
         }
-        TypeExpr::Named(named) => read_named(value, named, defs, pointer, depth)?,
+        TypeExpr::Named(named) => read_named(value, named, defs, pointer, depth, check)?,
         TypeExpr::BuiltinFailure(kind) => {
             // "Overflow", or the rendered form {"ArithmeticError": "Overflow"}.
             let named = value
@@ -334,6 +369,7 @@ fn read_named(
     defs: &dyn TypeDefs,
     pointer: &str,
     depth: usize,
+    check: &mut dyn FnMut(&Value) -> Result<()>,
 ) -> Result<ConstData> {
     let Some(form) = defs.form(&named.definition) else {
         return Err(invalid(pointer, "unknown type definition"));
@@ -364,6 +400,7 @@ fn read_named(
                     defs,
                     &format!("{pointer}/{case_name}"),
                     depth + 1,
+                    check,
                 )?)),
                 (None, Some(_)) => {
                     return Err(invalid(pointer, format!("`{case_name}` has no payload")));
@@ -402,6 +439,7 @@ fn read_named(
                         defs,
                         &format!("{pointer}/{leaf}"),
                         depth + 1,
+                        check,
                     )?,
                 });
             }

@@ -145,6 +145,16 @@ pub struct Drafts {
 }
 
 impl Drafts {
+    /// Addresses existing drafts without creating workbench directories.
+    pub(crate) fn read_only(workspace: &Workspace) -> Self {
+        Self {
+            dir: workspace
+                .dir()
+                .join(crate::workspace::STATE_DIR)
+                .join(DRAFTS_DIR),
+        }
+    }
+
     /// Opens (creating) the draft store.
     ///
     /// # Errors
@@ -977,6 +987,23 @@ pub fn text_obligation(detail: &str, line: usize, column: usize, byte: usize) ->
         "expected": "JSON",
         "available": null,
         "decision": format!("the input is not JSON: {detail} (line {line}, column {column}, byte {byte}); fix the JSON"),
+        "kernel": null,
+        "count": 1,
+    })
+}
+
+/// The obligation of a refused familiar proposal (ADR-0055): the
+/// frontend's message and location in the text.
+#[must_use]
+pub fn familiar_obligation(detail: &str, line: usize, column: usize, byte: usize) -> Value {
+    json!({
+        "id": "o1",
+        "symbol": AgentErrorCode::FrameInvalid.symbol(),
+        "at": "",
+        "expected": "familiar syntax",
+        "available": null,
+        "decision": format!("familiar text refused at line {line}, column {column} (byte {byte}): {detail}; fix the text"),
+        "text": {"line": line, "column": column},
         "kernel": null,
         "count": 1,
     })

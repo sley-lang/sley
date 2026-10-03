@@ -1608,20 +1608,36 @@ pub(crate) fn fits(signed: bool, bits: u16, signed_value: i128, unsigned_value: 
     }
 }
 
-#[allow(clippy::too_many_lines)] // one arm per checked operation of the contract table
 pub(crate) fn checked_integer(
     opcode: Opcode,
     signed: bool,
     bits: u16,
     operands: &[&ConstValue],
 ) -> Result<Checked, ExtendedFault> {
+    match operands {
+        [value] => checked_integer_data(opcode, signed, bits, &[&value.data]),
+        [left, right] => checked_integer_data(opcode, signed, bits, &[&left.data, &right.data]),
+        _ => Err(ExtendedFault),
+    }
+}
+
+/// Shared arithmetic kernel for typed and compact execution. Width and signedness
+/// come from the verified operation; operand data still undergoes every form and
+/// range check before arithmetic.
+#[allow(clippy::too_many_lines)] // one arm per checked operation of the contract table
+pub(crate) fn checked_integer_data(
+    opcode: Opcode,
+    signed: bool,
+    bits: u16,
+    operands: &[&ConstData],
+) -> Result<Checked, ExtendedFault> {
     // An operand outside the declared width is a runtime value form no
     // admitted input, constant, or constructed result carries. It faults
     // (internal invariant) instead of reaching the arithmetic below, which
     // would otherwise answer from it: `shr` could return a value outside the
     // width, and `div`/`rem` an in-width answer computed from garbage.
-    let read = |value: &ConstValue| -> Result<(i128, u128), ExtendedFault> {
-        let operand = match value.data {
+    let read = |value: &ConstData| -> Result<(i128, u128), ExtendedFault> {
+        let operand = match *value {
             ConstData::SInt(value) if signed => (value, 0),
             ConstData::UInt(value) if !signed => (0, value),
             _ => return Err(ExtendedFault),
@@ -1702,7 +1718,7 @@ pub(crate) fn checked_integer(
                 return Err(ExtendedFault);
             };
             let (signed_value, unsigned_value) = read(value)?;
-            let ConstData::UInt(amount) = amount.data else {
+            let ConstData::UInt(amount) = **amount else {
                 return Err(ExtendedFault);
             };
             // The amount is `UInt(32)`; one outside that width is the same

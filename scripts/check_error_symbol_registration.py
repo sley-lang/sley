@@ -198,7 +198,39 @@ def exercise_corpus_files() -> list[Path]:
             continue
         if "/tests/" in str(path) or path.name.startswith("test_"):
             files.append(path)
+    files.extend(out_of_line_test_modules())
     return files
+
+
+CFG_TEST_MODULE_DECL = re.compile(
+    r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*"
+    r"(?:#\s*\[\s*path\s*=\s*\"([^\"]+)\"\s*\]\s*)?mod\s+(\w+)\s*;"
+)
+
+
+def out_of_line_test_modules() -> list[Path]:
+    """Source files that are `#[cfg(test)] mod name;` modules.
+
+    They compile only into test binaries, exactly like inline test modules,
+    so their tests exercise refusal paths too. The module file is resolved
+    the way rustc does (an explicit `#[path]`, else `name.rs` beside a
+    `lib.rs`/`main.rs`/`mod.rs` parent or under the parent's own directory).
+    """
+    found: list[Path] = []
+    for path in sorted((ROOT / "crates").rglob("*.rs")):
+        if "/target/" in str(path):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for explicit, name in CFG_TEST_MODULE_DECL.findall(text):
+            if explicit:
+                candidates = [path.parent / explicit]
+            elif path.name in ("lib.rs", "main.rs", "mod.rs"):
+                candidates = [path.parent / f"{name}.rs", path.parent / name / "mod.rs"]
+            else:
+                stem = path.parent / path.stem
+                candidates = [stem / f"{name}.rs", stem / name / "mod.rs"]
+            found.extend(candidate for candidate in candidates if candidate.is_file())
+    return found
 
 
 def unexercised() -> list[str]:

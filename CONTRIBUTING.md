@@ -64,3 +64,11 @@ governed by host-boundary.json, BOOTSTRAP_PROFILE_2 (the frozen successor of
 BOOTSTRAP_PROFILE_1), and the staged SH2 gates
 instead of this paragraph. Every other prohibition in this paragraph is
 unchanged.
+
+An optional, noncanonical authoring frontend adopted under ADR-0055 is
+governed by that ADR instead of the words "Sley source syntax" and "parser"
+in the first paragraph of this section: it may accept textual proposals that
+lower deterministically through the ordinary typed candidate and validation
+path, and its syntax, files, formatting and parser never become program
+authority or a prerequisite of the graph-native lifecycle. Every other
+prohibition in that paragraph is unchanged.

@@ -74,7 +74,7 @@ impl Event {
                     "authored": tests["authored"].as_u64().unwrap_or(0),
                 })
             });
-        json!({
+        let mut line = json!({
             "seq": seq,
             "cmd": command.chars().take(MAX_SYMBOL).collect::<String>(),
             "draft": field("draft", Value::Null),
@@ -91,7 +91,17 @@ impl Event {
             "refusal": refusal,
             "obligations": field("obligations", json!(0)),
             "valid": field("valid", Value::Null),
-        })
+        });
+        if let Some(stats) = self.fields.get("residual").and_then(Value::as_object) {
+            let stats: Map<String, Value> = stats
+                .iter()
+                .filter(|(_, value)| value.is_number() || value.is_boolean())
+                .take(MAX_STATS)
+                .map(|(key, value)| (key.chars().take(MAX_SYMBOL).collect(), value.clone()))
+                .collect();
+            line["residual"] = Value::Object(stats);
+        }
+        line
     }
 }
 

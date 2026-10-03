@@ -41,9 +41,9 @@ pub use execute::{
     ApprovedImage, ExecutionError, ExecutionErrorCode, ExecutionLimits, ExecutionOutcome,
     ExecutionRequest, ExecutionStatusCode, ExecutionTermination, LoadedExecutionError,
     LoadedExecutionInput, MAX_EXECUTION_CELLS, MAX_EXECUTION_INPUT_VALUE_UNITS,
-    MAX_EXECUTION_INPUTS, MAX_OBSERVATION_PREIMAGE_BYTES, PackageExecutionError, ResourceKind,
-    VerifiedImage, derive_observation_id, execute_approved_package, execute_approved_package_v2,
-    execute_function, execute_loaded_image, execution_value_units,
+    MAX_EXECUTION_INPUTS, MAX_OBSERVATION_PREIMAGE_BYTES, PackageExecutionError, PreparedExecution,
+    ResourceKind, VerifiedImage, derive_observation_id, execute_approved_package,
+    execute_approved_package_v2, execute_function, execute_loaded_image, execution_value_units,
     validated_execution_input_hashes,
 };
 pub use lower::{

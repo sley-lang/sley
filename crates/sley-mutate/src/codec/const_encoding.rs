@@ -1,8 +1,8 @@
 //! One borrowed wire schema for constant sizing, encoding and encoded-key order.
 //!
 //! Measurement validates the complete canonical value before applying a caller
-//! cap. It borrows payloads; only fixed-size scalar scratch and depth-bounded
-//! cursor stacks are allocated. It is not an O(cap) work guarantee. Cursors
+//! cap. It borrows payloads and uses fixed scratch for integer encodings and
+//! depth-bounded cursor stacks. It is not an O(cap) work guarantee. Cursors
 //! remeasure child lengths without rechecking already-validated map order, so
 //! nested keys do not recursively repeat canonical-order validation.
 
@@ -10,11 +10,13 @@ use super::{
     BuiltinFailureValue, ConstData, ConstValue, ConstValueByteMeasure, EntityId, FieldConst,
     FunctionRefValue, FunctionType, MAX_NESTING_DEPTH, MAX_STANDALONE_BYTES, MapEntryConst,
     NamedType, RecordConst, Result, ResultConst, ScbError, ScbErrorCode, TypeExpr, VariantConst,
-    check_container_depth, check_depth, encode_f32_bits, encode_f64_bits, encode_sint128,
-    encode_uvar, encode_uvar128, validate_entity_id_set_order,
+    check_container_depth, check_depth, encode_f32_bits, encode_f64_bits,
+    validate_entity_id_set_order,
 };
 use core::cmp::Ordering;
-use sley_scb1::{MAX_BYTE_PAYLOAD, MAX_COLLECTION_ELEMENTS};
+use sley_scb1::{
+    MAX_BYTE_PAYLOAD, MAX_COLLECTION_ELEMENTS, encode_sint128_into, encode_uvar128_into,
+};
 
 #[derive(Clone, Copy)]
 pub(super) enum Node<'a> {
@@ -92,7 +94,19 @@ impl Chunk<'_> {
 
     fn uint(value: usize) -> Result<Self> {
         let value = u64::try_from(value).map_err(|_| limit())?;
-        Ok(Self::inline(&encode_uvar(value)))
+        Ok(Self::unsigned(value.into()))
+    }
+
+    fn unsigned(value: u128) -> Self {
+        let mut bytes = [0; 19];
+        let length = encode_uvar128_into(value, &mut bytes);
+        Self::inline(&bytes[..length])
+    }
+
+    fn signed(value: i128) -> Self {
+        let mut bytes = [0; 19];
+        let length = encode_sint128_into(value, &mut bytes);
+        Self::inline(&bytes[..length])
     }
 
     fn bytes(&self) -> &[u8] {
@@ -108,20 +122,124 @@ enum Layout<'a> {
     Atom(Chunk<'a>),
     Bytes(&'a [u8]),
     Union(u32, Option<Node<'a>>),
-    Record([Option<Node<'a>>; 3]),
+    Record(RecordFields<'a>),
     List(Sequence<'a>),
 }
 
-fn record2<'a>(a: Node<'a>, b: Node<'a>) -> Layout<'a> {
-    Layout::Record([Some(a), Some(b), None])
+/// Borrow the record owner instead of materializing every child at each visit.
+/// Measurement and the byte cursor share this field order and framing.
+#[derive(Clone, Copy)]
+enum RecordFields<'a> {
+    Value(&'a ConstValue),
+    Named(&'a NamedType),
+    TypePair(&'a TypeExpr, &'a TypeExpr),
+    Function(&'a FunctionType),
+    FunctionRef(&'a FunctionRefValue),
+    Failure(&'a BuiltinFailureValue),
+    Field(&'a FieldConst),
+    Record(&'a RecordConst),
+    Variant(&'a VariantConst),
+    Entry(&'a MapEntryConst),
+}
+
+impl<'a> RecordFields<'a> {
+    fn len(self) -> usize {
+        match self {
+            Self::Function(_) | Self::Variant(_) => 3,
+            _ => 2,
+        }
+    }
+
+    fn get(self, index: usize) -> Node<'a> {
+        match (self, index) {
+            (Self::Value(v), 0) => Node::Type(&v.value_type),
+            (Self::Value(v), 1) => Node::Data(&v.data),
+            (Self::Named(v), 0) => Node::Raw(v.definition.as_bytes()),
+            (Self::Named(v), 1) => Node::Sequence(Sequence::Types(&v.arguments)),
+            (Self::TypePair(a, _), 0) => Node::Type(a),
+            (Self::TypePair(_, b), 1) => Node::Type(b),
+            (Self::Function(v), 0) => Node::Sequence(Sequence::Types(&v.parameters)),
+            (Self::Function(v), 1) => Node::Type(&v.result),
+            (Self::Function(v), 2) => Node::Sequence(Sequence::Ids(&v.effects)),
+            (Self::FunctionRef(v), 0) => Node::Raw(v.function.as_bytes()),
+            (Self::FunctionRef(v), 1) => Node::Sequence(Sequence::Types(&v.type_arguments)),
+            (Self::Failure(v), 0) => Node::UInt(v.kind.tag().into()),
+            (Self::Failure(v), 1) => Node::UInt(v.code.into()),
+            (Self::Field(v), 0) => Node::Raw(v.member_id.as_bytes()),
+            (Self::Field(v), 1) => Node::Value(&v.value),
+            (Self::Record(v), 0) => Node::Raw(v.definition.as_bytes()),
+            (Self::Record(v), 1) => Node::Sequence(Sequence::Fields(&v.fields)),
+            (Self::Variant(v), 0) => Node::Raw(v.definition.as_bytes()),
+            (Self::Variant(v), 1) => Node::Raw(v.member_id.as_bytes()),
+            (Self::Variant(v), 2) => Node::Option(v.payload.as_deref()),
+            (Self::Entry(v), 0) => Node::Value(&v.key),
+            (Self::Entry(v), 1) => Node::Value(&v.value),
+            _ => unreachable!("record field index is bounded by its schema"),
+        }
+    }
+}
+
+/// Two consumers share one wire schema: the cursor needs a layout, while
+/// measurement can fold child sizes directly without constructing that layout.
+trait WireConsumer<'a> {
+    type Output;
+
+    fn atom(self, chunk: Chunk<'a>) -> Result<Self::Output>;
+    fn bytes(self, bytes: &'a [u8]) -> Result<Self::Output>;
+    fn union(self, tag: u32, payload: Option<Node<'a>>) -> Result<Self::Output>;
+    fn record(self, fields: RecordFields<'a>) -> Result<Self::Output>;
+    fn list(self, values: Sequence<'a>) -> Result<Self::Output>;
+}
+
+struct BuildLayout;
+
+impl<'a> WireConsumer<'a> for BuildLayout {
+    type Output = Layout<'a>;
+
+    fn atom(self, chunk: Chunk<'a>) -> Result<Self::Output> {
+        Ok(Layout::Atom(chunk))
+    }
+
+    fn bytes(self, bytes: &'a [u8]) -> Result<Self::Output> {
+        Ok(Layout::Bytes(bytes))
+    }
+
+    fn union(self, tag: u32, payload: Option<Node<'a>>) -> Result<Self::Output> {
+        Ok(Layout::Union(tag, payload))
+    }
+
+    fn record(self, fields: RecordFields<'a>) -> Result<Self::Output> {
+        Ok(Layout::Record(fields))
+    }
+
+    fn list(self, values: Sequence<'a>) -> Result<Self::Output> {
+        Ok(Layout::List(values))
+    }
 }
 
 impl<'a> Node<'a> {
-    #[allow(clippy::too_many_lines)]
     fn layout(self, depth: usize) -> Result<Layout<'a>> {
+        self.visit(depth, BuildLayout)
+    }
+
+    #[inline]
+    #[allow(clippy::too_many_lines)]
+    fn visit<C: WireConsumer<'a>>(self, depth: usize, consumer: C) -> Result<C::Output> {
         check_depth(depth)?;
-        let layout = match self {
-            Self::Value(v) => record2(Self::Type(&v.value_type), Self::Data(&v.data)),
+        if !matches!(
+            self,
+            Self::UInt(_)
+                | Self::SInt(_)
+                | Self::Bool(_)
+                | Self::F32(_)
+                | Self::F64(_)
+                | Self::Raw(_)
+                | Self::Bytes(_)
+        ) {
+            check_container_depth(depth)?;
+        }
+        match self {
+            Self::Value(v) => consumer.record(RecordFields::Value(v)),
             Self::Type(v) => {
                 let payload = match v {
                     TypeExpr::Unit
@@ -145,7 +263,7 @@ impl<'a> Node<'a> {
                     TypeExpr::TypeParameter(v) => Some(Self::UInt((*v).into())),
                     TypeExpr::BuiltinFailure(v) => Some(Self::UInt(v.tag().into())),
                 };
-                Layout::Union(v.tag(), payload)
+                consumer.union(v.tag(), payload)
             }
             Self::Data(v) => {
                 let payload = match v {
@@ -166,60 +284,36 @@ impl<'a> Node<'a> {
                     ConstData::FunctionRef(v) => Some(Self::FunctionRef(v)),
                     ConstData::BuiltinFailure(v) => Some(Self::Failure(v)),
                 };
-                Layout::Union(v.tag(), payload)
+                consumer.union(v.tag(), payload)
             }
-            Self::Named(v) => record2(
-                Self::Raw(v.definition.as_bytes()),
-                Self::Sequence(Sequence::Types(&v.arguments)),
-            ),
-            Self::TypePair(a, b) => record2(Self::Type(a), Self::Type(b)),
-            Self::Function(v) => Layout::Record([
-                Some(Self::Sequence(Sequence::Types(&v.parameters))),
-                Some(Self::Type(&v.result)),
-                Some(Self::Sequence(Sequence::Ids(&v.effects))),
-            ]),
-            Self::FunctionRef(v) => record2(
-                Self::Raw(v.function.as_bytes()),
-                Self::Sequence(Sequence::Types(&v.type_arguments)),
-            ),
-            Self::Failure(v) => record2(Self::UInt(v.kind.tag().into()), Self::UInt(v.code.into())),
-            Self::Field(v) => record2(Self::Raw(v.member_id.as_bytes()), Self::Value(&v.value)),
-            Self::Record(v) => record2(
-                Self::Raw(v.definition.as_bytes()),
-                Self::Sequence(Sequence::Fields(&v.fields)),
-            ),
-            Self::Variant(v) => Layout::Record([
-                Some(Self::Raw(v.definition.as_bytes())),
-                Some(Self::Raw(v.member_id.as_bytes())),
-                Some(Self::Option(v.payload.as_deref())),
-            ]),
-            Self::Entry(v) => record2(Self::Value(&v.key), Self::Value(&v.value)),
+            Self::Named(v) => consumer.record(RecordFields::Named(v)),
+            Self::TypePair(a, b) => consumer.record(RecordFields::TypePair(a, b)),
+            Self::Function(v) => consumer.record(RecordFields::Function(v)),
+            Self::FunctionRef(v) => consumer.record(RecordFields::FunctionRef(v)),
+            Self::Failure(v) => consumer.record(RecordFields::Failure(v)),
+            Self::Field(v) => consumer.record(RecordFields::Field(v)),
+            Self::Record(v) => consumer.record(RecordFields::Record(v)),
+            Self::Variant(v) => consumer.record(RecordFields::Variant(v)),
+            Self::Entry(v) => consumer.record(RecordFields::Entry(v)),
             Self::Result(v) => {
                 let (ResultConst::Ok(value) | ResultConst::Err(value)) = v;
-                Layout::Union(v.tag(), Some(Self::Value(value)))
+                consumer.union(v.tag(), Some(Self::Value(value)))
             }
-            Self::Option(v) => Layout::Union(u32::from(v.is_some()), v.map(Self::Value)),
-            Self::Sequence(v) => Layout::List(v),
-            Self::UInt(v) => Layout::Atom(Chunk::inline(&encode_uvar128(v))),
-            Self::SInt(v) => Layout::Atom(Chunk::inline(&encode_sint128(v))),
-            Self::Bool(v) => Layout::Atom(Chunk::inline(&[u8::from(v)])),
-            Self::F32(v) => Layout::Atom(Chunk::inline(&encode_f32_bits(v)?)),
-            Self::F64(v) => Layout::Atom(Chunk::inline(&encode_f64_bits(v)?)),
-            Self::Raw(v) => Layout::Atom(Chunk::Borrowed(v)),
+            Self::Option(v) => consumer.union(u32::from(v.is_some()), v.map(Self::Value)),
+            Self::Sequence(v) => consumer.list(v),
+            Self::UInt(v) => consumer.atom(Chunk::unsigned(v)),
+            Self::SInt(v) => consumer.atom(Chunk::signed(v)),
+            Self::Bool(v) => consumer.atom(Chunk::inline(&[u8::from(v)])),
+            Self::F32(v) => consumer.atom(Chunk::inline(&encode_f32_bits(v)?)),
+            Self::F64(v) => consumer.atom(Chunk::inline(&encode_f64_bits(v)?)),
+            Self::Raw(v) => consumer.atom(Chunk::Borrowed(v)),
             Self::Bytes(v) => {
                 if v.len() > MAX_BYTE_PAYLOAD {
                     return Err(limit());
                 }
-                Layout::Bytes(v)
+                consumer.bytes(v)
             }
-        };
-        if matches!(
-            layout,
-            Layout::Union(..) | Layout::Record(..) | Layout::List(..)
-        ) {
-            check_container_depth(depth)?;
         }
-        Ok(layout)
     }
 }
 
@@ -252,64 +346,83 @@ fn checked_length(length: usize) -> Result<usize> {
 /// enclosing measurement. This avoids recursively validating nested map keys
 /// again during a cursor's prefix-length calculation.
 fn measure(node: Node<'_>, depth: usize, canonical: bool) -> Result<usize> {
-    let length = match node.layout(depth)? {
-        Layout::Atom(chunk) => chunk.bytes().len(),
-        Layout::Bytes(bytes) => sized(bytes.len())?,
-        Layout::Union(tag, payload) => {
-            let length = payload.map_or(Ok(0), |n| measure(n, depth + 1, canonical))?;
-            add(uvar_len(tag as usize), sized(length)?)?
+    checked_length(node.visit(depth, Measure { depth, canonical })?)
+}
+
+struct Measure {
+    depth: usize,
+    canonical: bool,
+}
+
+impl<'a> WireConsumer<'a> for Measure {
+    type Output = usize;
+
+    fn atom(self, chunk: Chunk<'a>) -> Result<usize> {
+        Ok(chunk.bytes().len())
+    }
+
+    fn bytes(self, bytes: &'a [u8]) -> Result<usize> {
+        sized(bytes.len())
+    }
+
+    fn union(self, tag: u32, payload: Option<Node<'a>>) -> Result<usize> {
+        let length = payload.map_or(Ok(0), |node| measure(node, self.depth + 1, self.canonical))?;
+        add(uvar_len(tag as usize), sized(length)?)
+    }
+
+    fn record(self, fields: RecordFields<'a>) -> Result<usize> {
+        measure_record(fields, self.depth, self.canonical, None)
+    }
+
+    fn list(self, values: Sequence<'a>) -> Result<usize> {
+        let Self { depth, canonical } = self;
+        if canonical && let Sequence::Ids(ids) = values {
+            validate_entity_id_set_order(ids)?;
         }
-        Layout::Record(fields) => measure_record(fields, depth, canonical, None)?,
-        Layout::List(values) => {
-            if canonical && let Sequence::Ids(ids) = values {
-                validate_entity_id_set_order(ids)?;
-            }
-            let mut length = uvar_len(values.len());
-            for index in 0..values.len() {
-                let child_length = if canonical && let Sequence::Entries(entries) = values {
-                    let entry = &entries[index];
-                    let key_length = measure(Node::Value(&entry.key), depth + 2, true)?;
-                    if index > 0 {
-                        ensure_increasing(compare_validated(
-                            Node::Value(&entries[index - 1].key),
-                            Node::Value(&entry.key),
-                            depth + 2,
-                        )?)?;
-                    }
-                    let Layout::Record(fields) = Node::Entry(entry).layout(depth + 1)? else {
-                        unreachable!()
-                    };
-                    measure_record(fields, depth + 1, true, Some(key_length))
-                        .and_then(checked_length)?
-                } else {
-                    measure(values.get(index), depth + 1, canonical)?
+        let mut length = uvar_len(values.len());
+        for index in 0..values.len() {
+            let child_length = if canonical && let Sequence::Entries(entries) = values {
+                let entry = &entries[index];
+                let key_length = measure(Node::Value(&entry.key), depth + 2, true)?;
+                if index > 0 {
+                    ensure_increasing(compare_validated(
+                        Node::Value(&entries[index - 1].key),
+                        Node::Value(&entry.key),
+                        depth + 2,
+                    )?)?;
+                }
+                let Layout::Record(fields) = Node::Entry(entry).layout(depth + 1)? else {
+                    unreachable!()
                 };
-                length = add(length, sized(child_length)?)?;
-            }
-            // The old codec checked collection/aggregate limits after children.
-            if u64::try_from(values.len()).map_err(|_| limit())? > MAX_COLLECTION_ELEMENTS {
-                return Err(limit());
-            }
-            length
+                measure_record(fields, depth + 1, true, Some(key_length))
+                    .and_then(checked_length)?
+            } else {
+                measure(values.get(index), depth + 1, canonical)?
+            };
+            length = add(length, sized(child_length)?)?;
         }
-    };
-    checked_length(length)
+        // The old codec checked collection/aggregate limits after children.
+        if u64::try_from(values.len()).map_err(|_| limit())? > MAX_COLLECTION_ELEMENTS {
+            return Err(limit());
+        }
+        Ok(length)
+    }
 }
 
 fn measure_record(
-    fields: [Option<Node<'_>>; 3],
+    fields: RecordFields<'_>,
     depth: usize,
     canonical: bool,
     first_length: Option<usize>,
 ) -> Result<usize> {
-    let mut length = uvar_len(fields.iter().flatten().count());
-    for (index, node) in fields.into_iter().flatten().enumerate() {
+    let mut length = uvar_len(fields.len());
+    for index in 0..fields.len() {
         let child_length = if index == 0
             && let Some(length) = first_length
         {
             length
         } else {
-            measure(node, depth + 1, canonical)?
+            measure(fields.get(index), depth + 1, canonical)?
         };
         length = add(length, add(uvar_len(index + 1), sized(child_length)?)?)?;
     }
@@ -373,7 +486,7 @@ impl<'a> WireCursor<'a> {
                     layout => {
                         let header = match layout {
                             Layout::Union(tag, _) => tag as usize,
-                            Layout::Record(fields) => fields.iter().flatten().count(),
+                            Layout::Record(fields) => fields.len(),
                             Layout::List(values) => values.len(),
                             _ => unreachable!(),
                         };
@@ -398,10 +511,10 @@ impl<'a> WireCursor<'a> {
                             payload
                         }
                         Layout::Record(fields) => {
-                            if index == fields.len() || fields[index].is_none() {
+                            if index == fields.len() {
                                 continue;
                             }
-                            fields[index]
+                            Some(fields.get(index))
                         }
                         Layout::List(values) => {
                             if index == values.len() {
