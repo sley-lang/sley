@@ -7536,7 +7536,7 @@
     "statement_type": "https://in-toto.io/Statement/v1",
     "predicate_type": "https://slsa.dev/provenance/v1",
     "components": 64,
-    "dependency_relationships": 191,
+    "dependency_relationships": 193,
     "license_disposition_blocked_components": 0,
     "signed": false,
     "transparency_log": false,
