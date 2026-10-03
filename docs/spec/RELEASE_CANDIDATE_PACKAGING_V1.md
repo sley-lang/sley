@@ -469,4 +469,3 @@ artifact's sixteen. Revision 9 also names the current artifact
 `sley-2.0.2-linux-x86_64.tar.gz`; section 17 keeps the 2.0.1 name it
 recorded. A local build at this revision was REPRODUCIBLE, and its
 conformance subset passed with the three workbench checks.
-

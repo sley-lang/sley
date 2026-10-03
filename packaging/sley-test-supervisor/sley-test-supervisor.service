@@ -1,0 +1,16 @@
+[Unit]
+Description=Sley native test supervisor
+
+[Service]
+Type=exec
+User=root
+Group=root
+ExecStart=/usr/lib/sley/sley-test-supervisor
+RuntimeDirectory=sley-test-supervisor
+RuntimeDirectoryMode=0755
+UMask=0022
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

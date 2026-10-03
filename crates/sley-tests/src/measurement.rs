@@ -42,14 +42,14 @@ pub const TERMINATION_ENFORCER_ERROR: u32 = 6;
 /// Maximum attested bindings-adjacent lists are bounded by selection cap.
 pub const MAX_ATTESTATION_LIST: u64 = MAX_SELECTED_ENTRIES;
 
-/// Cgroup memory telemetry: installed ceiling facts and breach events.
+/// Cgroup `memory.events` counters for limit and OOM events.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MemoryEvents {
-    /// Installed page-floor memory cap the run was limited to.
+    /// `memory.events.max`: attempts to cross the installed memory cap.
     pub max: u64,
-    /// Recorded limit-breach events; success requires zero.
+    /// `memory.events.oom`: out-of-memory events; success requires zero.
     pub oom: u64,
-    /// Recorded out-of-memory kills; success requires zero.
+    /// `memory.events.oom_kill`: killed processes; success requires zero.
     pub oom_kill: u64,
 }
 

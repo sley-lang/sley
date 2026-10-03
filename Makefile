@@ -35,6 +35,7 @@ quick:
 	python3 scripts/generate_smp1_json_bridge_fixtures.py --check
 	python3 scripts/generate_native_test_fixtures.py --check
 	python3 scripts/check_native_test_vectors.py
+	python3 scripts/check_native_test_dependency_graph.py
 	python3 scripts/generate_release_demo_fixtures.py --check
 	python3 scripts/generate_vm_extended_fixtures.py --check
 	uv run --project oracle/scb1 --frozen python scripts/generate_repository_pack_rejections.py --check

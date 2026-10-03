@@ -1,11 +1,13 @@
 # Native test profile reservations v1
 
-Status: N0 **reserved, unimplemented**, revision 1 (2026-09-15). This is an
+Status: N0 **reserved, partially implemented**, revision 2 (2026-09-27). This is an
 additive reservation ledger, not a list of currently admitted contracts. The
 live `IDENTIFIERS_V1.md` registry intentionally continues to match code exactly.
 Promote a reservation into that registry only in the same reviewed change as
 its implementation and positive/negative independent vectors. No existing
 identifier/domain/tag is renamed or renumbered.
+Revision 2 updates the private worker refusal name after pure report dispatch;
+it does not claim measured supervisor execution or native test admission.
 
 ## 1. Collision survey and profile boundary
 
@@ -144,7 +146,8 @@ none may be substituted for a 29200--29225 failure:
 - `NATIVE_RUNNER_EVIDENCE_VIOLATION`
 - `NATIVE_RUNNER_DEADLINE_REACHED`
 - `NATIVE_WORKER_MALFORMED_ENVELOPE`
-- `NATIVE_WORKER_EXECUTION_NOT_WIRED`
+- `NATIVE_WORKER_SOURCE_INVALID` (revision 4 worker channel; the earlier
+  `NATIVE_WORKER_EXECUTION_NOT_WIRED` refusal is retired from the live worker)
 
 Unknown attempt0 is an attempt-status result, not a retry-safe error. Native
 resource limit is a failure status, never expected TrapCode. Use strict

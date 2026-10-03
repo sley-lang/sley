@@ -183,6 +183,7 @@ mod apply;
 mod candidate;
 mod codec;
 mod object;
+pub mod semantic_projection;
 
 pub use apply::{CandidateApplyError, ProposedEntityState, apply_candidate_to_snapshot};
 pub use candidate::{

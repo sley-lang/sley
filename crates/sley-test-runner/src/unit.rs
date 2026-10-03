@@ -10,14 +10,19 @@
 //! The two resource-instantiated properties use normalized values
 //! `MemoryMax=<page-floored>` and `RuntimeMaxUSec=<wall-plus-cleanup>`.
 //! Binary/input/output mapping is fixed `launch_profile1` and cannot be
-//! supplied by the caller: the worker binary and the daemon-owned input
-//! bind read-only, output goes to a daemon-owned bounded channel, and the
-//! unit binds to the supervisor service lifetime.
+//! supplied by the caller: systemd copies the daemon-owned, root-only input
+//! into a private service credential readable by the dynamic worker UID.
+//! Output goes to a daemon-owned bounded channel, and the unit binds to the
+//! supervisor service lifetime.
 
+use sley_scb1::{ScbError, ScbErrorCode};
 use sley_tests::supervisor::SUPERVISOR_CLEANUP_MILLIS;
+use sley_tests::{Caller, Property, SupervisorConfigParts, SupervisorConfigV1};
 
-use crate::config::{RunnerConfig, UNIT_PREFIX};
+use crate::config::{RunnerConfig, UNIT_PREFIX, valid_admin_path};
 use crate::enforce::{EnforceError, floor_page_cap, runtime_max_usec};
+use crate::protocol::RunRequest;
+use crate::worker::WORKER_INPUT_CREDENTIAL;
 
 /// Fixed launch-profile identity; the only mapping the daemon renders.
 pub const LAUNCH_PROFILE: u32 = 1;
@@ -44,6 +49,108 @@ pub const REQUIRED_PROPERTIES: [(&str, &str); 14] = [
     ("TasksMax", "1"),
     ("TimeoutStopUSec", "2000000"),
 ];
+
+fn manager_property_arg(name: &str, normalized_value: &str) -> String {
+    // SLEYNHC1 names the empty capability set as `empty`; systemd's unit
+    // syntax installs it with an empty right-hand side.
+    let value = if name == "CapabilityBoundingSet" {
+        ""
+    } else {
+        normalized_value
+    };
+    format!("--property={name}={value}")
+}
+
+/// Constructs the exact configuration the administrator and selected run
+/// require the system manager to install.
+///
+/// This is an expectation for the host verifier, not evidence that systemd
+/// installed the properties. The daemon may sign a successful measurement
+/// only after checking the actual transient unit and cgroup against it.
+///
+/// # Errors
+///
+/// Refuses an invalid request, caller mapping, page-floor/deadline budget, or
+/// malformed configuration envelope.
+pub fn expected_supervisor_config(
+    config: &RunnerConfig,
+    request: &RunRequest,
+    caller_uid: u32,
+) -> Result<SupervisorConfigV1, ScbError> {
+    let mismatch = || ScbError::new(ScbErrorCode::ContractUnknown);
+    config.validate().map_err(|_| mismatch())?;
+    request.verified_program()?;
+    config
+        .caller_for_scope(caller_uid, request.workspace, request.principal)
+        .ok_or_else(mismatch)?;
+    configured_supervisor_profile(
+        config,
+        request.declared_limits.memory_bytes,
+        request.wall_ms,
+    )
+}
+
+/// Derives the exact per-limit configuration ID an administrator may grant
+/// before a request exists. This describes one configured worker profile; it
+/// authenticates no request and grants no signing authority by itself.
+///
+/// # Errors
+///
+/// Refuses invalid administrator settings or resource limits.
+pub fn configured_supervisor_profile(
+    config: &RunnerConfig,
+    requested_memory_bytes: u64,
+    wall_ms: u64,
+) -> Result<SupervisorConfigV1, ScbError> {
+    config
+        .validate()
+        .map_err(|_| ScbError::new(ScbErrorCode::ContractUnknown))?;
+    let (_, installed_memory) = floor_page_cap(requested_memory_bytes, config.page_size)
+        .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
+    let manager_runtime =
+        runtime_max_usec(wall_ms).map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
+    let mut properties = REQUIRED_PROPERTIES
+        .iter()
+        .map(|(name, value)| Property {
+            name: (*name).to_owned(),
+            value: (*value).to_owned(),
+        })
+        .collect::<Vec<_>>();
+    properties.push(Property {
+        name: "MemoryMax".to_owned(),
+        value: installed_memory.to_string(),
+    });
+    properties.push(Property {
+        name: "RuntimeMaxUSec".to_owned(),
+        value: manager_runtime.to_string(),
+    });
+    properties.sort_by(|left, right| left.name.cmp(&right.name));
+    let mut callers = config
+        .allowed_callers
+        .iter()
+        .map(|caller| Caller {
+            uid: caller.uid,
+            workspace: caller.workspace,
+            principal: caller.principal,
+        })
+        .collect::<Vec<_>>();
+    callers.sort_by_key(|caller| {
+        (
+            caller.uid,
+            *caller.workspace.as_bytes(),
+            *caller.principal.as_bytes(),
+        )
+    });
+    SupervisorConfigV1::build(SupervisorConfigParts {
+        worker_digest: config.worker_sha256,
+        supervisor_digest: config.supervisor_sha256,
+        properties,
+        callers,
+        page_size: config.page_size,
+        cleanup_millis: SUPERVISOR_CLEANUP_MILLIS,
+        launch_profile: LAUNCH_PROFILE,
+    })
+}
 
 /// One rendered transient unit: the exact manager argv plus the installed
 /// ceilings bound into the run attestation.
@@ -75,10 +182,11 @@ pub fn render_transient_unit(
     wall_ms: u64,
 ) -> Result<TransientUnit, EnforceError> {
     config.validate().map_err(|_| EnforceError::InvalidBudget)?;
-    if unit_nonce_hex.is_empty()
-        || !unit_nonce_hex.bytes().all(|byte| byte.is_ascii_hexdigit())
-        || worker_input_path.is_empty()
-        || !worker_input_path.starts_with('/')
+    if unit_nonce_hex.len() != 64
+        || !unit_nonce_hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        || !valid_admin_path(worker_input_path)
     {
         return Err(EnforceError::InvalidBudget);
     }
@@ -86,28 +194,31 @@ pub fn render_transient_unit(
     let runtime_max = runtime_max_usec(wall_ms)?;
     let unit_name = format!("{UNIT_PREFIX}{unit_nonce_hex}");
     let mut argv = vec![
-        "systemd-run".to_owned(),
+        "/usr/bin/systemd-run".to_owned(),
         "--system".to_owned(),
         format!("--unit={unit_name}"),
         "--pipe".to_owned(),
     ];
     for (name, value) in REQUIRED_PROPERTIES {
-        argv.push(format!("--property={name}={value}"));
+        argv.push(manager_property_arg(name, value));
     }
     argv.push(format!("--property=MemoryMax={installed_memory}"));
     argv.push(format!("--property=RuntimeMaxUSec={runtime_max}"));
-    // Fixed launch_profile1 mapping: read-only worker/input bindings, a
-    // private empty scratch directory, and lifetime binding to the
-    // supervisor service. None of these accept caller input.
+    // Fixed launch_profile1 mapping: the manager copies the root-only input
+    // into the dynamic worker's private credential directory. The worker
+    // path stays read-only; the lifetime binding is fixed.
     argv.push(format!(
-        "--property=BindReadOnlyPaths={} {}",
-        config.worker_path, worker_input_path
+        "--property=LoadCredential={WORKER_INPUT_CREDENTIAL}:{worker_input_path}"
     ));
-    argv.push("--property=TemporaryFileSystem=/run/sley-scratch:ro".to_owned());
+    argv.push(format!(
+        "--property=BindReadOnlyPaths={}",
+        config.worker_path
+    ));
+    argv.push("--property=Slice=system.slice".to_owned());
     argv.push("--property=BindsTo=sley-test-supervisor.service".to_owned());
     argv.push(config.worker_path.clone());
     argv.push("__native-test-worker".to_owned());
-    argv.push(worker_input_path.to_owned());
+    argv.push("--credential".to_owned());
     Ok(TransientUnit {
         unit_name,
         argv,
@@ -123,6 +234,18 @@ mod tests {
 
     use super::*;
     use crate::config::{AllowedCaller, default_config};
+    use crate::program::PortableTestProgram;
+    use crate::worker::WorkerRequest;
+
+    fn selected_request() -> RunRequest {
+        let worker = WorkerRequest::decode_frame(include_bytes!(
+            "../../../conformance/native-worker/v1/observed-input.bin"
+        ))
+        .expect("canonical worker vector");
+        let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
+        RunRequest::from_portable_program(&program, 1_000, [9; 32])
+            .expect("selected supervisor request")
+    }
 
     fn runner_config() -> RunnerConfig {
         default_config(
@@ -168,26 +291,99 @@ mod tests {
     }
 
     #[test]
+    fn expected_configuration_matches_rendered_unit_and_authenticated_scope() {
+        let request = selected_request();
+        let mut config = runner_config();
+        config.allowed_callers[0].workspace = request.workspace;
+        config.allowed_callers[0].principal = request.principal;
+        let expected = expected_supervisor_config(&config, &request, 1_000)
+            .expect("expected attested projection");
+        assert_eq!(
+            configured_supervisor_profile(
+                &config,
+                request.declared_limits.memory_bytes,
+                request.wall_ms
+            )
+            .expect("precomputed administrator profile")
+            .id(),
+            expected.id()
+        );
+        assert_eq!(
+            configured_supervisor_profile(&config, 0, request.wall_ms)
+                .expect_err("zero memory cannot be granted")
+                .code(),
+            ScbErrorCode::ResourceLimit
+        );
+        assert_eq!(
+            configured_supervisor_profile(&config, request.declared_limits.memory_bytes, 0)
+                .expect_err("zero wall budget cannot be granted")
+                .code(),
+            ScbErrorCode::ResourceLimit
+        );
+        let unit = render_transient_unit(
+            &config,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "/run/sley-test-supervisor/input/9f2c.bin",
+            request.declared_limits.memory_bytes,
+            request.wall_ms,
+        )
+        .expect("rendered transient unit");
+        assert_eq!(expected.properties().len(), 16);
+        assert_eq!(expected.callers().len(), 1);
+        for property in expected.properties() {
+            assert!(
+                unit.argv
+                    .contains(&manager_property_arg(&property.name, &property.value))
+            );
+        }
+        assert_eq!(
+            expected_supervisor_config(&config, &request, 1_001)
+                .expect_err("unapproved caller")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+        config.allowed_callers.insert(
+            0,
+            crate::config::AllowedCaller {
+                uid: 1_000,
+                workspace: request.workspace,
+                principal: PrincipalId::from_bytes([0xff; 32]),
+            },
+        );
+        let multi_grant_config = expected_supervisor_config(&config, &request, 1_000)
+            .expect("request selects the exact grant after another same-UID grant");
+        assert_eq!(multi_grant_config.callers().len(), 2);
+        config.allowed_callers[1].principal = PrincipalId::from_bytes([0xfe; 32]);
+        assert_eq!(
+            expected_supervisor_config(&config, &request, 1_000)
+                .expect_err("wrong principal mapping")
+                .code(),
+            ScbErrorCode::ContractUnknown
+        );
+    }
+
+    #[test]
     fn rendered_argv_pins_every_property_in_order() {
+        const NONCE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let unit = render_transient_unit(
             &runner_config(),
-            "9f2c",
+            NONCE,
             "/run/sley-test-supervisor/input/9f2c.bin",
             8_193,
             1_000,
         )
         .expect("renders");
-        assert_eq!(unit.unit_name, "sley-native-test-9f2c");
+        assert_eq!(unit.unit_name, format!("sley-native-test-{NONCE}"));
         assert_eq!(unit.requested_memory, 8_193);
         assert_eq!(unit.installed_memory, 8_192);
         assert_eq!(unit.runtime_max_usec, 3_000_000);
         let argv = unit.argv.join("\n");
         let expected = [
-            "systemd-run",
+            "/usr/bin/systemd-run",
             "--system",
-            "--unit=sley-native-test-9f2c",
+            "--unit=sley-native-test-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "--pipe",
-            "--property=CapabilityBoundingSet=empty",
+            "--property=CapabilityBoundingSet=",
             "--property=DynamicUser=yes",
             "--property=KillMode=control-group",
             "--property=MemoryAccounting=yes",
@@ -203,12 +399,13 @@ mod tests {
             "--property=TimeoutStopUSec=2000000",
             "--property=MemoryMax=8192",
             "--property=RuntimeMaxUSec=3000000",
-            "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker /run/sley-test-supervisor/input/9f2c.bin",
-            "--property=TemporaryFileSystem=/run/sley-scratch:ro",
+            "--property=LoadCredential=sley-input:/run/sley-test-supervisor/input/9f2c.bin",
+            "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker",
+            "--property=Slice=system.slice",
             "--property=BindsTo=sley-test-supervisor.service",
             "/usr/lib/sley/sley-native-test-worker",
             "__native-test-worker",
-            "/run/sley-test-supervisor/input/9f2c.bin",
+            "--credential",
         ];
         assert_eq!(unit.argv, expected);
         assert!(argv.contains("--property=MemorySwapMax=0"));
@@ -216,6 +413,7 @@ mod tests {
 
     #[test]
     fn rendering_refuses_before_any_unit_exists() {
+        const NONCE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let config = runner_config();
         assert_eq!(
             render_transient_unit(&config, "zz", "/run/input.bin", 8_192, 1_000)
@@ -224,19 +422,25 @@ mod tests {
             EnforceError::InvalidBudget.tag()
         );
         assert_eq!(
-            render_transient_unit(&config, "9f2c", "relative.bin", 8_192, 1_000)
+            render_transient_unit(&config, NONCE, "relative.bin", 8_192, 1_000)
                 .expect_err("input")
                 .tag(),
             EnforceError::InvalidBudget.tag()
         );
         assert_eq!(
-            render_transient_unit(&config, "9f2c", "/run/input.bin", 100, 1_000)
+            render_transient_unit(&config, NONCE, "/run/input:bad.bin", 8_192, 1_000)
+                .expect_err("credential source property injection")
+                .tag(),
+            EnforceError::InvalidBudget.tag()
+        );
+        assert_eq!(
+            render_transient_unit(&config, NONCE, "/run/input.bin", 100, 1_000)
                 .expect_err("cap")
                 .tag(),
             EnforceError::UnaccommodatingCap.tag()
         );
         assert_eq!(
-            render_transient_unit(&config, "9f2c", "/run/input.bin", 8_192, 0)
+            render_transient_unit(&config, NONCE, "/run/input.bin", 8_192, 0)
                 .expect_err("wall")
                 .tag(),
             EnforceError::InvalidBudget.tag()
