@@ -2,11 +2,11 @@
   "anti_goal_count": 25,
   "anti_goals": [
     {
-      "acceptance_evidence": "no production parser crate/grammar/`.sley`; inert benchmark fixture sources never enter the product graph; source-like protocol input rejected",
-      "anti_goal": "Sley source syntax or parser",
-      "detail": "0 production .sley files; parser crates in the lock: none; benchmark fixture sources are inert corpus inputs",
+      "acceptance_evidence": "no production parser crate/grammar/`.sley`; inert benchmark fixture sources never enter the product graph; source-like protocol input rejected; the one text parser is the optional `familiar` feature module of `sley-agent`, which emits only a structured JSON frame for the ordinary candidate path, is selected explicitly per proposal, is depended on by nothing, and is never needed by a committed program",
+      "anti_goal": "Sley source syntax or parser outside the optional authoring frontend",
+      "detail": "0 production .sley files; parser crates in the lock: none; benchmark fixture sources are inert corpus inputs; ADR-0055 frontend confinement: holds (one feature-gated sley-agent module, std and serde_json only, no dependents)",
       "state": "HOLDS",
-      "surface": "dependency/file inventory; protocol input corpus"
+      "surface": "dependency/file inventory; protocol input corpus; frontend confinement check (ADR-0055)"
     },
     {
       "acceptance_evidence": "SCB1 only; debug notation rejected as input",
@@ -172,14 +172,14 @@
     {
       "acceptance_evidence": "no tag, upload, or deploy action outside the operator's recorded publication decision (`scripts/publication_authority.py`)",
       "anti_goal": "unauthorized publication/deploy/spend",
-      "detail": "git tags: 3; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
+      "detail": "git tags: 4; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
       "state": "HOLDS",
       "surface": "repo metadata and operator gate"
     }
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "d9851c8d994530809def9ce796044a77acf9ed362ca526190e92df220182cb72",
+  "report_digest": "741912d181fc2aa872120ebd80ec1f2e9ac0dfe4b7bd31131bb6d693815b16c6",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

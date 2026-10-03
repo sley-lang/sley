@@ -3,7 +3,8 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews"
+      "council_reviews",
+      "second_host_attestation_operator_lane"
     ],
     "publication_authorized": true,
     "signature_algorithm": null,
@@ -17,14 +18,14 @@
       "buildDefinition": {
         "buildType": "urn:sley2:buildtype:release-candidate/v1",
         "externalParameters": {
-          "artifact_name": "sley-2.0.3-linux-x86_64.tar.gz",
-          "commit": "69d57b1d8fac0ef9d9f639cb606ded9be6289760",
-          "invocation": "build_release_candidate.py --timeout-seconds=1800 --require-clean --no-keep",
-          "make_target": "build_release_candidate.py direct",
+          "artifact_name": "sley-2.0.5-linux-x86_64.tar.gz",
+          "commit": "11258a351b4638b63f204aecbf58b43906e87479",
+          "invocation": "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
+          "make_target": "release-candidate-build",
           "working_tree_clean": true
         },
         "internalParameters": {
-          "artifact_size_bytes": 5883672,
+          "artifact_size_bytes": 7197527,
           "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
           "locked": true,
           "member_count": 17,
@@ -39,13 +40,13 @@
         "resolvedDependencies": [
           {
             "digest": {
-              "sha1": "69d57b1d8fac0ef9d9f639cb606ded9be6289760"
+              "sha1": "11258a351b4638b63f204aecbf58b43906e87479"
             },
             "uri": "urn:sley2:git-commit"
           },
           {
             "digest": {
-              "sha256": "be8edd9c70ae260dd7daf8ad6c744e89758b23c2397da2722dc1f1aa6099449a"
+              "sha256": "edf7d1aab0087213741fedc9c8eb4258fb18951358d3c5371f59a6358614bae1"
             },
             "name": "Cargo.lock"
           },
@@ -57,19 +58,19 @@
           },
           {
             "digest": {
-              "sha256": "154de0b647e438b0109a9ba7964d95074059a9c4e8d7f240bfab88d1f14eb13f"
+              "sha256": "86ac63e677b04e817f4b8fe6e4f163f01e45b37ab7650d98197f051f23409abb"
             },
             "name": "evidence/security/T52/pre-release-inventory.json"
           },
           {
             "digest": {
-              "sha256": "fd0868bc4fe9618e0e04827ef54dd6ea0a5908062fd102099dd7d09e583d41b3"
+              "sha256": "8ae20807b454b13f7582398e3b4f037f5fdcd5cee9fa23807a99294ac129b7f4"
             },
             "name": "evidence/release/sbom/cyclonedx-1.6.json"
           },
           {
             "digest": {
-              "sha256": "0b0425058705baa999cf72835042ed8ae49ca3c75b49ca6508c1b1096cf86c2f"
+              "sha256": "3e3dedf9cabdf50c1c5a36d39521221d055ae5a967f57daa8fa997ef199ad58f"
             },
             "name": "evidence/release/sbom/spdx-2.3.json"
           }
@@ -82,7 +83,7 @@
         "byproducts": [
           {
             "digest": {
-              "sha256": "0876fdf0e0e375513e7463d6611adf1f74b477075e26a406ec4950e9fcac0dda"
+              "sha256": "4402a8ccb411fe73519b9f545bb9963ef96f40934c8ba41e57f03b1b09644fea"
             },
             "name": "evidence/release/reproducibility-report.json"
           },
@@ -94,7 +95,7 @@
           }
         ],
         "metadata": {
-          "invocationId": "2e010379c095e53c130314659e13d1929cde23bee70b31849d669013c1a74b1d"
+          "invocationId": "5c927d62a826d8efead87218cfeee8e90f79f4cd54a702e007759b92e70abdbd"
         }
       }
     },
@@ -102,11 +103,11 @@
     "subject": [
       {
         "digest": {
-          "sha256": "4a9aef6962795f49f6e9c13dfe2cd6815a9392106708cccbc491367c4ca3c2a3"
+          "sha256": "ffe983f644a874f4ba44f4d1ea2f2b377c157222b8a99850ab3108f1d521c6a9"
         },
-        "name": "sley-2.0.3-linux-x86_64.tar.gz"
+        "name": "sley-2.0.5-linux-x86_64.tar.gz"
       }
     ]
   },
-  "statement_digest": "52680c9bd02624f405bb7d671b24b8caaa60e9755fac8f1fd0cf992752bcad7a"
+  "statement_digest": "6dfb58ae33f8b62df00c669903849b15fc2927f6c35db75d5a94ba6f6a01786f"
 }

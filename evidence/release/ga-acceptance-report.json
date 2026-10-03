@@ -100,9 +100,9 @@
     },
     {
       "criterion": "No source parser exists in the GA dependency graph",
-      "evidence": "anti-goal conformance report 'Sley source syntax or parser' HOLDS, parser crates absent from Cargo.lock",
+      "evidence": "anti-goal conformance report 'Sley source syntax or parser' REVIEW_ONLY, parser crates absent from Cargo.lock",
       "group": "26.3 semantics",
-      "state": "EVIDENCED"
+      "state": "GATED"
     },
     {
       "criterion": "Type, CFG, effect, contract, and identity checks are deterministic",
@@ -130,7 +130,7 @@
     },
     {
       "criterion": "agents can create and maintain programs without source",
-      "evidence": "SMP1 endpoint, bridge, CLI, candidate validation, and atomic commit at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE); anti-goal 'Sley source syntax or parser' HOLDS",
+      "evidence": "SMP1 endpoint, bridge, CLI, candidate validation, and atomic commit at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE); anti-goal 'Sley source syntax or parser' REVIEW_ONLY",
       "group": "26.4 agent loop",
       "state": "AWAITS_REVIEW"
     },
@@ -166,7 +166,7 @@
     },
     {
       "criterion": "machine outputs use stable codes and contracts",
-      "evidence": "docs/spec/ERROR_CODES_V1.md with the per-package checkers that pin every reserved range; error-symbol registration PASS: 546 symbols, 0 unregistered, 0 ambiguous codes",
+      "evidence": "docs/spec/ERROR_CODES_V1.md with the per-package checkers that pin every reserved range; error-symbol registration PASS: 580 symbols, 0 unregistered, 0 ambiguous codes",
       "group": "26.4 agent loop",
       "state": "EVIDENCED"
     },
@@ -238,7 +238,7 @@
     },
     {
       "criterion": "all P0/P1 threats have passing tests",
-      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 546 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol; independent security review: threat_coverage.independent_security_review reads PASS_P3_P4_CLOSED, which is not a complete PASS form. Whether a located, exercised control mitigates its threat stays the review's judgment",
+      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 580 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol; independent security review: threat_coverage.independent_security_review reads PASS_P3_P4_CLOSED, which is not a complete PASS form. Whether a located, exercised control mitigates its threat stays the review's judgment",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -261,14 +261,14 @@
       "state": "GATED"
     },
     {
-      "criterion": "artifact name sley-2.0.3-linux-x86_64.tar.gz",
-      "evidence": "reproducibility report attests sley-2.0.3-linux-x86_64.tar.gz; packaging records sley-2.0.3-linux-x86_64.tar.gz",
+      "criterion": "artifact name sley-2.0.5-linux-x86_64.tar.gz",
+      "evidence": "reproducibility report attests sley-2.0.5-linux-x86_64.tar.gz; packaging records sley-2.0.5-linux-x86_64.tar.gz",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 69d57b1d8fac0ef9d9f639cb606ded9be6289760; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
+      "evidence": "attested commit 11258a351b4638b63f204aecbf58b43906e87479; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -286,15 +286,15 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest 2e010379c095, artifact digest 4a9aef696279, 5883672 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 5c927d62a826, artifact digest ffe983f644a8, 7197527 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "second clean build establishes reproducibility",
-      "evidence": "reproducibility report result MULTI_HOST_REPRODUCIBLE across 2 of 2 required hosts, 2 attestations",
+      "evidence": "reproducibility report result SINGLE_HOST_REPRODUCIBLE across 1 of 2 required hosts, 1 attestations",
       "group": "26.8 packaging",
-      "state": "EVIDENCED"
+      "state": "GATED"
     },
     {
       "criterion": "the source working tree is clean",
@@ -336,18 +336,20 @@
   "criterion_count": 52,
   "ga_claimed": false,
   "gated": [
+    "No source parser exists in the GA dependency graph",
     "no P0/P1/P2 finding remains open",
-    "every section 22 threshold passes"
+    "every section 22 threshold passes",
+    "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "517a972593be52c2078d0893cd917b38a5796618cb2f350189026b119d0c5df3",
   "register_digest": "d315bbb614c8f07193a6ed5b3ced48749fb9b37a6fce320a37ebd99e45545640",
-  "report_digest": "8c05b88c4b13c78525e838356661151e2049ff1eb51fb5107d427ea4f6b39a86",
+  "report_digest": "df294f07612295888be7b8ab08303681347c24aa0378c90fb53188a8695b4dbf",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,
-    "EVIDENCED": 33,
-    "GATED": 2
+    "EVIDENCED": 31,
+    "GATED": 4
   },
   "thresholds_source": "evidence/release/succession-accounting-report.json"
 }
