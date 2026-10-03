@@ -292,9 +292,9 @@
     },
     {
       "criterion": "second clean build establishes reproducibility",
-      "evidence": "reproducibility report result SINGLE_HOST_REPRODUCIBLE across 1 of 2 required hosts, 1 attestations",
+      "evidence": "reproducibility report result MULTI_HOST_REPRODUCIBLE across 2 of 2 required hosts, 2 attestations",
       "group": "26.8 packaging",
-      "state": "GATED"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "the source working tree is clean",
@@ -338,18 +338,17 @@
   "gated": [
     "No source parser exists in the GA dependency graph",
     "no P0/P1/P2 finding remains open",
-    "every section 22 threshold passes",
-    "second clean build establishes reproducibility"
+    "every section 22 threshold passes"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "517a972593be52c2078d0893cd917b38a5796618cb2f350189026b119d0c5df3",
   "register_digest": "d315bbb614c8f07193a6ed5b3ced48749fb9b37a6fce320a37ebd99e45545640",
-  "report_digest": "df294f07612295888be7b8ab08303681347c24aa0378c90fb53188a8695b4dbf",
+  "report_digest": "10501fe83844cef1399b790b6db1b778100f00d5ed2ece3c0a4b3d1e47216eec",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,
-    "EVIDENCED": 31,
-    "GATED": 4
+    "EVIDENCED": 32,
+    "GATED": 3
   },
   "thresholds_source": "evidence/release/succession-accounting-report.json"
 }
