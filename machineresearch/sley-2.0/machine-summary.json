@@ -4910,7 +4910,7 @@
     "contract_revision": 9,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.0.5-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.0.6-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
@@ -4937,8 +4937,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "ffe983f644a874f4ba44f4d1ea2f2b377c157222b8a99850ab3108f1d521c6a9",
-    "candidate_artifact_size_bytes": 7197527,
+    "candidate_artifact_sha256": "35d50bd65d7518cab275e21637e31277cf2bdd1c9acc9fc0bb726f51e05c09d6",
+    "candidate_artifact_size_bytes": 7207483,
     "candidate_member_count": 17,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4946,22 +4946,22 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "5c927d62a826d8efead87218cfeee8e90f79f4cd54a702e007759b92e70abdbd",
-    "candidate_commit": "11258a351b4638b63f204aecbf58b43906e87479",
+    "candidate_manifest_digest": "b8130d453c11d0cb91c691f0e25a5f7f1354d863b2b71a69daf6fe28a5c6cf2e",
+    "candidate_commit": "3223e19ebab2146a9e87d495c7a14759599e01f8",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "11258a351b4638b63f204aecbf58b43906e87479",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.0.5 release, built from commit 11258a35 of sley-lang/sley (two clean musl builds, REPRODUCIBLE) and independently rebuilt on the secondary host the same day from a transferred Git bundle (make release-candidate-build in a detached clean clone, REPRODUCIBLE, the same artifact digest) through the tracked scripts/second_host_attest.sh. The secondary attestation is merged into the tracked report (MULTI_HOST_REPRODUCIBLE, merge commit 81cca896) and retained as evidence/release/attestations/11258a3-secondary.json, with its custody receipt in evidence/release/second-host-lane-records.json.",
+    "candidate_evidence_commit": "3223e19ebab2146a9e87d495c7a14759599e01f8",
+    "candidate_second_host_note": "Prepared Sley 2.0.6 candidate: two clean static musl builds on the primary host produced the same archive. The second host has not attested this candidate; earlier 2.0.5 attestations remain historical evidence only. No 2.0.6 release has been published.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
-    "mint_method": "Primary clean-tree build via build_release_candidate.py --timeout-seconds 1800 --require-clean; two clean musl builds, archive comparison, source-independent demo and conformance subset.",
+    "mint_method": "Primary clean-tree build via build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep; two clean musl builds, archive comparison, source-independent demo and conformance subset.",
     "p1_open_count": 0,
     "p1_open": [],
-    "mint_worktree": "Dedicated clean release worktree on the primary host; a separate clone from a transferred Git bundle on the secondary host.",
+    "mint_worktree": "Dedicated clean release worktree on the primary host. A second-host build remains pending.",
     "offline_tests_note": "test methods in bench/release/tests/test_packaging.py; scripts/check_release_candidate_packaging.py pins the count against the def test_ census",
     "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_2_P2_2_P3",
     "nabu_architecture_review_revision_2": "PASS_0_P0_0_P1_0_P2_3_P3_CLOSED",
@@ -6243,10 +6243,10 @@
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
     "independent_conformance_report": "evidence/conformance/independent-conformance-report.json",
-    "reproducibility_result": "MULTI_HOST_REPRODUCIBLE",
-    "second_host_status": "ATTESTED",
+    "reproducibility_result": "SINGLE_HOST_REPRODUCIBLE",
+    "second_host_status": "GATED_OPERATOR_LANE",
     "required_hosts": 2,
-    "attested_hosts": 2,
+    "attested_hosts": 1,
     "second_host_lane_record": "evidence/release/second-host-lane-records.json",
     "fixture_directories": 27,
     "tracked_corpus_directories": 32,
@@ -6258,6 +6258,7 @@
     "ga_claimed": false,
     "publication_authorized": true,
     "blockers": [
+      "second_host_attestation_operator_lane",
       "standards_sbom_and_provenance_s20_710_full",
       "succession_thresholds_s20_640",
       "council_reviews"
@@ -6319,7 +6320,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "11258a351b4638b63f204aecbf58b43906e87479",
+    "attested_commit": "3223e19ebab2146a9e87d495c7a14759599e01f8",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -7113,6 +7114,12 @@
           "primary",
           "secondary"
         ]
+      },
+      {
+        "commit": "3223e19ebab2146a9e87d495c7a14759599e01f8",
+        "hosts": [
+          "primary"
+        ]
       }
     ],
     "vulcan_surface_review_revision_11": "REVISE_0_P0_0_P1_0_P2_2_P3_6_P4",
@@ -7558,7 +7565,8 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews"
+      "council_reviews",
+      "second_host_attestation_operator_lane"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3_4_P4",
