@@ -8,32 +8,40 @@ authority, reconciles old worker units, and then accepts authenticated local
 requests. The worker executes selected native Sley `TestCase` programs through
 the existing VM. This service is host machinery; it is not a Sley program.
 
-## Current evidence
+## Current source and recorded host evidence
 
-Development build `a20d6b3` is installed on greyarch with its worker and
-supervisor hashes pinned in the root configuration. Its service is stopped and
-disabled. A disposable F0 scenario exercised real native test admission and
-selected execution on that build. A separate 1 ms request returned
-`NATIVE_TEST_RESOURCE_REFUSED` through the trusted signed prelaunch path, with
-an unchanged root and no observed worker unit. The postlaunch timeout path samples
-clean cgroup counters while the exact worker is live, then kills the unit and
-confirms teardown before signing a no-result failure. A pinned synthetic worker
-that emitted no VM report exercised this host path at a 1,000 ms limit on
-greyarch; a real Sley worker has not done so. The counters are a deadline
-snapshot, not counters read after teardown. OOM and missing or dirty
-telemetry remain unknown. No released-core compatibility or full host
-qualification follows from these checks. The authenticated refusal-only
-handler remains available for negative protocol tests; the production daemon
-uses the root handler.
+The source supports authenticated no-result diagnostics for unsupported short
+wall budgets, measured deadlines with confirmed teardown, and exact
+manager-observed OOM. The OOM diagnostic is separate from measured worker
+reports and never fabricates missing `memory.events` counters or a native
+receipt; see [its evidence contract](../../docs/status/NATIVE_MANAGER_OOM_DIAGNOSTIC.md).
+Missing, ambiguous, untrusted or dirty evidence remains refused or unknown.
 
-A separate greyarch disposable 1 MiB OOM unit showed that systemd retains a
-typed `oom-kill` result, killed main PID, installed `MemoryMax`, and
-`MemoryPeak` after removing the cgroup. The runner now has a source-only
-verifier for those retained properties on an exact rendered native worker
-unit, including its launch settings and empty-group confirmation. It does not
-create a signed OOM response or reconstruct missing `memory.events` counters;
-the receiver outcome remains unknown until that evidence contract is designed
-and exercised with a real native worker.
+The last recorded greyarch host checks in [issue #24](https://github.com/sley-lang/sley/issues/24)
+used unreleased development core `8752598` on September 28, 2026:
+
+- A real selected native TestCase under a 1 MiB cap returned
+  `NATIVE_TEST_RESOURCE_REFUSED` with an unchanged accepted root/transaction.
+  The exact reaped worker had typed manager `Result=oom-kill`, matching
+  `MemoryMax=MemoryPeak=1048576`, and no remaining cgroup. The signed diagnostic
+  supplied the receiver with an authenticated resource failure, not a test
+  success. [Pinned OOM record](https://github.com/sley-lang/tools/blob/a63e4e2/evidence/compatibility/f0-greyarch-real-native-oom-classification-8752598-2026-09-28.json).
+- A real selected native TestCase with a supported 1,000 ms wall budget
+  returned the same resource refusal after 1,028 ms, with an unchanged root and
+  transaction. The worker was killed and reaped; its retained memory peak was
+  below the installed cap and no OOM result was reported.
+  [Pinned wall-deadline record](https://github.com/sley-lang/tools/blob/b729fc6/evidence/compatibility/f0-greyarch-real-native-timeout-8752598-2026-09-28.json).
+- Those records report restoration of the previous binaries, configuration
+  and trust, an inactive/disabled supervisor and no loaded native worker
+  units. This describes the recorded cleanup, not a live host-state check.
+
+Earlier signed prelaunch and synthetic-worker checks are historical evidence
+in that issue. The later real-worker checks supersede their narrower coverage,
+but do not qualify this integration's rebuilt binaries. Released-core/tools
+compatibility and clean installed-package F0 acceptance remain open. Any new
+installation requires exact reviewed artifacts and fresh host qualification.
+The authenticated refusal-only handler remains available for negative protocol
+tests; the production daemon uses the root handler.
 
 The development `sley serve --protocol-profile v3-capable` command now accepts
 an explicit `--native-authority-config` file for the receiver's separate
