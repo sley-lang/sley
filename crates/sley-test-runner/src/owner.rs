@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use crate::channel::check_peer_connected;
 use crate::config::{BinaryPinError, RunnerConfig, UNIT_PREFIX};
 use crate::enforce::{REAP_BUDGET_USEC, check_elapsed};
-use crate::manager::confirm_system_unit_reaped;
+use crate::manager::{ReapedOomWorker, confirm_system_unit_reaped, verify_reaped_oom_unit};
 use crate::phase::{GatedWorkerResult, PhaseError, run_system_unit_phase};
 use crate::unit::{TransientUnit, render_transient_unit};
 
@@ -34,6 +34,12 @@ pub enum OwnerError {
     LaunchFailure,
     /// The manager, cgroup, gated output, or requesting peer refused.
     Phase(PhaseError),
+    /// The deadline was observed with clean live counters, and the launched
+    /// unit was killed and confirmed empty before returning these facts.
+    MeasuredTimeout(OwnedTimeoutFacts),
+    /// The exact installed unit failed with manager-observed OOM and was
+    /// confirmed empty; cgroup event counters were already unavailable.
+    ManagerOom(OwnedOomFacts),
     /// The requesting peer was lost after the gated phase.
     PeerLost,
     /// Worker launcher exited nonzero after a complete report.
@@ -53,6 +59,8 @@ impl core::fmt::Display for OwnerError {
             Self::InvalidDeadline => "NATIVE_OWNER_INVALID_DEADLINE",
             Self::LaunchFailure => "NATIVE_OWNER_LAUNCH_FAILED",
             Self::Phase(_) => "NATIVE_OWNER_PHASE_REFUSED",
+            Self::MeasuredTimeout(_) => "NATIVE_OWNER_MEASURED_TIMEOUT",
+            Self::ManagerOom(_) => "NATIVE_OWNER_MANAGER_OOM",
             Self::PeerLost => "NATIVE_OWNER_PEER_LOST",
             Self::WorkerExit => "NATIVE_OWNER_WORKER_EXIT",
             Self::Deadline => "NATIVE_OWNER_DEADLINE",
@@ -68,6 +76,25 @@ pub struct OwnedWorkerResult {
     /// Canonical pure report and final live cgroup sample.
     pub gated: GatedWorkerResult,
     /// Monotonic launch-through-reap duration in nanoseconds.
+    pub elapsed_ns: u64,
+}
+
+/// A deadline snapshot captured while the worker lived, followed by verified
+/// kill and reap. No worker execution report is claimed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OwnedTimeoutFacts {
+    /// Last verified live cgroup sample at the report deadline.
+    pub telemetry: crate::telemetry::LiveTelemetrySample,
+    /// Monotonic launch-through-confirmed-reap duration.
+    pub elapsed_ns: u64,
+}
+
+/// Trusted manager facts captured after a verified OOM and confirmed reap.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OwnedOomFacts {
+    /// Typed manager result for the exact rendered worker unit.
+    pub manager: ReapedOomWorker,
+    /// Monotonic launch-through-confirmed-reap duration.
     pub elapsed_ns: u64,
 }
 
@@ -157,6 +184,11 @@ struct UnitGuard {
 }
 
 impl UnitGuard {
+    fn spawn_for_peer(unit: &TransientUnit, peer: &UnixStream) -> Result<Self, OwnerError> {
+        check_peer_connected(peer).map_err(|_| OwnerError::PeerLost)?;
+        Self::spawn(unit)
+    }
+
     fn spawn(unit: &TransientUnit) -> Result<Self, OwnerError> {
         let child = Command::new(&unit.argv[0])
             .args(&unit.argv[1..])
@@ -180,8 +212,11 @@ impl UnitGuard {
         let deadline = Instant::now()
             .checked_add(Duration::from_micros(REAP_BUDGET_USEC))
             .ok_or(OwnerError::CleanupUnconfirmed)?;
-        signal_system_unit(&self.unit_name, deadline);
+        // Stop the piped launcher before a possibly slow manager kill call.
+        // Its open pipe can otherwise keep the gated worker alive until the
+        // entire confirmation budget has been spent.
         let _ = self.child.kill();
+        signal_system_unit(&self.unit_name, deadline);
         let _ = wait_child(&mut self.child, deadline, None);
         confirm_reap_before(&self.unit_name, deadline)
             .map_err(|_| OwnerError::CleanupUnconfirmed)?;
@@ -248,7 +283,7 @@ pub fn run_owned_system_unit(
     let deadline = started
         .checked_add(Duration::from_millis(wall_ms))
         .ok_or(OwnerError::InvalidDeadline)?;
-    let mut guard = UnitGuard::spawn(unit)?;
+    let mut guard = UnitGuard::spawn_for_peer(unit, peer)?;
     let phase = {
         let control = guard
             .child
@@ -272,13 +307,38 @@ pub fn run_owned_system_unit(
     };
     let gated = match phase {
         Ok(gated) => gated,
+        Err(PhaseError::MeasuredTimeout(telemetry)) => {
+            guard.abort()?;
+            let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+                .map_err(|_| OwnerError::InvalidDeadline)?;
+            return Err(OwnerError::MeasuredTimeout(OwnedTimeoutFacts {
+                telemetry,
+                elapsed_ns,
+            }));
+        }
         Err(error) => {
             guard.abort()?;
+            if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, None) {
+                let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+                    .map_err(|_| OwnerError::InvalidDeadline)?;
+                return Err(OwnerError::ManagerOom(OwnedOomFacts {
+                    manager,
+                    elapsed_ns,
+                }));
+            }
             return Err(OwnerError::Phase(error));
         }
     };
     if let Err(error) = guard.finish(peer, deadline) {
         guard.abort()?;
+        if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, None) {
+            let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
+                .map_err(|_| OwnerError::InvalidDeadline)?;
+            return Err(OwnerError::ManagerOom(OwnedOomFacts {
+                manager,
+                elapsed_ns,
+            }));
+        }
         return Err(error);
     }
     let elapsed_ns =
@@ -289,10 +349,52 @@ pub fn run_owned_system_unit(
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use sley_id::{PrincipalId, WorkspaceId};
 
     use super::*;
     use crate::config::{AllowedCaller, default_config};
+
+    static NEXT_MARKER: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn disconnected_peer_never_starts_launcher() {
+        let marker = std::env::temp_dir().join(format!(
+            "sley-disconnected-peer-{}-{}",
+            std::process::id(),
+            NEXT_MARKER.fetch_add(1, Ordering::Relaxed)
+        ));
+        assert!(!marker.exists());
+        let unit = TransientUnit {
+            unit_name: format!("{UNIT_PREFIX}{}", "b".repeat(64)),
+            argv: vec![
+                "/usr/bin/touch".to_owned(),
+                marker.to_str().unwrap().to_owned(),
+            ],
+            requested_memory: 4096,
+            installed_memory: 4096,
+            runtime_max_usec: 3_000_000,
+        };
+        let (peer, client) = UnixStream::pair().unwrap();
+        drop(client);
+        let result = UnitGuard::spawn_for_peer(&unit, &peer);
+        let error = match result {
+            Ok(mut guard) => {
+                guard.child.wait().unwrap();
+                guard.reaped = true;
+                None
+            }
+            Err(error) => Some(error),
+        };
+        let launched = marker.exists();
+        if launched {
+            fs::remove_file(marker).unwrap();
+        }
+        assert_eq!(error, Some(OwnerError::PeerLost));
+        assert!(!launched);
+    }
 
     #[test]
     fn refuses_every_change_to_the_frozen_launch_argv() {

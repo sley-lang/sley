@@ -304,6 +304,9 @@ pub enum NativeCommitError {
     /// Checkpoint expiry or disconnect before promotion; safe to retry after
     /// reconciling history.
     AbortedRetrySafe,
+    /// Trusted measurement says a resource bound ended the worker, with
+    /// confirmed teardown and no native test result to admit.
+    ResourceRefused,
     /// Failure during or after promotion, or lost preservation error after
     /// launch; query history, never resubmit blindly.
     OutcomeUnknown,
@@ -328,6 +331,7 @@ impl NativeCommitError {
             Self::ExecutorUnavailable => "NATIVE_EXECUTOR_UNAVAILABLE",
             Self::BusyRetrySafe => "NATIVE_COMMIT_BUSY_RETRY_SAFE",
             Self::AbortedRetrySafe => "NATIVE_COMMIT_ABORTED_RETRY_SAFE",
+            Self::ResourceRefused => "NATIVE_TEST_RESOURCE_REFUSED",
             Self::OutcomeUnknown => "NATIVE_COMMIT_OUTCOME_UNKNOWN",
             Self::AttemptConflict => "NATIVE_ATTEMPT_CONFLICT",
             Self::JournalCorrupt => "NATIVE_JOURNAL_CORRUPT",
@@ -427,6 +431,17 @@ pub enum SupervisorEvidenceError {
         /// Stable supervisor refusal or failure code.
         code: u32,
     },
+    /// Trusted no-result host diagnostic, never a native test report.
+    SignedNoResult {
+        /// Refused before launch or failed after a host attempt.
+        status: RunStatus,
+        /// Signed termination tag from the measured attestation.
+        termination: u32,
+        /// Stable supervisor refusal or failure code.
+        code: u32,
+    },
+    /// Trusted manager-observed OOM with no worker report or cgroup counters.
+    SignedManagerOom,
     /// The signed measurement lacks receiver trust or has an invalid signature.
     MeasurementTrust(NativeCommitError),
 }
@@ -450,6 +465,43 @@ pub fn verified_supervisor_execution(
 ) -> Result<ExecutedNativeTest, SupervisorEvidenceError> {
     let response = RunResponse::decode_frame(response_frame)
         .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+    if response.manager_oom.is_some() {
+        let evidence = request
+            .verified_manager_oom_evidence(&response, caller_uid)
+            .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+        let claim = evidence.claim();
+        verify_measurement_trust(
+            &claim.key_id,
+            &claim.trust_policy_id,
+            request.workspace,
+            &claim.supervisor_config_id,
+            claim.recorded_unix_millis,
+            measurement_trust,
+        )
+        .map_err(SupervisorEvidenceError::MeasurementTrust)?;
+        let preimage = claim
+            .signature_preimage()
+            .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+        verify_ed25519_signature(&claim.key_id, &preimage, &claim.signature)
+            .map_err(SupervisorEvidenceError::MeasurementTrust)?;
+        return Err(SupervisorEvidenceError::SignedManagerOom);
+    }
+    if response.no_result.is_some() {
+        let evidence = request
+            .verified_no_result_evidence(&response, caller_uid)
+            .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
+        verify_measurement_attestation(
+            evidence.attestation(),
+            request.workspace,
+            measurement_trust,
+        )
+        .map_err(SupervisorEvidenceError::MeasurementTrust)?;
+        return Err(SupervisorEvidenceError::SignedNoResult {
+            status: response.status,
+            termination: evidence.attestation().parts().termination,
+            code: response.code,
+        });
+    }
     if response.evidence.is_none() {
         return Err(SupervisorEvidenceError::NoEvidence {
             status: response.status,
@@ -464,10 +516,9 @@ pub fn verified_supervisor_execution(
         // a test rejection when the owner compares the report, even though
         // the host measurement can truthfully claim a complete run.
         (RunStatus::Complete, _) => true,
-        (
-            RunStatus::Refused | RunStatus::Failed,
-            sley_tests::NativeExecutionEvidence::Rejected(_),
-        ) => !evidence.attestation().claims_success(),
+        (RunStatus::Failed, sley_tests::NativeExecutionEvidence::Rejected(_)) => {
+            !evidence.attestation().claims_success()
+        }
         _ => false,
     };
     if !status_matches_report {
@@ -896,15 +947,12 @@ fn host_measurement_admits(
         return Err(mismatch);
     }
     let caller_uid = attestation.parts().caller_uid;
-    let mut caller_matches = config
-        .callers()
-        .iter()
-        .filter(|caller| caller.uid == caller_uid);
-    let caller = caller_matches.next().ok_or(mismatch)?;
-    if caller_matches.next().is_some()
-        || caller.workspace != request.workspace
-        || caller.principal != request.principal
-    {
+    if !exact_caller_grant(
+        config.callers(),
+        caller_uid,
+        request.workspace,
+        request.principal,
+    ) {
         return Err(mismatch);
     }
     let (_, expected_cap) = floor_page_cap(
@@ -940,6 +988,18 @@ fn host_measurement_admits(
         && check_elapsed(attestation.elapsed_ns(), request.wall_ms).is_ok())
 }
 
+fn exact_caller_grant(
+    callers: &[sley_tests::Caller],
+    uid: u32,
+    workspace: WorkspaceId,
+    principal: PrincipalId,
+) -> bool {
+    let mut matches = callers.iter().filter(|caller| {
+        caller.uid == uid && caller.workspace == workspace && caller.principal == principal
+    });
+    matches.next().is_some() && matches.next().is_none()
+}
+
 /// Verifies executor-returned evidence covers exactly the plan selection.
 ///
 /// Every execution report and attestation must bind the plan, the exact
@@ -960,7 +1020,6 @@ pub fn check_execution_coverage(
     plan: &NativeTestPlanV1,
     executions: &[ExecutedNativeTest],
 ) -> Result<(), TransactionErrorCode> {
-    use sley_tests::NativeExecutionEvidence;
     if executions.len() != plan.selected().len() {
         return Err(TransactionErrorCode::ReceiptBindingMismatch);
     }
@@ -986,14 +1045,8 @@ pub fn check_execution_coverage(
         {
             return Err(TransactionErrorCode::ReceiptBindingMismatch);
         }
-        match (
-            attestation.execution_report_id(),
-            execution_report.evidence(),
-        ) {
-            (Some(expected), _) if expected == execution_report.report_id() => {}
-            // Explicit no-result failures pair only with rejected evidence.
-            (None, NativeExecutionEvidence::Rejected(_)) => {}
-            _ => return Err(TransactionErrorCode::ReceiptBindingMismatch),
+        if attestation.execution_report_id() != Some(execution_report.report_id()) {
+            return Err(TransactionErrorCode::ReceiptBindingMismatch);
         }
     }
     Ok(())
@@ -1378,9 +1431,8 @@ mod tests {
             Caller, HistoricalTrustPolicyParts, MeasuredTestAttestationParts,
             MeasuredTestAttestationV1, MemoryEvents, NativeExecutionEvidence,
             NativeExecutionReportParts, NativeExecutionReportV1, Property, REJECT_PHASE_EXECUTION,
-            RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1,
-            TERMINATION_PRELAUNCH_REFUSED, TrustEntry, measurement_signature_preimage,
-            unsigned_record_prefix,
+            RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_KILLED,
+            TrustEntry, measurement_signature_preimage, unsigned_record_prefix,
         };
 
         let worker = WorkerRequest::decode_frame(include_bytes!(
@@ -1459,13 +1511,13 @@ mod tests {
             supervisor_config_id: *config.id().as_bytes(),
             plan_id: request.plan_id,
             test_object: request.test_object,
-            execution_report_id: None,
+            execution_report_id: Some(report.report_id()),
             attempt_nonce: request.nonce,
             workspace: request.workspace,
             principal: request.principal,
             caller_uid: 1_000,
             declared_limits: request.declared_limits,
-            installed_memory_cap: 0,
+            installed_memory_cap: 4_096,
             elapsed_ns: 0,
             measured_memory_peak: 0,
             memory_events: MemoryEvents {
@@ -1473,8 +1525,8 @@ mod tests {
                 oom: 0,
                 oom_kill: 0,
             },
-            termination: TERMINATION_PRELAUNCH_REFUSED,
-            complete_output: false,
+            termination: TERMINATION_KILLED,
+            complete_output: true,
             empty_cgroup_confirmed: true,
             recorded_unix_millis: 1_000,
             signature: [0; 64],
@@ -1485,13 +1537,232 @@ mod tests {
         let attestation =
             MeasuredTestAttestationV1::build(attestation_parts).expect("signed attestation");
         let response = RunResponse {
-            status: RunStatus::Refused,
+            status: RunStatus::Failed,
             code: 7,
             evidence: Some(
                 RunEvidence::build(report, attestation, config).expect("bound evidence"),
             ),
+            no_result: None,
+            manager_oom: None,
         };
         (request, response, trust)
+    }
+
+    #[test]
+    fn no_result_measurement_cannot_cover_a_worker_report() {
+        use sley_tests::MeasuredTestAttestationV1;
+
+        let (request, response, _) = signed_diagnostic_fixture();
+        let evidence = response.evidence.expect("worker evidence");
+        let mut parts = evidence.attestation().parts().clone();
+        parts.execution_report_id = None;
+        let unlinked = MeasuredTestAttestationV1::build(parts).expect("diagnostic measurement");
+        let execution = ExecutedNativeTest {
+            test_entity: request.test_entity,
+            execution_stored: evidence.report().stored_bytes().to_vec(),
+            attestation_stored: unlinked.stored_bytes().to_vec(),
+            supervisor_config_stored: evidence.supervisor_config().stored_bytes().to_vec(),
+        };
+        let program = request.verified_program().expect("selected program");
+        assert_eq!(program.plan().selected().len(), 1);
+        assert_eq!(
+            check_execution_coverage(program.plan(), &[execution]),
+            Err(TransactionErrorCode::ReceiptBindingMismatch)
+        );
+    }
+
+    #[test]
+    fn signed_no_result_refusal_verifies_but_never_becomes_execution() {
+        use sley_test_runner::response::RunNoResultEvidence;
+        use sley_tests::{
+            TERMINATION_PRELAUNCH_REFUSED, measurement_signature_preimage, unsigned_record_prefix,
+        };
+
+        let (request, mut response, trust) = signed_diagnostic_fixture();
+        let old = response.evidence.take().expect("worker evidence");
+        let mut parts = old.attestation().parts().clone();
+        parts.execution_report_id = None;
+        parts.installed_memory_cap = 0;
+        parts.elapsed_ns = 0;
+        parts.measured_memory_peak = 0;
+        parts.termination = TERMINATION_PRELAUNCH_REFUSED;
+        parts.complete_output = false;
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned measurement");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        parts.signature = SigningKey::from_bytes(&[3; 32]).sign(&preimage).to_bytes();
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("attestation"),
+                old.supervisor_config().clone(),
+            )
+            .expect("no-result pair"),
+        );
+        response.status = RunStatus::Refused;
+        response.code = 4;
+        let frame = response.encode_frame().expect("refusal frame");
+        let expected = Err(SupervisorEvidenceError::SignedNoResult {
+            status: RunStatus::Refused,
+            termination: TERMINATION_PRELAUNCH_REFUSED,
+            code: 4,
+        });
+        assert_eq!(
+            verified_supervisor_execution(&request, &frame, 1_000, &trust),
+            expected
+        );
+        let mut wrong_nonce = request.clone();
+        wrong_nonce.nonce[0] ^= 1;
+        assert_eq!(
+            verified_supervisor_execution(&wrong_nonce, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::InvalidResponse(
+                ScbErrorCode::ContractUnknown
+            ))
+        );
+        let old = response.no_result.take().expect("no-result pair");
+        let mut parts = old.attestation().parts().clone();
+        parts.signature[63] ^= 1;
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("tampered attestation"),
+                old.supervisor_config().clone(),
+            )
+            .expect("tampered no-result pair"),
+        );
+        assert_eq!(
+            verified_supervisor_execution(
+                &request,
+                &response.encode_frame().expect("tampered frame"),
+                1_000,
+                &trust,
+            ),
+            Err(SupervisorEvidenceError::MeasurementTrust(
+                NativeCommitError::TrustRejected
+            ))
+        );
+    }
+
+    #[test]
+    fn signed_manager_oom_is_resource_failure_only_after_exact_binding_and_trust() {
+        use sley_test_runner::{
+            config::sha256_bytes,
+            manager_oom::{ManagerOomClaimV1, RunManagerOomEvidence},
+            service::RUN_FAILURE_MANAGER_OOM,
+        };
+
+        let (request, mut response, trust) = signed_diagnostic_fixture();
+        let old = response.evidence.take().expect("worker evidence");
+        let key = SigningKey::from_bytes(&[3; 32]);
+        let mut claim = ManagerOomClaimV1 {
+            request_sha256: sha256_bytes(&request.encode_frame().expect("request frame")),
+            caller_uid: 1_000,
+            key_id: key.verifying_key().to_bytes(),
+            trust_policy_id: *trust.id().as_bytes(),
+            supervisor_config_id: *old.supervisor_config().id().as_bytes(),
+            installed_memory_cap: 4_096,
+            memory_peak: 4_096,
+            exec_main_pid: 123,
+            elapsed_ns: 1,
+            recorded_unix_millis: 1,
+            signature: [0; 64],
+        };
+        claim.signature = key
+            .sign(&claim.signature_preimage().expect("OOM preimage"))
+            .to_bytes();
+        let config = old.supervisor_config().clone();
+        response.status = RunStatus::Failed;
+        response.code = RUN_FAILURE_MANAGER_OOM;
+        response.manager_oom =
+            Some(RunManagerOomEvidence::build(claim, config.clone()).expect("OOM evidence"));
+        let frame = response.encode_frame().expect("OOM frame");
+        assert_eq!(
+            verified_supervisor_execution(&request, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::SignedManagerOom)
+        );
+        let mut wrong_nonce = request.clone();
+        wrong_nonce.nonce[0] ^= 1;
+        assert_eq!(
+            verified_supervisor_execution(&wrong_nonce, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::InvalidResponse(
+                ScbErrorCode::ContractUnknown
+            ))
+        );
+        claim.signature[0] ^= 1;
+        response.manager_oom =
+            Some(RunManagerOomEvidence::build(claim, config).expect("tampered OOM evidence"));
+        assert_eq!(
+            verified_supervisor_execution(
+                &request,
+                &response.encode_frame().expect("tampered frame"),
+                1_000,
+                &trust,
+            ),
+            Err(SupervisorEvidenceError::MeasurementTrust(
+                NativeCommitError::TrustRejected
+            ))
+        );
+    }
+
+    #[test]
+    fn trusted_timeout_pair_is_classified_without_execution_evidence() {
+        use sley_test_runner::response::RunNoResultEvidence;
+        use sley_tests::{
+            TERMINATION_TIMEOUT, measurement_signature_preimage, unsigned_record_prefix,
+        };
+
+        let (request, mut response, trust) = signed_diagnostic_fixture();
+        let old = response.evidence.take().expect("worker evidence");
+        let mut parts = old.attestation().parts().clone();
+        parts.execution_report_id = None;
+        parts.elapsed_ns = request.wall_ms * 1_000_000;
+        parts.termination = TERMINATION_TIMEOUT;
+        parts.complete_output = false;
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned timeout");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        parts.signature = SigningKey::from_bytes(&[3; 32]).sign(&preimage).to_bytes();
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("signed timeout"),
+                old.supervisor_config().clone(),
+            )
+            .expect("no-result pair"),
+        );
+        response.status = RunStatus::Failed;
+        response.code = 1;
+        let frame = response.encode_frame().expect("timeout frame");
+        assert_eq!(
+            verified_supervisor_execution(&request, &frame, 1_000, &trust),
+            Err(SupervisorEvidenceError::SignedNoResult {
+                status: RunStatus::Failed,
+                termination: TERMINATION_TIMEOUT,
+                code: 1,
+            })
+        );
+        let old = response.no_result.take().expect("timeout pair");
+        let mut parts = old.attestation().parts().clone();
+        parts.elapsed_ns -= 1;
+        parts.signature = [0; 64];
+        let unsigned = unsigned_record_prefix(&parts).expect("unsigned early timeout");
+        let preimage = measurement_signature_preimage(&unsigned).expect("signature preimage");
+        parts.signature = SigningKey::from_bytes(&[3; 32]).sign(&preimage).to_bytes();
+        response.no_result = Some(
+            RunNoResultEvidence::build(
+                MeasuredTestAttestationV1::build(parts).expect("early timeout"),
+                old.supervisor_config().clone(),
+            )
+            .expect("early timeout pair"),
+        );
+        assert_eq!(
+            verified_supervisor_execution(
+                &request,
+                &response.encode_frame().expect("early timeout frame"),
+                1_000,
+                &trust,
+            ),
+            Err(SupervisorEvidenceError::InvalidResponse(
+                ScbErrorCode::ContractUnknown
+            ))
+        );
     }
 
     #[test]
@@ -1657,6 +1928,8 @@ mod tests {
             status: RunStatus::Refused,
             code: 7,
             evidence: None,
+            no_result: None,
+            manager_oom: None,
         };
         assert_eq!(
             verified_supervisor_execution(
@@ -1670,6 +1943,39 @@ mod tests {
                 code: 7,
             })
         );
+    }
+
+    #[test]
+    fn same_uid_grants_select_the_exact_workspace_and_principal() {
+        let workspace = WorkspaceId::from_bytes([1; 32]);
+        let principal = PrincipalId::from_bytes([2; 32]);
+        let callers = vec![
+            sley_tests::Caller {
+                uid: 1_000,
+                workspace,
+                principal,
+            },
+            sley_tests::Caller {
+                uid: 1_000,
+                workspace,
+                principal: PrincipalId::from_bytes([0; 32]),
+            },
+        ];
+        assert!(exact_caller_grant(&callers, 1_000, workspace, principal));
+        assert!(!exact_caller_grant(&callers, 1_001, workspace, principal));
+        assert!(!exact_caller_grant(
+            &callers,
+            1_000,
+            WorkspaceId::from_bytes([3; 32]),
+            principal,
+        ));
+        let duplicated = vec![callers[0], callers[0]];
+        assert!(!exact_caller_grant(
+            &duplicated,
+            1_000,
+            workspace,
+            principal
+        ));
     }
 
     #[test]
@@ -1705,6 +2011,8 @@ mod tests {
             evidence: Some(
                 RunEvidence::build(report.clone(), attestation, config).expect("evidence"),
             ),
+            no_result: None,
+            manager_oom: None,
         };
         let frame = response.encode_frame().expect("complete frame");
         let executed = verified_supervisor_execution(&request, &frame, 1_000, &trust)
@@ -1843,6 +2151,10 @@ mod tests {
             (
                 NativeCommitError::AbortedRetrySafe,
                 "NATIVE_COMMIT_ABORTED_RETRY_SAFE",
+            ),
+            (
+                NativeCommitError::ResourceRefused,
+                "NATIVE_TEST_RESOURCE_REFUSED",
             ),
             (
                 NativeCommitError::OutcomeUnknown,

@@ -24037,7 +24037,7 @@ mod native_commit_tests {
         MeasuredTestAttestationV1, MemoryEvents, NativeAggregateLimits, NativeExecutionEvidence,
         NativeExecutionReportParts, NativeExecutionReportV1, NativeImplementationLimits,
         NativeTestPlanV1, Property, REJECT_PHASE_EXECUTION, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
-        RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_PRELAUNCH_REFUSED,
+        RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_KILLED,
         TERMINATION_TIMEOUT, TrustEntry, native_execution_profile_id,
     };
 
@@ -24096,6 +24096,19 @@ mod native_commit_tests {
         ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
             self.invocations.set(self.invocations.get() + 1);
             Err(NativeCommitError::OutcomeUnknown)
+        }
+    }
+
+    /// Test-only stand-in for a trusted, confirmed native resource refusal.
+    struct ResourceRefusingExecutor;
+
+    impl NativeTestExecutor for ResourceRefusingExecutor {
+        fn execute(
+            &self,
+            _plan: &NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            Err(NativeCommitError::ResourceRefused)
         }
     }
 
@@ -24303,7 +24316,7 @@ mod native_commit_tests {
                     supervisor_config_id: self.supervisor_config_id,
                     plan_id: plan.plan_id(),
                     test_object: entry.test_object,
-                    execution_report_id: None,
+                    execution_report_id: Some(report.report_id()),
                     attempt_nonce: [0xC3; 32],
                     workspace: self.workspace,
                     principal: self.principal,
@@ -24317,8 +24330,8 @@ mod native_commit_tests {
                         oom: 0,
                         oom_kill: 0,
                     },
-                    termination: TERMINATION_PRELAUNCH_REFUSED,
-                    complete_output: false,
+                    termination: TERMINATION_KILLED,
+                    complete_output: true,
                     empty_cgroup_confirmed: true,
                     recorded_unix_millis: self.recorded_millis,
                     signature: [0; 64],
@@ -25088,6 +25101,44 @@ mod native_commit_tests {
             .expect_err("no blind retry");
         assert_eq!(retry.code(), NativeCommitError::OutcomeUnknown.symbol());
         assert_eq!(executor.invocations.get(), 1);
+    }
+
+    #[test]
+    fn confirmed_resource_refusal_aborts_before_promotion_and_preserves_head() {
+        let fixture = Fixture::new("native-confirmed-resource-refusal");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            45,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(45),
+                Some(&ResourceRefusingExecutor),
+            ))
+            .expect_err("trusted resource refusal");
+        assert_eq!(error.code(), NativeCommitError::ResourceRefused.symbol());
+        assert_eq!(
+            AttemptRecord::parse(
+                &std::fs::read(attempt_path(fixture.repository.root(), attempt(45))).unwrap()
+            )
+            .unwrap()
+            .state,
+            AttemptState::AbortedBeforePromotion
+        );
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
     }
 
     #[test]

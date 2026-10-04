@@ -471,12 +471,18 @@ caller-chosen property. Configuration digest binds each run.
 
 For launch_profile1, the normalized `CapabilityBoundingSet=empty` value is
 installed using systemd's empty assignment, `CapabilityBoundingSet=`. The
+normalized microsecond duration properties are installed through
+`TimeoutStopSec=<milliseconds>ms` and `RuntimeMaxSec=<milliseconds>ms`;
+the runner verifies the resulting typed `TimeoutStopUSec` and
+`RuntimeMaxUSec` values from the manager before opening the worker gate. The
 staged worker request stays root-owned mode 0600; the manager copies it via
 `LoadCredential=sley-input:<staged-path>` into the dynamic UID's private
 credential directory. The worker reads `$CREDENTIALS_DIRECTORY/sley-input`
-through a symlink-free regular-file open. The source path is never directly
-opened by the dynamic UID. `LoadCredential` source and credential name are
-fixed launch mapping, outside the normalized 16-property attestation.
+with a symlink-free `openat2` walk, or a component-by-component `openat` walk
+with `O_NOFOLLOW` on every component when the sandbox returns `ENOSYS`.
+The source path is never directly opened by the dynamic UID. `LoadCredential`
+source and credential name are fixed launch mapping, outside the normalized
+16-property attestation.
 
 `MeasuredTestAttestationV1` (`SLEYMTA1`) exact record:
 

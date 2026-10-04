@@ -55,6 +55,18 @@ pub struct InstalledWorker {
     pub main_pid: u32,
 }
 
+/// Manager facts retained after the exact worker unit failed from OOM.
+///
+/// These facts are not cgroup event counters or a signed test result. The
+/// verifier also requires the unit's cgroup to be absent after teardown.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReapedOomWorker {
+    /// Main process recorded for the failed transient service.
+    pub exec_main_pid: u32,
+    /// Peak memory retained by the system manager for that service.
+    pub memory_peak: u64,
+}
+
 /// Reads and verifies one live transient unit from the system manager.
 ///
 /// This must be called after `systemd-run` has installed and started the
@@ -89,6 +101,48 @@ pub fn verify_system_unit(
         config,
         worker_input_path,
     )
+}
+
+/// Verifies a failed OOM outcome for the exact rendered worker unit.
+///
+/// This checks the same installed launch and limit properties as the live
+/// start gate, plus the manager's retained OOM result and killed main PID.
+/// It never substitutes manager data for missing cgroup event counters.
+///
+/// # Errors
+/// Refuses a collected unit, changed settings, another failure reason,
+/// missing process identity, or an implausible manager memory peak.
+pub fn verify_reaped_oom_unit(
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    expected_main_pid: Option<u32>,
+) -> Result<ReapedOomWorker, ManagerError> {
+    let service_name = format!("{}.service", unit.unit_name);
+    let object = busctl(&[
+        "call",
+        SYSTEMD_BUS,
+        SYSTEMD_MANAGER,
+        "org.freedesktop.systemd1.Manager",
+        "GetUnit",
+        "s",
+        &service_name,
+    ])?;
+    let path = object_path(&object)?;
+    let unit_properties = get_all(path, "org.freedesktop.systemd1.Unit")?;
+    let service_properties = get_all(path, "org.freedesktop.systemd1.Service")?;
+    let facts = verify_reaped_oom_snapshot(
+        &unit_properties,
+        &service_properties,
+        unit,
+        config,
+        worker_input_path,
+        expected_main_pid,
+    )?;
+    if !confirm_system_unit_reaped(&unit.unit_name)? {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    Ok(facts)
 }
 
 /// Confirms that the manager has no live process or control group for this
@@ -327,27 +381,18 @@ fn check(
     Ok(())
 }
 
-fn verify_snapshot(
+fn verify_installed_settings(
     unit_properties: &BTreeMap<String, Value>,
     service: &BTreeMap<String, Value>,
     unit: &TransientUnit,
     config: &RunnerConfig,
     worker_input_path: &str,
-) -> Result<InstalledWorker, ManagerError> {
+) -> Result<(), ManagerError> {
     use serde_json::json;
 
     let service_name = format!("{}.service", unit.unit_name);
     check(unit_properties, "Id", "s", &json!(service_name))?;
     check(unit_properties, "Transient", "b", &json!(true))?;
-    let state = property(unit_properties, "ActiveState", "s")?
-        .as_str()
-        .ok_or(ManagerError::PropertyMismatch)?;
-    if state == "activating" {
-        return Err(ManagerError::NotReady);
-    }
-    if state != "active" {
-        return Err(ManagerError::PropertyMismatch);
-    }
     check(
         unit_properties,
         "BindsTo",
@@ -409,6 +454,28 @@ fn verify_snapshot(
         return Err(ManagerError::PropertyMismatch);
     }
 
+    Ok(())
+}
+
+fn verify_snapshot(
+    unit_properties: &BTreeMap<String, Value>,
+    service: &BTreeMap<String, Value>,
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+) -> Result<InstalledWorker, ManagerError> {
+    verify_installed_settings(unit_properties, service, unit, config, worker_input_path)?;
+    let service_name = format!("{}.service", unit.unit_name);
+    let state = property(unit_properties, "ActiveState", "s")?
+        .as_str()
+        .ok_or(ManagerError::PropertyMismatch)?;
+    if state == "activating" {
+        return Err(ManagerError::NotReady);
+    }
+    if state != "active" {
+        return Err(ManagerError::PropertyMismatch);
+    }
+
     let expected_group = format!("/system.slice/{service_name}");
     let actual_group = property(service, "ControlGroup", "s")?
         .as_str()
@@ -429,6 +496,41 @@ fn verify_snapshot(
     Ok(InstalledWorker {
         control_group: expected_group,
         main_pid,
+    })
+}
+
+fn verify_reaped_oom_snapshot(
+    unit_properties: &BTreeMap<String, Value>,
+    service: &BTreeMap<String, Value>,
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    expected_main_pid: Option<u32>,
+) -> Result<ReapedOomWorker, ManagerError> {
+    use serde_json::json;
+
+    verify_installed_settings(unit_properties, service, unit, config, worker_input_path)?;
+    check(unit_properties, "ActiveState", "s", &json!("failed"))?;
+    check(service, "Result", "s", &json!("oom-kill"))?;
+    check(service, "MainPID", "u", &json!(0))?;
+    check(service, "ControlGroup", "s", &json!(""))?;
+    check(service, "ExecMainCode", "i", &json!(2))?;
+    check(service, "ExecMainStatus", "i", &json!(9))?;
+    let exec_main_pid = property(service, "ExecMainPID", "u")?
+        .as_u64()
+        .and_then(|value| u32::try_from(value).ok())
+        .filter(|value| *value != 0)
+        .ok_or(ManagerError::PropertyMismatch)?;
+    if expected_main_pid.is_some_and(|expected| expected != exec_main_pid) {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    let memory_peak = property(service, "MemoryPeak", "t")?
+        .as_u64()
+        .filter(|value| *value > 0 && *value <= unit.installed_memory)
+        .ok_or(ManagerError::PropertyMismatch)?;
+    Ok(ReapedOomWorker {
+        exec_main_pid,
+        memory_peak,
     })
 }
 
@@ -645,6 +747,66 @@ mod tests {
         assert_eq!(
             verify_snapshot(&unit_map, &service, &unit, &config, input),
             Err(ManagerError::NotReady)
+        );
+    }
+
+    #[test]
+    fn reaped_oom_requires_exact_manager_result_and_original_unit_settings() {
+        let (mut unit_map, mut service, unit, config) = fixture();
+        let input = "/run/sley-test-supervisor/input/abc.bin";
+        insert(&mut unit_map, "ActiveState", "s", json!("failed"));
+        insert(&mut service, "Result", "s", json!("oom-kill"));
+        insert(&mut service, "MainPID", "u", json!(0));
+        insert(&mut service, "ControlGroup", "s", json!(""));
+        insert(&mut service, "ExecMainPID", "u", json!(123));
+        insert(&mut service, "ExecMainCode", "i", json!(2));
+        insert(&mut service, "ExecMainStatus", "i", json!(9));
+        insert(&mut service, "MemoryPeak", "t", json!(8192));
+        let check = |unit_map: &BTreeMap<String, Value>,
+                     service: &BTreeMap<String, Value>,
+                     expected_pid| {
+            verify_reaped_oom_snapshot(unit_map, service, &unit, &config, input, expected_pid)
+        };
+        assert_eq!(
+            check(&unit_map, &service, Some(123)),
+            Ok(ReapedOomWorker {
+                exec_main_pid: 123,
+                memory_peak: 8192,
+            })
+        );
+        assert_eq!(check(&unit_map, &service, None).unwrap().exec_main_pid, 123);
+        assert_eq!(
+            check(&unit_map, &service, Some(124)),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut service, "Result", "s", json!("signal"));
+        assert_eq!(
+            check(&unit_map, &service, None),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut service, "Result", "s", json!("oom-kill"));
+        insert(&mut service, "ExecMainStatus", "i", json!(15));
+        assert_eq!(
+            check(&unit_map, &service, None),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut service, "ExecMainStatus", "i", json!(9));
+        insert(&mut service, "MemoryPeak", "t", json!(8193));
+        assert_eq!(
+            check(&unit_map, &service, None),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut service, "MemoryPeak", "t", json!(8192));
+        insert(&mut service, "MemoryMax", "t", json!(8193));
+        assert_eq!(
+            check(&unit_map, &service, None),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut service, "MemoryMax", "t", json!(8192));
+        insert(&mut unit_map, "Transient", "b", json!(false));
+        assert_eq!(
+            check(&unit_map, &service, None),
+            Err(ManagerError::PropertyMismatch)
         );
     }
 

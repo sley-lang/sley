@@ -34,6 +34,9 @@ pub enum PhaseError {
     Telemetry(TelemetryError),
     /// A limit, OOM, or group-kill event occurred before or during execution.
     DirtyEvents,
+    /// The report deadline elapsed while the exact worker PID and clean
+    /// counters were still observable in its verified cgroup.
+    MeasuredTimeout(LiveTelemetrySample),
     /// The daemon deadline elapsed before the phase completed.
     Deadline,
     /// Worker stdin gate could not be sent.
@@ -49,6 +52,7 @@ impl core::fmt::Display for PhaseError {
             Self::Manager(_) => "NATIVE_PHASE_MANAGER_REFUSED",
             Self::Telemetry(_) => "NATIVE_PHASE_TELEMETRY_REFUSED",
             Self::DirtyEvents => "NATIVE_PHASE_MEMORY_EVENTS",
+            Self::MeasuredTimeout(_) => "NATIVE_PHASE_MEASURED_TIMEOUT",
             Self::Deadline => "NATIVE_PHASE_DEADLINE",
             Self::GateWrite => "NATIVE_PHASE_GATE_WRITE",
             Self::Channel(_) => "NATIVE_PHASE_CHANNEL_REFUSED",
@@ -91,7 +95,17 @@ fn run_gated_phase<Output: AsFd + Read, Control: Write>(
     control
         .write_all(&[WORKER_START_GATE])
         .map_err(|_| PhaseError::GateWrite)?;
-    let report = read_report_before(output, peer, deadline).map_err(PhaseError::Channel)?;
+    let report = match read_report_before(output, peer, deadline) {
+        Ok(report) => report,
+        Err(ChannelError::Deadline) => {
+            let sample = telemetry.sample(main_pid).map_err(PhaseError::Telemetry)?;
+            if !sample.events_clean() {
+                return Err(PhaseError::DirtyEvents);
+            }
+            return Err(PhaseError::MeasuredTimeout(sample));
+        }
+        Err(error) => return Err(PhaseError::Channel(error)),
+    };
     let final_sample = telemetry.sample(main_pid).map_err(PhaseError::Telemetry)?;
     if !final_sample.events_clean() {
         return Err(PhaseError::DirtyEvents);
@@ -254,6 +268,31 @@ mod tests {
         assert_eq!(result.telemetry.memory_peak, 4096);
         worker.join().unwrap();
         drop(client);
+    }
+
+    #[test]
+    fn report_deadline_carries_only_a_verified_live_snapshot() {
+        let fixture = Fixture::new();
+        let telemetry = fixture.telemetry();
+        let (mut control, _worker_control) = UnixStream::pair().unwrap();
+        let (mut output, _worker_output) = UnixStream::pair().unwrap();
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let outcome = run_gated_phase(
+            &telemetry,
+            123,
+            &mut output,
+            &mut control,
+            &peer,
+            Instant::now() + Duration::from_millis(25),
+        );
+        match outcome {
+            Err(PhaseError::MeasuredTimeout(sample)) => {
+                assert_eq!(sample.main_pid, 123);
+                assert_eq!(sample.memory_peak, 4096);
+                assert!(sample.events_clean());
+            }
+            _ => panic!("expected a measured deadline without worker output"),
+        }
     }
 
     #[test]

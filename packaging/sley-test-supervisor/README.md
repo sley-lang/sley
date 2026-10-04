@@ -10,12 +10,30 @@ the existing VM. This service is host machinery; it is not a Sley program.
 
 ## Current evidence
 
-The daemon builds, the runner's unprivileged unit tests pass, and its service
-unit source is present. The actual root service has **not** been installed or
-qualified on the intended hosts. No native test admission or release-readiness
-claim follows from the local unit tests. The authenticated refusal-only
+Development build `a20d6b3` is installed on greyarch with its worker and
+supervisor hashes pinned in the root configuration. Its service is stopped and
+disabled. A disposable F0 scenario exercised real native test admission and
+selected execution on that build. A separate 1 ms request returned
+`NATIVE_TEST_RESOURCE_REFUSED` through the trusted signed prelaunch path, with
+an unchanged root and no observed worker unit. The postlaunch timeout path samples
+clean cgroup counters while the exact worker is live, then kills the unit and
+confirms teardown before signing a no-result failure. A pinned synthetic worker
+that emitted no VM report exercised this host path at a 1,000 ms limit on
+greyarch; a real Sley worker has not done so. The counters are a deadline
+snapshot, not counters read after teardown. OOM and missing or dirty
+telemetry remain unknown. No released-core compatibility or full host
+qualification follows from these checks. The authenticated refusal-only
 handler remains available for negative protocol tests; the production daemon
 uses the root handler.
+
+A separate greyarch disposable 1 MiB OOM unit showed that systemd retains a
+typed `oom-kill` result, killed main PID, installed `MemoryMax`, and
+`MemoryPeak` after removing the cgroup. The runner now has a source-only
+verifier for those retained properties on an exact rendered native worker
+unit, including its launch settings and empty-group confirmation. It does not
+create a signed OOM response or reconstruct missing `memory.events` counters;
+the receiver outcome remains unknown until that evidence contract is designed
+and exercised with a real native worker.
 
 The development `sley serve --protocol-profile v3-capable` command now accepts
 an explicit `--native-authority-config` file for the receiver's separate
@@ -116,6 +134,7 @@ supervised request.
    static `TestCase` validation, a mock
    response, or a pure VM comparison does not grant admission.
 
-`sudo -n` currently requires a password on the primary host, so the root
-installation and live qualification are pending. The local source and tests
-do not waive this gate.
+The installed greyarch build predates the current source. Any update needs a
+reviewed migration that preserves the root measurement authority and exact
+binary pins, followed by fresh live qualification. The local source and tests
+do not waive that gate.
