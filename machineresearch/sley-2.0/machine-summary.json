@@ -8058,9 +8058,10 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "20 GA acceptance criteria are not evidenced",
+      "22 GA acceptance criteria are not evidenced",
       "27 review obligations are open",
       "no succession trial has been executed",
+      "only one host has attested the candidate",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -8439,13 +8440,15 @@
     "criterion_count": 52,
     "states": {
       "AWAITS_REVIEW": 17,
-      "EVIDENCED": 32,
-      "GATED": 3
+      "EVIDENCED": 30,
+      "GATED": 5
     },
     "gated": [
       "No source parser exists in the GA dependency graph",
       "no P0/P1/P2 finding remains open",
-      "every section 22 threshold passes"
+      "every section 22 threshold passes",
+      "artifact is built from the final candidate commit",
+      "second clean build establishes reproducibility"
     ],
     "ga_claimed": false,
     "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim; every state is derived from the fact its evidence names, package completion and lane clearance are the finding register's predicates, and the report is digest-bound to the register",
