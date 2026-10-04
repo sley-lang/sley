@@ -1396,10 +1396,7 @@ impl<'c, 'a> Fn<'c, 'a> {
         let visible_index = if indexed {
             let name = self.loop_name(&items[1], env, &format!("{at}/1"))?;
             if name == var {
-                return fail(
-                    &format!("{at}/2"),
-                    "index and element need different names",
-                );
+                return fail(&format!("{at}/2"), "index and element need different names");
             }
             Some(name)
         } else {
