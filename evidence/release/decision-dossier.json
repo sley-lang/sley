@@ -2,7 +2,7 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "22 GA acceptance criteria are not evidenced",
+    "21 GA acceptance criteria are not evidenced",
     "27 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
@@ -10,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "60649c75765b68d555b41cc03bcab1903aeb113d2f346c07366a0a2a2aa1ffc1",
+  "dossier_digest": "fc3b2d933990795af3d432cc1a0f3f89bd8ed1d1aeb65286887920a39edebcf3",
   "entries": [
     {
       "evidence": [
@@ -387,7 +387,7 @@
         "S20-390 is complete only for restricted fixed-head atomic commit with no selected tests; named refs, branches, recursive recovery, clone-equivalent transaction exchange, full semantics, runtime authority, M3/M4, and GA remain blocked",
         "S20-370 protects policy, oracle roots, and named entity bindings; S20-380 adds narrow local authenticated tokens plus exact scope/expiry/replay/budget enforcement for the in-memory reference wrapper, but policy-transition authentication, candidate/VM integration, live-host confinement, commit, and production-epoch assembly remain blocked",
         "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
-        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (the second host is pending the lab lease; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
+        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (secondary-host work is excluded by operator instruction; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
         "The succession corpus is frozen but no benchmark trial has executed"
       ]
     },
@@ -416,7 +416,7 @@
           "M3/M4 effectful runtime: S20-280 full host access and S20-380 full token authority own the semantics of effect_request, adapter_invoke, and capability_narrow. Slice E7a landed contract_assert, which needed neither",
           "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
           "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
-          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (the second host is pending the lab lease; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
+          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (secondary-host work is excluded by operator instruction; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
           "Independent review: the user-authorized Council qualification rounds are available and recorded under evidence/review/rounds. Current-delta verdicts are distinct from the remaining final independent release and security dispositions; broader pending review obligations remain in their owner records.",
           "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
         ]
@@ -432,7 +432,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.5 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit 11258a351b4638b63f204aecbf58b43906e87479); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 30 evidenced, 17 awaiting review, and 5 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0.6 2.0.6 on 2026-10-04 (machine summary release_decision; ga_claimed false, final commit 4c0d97c55a3c41d453777fb740b2f14b8f89a2d0); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 31 evidenced, 17 awaiting review, and 4 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -456,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "d69920deb14f269cc515e8f262e419b23523dcab24bc1d091abe52e84fd01642",
+  "entries_digest": "212b27689ef122918bbda919ac3551cb93e3803f27ee452f36ddc179f955f637",
   "evidenced": 24,
   "gated": 10,
   "gates": {

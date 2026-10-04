@@ -4,11 +4,14 @@ Sley 2.0.6 adds context-bound editing proposals, headerless function bodies,
 integer ranges and indexed vector loops to the agent workbench. These changes
 reduce the interface and control-flow scaffolding an author must repeat.
 They do not establish model cost, quality or economic parity with another
-language. The model comparison remains pending.
+language. Known-task diagnostic measurements do not establish generalization.
 
-This document describes the prepared release. Publication and verification
-results belong to the records for the actual release artifact; this document
-does not assert that an archive has been published.
+The Linux x86_64 archive was built from
+`4c0d97c55a3c41d453777fb740b2f14b8f89a2d0`. Two clean builds on the primary
+host produced identical bytes. Cross-host reproducibility is not claimed.
+The archive SHA-256 is
+`90e072569da7d6fc340ba850803b8e13cc0a608dc831f6ddb4c01c7996f4a054`
+(7,207,463 bytes, 17 members). Provenance remains unsigned.
 
 ## Workbench changes
 

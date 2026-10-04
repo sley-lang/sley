@@ -15,23 +15,24 @@
   "release_decision": {
     "state": "RELEASE_APPROVED",
     "authority": "operator",
-    "decided": "2026-09-24",
-    "release": "2.0.5",
-    "release_name": "Sley 2.0",
-    "label": "plain 2.0.5, a point release of 2.0.3 adding structured function bodies, checked integer conversion, an optional familiar authoring frontend, experimental residual authoring and faster verified execution; there is no separate 2.0.4 release; operator publication authorization 2026-10-02",
+    "decided": "2026-10-04",
+    "release": "2.0.6",
+    "release_name": "Sley 2.0.6",
+    "label": "2.0.6 point release: root-bound scoped proposals, headerless bodies, integer ranges and indexed vector loops; operator-directed parity-plan implementation",
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "11258a351b4638b63f204aecbf58b43906e87479",
-    "final_commit_note": "the official Sley 2.0.5 release, built from commit 11258a35 of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
+    "final_commit": "4c0d97c55a3c41d453777fb740b2f14b8f89a2d0",
+    "final_commit_note": "Attested Sley 2.0.6 source candidate. Later records-only commits preserve the shipped source inputs.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
-      "EVIDENCED": 32,
       "AWAITS_REVIEW": 17,
-      "GATED": 3,
+      "EVIDENCED": 31,
+      "GATED": 4,
       "criterion_count": 52
     },
     "unmet_ga_criteria_at_decision": [
+      "GATED: 26.3 semantics - No source parser exists in the GA dependency graph",
       "AWAITS_REVIEW: 26.3 semantics - No undefined behavior exists in the program model",
       "AWAITS_REVIEW: 26.3 semantics - No ambient authority exists",
       "AWAITS_REVIEW: 26.4 agent loop - agents can create and maintain programs without source",
@@ -46,8 +47,8 @@
       "GATED: 26.6 policy and security - no P0/P1/P2 finding remains open",
       "AWAITS_REVIEW: 26.6 policy and security - opacity is not used as a security argument",
       "GATED: 26.7 succession - every section 22 threshold passes",
-      "GATED: 26.8 packaging - artifact is built from the final candidate commit",
       "AWAITS_REVIEW: 26.8 packaging - artifact runs with no source-tree access",
+      "GATED: 26.8 packaging - second clean build establishes reproducibility",
       "AWAITS_REVIEW: 26.9 review - Ariadne approves SSMC1 and semantic correctness",
       "AWAITS_REVIEW: 26.9 review - Nabu approves architectural and cross-product boundaries",
       "AWAITS_REVIEW: 26.9 review - Vulcan or current independent reviewer issues a complete PASS",
@@ -56,11 +57,13 @@
     "open_p1_p2_at_decision": "rw075_correction 4 P1 + 4 P2 (AR-02 large-preimage design and AR-06 transcript binding; the self-hosting/REWEAVE line, 2.1); finding-ledger mechanism P2s in release_candidate_packaging (4), reproducibility_and_independent_conformance (3) and standards_sbom_and_provenance (2) against scripts/build_finding_register.py and scripts/retire_review_claims.py",
     "council_reviews": "no longer used (operator decision 2026-09-24); criteria that wait on a Council or independent review stay AWAITS_REVIEW",
     "deferred_to_2_1": "self-hosting (REWEAVE / SH2)",
-    "release_notes": "docs/release/SLEY-2.0.5.md",
+    "release_notes": "docs/release/SLEY-2.0.6.md",
     "decided_2_0_1": "2026-09-25",
     "decided_2_0_2": "2026-09-25",
     "decided_2_0_3": "2026-09-27",
-    "decided_2_0_5": "2026-10-02"
+    "decided_2_0_5": "2026-10-02",
+    "decided_2_0_6": "2026-10-04",
+    "authorization_basis": "Operator directed implementation for release as Sley 2.0.6 and subsequently approved completing the goal without repeated approval. Secondary-host work was explicitly excluded."
   },
   "status": "IN_PROGRESS",
   "locator": {
@@ -188,17 +191,20 @@
       "the 2.0.1 patch release (GitHub release v2.0.1 with sley-2.0.1-linux-x86_64.tar.gz): operator direction 2026-09-25 to merge the contributor fixes and fix every issue found in the post-release verification",
       "the 2.0.2 point release (GitHub release v2.0.2 with sley-2.0.2-linux-x86_64.tar.gz): operator direction 2026-09-26 to release the agent workbench and its fixes",
       "the 2.0.3 point release (GitHub release v2.0.3 with sley-2.0.3-linux-x86_64.tar.gz): operator direction 2026-09-27 to verify a workbench improvement over 2.0.2 and then release it; the improvement was verified before publication preparation",
-      "the 2.0.5 point release (GitHub release v2.0.5 with sley-2.0.5-linux-x86_64.tar.gz): operator direction 2026-10-02 to release the current development line as a checkpoint; there is no separate 2.0.4 release"
+      "the 2.0.5 point release (GitHub release v2.0.5 with sley-2.0.5-linux-x86_64.tar.gz): operator direction 2026-10-02 to release the current development line as a checkpoint; there is no separate 2.0.4 release",
+      "Sley 2.0.6 point release with the verified Linux x86_64 archive and SHA256SUMS: operator-directed parity-plan implementation, approved through goal completion; no GA or economic-parity claim."
     ],
     "authorized_tags": [
       "v2.0.0",
       "v2.0.1",
       "v2.0.2",
       "v2.0.3",
-      "v2.0.5"
+      "v2.0.5",
+      "v2.0.6"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
-    "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry."
+    "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry.",
+    "decided_2_0_6": "2026-10-04"
   },
   "scb1": {
     "status": "S20_100_SPEC_S20_120_CODEC_S20_130_ORACLE_COMPLETE",
@@ -4961,7 +4967,7 @@
     "mint_method": "Primary clean-tree build via build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep; two clean musl builds, archive comparison, source-independent demo and conformance subset.",
     "p1_open_count": 0,
     "p1_open": [],
-    "mint_worktree": "Dedicated clean release worktree on the primary host. A second-host build remains pending.",
+    "mint_worktree": "Dedicated clean release worktree on the primary host. Secondary-host work is excluded by operator instruction.",
     "offline_tests_note": "test methods in bench/release/tests/test_packaging.py; scripts/check_release_candidate_packaging.py pins the count against the def test_ census",
     "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_2_P2_2_P3",
     "nabu_architecture_review_revision_2": "PASS_0_P0_0_P1_0_P2_3_P3_CLOSED",
@@ -6207,7 +6213,7 @@
     "M3/M4 effectful runtime: S20-280 full host access and S20-380 full token authority own the semantics of effect_request, adapter_invoke, and capability_narrow. Slice E7a landed contract_assert, which needed neither",
     "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
     "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
-    "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (the second host is pending the lab lease; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
+    "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (secondary-host work is excluded by operator instruction; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
     "Independent review: the user-authorized Council qualification rounds are available and recorded under evidence/review/rounds. Current-delta verdicts are distinct from the remaining final independent release and security dispositions; broader pending review obligations remain in their owner records.",
     "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
   ],
@@ -6231,7 +6237,7 @@
     "S20-390 is complete only for restricted fixed-head atomic commit with no selected tests; named refs, branches, recursive recovery, clone-equivalent transaction exchange, full semantics, runtime authority, M3/M4, and GA remain blocked",
     "S20-370 protects policy, oracle roots, and named entity bindings; S20-380 adds narrow local authenticated tokens plus exact scope/expiry/replay/budget enforcement for the in-memory reference wrapper, but policy-transition authentication, candidate/VM integration, live-host confinement, commit, and production-epoch assembly remain blocked",
     "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
-    "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (the second host is pending the lab lease; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
+    "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (secondary-host work is excluded by operator instruction; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
     "The succession corpus is frozen but no benchmark trial has executed"
   ],
   "reproducibility_and_independent_conformance": {
@@ -8064,7 +8070,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "22 GA acceptance criteria are not evidenced",
+      "21 GA acceptance criteria are not evidenced",
       "27 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
@@ -8446,14 +8452,13 @@
     "criterion_count": 52,
     "states": {
       "AWAITS_REVIEW": 17,
-      "EVIDENCED": 30,
-      "GATED": 5
+      "EVIDENCED": 31,
+      "GATED": 4
     },
     "gated": [
       "No source parser exists in the GA dependency graph",
       "no P0/P1/P2 finding remains open",
       "every section 22 threshold passes",
-      "artifact is built from the final candidate commit",
       "second clean build establishes reproducibility"
     ],
     "ga_claimed": false,
@@ -9139,5 +9144,57 @@
     "scope": "Remaining implementation, independent reviews, benchmark campaigns, verification, and release steps. Does not change factual acceptance requirements or authorize fabricated results.",
     "readiness_audit": "evidence/review/completion-succession-readiness-2026-09-15.md",
     "audit_record": "evidence/review/completion-review-record-audit-2026-09-15.md"
-  }
+  },
+  "prior_release_decisions": [
+    {
+      "state": "RELEASE_APPROVED",
+      "authority": "operator",
+      "decided": "2026-09-24",
+      "release": "2.0.5",
+      "release_name": "Sley 2.0",
+      "label": "plain 2.0.5, a point release of 2.0.3 adding structured function bodies, checked integer conversion, an optional familiar authoring frontend, experimental residual authoring and faster verified execution; there is no separate 2.0.4 release; operator publication authorization 2026-10-02",
+      "kind": "operator release of what exists; not a GA claim",
+      "ga_claimed": false,
+      "publication_authorized": true,
+      "final_commit": "11258a351b4638b63f204aecbf58b43906e87479",
+      "final_commit_note": "the official Sley 2.0.5 release, built from commit 11258a35 of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
+      "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
+      "ga_acceptance_at_decision": {
+        "EVIDENCED": 32,
+        "AWAITS_REVIEW": 17,
+        "GATED": 3,
+        "criterion_count": 52
+      },
+      "unmet_ga_criteria_at_decision": [
+        "AWAITS_REVIEW: 26.3 semantics - No undefined behavior exists in the program model",
+        "AWAITS_REVIEW: 26.3 semantics - No ambient authority exists",
+        "AWAITS_REVIEW: 26.4 agent loop - agents can create and maintain programs without source",
+        "AWAITS_REVIEW: 26.4 agent loop - typed affordances and mutations are available",
+        "AWAITS_REVIEW: 26.4 agent loop - invalid candidates cannot commit",
+        "AWAITS_REVIEW: 26.4 agent loop - exact stale conflicts are rejected",
+        "AWAITS_REVIEW: 26.5 repository - refs update atomically",
+        "AWAITS_REVIEW: 26.5 repository - branches preserve ancestry",
+        "AWAITS_REVIEW: 26.6 policy and security - policy is protected from the judged candidate",
+        "AWAITS_REVIEW: 26.6 policy and security - capability tokens cannot be forged or replayed across scope",
+        "AWAITS_REVIEW: 26.6 policy and security - all P0/P1 threats have passing tests",
+        "GATED: 26.6 policy and security - no P0/P1/P2 finding remains open",
+        "AWAITS_REVIEW: 26.6 policy and security - opacity is not used as a security argument",
+        "GATED: 26.7 succession - every section 22 threshold passes",
+        "GATED: 26.8 packaging - artifact is built from the final candidate commit",
+        "AWAITS_REVIEW: 26.8 packaging - artifact runs with no source-tree access",
+        "AWAITS_REVIEW: 26.9 review - Ariadne approves SSMC1 and semantic correctness",
+        "AWAITS_REVIEW: 26.9 review - Nabu approves architectural and cross-product boundaries",
+        "AWAITS_REVIEW: 26.9 review - Vulcan or current independent reviewer issues a complete PASS",
+        "AWAITS_REVIEW: 26.9 review - all reviewer findings are resolved or dispositioned below P3"
+      ],
+      "open_p1_p2_at_decision": "rw075_correction 4 P1 + 4 P2 (AR-02 large-preimage design and AR-06 transcript binding; the self-hosting/REWEAVE line, 2.1); finding-ledger mechanism P2s in release_candidate_packaging (4), reproducibility_and_independent_conformance (3) and standards_sbom_and_provenance (2) against scripts/build_finding_register.py and scripts/retire_review_claims.py",
+      "council_reviews": "no longer used (operator decision 2026-09-24); criteria that wait on a Council or independent review stay AWAITS_REVIEW",
+      "deferred_to_2_1": "self-hosting (REWEAVE / SH2)",
+      "release_notes": "docs/release/SLEY-2.0.5.md",
+      "decided_2_0_1": "2026-09-25",
+      "decided_2_0_2": "2026-09-25",
+      "decided_2_0_3": "2026-09-27",
+      "decided_2_0_5": "2026-10-02"
+    }
+  ]
 }
