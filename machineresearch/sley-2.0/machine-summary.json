@@ -4960,7 +4960,7 @@
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
     "candidate_evidence_commit": "4c0d97c55a3c41d453777fb740b2f14b8f89a2d0",
-    "candidate_second_host_note": "Prepared Sley 2.0.6 candidate: two clean static musl builds on the primary host produced the same archive. The operator excluded secondary-host development work. Cross-host reproducibility is not claimed; earlier attestations remain historical evidence only. No 2.0.6 release has been published.",
+    "candidate_second_host_note": "Prepared Sley 2.0.6 candidate: two clean static musl builds on the primary host produced the same archive. The operator excluded secondary-host development work. Cross-host reproducibility is not claimed; earlier attestations remain historical evidence only. These records attest the local artifact; publication status is recorded separately by the GitHub release.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
