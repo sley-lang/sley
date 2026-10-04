@@ -234,7 +234,22 @@ finding. 2.0.5 makes no new GA claim.
 
 ## Build and test from source
 
-These gates run from a fresh clone:
+With the pinned Rust toolchain (including rustfmt and Clippy), Python 3.12+
+and `uv` installed, run the combined contributor gate from a fresh clone:
+
+```sh
+make contributor-check
+```
+
+It checks formatting, strict workspace Clippy, all workspace tests,
+conformance, adversarial tests and bounded fuzz smoke, stopping on failure.
+It uses tracked fixtures and locked dependencies; it needs no external master
+goal, generated release evidence, credentials or installed native supervisor.
+The first run may download dependencies and creates ignored build/cache files,
+but does not rewrite tracked evidence. This is source validation, not release
+or native-host qualification.
+
+The individual commands remain available:
 
 ```sh
 cargo build --release -p sley-cli     # the sley binary

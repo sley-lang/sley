@@ -374,7 +374,23 @@ on) travel inside failed answers as stable codes. The registry is
 
 ## 6. Run the test gates
 
-These are the gates a contributor can run from a fresh clone:
+From a fresh clone, install the pinned Rust toolchain with rustfmt and
+Clippy, Python 3.12+ and `uv`, then run:
+
+```sh
+make contributor-check
+```
+
+This combines formatting, strict workspace Clippy, all workspace tests,
+conformance, adversarial tests and bounded fuzz smoke. It stops on failure
+and keeps those stages sequential even with `make -j`. It requires only
+tracked fixtures and locked dependencies, with no external master goal,
+generated release evidence, credentials or installed native supervisor.
+Dependencies may download on the first run; build/cache outputs are ignored
+and tracked evidence is not rewritten. Passing is source-validation evidence,
+not release-artifact or native-host qualification.
+
+For individual stages and maintainer lint evidence:
 
 ```sh
 cargo test --workspace --locked   # every crate's unit and integration tests
