@@ -40,6 +40,7 @@ pub mod enforce;
 pub mod execution;
 pub mod ingress;
 pub mod manager;
+pub mod nonce;
 pub mod outcome;
 pub mod owner;
 pub mod phase;

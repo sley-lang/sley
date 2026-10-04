@@ -3940,7 +3940,7 @@ fn explicit_supervisor_request_binds_owner_loaded_root_and_objects() {
         &objects,
         selected[0],
         entry.declared_limits.wall_timeout_millis,
-        [0x55; 32],
+        sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
     )
     .unwrap();
     assert_eq!(request.plan_id, plan.plan_id());
@@ -3957,7 +3957,7 @@ fn explicit_supervisor_request_binds_owner_loaded_root_and_objects() {
             &objects,
             selected[0],
             entry.declared_limits.wall_timeout_millis,
-            [0x56; 32],
+            sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
         )
         .is_err()
     );
@@ -3969,7 +3969,7 @@ fn explicit_supervisor_request_binds_owner_loaded_root_and_objects() {
             &objects,
             selected[0],
             entry.declared_limits.wall_timeout_millis,
-            [0x57; 32],
+            sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
         )
         .is_err()
     );

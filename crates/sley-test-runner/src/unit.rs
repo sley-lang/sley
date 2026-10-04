@@ -243,8 +243,12 @@ mod tests {
         ))
         .expect("canonical worker vector");
         let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
-        RunRequest::from_portable_program(&program, 1_000, [9; 32])
-            .expect("selected supervisor request")
+        RunRequest::from_portable_program(
+            &program,
+            1_000,
+            crate::nonce::random_attempt_nonce().expect("OS entropy"),
+        )
+        .expect("selected supervisor request")
     }
 
     fn runner_config() -> RunnerConfig {

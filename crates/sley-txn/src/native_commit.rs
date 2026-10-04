@@ -1388,8 +1388,12 @@ mod tests {
         ))
         .expect("canonical worker vector");
         let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
-        let request = RunRequest::from_portable_program(&program, 1_000, [9; 32])
-            .expect("selected supervisor request");
+        let request = RunRequest::from_portable_program(
+            &program,
+            1_000,
+            sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
+        )
+        .expect("selected supervisor request");
         let report = NativeExecutionReportV1::build(NativeExecutionReportParts {
             plan_id: request.plan_id,
             test_entity: request.test_entity,

@@ -220,7 +220,12 @@ mod tests {
         ))
         .expect("canonical worker input");
         let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
-        let request = RunRequest::from_portable_program(&program, 1_000, [9; 32]).expect("request");
+        let request = RunRequest::from_portable_program(
+            &program,
+            1_000,
+            crate::nonce::random_attempt_nonce().expect("OS entropy"),
+        )
+        .expect("request");
         let (mut server, mut client) = UnixStream::pair().expect("socket pair");
         let uid = nix::unistd::getuid().as_raw();
         let config = default_config(

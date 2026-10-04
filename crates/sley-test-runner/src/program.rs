@@ -591,17 +591,18 @@ mod tests {
         let (plan, root, objects, test) = fixture();
         let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
         let selected = program.selected();
+        let attempt = crate::nonce::random_attempt_nonce().expect("OS entropy");
         let mut request = RunRequest::from_portable_program(
             &program,
             selected.declared_limits.wall_timeout_millis,
-            [42; 32],
+            attempt,
         )
         .expect("owner-built supervisor request");
         let worker_frame = request.worker_frame.clone();
         assert_eq!(request.verified_program().expect("bound"), program);
         assert_eq!(request.workspace, plan.workspace());
         assert_eq!(request.candidate_id, None);
-        assert_eq!(request.nonce, [42; 32]);
+        assert_eq!(request.nonce, attempt);
         assert_eq!(
             RunRequest::decode_frame(&request.encode_frame().expect("outer frame"))
                 .expect("outer roundtrip"),
@@ -609,9 +610,13 @@ mod tests {
         );
         for wall_ms in [0, selected.declared_limits.wall_timeout_millis + 1] {
             assert_eq!(
-                RunRequest::from_portable_program(&program, wall_ms, [42; 32])
-                    .expect_err("invalid wall budget")
-                    .code(),
+                RunRequest::from_portable_program(
+                    &program,
+                    wall_ms,
+                    crate::nonce::random_attempt_nonce().expect("OS entropy")
+                )
+                .expect_err("invalid wall budget")
+                .code(),
                 ScbErrorCode::ResourceLimit
             );
         }
@@ -779,7 +784,7 @@ mod tests {
             let mut run = RunRequest::from_portable_program(
                 &program,
                 program.selected().declared_limits.wall_timeout_millis,
-                [42; 32],
+                crate::nonce::random_attempt_nonce().expect("OS entropy"),
             )
             .expect("owner-built supervisor request");
             assert_eq!(

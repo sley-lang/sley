@@ -253,8 +253,12 @@ mod tests {
         ))
         .expect("canonical worker vector");
         let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
-        let request = RunRequest::from_portable_program(&program, 1_000, [9; 32])
-            .expect("supervisor request");
+        let request = RunRequest::from_portable_program(
+            &program,
+            1_000,
+            crate::nonce::random_attempt_nonce().expect("OS entropy"),
+        )
+        .expect("supervisor request");
         let report = NativeExecutionReportV1::parse(include_bytes!(
             "../../../conformance/native-worker/v1/observed-report.bin"
         ))

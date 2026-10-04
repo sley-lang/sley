@@ -128,10 +128,11 @@ fn directory_metadata(path: &Path, expected_uid: u32) -> Result<fs::Metadata, St
     Ok(metadata)
 }
 
-fn nonce_hex(nonce: [u8; 32]) -> String {
+// Byte formatting only: this helper neither creates nor validates entropy.
+fn hex_bytes(bytes: [u8; 32]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut value = String::with_capacity(64);
-    for byte in nonce {
+    for byte in bytes {
         value.push(HEX[(byte >> 4) as usize] as char);
         value.push(HEX[(byte & 0x0f) as usize] as char);
     }
@@ -188,7 +189,7 @@ fn stage_worker_input_for_uid(
     if input_metadata.permissions().mode() & 0o077 != 0 {
         return Err(StageError::UnsafeDirectory);
     }
-    let attempt_hex = nonce_hex(request.nonce);
+    let attempt_hex = hex_bytes(request.nonce);
     let path = input_dir.join(format!("{attempt_hex}.bin"));
     let mut file = OpenOptions::new()
         .write(true)
@@ -277,6 +278,19 @@ mod tests {
     }
 
     #[test]
+    fn hex_bytes_preserves_all_bytes_and_leading_zeroes() {
+        let mut bytes = [0; 32];
+        for value in 0_u8..=255 {
+            bytes[0] = value;
+            bytes[31] = value;
+            assert_eq!(
+                hex_bytes(bytes),
+                format!("{value:02x}{}{value:02x}", "00".repeat(30))
+            );
+        }
+    }
+
+    #[test]
     fn stages_exact_checked_frame_and_binds_unit_path() {
         let (runtime, config, request, uid) = fixture();
         let staged = stage_worker_input_for_uid(&config, &request, uid).expect("stage");
@@ -319,7 +333,7 @@ mod tests {
             stage_worker_input_for_uid(&config, &request, uid),
             Err(StageError::InvalidNonce)
         ));
-        request.nonce = [9; 32];
+        request.nonce = crate::nonce::random_attempt_nonce().expect("OS entropy");
         fs::create_dir(runtime.join("elsewhere")).expect("other dir");
         std::os::unix::fs::symlink(runtime.join("elsewhere"), runtime.join("input"))
             .expect("symlink");
@@ -344,6 +358,11 @@ mod tests {
         ))
         .expect("canonical worker vector");
         let program = PortableTestProgram::parse(&worker.program_bytes).expect("portable program");
-        RunRequest::from_portable_program(&program, 1_000, [9; 32]).expect("supervisor request")
+        RunRequest::from_portable_program(
+            &program,
+            1_000,
+            crate::nonce::random_attempt_nonce().expect("OS entropy"),
+        )
+        .expect("supervisor request")
     }
 }

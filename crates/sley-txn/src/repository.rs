@@ -24139,7 +24139,7 @@ mod native_commit_tests {
                     validated,
                     selected.test_entity,
                     selected.declared_limits.wall_timeout_millis,
-                    [0xA5; 32],
+                    sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
                 )
                 .expect("owner request");
                 let program = request.verified_program().expect("portable program");
@@ -24232,7 +24232,7 @@ mod native_commit_tests {
             validated,
             entry.test_entity,
             entry.declared_limits.wall_timeout_millis,
-            [0xC3; 32],
+            sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
         )
         .expect("validated candidate builds one bounded supervisor request");
         assert_eq!(request.test_entity, entry.test_entity);
@@ -24253,7 +24253,7 @@ mod native_commit_tests {
                 validated,
                 EntityId::from_bytes([0xff; 32]),
                 entry.declared_limits.wall_timeout_millis,
-                [0xC3; 32],
+                sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
             )
             .expect_err("unselected test must refuse")
             .code(),
@@ -24265,7 +24265,7 @@ mod native_commit_tests {
                 validated,
                 entry.test_entity,
                 entry.declared_limits.wall_timeout_millis + 1,
-                [0xC3; 32],
+                sley_test_runner::nonce::random_attempt_nonce().expect("OS entropy"),
             )
             .expect_err("expanded wall budget must refuse")
             .code(),

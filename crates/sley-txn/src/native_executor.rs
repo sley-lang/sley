@@ -8,8 +8,6 @@
 //! or enable native test admission on an untested host.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
-use std::io::Read;
 use std::path::Component;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -20,6 +18,7 @@ use sley_state_root::AcceptedStateRoot;
 use sley_test_runner::{
     client::{ClientError, run_native_test},
     config::SOCKET_NAME,
+    nonce::random_attempt_nonce,
     protocol::{RunRequest, RunStatus},
 };
 use sley_tests::{HistoricalTrustPolicyV1, NativeTestPlanV1};
@@ -89,12 +88,12 @@ impl SocketNativeCommitExecutor {
         let deadline = Instant::now()
             .checked_add(NATIVE_EXECUTOR_WATCHDOG)
             .ok_or(NativeCommitError::ExecutorUnavailable)?;
-        let mut entropy =
-            File::open("/dev/urandom").map_err(|_| NativeCommitError::ExecutorUnavailable)?;
         let mut used = BTreeSet::new();
         let mut executions = Vec::with_capacity(plan.selected().len());
         for selected in plan.selected() {
-            let nonce = new_nonce(&mut entropy, &mut used)?;
+            let nonce = new_nonce(&mut used, || {
+                random_attempt_nonce().map_err(|_| NativeCommitError::ExecutorUnavailable)
+            })?;
             let request = build(
                 selected.test_entity,
                 selected.declared_limits.wall_timeout_millis,
@@ -120,13 +119,10 @@ impl SocketNativeCommitExecutor {
 }
 
 fn new_nonce(
-    source: &mut File,
     used: &mut BTreeSet<[u8; 32]>,
+    source: impl FnOnce() -> Result<[u8; 32], NativeCommitError>,
 ) -> Result<[u8; 32], NativeCommitError> {
-    let mut nonce = [0_u8; 32];
-    source
-        .read_exact(&mut nonce)
-        .map_err(|_| NativeCommitError::ExecutorUnavailable)?;
+    let nonce = source()?;
     if nonce == [0; 32] || !used.insert(nonce) {
         return Err(NativeCommitError::ExecutorUnavailable);
     }
@@ -191,6 +187,47 @@ impl NativeTestExecutor for SocketNativeCommitExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nonce_source_failure_and_zero_do_not_reserve_an_attempt() {
+        let mut used = BTreeSet::new();
+        assert_eq!(
+            new_nonce(&mut used, || Err(NativeCommitError::ExecutorUnavailable)),
+            Err(NativeCommitError::ExecutorUnavailable)
+        );
+        assert!(used.is_empty());
+        assert_eq!(
+            new_nonce(&mut used, || Ok([0; 32])),
+            Err(NativeCommitError::ExecutorUnavailable)
+        );
+        assert!(used.is_empty());
+    }
+
+    #[test]
+    fn nonce_is_preserved_and_reuse_is_refused() {
+        let mut used = BTreeSet::new();
+        let expected = random_attempt_nonce().expect("OS entropy");
+        let first = new_nonce(&mut used, || Ok(expected)).expect("first attempt");
+        assert_eq!(first, expected);
+        assert_ne!(first, [0; 32]);
+        assert_eq!(used, BTreeSet::from([first]));
+        assert_eq!(
+            new_nonce(&mut used, || Err(NativeCommitError::ExecutorUnavailable)),
+            Err(NativeCommitError::ExecutorUnavailable)
+        );
+        assert_eq!(used, BTreeSet::from([first]));
+        assert_eq!(
+            new_nonce(&mut used, || Ok(first)),
+            Err(NativeCommitError::ExecutorUnavailable)
+        );
+        assert_eq!(used, BTreeSet::from([first]));
+        let second = new_nonce(&mut used, || {
+            random_attempt_nonce().map_err(|_| NativeCommitError::ExecutorUnavailable)
+        })
+        .expect("fresh OS entropy");
+        assert_ne!(first, second);
+        assert_eq!(used, BTreeSet::from([first, second]));
+    }
 
     #[test]
     fn uncertain_transport_and_evidence_remain_unknown() {
