@@ -110,7 +110,8 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual(report["second_host"]["status"], "GATED_OPERATOR_LANE")
         self.assertIn("second_host_attestation_operator_lane", report["blockers"])
         self.assertFalse(report["ga_claimed"])
-        self.assertIs(report["publication_authorized"], repro.publication_authority.authorized())
+        tag = "v" + repro.ARTIFACT_NAME.removeprefix("sley-").removesuffix("-linux-x86_64.tar.gz")
+        self.assertIs(report["publication_authorized"], repro.publication_authority.authorized_for_tag(tag))
         self.assertEqual(report["report_digest"], repro.digest_of({k: v for k, v in report.items() if k != "report_digest"}))
 
     def test_two_agreeing_hosts_report_multi_host(self) -> None:
@@ -426,14 +427,18 @@ class ReproducibilityTests(unittest.TestCase):
 
     def test_each_recorded_candidate_is_selectable_with_its_binding(self) -> None:
         report = json.loads(repro.REPORT.read_text(encoding="utf-8"))
-        for candidate in repro.admissible_attestations(report):
-            selected = repro.select_attestation(report, candidate=candidate)
-            self.assertIsNotNone(selected)
-            self.assertTrue(repro.binds_candidate(selected, candidate))
-            self.assertIn(selected["commit"], report["commits"])
-        self.assertEqual(
-            len(repro.admissible_attestations(report)), report["distinct_hosts"]
-        )
+        # Filed historical records are checked under their named version.
+        names = {a["artifact_name"] for a in report["attestations"]}
+        self.assertEqual(len(names), 1)
+        with unittest.mock.patch.object(repro, "ARTIFACT_NAME", names.pop()):
+            for candidate in repro.admissible_attestations(report):
+                selected = repro.select_attestation(report, candidate=candidate)
+                self.assertIsNotNone(selected)
+                self.assertTrue(repro.binds_candidate(selected, candidate))
+                self.assertIn(selected["commit"], report["commits"])
+            self.assertEqual(
+                len(repro.admissible_attestations(report)), report["distinct_hosts"]
+            )
 
     def test_realized_codes_recorded_is_derived_from_the_threat_report(self) -> None:
         # Vulcan P4 at 92fa6646: the summary counter had no in-tree

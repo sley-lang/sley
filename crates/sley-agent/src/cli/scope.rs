@@ -78,10 +78,18 @@ impl Guard {
             .filter(|fns| !fns.is_empty())
             .ok_or_else(|| scope("scoped proposals need a nonempty fns array"))?;
         let mut seen = BTreeSet::new();
-        for function in functions {
-            let name = function["fn"]
-                .as_str()
-                .ok_or_else(|| scope("each scoped function needs its exact name"))?;
+        for (index, function) in functions.iter().enumerate() {
+            let name = function["fn"].as_str().ok_or_else(|| {
+                // Authors commonly write `name`; say which key the frame uses.
+                let hint = if function.get("name").is_some() {
+                    " (found `name`; the function frame key is `fn`)"
+                } else {
+                    ""
+                };
+                scope(format!(
+                    "/fns/{index}: each scoped function needs its exact name in `fn`{hint}"
+                ))
+            })?;
             if !allowed.contains(name) || !seen.insert(name) {
                 return Err(scope(format!(
                     "function `{name}` is outside the scope or repeated"
@@ -156,6 +164,31 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn missing_function_name_points_at_the_frame_key() {
+        let guard = Guard {
+            root: String::new(),
+            functions: Some(BTreeSet::from(["invoice".into()])),
+        };
+        let wrong_key = serde_json::json!({"fns": [{"fn": "invoice"}, {"name": "invoice"}]});
+        let message = guard.check_frame(&wrong_key).unwrap_err().to_string();
+        assert!(message.contains("/fns/1:"), "{message}");
+        assert!(
+            message.contains("found `name`; the function frame key is `fn`"),
+            "{message}"
+        );
+        let unnamed = serde_json::json!({"fns": [{}]});
+        let message = guard.check_frame(&unnamed).unwrap_err().to_string();
+        assert!(
+            message.contains("/fns/0: each scoped function needs its exact name in `fn`"),
+            "{message}"
+        );
+        assert!(!message.contains("found `name`"), "{message}");
+        guard
+            .check_frame(&serde_json::json!({"fns": [{"fn": "invoice"}]}))
+            .unwrap();
     }
 
     #[test]

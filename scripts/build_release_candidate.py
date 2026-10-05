@@ -20,16 +20,18 @@ import sys
 import tarfile
 import tempfile
 import time
+import tomllib
 from enum import IntEnum
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import publication_authority  # noqa: E402  (sibling module)
 import generate_third_party_licenses as third_party  # noqa: E402  (sibling module)
+import release_version  # noqa: E402  (sibling module)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-ARTIFACT_STEM = "sley-2.0.6-linux-x86_64"
+ARTIFACT_STEM = release_version.artifact_stem()
 ARTIFACT_NAME = f"{ARTIFACT_STEM}.tar.gz"
 # Release link contract (cross-host reproducibility repair): the candidate
 # links self-contained static (musl) with the rust-lld and musl runtime from
@@ -80,6 +82,8 @@ ARTIFACT_INPUT_PATHS = (
     "bench/release/run_demo.py",
     "evidence/security/T52/pre-release-inventory.json",
     "scripts/build_release_candidate.py",
+    "scripts/release_version.py",
+    "scripts/publication_authority.py",
     *EMBEDDED_INPUT_PATHS,
     *CONFORMANCE_SUBSET,
 )
@@ -476,6 +480,12 @@ def stage_artifact(
     (stage / "demo").mkdir()
     shutil.copyfile(ROOT / "bench/release/run_demo.py", stage / "demo/run_demo.py")
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    locked = tomllib.loads((ROOT / "Cargo.lock").read_text(encoding="utf-8"))
+    expected_workspace = sorted((p["name"], p["version"]) for p in locked["package"] if "source" not in p)
+    observed_workspace = sorted((p["name"], p["version"]) for p in inventory.get("packages", [])
+                                if p.get("ecosystem") == "cargo" and p.get("workspace"))
+    if not expected_workspace or observed_workspace != expected_workspace:
+        raise PackageError(PackageErrorCode.INTERNAL_INVARIANT, "staged inventory workspace versions differ from Cargo.lock")
     (stage / "SBOM.json").write_bytes(canonical(inventory) + b"\n")
     license_files = inventory.get("license_text_files")
     if list(license_files or []) != list(APPROVED_LICENSE_FILES):
@@ -554,7 +564,7 @@ def stage_artifact(
         toolchain=toolchain,
         working_tree_clean=working_tree_clean,
         blockers=blockers,
-        publication_authorized=publication_authority.authorized(),
+        publication_authorized=publication_authority.authorized_for_tag("v" + release_version.workspace_version()),
     )
     (stage / "MANIFEST.json").write_bytes(canonical(manifest) + b"\n")
     fixtures = [
@@ -615,7 +625,7 @@ def run_agent_self_test(unpacked: Path, env: dict[str, str], timeout: int) -> di
     checks: dict[str, bool] = {}
     version = run([str(agent), "version"], cwd=unpacked, env=env, timeout=timeout)
     checks["agent_version_names_release"] = (
-        version.returncode == 0 and version.stdout.strip() == "sley-agent " + ARTIFACT_STEM.split("-")[1]
+        version.returncode == 0 and version.stdout.strip() == "sley-agent " + release_version.workspace_version()
     )
     guide = run([str(agent), "help"], cwd=unpacked, env=env, timeout=timeout)
     checks["agent_guide_within_bound"] = (
@@ -635,9 +645,60 @@ def run_agent_self_test(unpacked: Path, env: dict[str, str], timeout: int) -> di
         checks["agent_guide_example_valid_and_tested"] = (
             report.get("verdict", {}).get("valid") is True and bool(tests) and all(t.get("pass") for t in tests)
         )
+        checks.update(run_agent_reference_test(agent, work, unpacked, env, timeout))
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return checks
+
+
+def run_agent_reference_test(agent: Path, workspace: Path, cwd: Path, env: dict[str, str], timeout: int) -> dict[str, bool]:
+    """Exercise the delivered reference switch on values, errors and a batch."""
+    prefix = [str(agent), "--workspace", str(workspace), "--json"]
+
+    def call(arguments: list[str]) -> object:
+        result = run([*prefix, *arguments], cwd=cwd, env=env, timeout=timeout)
+        if result.returncode != 0:
+            return None
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return None
+
+    before = call(["view"])
+    frame = {"af1": 1, "afx": 1, "fns": [{"fn": "pf_narrow", "params": [["x", "i64"]],
+             "returns": "Result<i8,ArithmeticError>", "body": [["ok", ["to?", "i8", "x"]]]}]}
+    proposal = call(["try", json.dumps(frame)])
+    valid = isinstance(proposal, dict) and proposal.get("state") == "valid" and proposal.get("verdict", {}).get("valid") is True
+    matches = bool(valid)
+    batch_matches = False
+    if valid:
+        handle = proposal["handle"]
+        inputs = [-129, -128, 0, 127, 128, 2**63 - 1]
+        expected = [{"Ok": value} if -128 <= value <= 127 else {"Err": {"ArithmeticError": "Overflow"}} for value in inputs]
+        for value, want in zip(inputs, expected):
+            reports = [call(["call", "pf_narrow", str(value), "--on", handle, *mode]) for mode in ([], ["--reference"])]
+            for report in reports:
+                if not isinstance(report, dict) or set(report) != {"result", "fuel", "instructions", "vm_micros"}:
+                    matches = False
+                else:
+                    matches = matches and report["result"] == want
+                    report.pop("vm_micros")
+            matches = matches and reports[0] == reports[1]
+        batch = workspace / "reference-inputs.json"
+        batch.write_text(json.dumps([[value] for value in inputs]))
+        batches = []
+        for mode in ([], ["--reference"]):
+            result = run([*prefix, "call", "pf_narrow", "--on", handle, "--batch", str(batch), *mode], cwd=cwd, env=env, timeout=timeout)
+            try:
+                batches.append([json.loads(line) for line in result.stdout.splitlines()] if result.returncode == 0 else None)
+            except json.JSONDecodeError:
+                batches.append(None)
+        batch_matches = batches == [expected, expected]
+    after = call(["view"])
+    return {"agent_reference_values_errors_and_accounting_match": matches,
+            "agent_reference_batch_matches": batch_matches,
+            "agent_reference_preserves_accepted_root": isinstance(before, dict) and isinstance(after, dict)
+                and before.get("root") is not None and before.get("root") == after.get("root")}
 
 
 def run_demo(unpacked: Path, timeout: int) -> dict:
@@ -684,7 +745,7 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
         "link_contract": link_contract(),
         "build_toolchains": {"first": first_toolchain},
         "ga_claimed": False,
-        "publication_authorized": publication_authority.authorized(),
+        "publication_authorized": publication_authority.authorized_for_tag("v" + release_version.workspace_version()),
         "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
         "blockers": [
             "standards_sbom_and_provenance_s20_710_full",

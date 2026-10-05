@@ -3740,10 +3740,10 @@ fn status_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
 }
 
 fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let words = words(args, &["--on", "--batch"], &["--stats"])?;
+    let words = words(args, &["--on", "--batch"], &["--stats", "--reference"])?;
     let Some((function_name, raw_args)) = words.positional.split_first() else {
         return Err(usage(
-            "call <fn> <arg-json>... [--on <handle|file>] [--batch file]",
+            "call <fn> <arg-json>... [--on <handle|file>] [--batch file] [--reference]",
         ));
     };
     let workspace = workspace(global)?;
@@ -3764,7 +3764,12 @@ fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
         .names
         .resolve(function_name)
         .ok_or_else(|| unknown_name(function_name))?;
-    let mut executor = Executor::new(&selected.program)?;
+    let mode = if words.has("--reference") {
+        sley_vm::ExecutionMode::Reference
+    } else {
+        sley_vm::ExecutionMode::Auto
+    };
+    let mut executor = Executor::with_execution_mode(&selected.program, mode)?;
     if executor.function(&function).is_none() {
         return Err(AgentError::new(
             AgentErrorCode::ExecutionRefused,

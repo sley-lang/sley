@@ -19,8 +19,9 @@ use sley_ssmc::{ConstValue, ExpectedOutcome, FunctionGraph, TestCaseDefinition, 
 use sley_tests::{ExpectedEvidence, RestrictedComparison, compare_expected_evidence};
 use sley_vm::host_abi::image_digest;
 use sley_vm::{
-    ApprovedImage, CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination,
-    LoadedExecutionInput, LoweringInput, PreparedExecution, VerifiedImage, lower_function,
+    ApprovedImage, CacheProfile, ExecutionLimits, ExecutionMode, ExecutionRequest,
+    ExecutionTermination, LoadedExecutionInput, LoweringInput, PreparedExecution, VerifiedImage,
+    lower_function,
 };
 
 use crate::error::{AgentError, AgentErrorCode, Result};
@@ -101,6 +102,7 @@ impl PreparedCall<'_> {
 
 /// A lower-once executor over one program state.
 pub struct Executor {
+    mode: ExecutionMode,
     epoch: sley_id::SchemaEpochId,
     root: sley_id::StateRoot,
     entities: CompleteEntities,
@@ -121,6 +123,15 @@ impl Executor {
     /// `AGENT_EXECUTION_REFUSED` when the state does not project or its
     /// types do not form an environment (a state that validation refuses).
     pub fn new(program: &Program) -> Result<Self> {
+        Self::with_execution_mode(program, ExecutionMode::Auto)
+    }
+
+    /// Projects a program with an explicit derived/reference execution choice.
+    /// Admission, checked semantics, resource limits and authority are unchanged.
+    ///
+    /// # Errors
+    /// The same projection and type-environment refusals as [`Self::new`].
+    pub fn with_execution_mode(program: &Program, mode: ExecutionMode) -> Result<Self> {
         let entities = project_complete_entities(program.objects())
             .map_err(|error| refused(format!("the program does not project: {error}")))?;
         let types = TypeEnvironment::new(entities.type_definitions.clone())
@@ -132,6 +143,7 @@ impl Executor {
             .map(|(index, function)| (function.entity_id, index))
             .collect();
         Ok(Self {
+            mode,
             epoch: program.epoch(),
             root: program.root(),
             entities,
@@ -211,7 +223,7 @@ impl Executor {
                 .map(|row| row.entity_id)
                 .collect(),
         };
-        let image = VerifiedImage::load(&approved, &lowered.bytes)
+        let image = VerifiedImage::load_with_mode(&approved, &lowered.bytes, self.mode)
             .map_err(|error| refused(format!("execution refused: {error}")))?;
         self.lowered.insert(*id, Lowered { image });
         Ok(())

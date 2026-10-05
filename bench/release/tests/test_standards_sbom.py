@@ -27,6 +27,17 @@ sbom = load("build_standards_sbom")
 provenance = load("build_release_provenance")
 
 
+def historical_artifact_context(test: unittest.TestCase) -> None:
+    """Exercise filed evidence under its version, never qualify today's build."""
+    report = json.loads(sbom.REPRO_REPORT.read_text(encoding="utf-8"))
+    names = {a["artifact_name"] for a in report["attestations"]}
+    if len(names) != 1:
+        raise AssertionError("historical fixture needs one explicit artifact version")
+    binding = patch.object(provenance.repro, "ARTIFACT_NAME", names.pop())
+    binding.start()
+    test.addCleanup(binding.stop)
+
+
 def attested_test_candidate() -> dict:
     """A synthetic candidate the real gates admit.
 
@@ -64,6 +75,7 @@ def attested_test_candidate() -> dict:
 
 def patch_candidate(test: unittest.TestCase, *modules) -> dict:
     """Point builder modules at the attested synthetic candidate."""
+    historical_artifact_context(test)
     candidate = attested_test_candidate()
     for module in modules:
         original_load = module.load_candidate
@@ -553,8 +565,19 @@ class ValidateTrackedTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        historical_artifact_context(self)
         self.work = tempfile.TemporaryDirectory()
         self.addCleanup(self.work.cleanup)
+        # Namespace checks must use the inventory bound to the filed release,
+        # not the next candidate's newly regenerated workspace inventory.
+        filed = json.loads(sbom.REPRO_REPORT.read_text())["attestations"][0]
+        historical_inventory = Path(self.work.name) / "historical-inventory.json"
+        historical_inventory.write_bytes(subprocess.check_output(
+            ["git", "show", filed["commit"] + ":evidence/security/T52/pre-release-inventory.json"], cwd=ROOT
+        ))
+        inventory_binding = patch.object(sbom, "INVENTORY", historical_inventory)
+        inventory_binding.start()
+        self.addCleanup(inventory_binding.stop)
         self.paths: dict[str, Path] = {}
         for module, name in (
             (sbom, "CYCLONEDX"),
@@ -675,6 +698,7 @@ def stub_closure(test: unittest.TestCase, status: "closure.ClosureStatus"):
 
 class RecordsClosureTests(unittest.TestCase):
     def test_builders_admit_exactly_the_live_closure_verdict(self) -> None:
+        historical_artifact_context(self)
         # Live coupling, state-independent: whatever the real tree says
         # about the attested candidate, both builders follow it. A tree
         # past a records-closure admits byte-identical derivation; any
@@ -861,6 +885,7 @@ checker = load("check_standards_sbom_and_provenance")
 
 class CurrentCandidateBindingTests(unittest.TestCase):
     def test_hermetic_checks_refuse_a_superseded_document_and_a_tie(self):
+        historical_artifact_context(self)
         checker = load("check_standards_sbom_and_provenance")
         original = json.loads(provenance.REPRO_REPORT.read_text())
         old = dict(original["attestations"][0], host_label="archive")
