@@ -135,6 +135,40 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
     })
 }
 
+/// Parses a headerless statement list for a controller-selected function.
+/// The returned frame contains only `body`; the command fills the function
+/// name and signature from the bound accepted graph before ordinary lowering.
+///
+/// # Errors
+///
+/// Unsupported syntax (including function headers or outer braces) is refused
+/// at the original body position. No synthetic header shifts diagnostics.
+pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
+    let mut parser = Parser {
+        toks: tokenize(text)?,
+        k: 0,
+    };
+    let pos = parser.peek().pos;
+    let mut statements = Vec::new();
+    while parser.peek().kind != Kind::Eof {
+        if parser.at_op(";") {
+            parser.bump();
+            continue;
+        }
+        statements.push(parser.statement()?);
+    }
+    if statements.is_empty() {
+        return refuse(pos, "expected at least one body statement");
+    }
+    let body = Node::list(pos, statements);
+    let mut positions = BTreeMap::new();
+    body.record("/fns/0/body", &mut positions);
+    Ok(Parsed {
+        frame: json!({"af1":1,"afx":1,"fns":[{"body":body.value()}]}),
+        positions: Positions(positions),
+    })
+}
+
 // ------------------------------------------------------------------ tokens
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -162,7 +196,7 @@ fn refuse<T>(pos: Pos, message: impl Into<String>) -> Result<T, FamiliarError> {
 
 /// Multi-character spellings from other languages, refused with what to
 /// write instead. Checked before the operators Sley accepts.
-const FOREIGN: [(&str, &str); 17] = [
+const FOREIGN: [(&str, &str); 16] = [
     (
         "+=",
         "compound assignment is not supported: write x = x + e",
@@ -187,7 +221,6 @@ const FOREIGN: [(&str, &str); 17] = [
     ("**", "there is no power operator: multiply in a loop"),
     ("&&", "write and"),
     ("||", "write or"),
-    ("..", "ranges are not supported: count with var and while"),
     ("::", "paths are not supported"),
     ("=>", "match arms and lambdas are not supported"),
     ("<<", "bitwise operators are not supported"),
@@ -202,9 +235,9 @@ const FOREIGN: [(&str, &str); 17] = [
     ("^", "bitwise operators are not supported"),
     ("~", "bitwise operators are not supported"),
 ];
-const OPERATORS: [&str; 22] = [
-    "->", "==", "!=", "<=", ">=", "+", "-", "*", "/", "%", "<", ">", "=", "(", ")", "{", "}", "[",
-    "]", ",", ".", ":",
+const OPERATORS: [&str; 23] = [
+    "..", "->", "==", "!=", "<=", ">=", "+", "-", "*", "/", "%", "<", ">", "=", "(", ")", "{", "}",
+    "[", "]", ",", ".", ":",
 ];
 
 #[allow(clippy::too_many_lines)]
@@ -655,6 +688,41 @@ impl Parser {
         Ok(Node::list(open.pos, body))
     }
 
+    fn for_loop(&mut self) -> P<Node> {
+        let pos = self.bump().pos;
+        let (name, name_pos) = self.ident("a loop variable")?;
+        let mut names = vec![Node::atom(name_pos, Value::String(name))];
+        if self.at_op(",") {
+            self.bump();
+            let (value, value_pos) = self.ident("an element variable")?;
+            names.push(Node::atom(value_pos, Value::String(value)));
+        }
+        self.expect_word("in")?;
+        let first = self.expr()?;
+        let kind = if self.at_op("..") {
+            if names.len() != 1 {
+                return refuse(self.peek().pos, "a range has one loop variable");
+            }
+            self.bump();
+            if self.at_op("=") {
+                return refuse(
+                    self.peek().pos,
+                    "ranges are half-open: write start..end, not start..=end",
+                );
+            }
+            let end = self.expr()?;
+            names.extend([first, end]);
+            "range"
+        } else {
+            let indexed = names.len() == 2;
+            names.push(first);
+            if indexed { "for-indexed" } else { "for" }
+        };
+        names.insert(0, Node::atom(pos, Value::String(kind.into())));
+        names.push(self.block()?);
+        Ok(Node::list(pos, names))
+    }
+
     #[allow(clippy::too_many_lines)]
     fn statement(&mut self) -> P<Node> {
         let tok = self.peek().clone();
@@ -709,22 +777,7 @@ impl Parser {
                 ))
             }
             Some("if") => self.if_rest(),
-            Some("for") => {
-                self.bump();
-                let (name, name_pos) = self.ident("a loop variable")?;
-                self.expect_word("in")?;
-                let list = self.expr()?;
-                let body = self.block()?;
-                Ok(Node::list(
-                    pos,
-                    vec![
-                        keyword("for"),
-                        Node::atom(name_pos, Value::String(name)),
-                        list,
-                        body,
-                    ],
-                ))
-            }
+            Some("for") => self.for_loop(),
             Some("while") => {
                 self.bump();
                 let condition = self.expr()?;
@@ -1227,10 +1280,10 @@ mod tests {
                 32,
             ),
             (
-                "fn f(a: i64) -> i64 {\n  for i in 0..a { }\n  return a\n}",
-                "ranges",
+                "fn f(a: i64) -> i64 {\n  for i in 0..=a { }\n  return a\n}",
+                "half-open",
                 2,
-                13,
+                15,
             ),
             (
                 "fn f(a: i64) -> i64 { if a > 0: return a }",

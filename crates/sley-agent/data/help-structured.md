@@ -7,6 +7,8 @@ Statements:
   ["var", x, T, e]                  mutable variable of type T; ["set", x, e] assigns it
   ["if", c, [then...], [else...]]   (else optional)
   ["for", x, xs, [body...]]         each element of vector xs, in order
+  ["range", i, start, end, [body...]]  same integer type, half-open; bounds evaluated once
+  ["for-indexed", i, x, xs, [body...]] vector elements with a read-only u64 index
   ["while", c, [body...]]
   ["return", e]; in a Result function ["ok", e] or ["fail", "Case"]; ["trap"] aborts
 Expressions: a name, an integer, true, false, {"type":"text","value":"hi"}, {"type":"u64","value":0}, or [op, args...]:

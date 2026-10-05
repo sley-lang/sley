@@ -4,7 +4,9 @@
 //! `--json`. Exit status: 0 success, 1 a negative outcome (refused
 //! candidate, failing test), 2 a workbench refusal (`AGENT_*`).
 
+mod body;
 mod residual;
+mod scope;
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -375,6 +377,19 @@ fn shown(reference: &str) -> String {
     reference.to_owned()
 }
 
+fn write_view(
+    out: &mut dyn Write,
+    program: &Program,
+    text: &str,
+    focus: Option<Value>,
+) -> Result<()> {
+    let mut record = json!({"view": text, "root": crate::hex::encode(program.root().as_bytes())});
+    if let Some(focus) = focus {
+        record["focus"] = focus;
+    }
+    write_json(out, &record)
+}
+
 fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
     let words = words(
         args,
@@ -440,7 +455,7 @@ fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
             },
         );
         if global.json {
-            write_json(out, &json!({"view": focused.text, "focus": focused.json}))?;
+            write_view(out, &selected.program, &focused.text, Some(focused.json))?;
         } else {
             write_text(out, &focused.text)?;
         }
@@ -474,7 +489,7 @@ fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
         }
     }
     if global.json {
-        write_json(out, &json!({"view": text}))?;
+        write_view(out, &selected.program, &text, None)?;
     } else {
         write_text(out, &text)?;
     }
@@ -669,13 +684,19 @@ fn read_familiar(argument: &str) -> Result<Vec<u8>> {
 #[cfg(feature = "familiar")]
 fn parse_familiar(
     bytes: &[u8],
+    body_only: bool,
 ) -> Result<(
     std::result::Result<Value, TextFailure>,
     Option<FamiliarPositions>,
 )> {
     let text = std::str::from_utf8(bytes)
         .map_err(|_| crate::error::frame("", "familiar text must be UTF-8"))?;
-    Ok(match crate::familiar::parse(text) {
+    let parsed = if body_only {
+        crate::familiar::parse_body(text)
+    } else {
+        crate::familiar::parse(text)
+    };
+    Ok(match parsed {
         Ok(parsed) => (Ok(parsed.frame), Some(parsed.positions)),
         Err(error) => (
             Err(TextFailure {
@@ -693,6 +714,7 @@ fn parse_familiar(
 #[cfg(not(feature = "familiar"))]
 fn parse_familiar(
     _bytes: &[u8],
+    _body_only: bool,
 ) -> Result<(
     std::result::Result<Value, TextFailure>,
     Option<FamiliarPositions>,
@@ -836,6 +858,8 @@ struct Proposal {
     /// With `try --familiar`: where the frame's pointers came from in the
     /// text, for diagnostics.
     familiar: Option<FamiliarPositions>,
+    scope: Option<scope::Guard>,
+    body: Option<body::Target>,
 }
 
 impl Proposal {
@@ -863,6 +887,8 @@ impl Proposal {
             residual: None,
             artifacts: Vec::new(),
             familiar: None,
+            scope: None,
+            body: None,
         }
     }
 
@@ -1007,13 +1033,47 @@ fn base_frame(workspace: &Workspace, on: &str) -> Result<Value> {
         })
 }
 
+type TrialInput = (
+    Vec<u8>,
+    std::result::Result<Value, TextFailure>,
+    Option<FamiliarPositions>,
+);
+
+fn trial_input(
+    global: &Global,
+    argument: &str,
+    familiar: bool,
+    body: Option<&body::Target>,
+) -> Result<TrialInput> {
+    let input = if familiar {
+        read_familiar(argument)?
+    } else {
+        read_argument(argument)?
+    };
+    global.note("input_bytes", input.len());
+    let (mut parsed, positions) = if familiar {
+        global.note("frontend", "familiar");
+        parse_familiar(&input, body.is_some())?
+    } else {
+        (parse_input(&input), None)
+    };
+    if let (Some(target), Ok(value)) = (body, &mut parsed) {
+        target.wrap(value, familiar)?;
+    }
+    Ok((input, parsed, positions))
+}
+
 fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
     let mut switches = TRIAL_SWITCHES.to_vec();
     switches.push("--familiar");
-    let words = words(args, &["--public", "--on"], &switches)?;
+    let words = words(
+        args,
+        &["--public", "--on", "--base-root", "--functions", "--body"],
+        &switches,
+    )?;
     let [frame_argument] = words.positional.as_slice() else {
         return Err(usage(
-            "try <frame.json | - | '{\"af1\":1,...}'> [--familiar] [--on <handle|draft>] [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]",
+            "try <frame.json | - | '{\"af1\":1,...}'> [--familiar] [--body NAME] [--base-root ROOT] [--functions NAME,...] [--on <handle|draft>] [--rebase] [--no-test] [--all-tests] [--public file] [--raw] [--verbose]",
         ));
     };
     let familiar = words.has("--familiar");
@@ -1021,21 +1081,16 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     if words.has("--rebase") && !on.is_some_and(draft::is_draft_ref) {
         return Err(usage("--rebase goes with try --on <draft>"));
     }
+    scope::check_options(&words)?;
     let options = TrialOptions::of(&words);
-    let input = if familiar {
-        read_familiar(frame_argument)?
-    } else {
-        read_argument(frame_argument)?
-    };
-    global.note("input_bytes", input.len());
-    let (parsed, positions) = if familiar {
-        global.note("frontend", "familiar");
-        parse_familiar(&input)?
-    } else {
-        (parse_input(&input), None)
-    };
     let workspace = workspace(global)?;
     let head = workspace.head()?;
+    let guard = scope::Guard::parse(&words, &head)?;
+    let body = body::Target::select(&words, &workspace, &head)?;
+    let (input, parsed, positions) = trial_input(global, frame_argument, familiar, body.as_ref())?;
+    if let (Some(guard), Ok(frame)) = (&guard, &parsed) {
+        guard.check_frame(frame)?;
+    }
     let proposal = match on {
         None => {
             // A whole new frame while drafts exist restates work that a
@@ -1109,6 +1164,11 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     };
     let mut proposal = proposal;
     proposal.familiar = positions;
+    proposal.scope = guard;
+    if body.is_some() {
+        proposal.origin = Origin::Draft;
+    }
+    proposal.body = body;
     run_trial(global, &workspace, &head, proposal, &options, out)
 }
 
@@ -2504,6 +2564,16 @@ fn run_trial(
         if status["residual"].get("edit").is_some() {
             status["residual"]["edit"]["verification"] = json!("passed");
         }
+    }
+    if let Some(target) = &proposal.body {
+        target.verify(head.program(), &program)?;
+    }
+    if let Some(guard) = &proposal.scope {
+        let mut guarded_map = map.clone();
+        guarded_map.extend(&compiled.names);
+        let guarded_names = Names::build(&program, &guarded_map);
+        guard.verify(head.program(), &names, &program, &guarded_names)?;
+        guard.check_head(&workspace.read_head()?)?;
     }
     remember_names(workspace, &compiled.names)?;
     map.extend(&compiled.names);
