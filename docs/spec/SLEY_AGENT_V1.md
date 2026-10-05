@@ -2488,6 +2488,36 @@ Expected and observed results are compared by the kernel's rule: value hashes
 parameters, effects or contracts are refused by lowering. That is the
 profile's limit, not the workbench's.
 
+### 10.1 TestCase resource reporting
+
+`try` (including draft `fill`/`import` results), `test` and `status` disclose
+the advisory TestCase execution policy beside their results. A passing test
+means its expected value hash or trap code matched; it does not establish
+resource compliance or supply native admission evidence. The executor applies
+the declared `fuel` as VM fuel. It does **not** apply the declared
+`memory_bytes`, `output_bytes`, `effect_count`, `call_depth` or
+`wall_timeout_millis`. The existing fixed VM instruction, value-unit and
+output-unit caps still apply. VM units are not measurements of host bytes,
+and lowering time is not bounded by a TestCase wall deadline.
+
+JSON adds one top-level `test_execution_policy` object alongside `tests`:
+
+```json
+{"mode":"advisory","pass_basis":"expected_value_or_trap","admission_evidence":false,"declared_limits":{"fuel":"vm_fuel","memory_bytes":"not_applied","output_bytes":"not_applied","effect_count":"not_applied","call_depth":"not_applied","wall_timeout_millis":"not_applied"},"fixed_vm_limits":{"instructions":100000000,"value_units":1000000000,"output_units":16777216}}
+```
+
+This describes the runner's configuration, including for refused execution;
+it is not a per-test measurement or a compliance verdict. The existing test
+array and pass/fail meaning are unchanged. Text reports the same policy once
+after the TestCase results, even when passing case lines are omitted.
+When no TestCase outcome exists (including `--no-test`), the JSON policy is
+`null` and text omits it. This policy does not describe `--public` cases;
+those have no TestCase resource declarations and use `call_limits()`.
+
+Issue #21 item 7 is the work package for this reporting change. The policy
+renderer and regression coverage are new; execution and comparison reuse the
+existing executor without changing kernel, admission or VM behavior.
+
 ## 11. Evidence
 
 `crates/sley-agent/tests/workbench.rs` executes every acceptance item this

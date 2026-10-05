@@ -2798,6 +2798,7 @@ fn run_trial(
             "ops": {"created": counts.0, "replaced": counts.1, "deleted": counts.2},
             "verdict": verdict.to_json(),
             "tests": tests_json(&tests, &after_names),
+            "test_execution_policy": test_execution_policy(&tests),
             "public": public_json(&public),
             "notes": notes,
             "also": also,
@@ -2847,6 +2848,7 @@ fn run_trial(
         let passed = tests.iter().filter(|t| t.passed()).count();
         let _ = writeln!(text, "tests: {passed}/{} passed{provenance}", tests.len());
         text.push_str(&test_lines(&tests, &after_names, options.verbose));
+        text.push_str(&test_execution_policy_text());
     }
     if let Some(raw) = &raw {
         let _ = writeln!(text, "stored: {raw}");
@@ -3175,6 +3177,44 @@ fn tests_json(tests: &[TestOutcome], names: &Names) -> Value {
     )
 }
 
+/// Reports configuration, not measured compliance or admission evidence.
+/// No policy is attached when the command produced no TestCase outcomes.
+fn test_execution_policy(tests: &[TestOutcome]) -> Value {
+    if tests.is_empty() {
+        return Value::Null;
+    }
+    let limits = exec::call_limits();
+    json!({
+        "mode": "advisory",
+        "pass_basis": "expected_value_or_trap",
+        "admission_evidence": false,
+        "declared_limits": {
+            "fuel": "vm_fuel",
+            "memory_bytes": "not_applied",
+            "output_bytes": "not_applied",
+            "effect_count": "not_applied",
+            "call_depth": "not_applied",
+            "wall_timeout_millis": "not_applied",
+        },
+        "fixed_vm_limits": {
+            "instructions": limits.max_instructions,
+            "value_units": limits.max_value_units,
+            "output_units": limits.max_output_units,
+        },
+    })
+}
+
+fn test_execution_policy_text() -> String {
+    let limits = exec::call_limits();
+    format!(
+        "test execution: advisory value/trap comparison; not admission evidence\n\
+         declared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; \
+         effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\n\
+         fixed VM limits: instructions={}; value_units={}; output_units={} (VM units are not host bytes)\n",
+        limits.max_instructions, limits.max_value_units, limits.max_output_units,
+    )
+}
+
 fn tests_text(tests: &[TestOutcome], names: &Names) -> String {
     if tests.is_empty() {
         return String::new();
@@ -3182,6 +3222,7 @@ fn tests_text(tests: &[TestOutcome], names: &Names) -> String {
     let passed = tests.iter().filter(|t| t.passed()).count();
     let mut text = format!("tests: {passed}/{} passed\n", tests.len());
     text.push_str(&test_lines(tests, names, true));
+    text.push_str(&test_execution_policy_text());
     text
 }
 
@@ -3644,6 +3685,7 @@ fn status_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
             "submission": handle,
             "verdict": selected.verdict.as_ref().map(Verdict::to_json),
             "tests": tests_json(&tests, &selected.names),
+            "test_execution_policy": test_execution_policy(&tests),
             "view": text,
         });
         if let Some(raw) = &raw {
@@ -3880,7 +3922,11 @@ fn test_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
     if global.json {
         write_json(
             out,
-            &json!({"tests": tests_json(&tests, &selected.names), "public": public_json(&public)}),
+            &json!({
+                "tests": tests_json(&tests, &selected.names),
+                "test_execution_policy": test_execution_policy(&tests),
+                "public": public_json(&public),
+            }),
         )?;
     } else {
         let mut text = tests_text(&tests, &selected.names);
