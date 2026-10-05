@@ -3178,7 +3178,7 @@ fn tests_json(tests: &[TestOutcome], names: &Names) -> Value {
 }
 
 /// Reports configuration, not measured compliance or admission evidence.
-/// No policy is attached when the command produced no TestCase outcomes.
+/// No policy is attached when the command produced no `TestCase` outcomes.
 fn test_execution_policy(tests: &[TestOutcome]) -> Value {
     if tests.is_empty() {
         return Value::Null;
