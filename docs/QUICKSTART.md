@@ -24,19 +24,19 @@ tests and submits a program with `sley-agent`, the workbench agents use.
 
 ## 1. Install
 
-Sley 2.0.6 supports **Linux x86_64**. The release binary is statically linked
+Sley 2.0.7 supports **Linux x86_64**. The release binary is statically linked
 (musl), so it has no runtime dependencies.
 
 ### Option A: the release archive
 
-Download `sley-2.0.6-linux-x86_64.tar.gz` from
+Download `sley-2.0.7-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), then verify and unpack
 it:
 
 ```sh
-sha256sum sley-2.0.6-linux-x86_64.tar.gz     # compare with the published SHA-256
-tar xzf sley-2.0.6-linux-x86_64.tar.gz
-cd sley-2.0.6-linux-x86_64
+sha256sum sley-2.0.7-linux-x86_64.tar.gz     # compare with the published SHA-256
+tar xzf sley-2.0.7-linux-x86_64.tar.gz
+cd sley-2.0.7-linux-x86_64
 ./bin/sley version
 ```
 
@@ -54,8 +54,8 @@ The archive contains:
 | `THIRD_PARTY_LICENSES` | The license texts and copyright notices of the third-party crates compiled into the binary (new in 2.0.1) |
 
 Two clean builds on the primary host produced identical release archives.
-Sley 2.0.6 has not been independently rebuilt on a second host. The
-[release notes](release/SLEY-2.0.6.md#candidate-packaging) show how to reproduce
+Sley 2.0.7 has not been independently rebuilt on a second host. The
+[release notes](release/SLEY-2.0.7.md#candidate-packaging) show how to reproduce
 the local build and checks.
 
 ### Option B: build from source
@@ -409,7 +409,7 @@ locked dependency first:
 rustup target add x86_64-unknown-linux-musl
 cargo fetch --locked              # needed on a fresh cargo cache, harmless otherwise
 make release-candidate-smoke      # two clean musl builds, compared member by member, then verified
-sha256sum dist/sley-2.0.6-linux-x86_64.tar.gz
+sha256sum dist/sley-2.0.7-linux-x86_64.tar.gz
 ```
 
 The build refuses a dirty working tree, so if you ran `make lint`, commit or

@@ -6,7 +6,12 @@ clearer scoped-proposal diagnostic and packaging that derives its version from
 the Cargo workspace. It does not establish model cost, quality or economic
 parity with another language.
 
-ARCHIVE_IDENTITY
+The Linux x86_64 archive was built from
+`8c5a8b101e84eb8be3e1b8bad4909cd80d49560a`. Two clean builds on the primary
+host produced identical bytes. Cross-host reproducibility is not claimed.
+The archive SHA-256 is
+`2844553e52b8a36c9bd8c5cd9adfe69d98db347f4f1106dc3e8b9e69e8d3d8b1`
+(7,196,331 bytes, 17 members). Provenance remains unsigned.
 
 ## Runtime and workbench changes
 
