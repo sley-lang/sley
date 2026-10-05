@@ -316,9 +316,17 @@ impl Store {
     ///
     /// # Errors
     ///
-    /// `AGENT_IO_FAILED` when the store cannot be written.
+    /// `AGENT_IO_FAILED` when allocation is exhausted or the store cannot be
+    /// written. If metadata publication fails, the complete candidate bytes
+    /// remain readable under their reserved handle; metadata is optional.
     pub fn save(&self, stored: &[u8], meta: &serde_json::Value) -> Result<String> {
-        let first = self.handles()?.last().copied().unwrap_or(0) + 1;
+        let first = self
+            .handles()?
+            .last()
+            .copied()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or_else(|| AgentError::new(AgentErrorCode::Io, "local record number exhausted"))?;
         let content = format!("{}\n", hex::encode(stored));
         let number = claim_file(
             &self.dir,
