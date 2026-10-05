@@ -1,0 +1,8 @@
+[
+  {
+    "class": "CreateEntity",
+    "key": "probe",
+    "kind": 13,
+    "payload": {}
+  }
+]

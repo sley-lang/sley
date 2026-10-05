@@ -1,0 +1,29 @@
+{
+  "agent_sha256": "7737c4f09c7236555155c25a967b4d52a8fb8f815464e7bcb33935e12e2728c5",
+  "application_script_sha256": "87abfe928d763d00afd91d9f9d61b404419ac458aab276fbd6930c103c9471fc",
+  "archive_entrypoint_and_csv": "PASS",
+  "canonical_tests": 17,
+  "existing_receipt_and_build_preserved": true,
+  "failing_maintenance_not_packaged": true,
+  "independent_oracle_cases": 445,
+  "maintenance_canonical_tests": 18,
+  "maintenance_changed_root_and_bytes": true,
+  "malformed_csv_refusals": [
+    "duplicate",
+    "extra-column",
+    "missing-column",
+    "formula-sku",
+    "decimal",
+    "out-of-i64",
+    "empty",
+    "bad-header",
+    "unclosed-quote",
+    "row-limit",
+    "byte-limit"
+  ],
+  "original_package_preserved": true,
+  "package_corruption_refused": true,
+  "result": "PASS",
+  "tested_candidate_committed": false,
+  "verifier_script_sha256": "0a8a4f1e5c3032fd5597cd13295c9a5d90cf2d01c6272d97d29318766850db77"
+}

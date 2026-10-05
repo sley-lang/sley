@@ -1,0 +1,70 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "cond",
+            "flag",
+            [
+              "yes"
+            ],
+            [
+              "no"
+            ]
+          ]
+        },
+        {
+          "name": "yes",
+          "term": [
+            "return",
+            "x"
+          ]
+        },
+        {
+          "name": "no",
+          "term": [
+            "return",
+            0
+          ]
+        }
+      ],
+      "fn": "choose",
+      "params": [
+        [
+          "flag",
+          "bool"
+        ],
+        [
+          "x",
+          "i64"
+        ]
+      ],
+      "returns": "i64"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        true,
+        7
+      ],
+      "expect": 7,
+      "fn": "choose",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        false,
+        7
+      ],
+      "expect": 0,
+      "fn": "choose",
+      "name": "case_1"
+    }
+  ],
+  "types": []
+}

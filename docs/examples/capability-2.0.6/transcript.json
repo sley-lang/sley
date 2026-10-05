@@ -1,0 +1,1420 @@
+[
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"checked-integers\"}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/checked-integers.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"checked_add\",\"visibility\":\"exported\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":5,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"59dafec6ad3cef91d2ef0fcc0d51c0a2a0b41c9a837d3866e4c4368ce25693a7\",\"view\":\"# sley view (AV1, non-canonical) root=59dafec6 after=c1\\nfn checked_add(x: i64, y: i64) -> Result<i64,ArithmeticError>   [93425a8d]\\n  entry:\\n    entry__t0 = add x, y\\n    return entry__t0\\n\"}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "call",
+      "checked_add",
+      "3",
+      "4",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":{\"Ok\":7},\"vm_micros\":10}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "call",
+      "checked_add",
+      "9223372036854775807",
+      "1",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":{\"Err\":{\"ArithmeticError\":\"Overflow\"}},\"vm_micros\":6}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"ffb43e69f9908c464a1963b54fd102bd183d76c106d963c9f6ec2b94171586fe\"}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"59dafec6ad3cef91d2ef0fcc0d51c0a2a0b41c9a837d3866e4c4368ce25693a7\",\"view\":\"# sley view (AV1, non-canonical) root=59dafec6\\nfn checked_add(x: i64, y: i64) -> Result<i64,ArithmeticError>   [93425a8d]\\n  entry:\\n    entry__t0 = add x, y\\n    return entry__t0\\n\\n\"}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/checked-integers-tests.json",
+      "--base-root",
+      "59dafec6ad3cef91d2ef0fcc0d51c0a2a0b41c9a837d3866e4c4368ce25693a7"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Ok(7)\",\"expected\":\"Ok(7)\",\"pass\":true,\"target\":\"checked_add\",\"test\":\"case_0\"},{\"actual\":\"Err(ArithmeticError.Overflow)\",\"expected\":\"Err(ArithmeticError.Overflow)\",\"pass\":true,\"target\":\"checked_add\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"3aaa2e3fca92011683a04d8bdf1602374b4f17c144bcb26ed9403b54fdaa0f68\"}\n",
+    "workspace": "checked-integers"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"checked-integers-tested\"}\n",
+    "workspace": "checked-integers-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/checked-integers-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"checked_add\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":7,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Ok(7)\",\"expected\":\"Ok(7)\",\"pass\":true,\"target\":\"checked_add\",\"test\":\"case_0\"},{\"actual\":\"Err(ArithmeticError.Overflow)\",\"expected\":\"Err(ArithmeticError.Overflow)\",\"pass\":true,\"target\":\"checked_add\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "checked-integers-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "checked-integers-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"boolean-branches\"}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/boolean-branches.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"choose\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_0\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":8,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"c7a0a21a13f7f6eda4c23f202a951936a59d29d30311dff991add6a36d4c949a\",\"view\":\"# sley view (AV1, non-canonical) root=c7a0a21a after=c1\\nfn choose(flag: bool, x: i64) -> i64   [9c01aaca]\\n  entry:\\n    cond flag -> yes, no\\n  yes:\\n    return x\\n  no:\\n    no__t0 = const k_0 (0)\\n    return no__t0\\nconst k_0: i64 = 0\\n\"}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "call",
+      "choose",
+      "true",
+      "7",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":0,\"result\":7,\"vm_micros\":8}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "call",
+      "choose",
+      "false",
+      "7",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":3,\"instructions\":1,\"result\":0,\"vm_micros\":9}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"91b91bcfa85ab3f02dcc391aaefc7966a9cece7fa9f542f6d4da20117982ed54\"}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"c7a0a21a13f7f6eda4c23f202a951936a59d29d30311dff991add6a36d4c949a\",\"view\":\"# sley view (AV1, non-canonical) root=c7a0a21a\\nconst k_0: i64 = 0\\nfn choose(flag: bool, x: i64) -> i64   [9c01aaca]\\n  entry:\\n    cond flag -> yes, no\\n  yes:\\n    return x\\n  no:\\n    no__t0 = const k_0 (0)\\n    return no__t0\\n\\n\"}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/boolean-branches-tests.json",
+      "--base-root",
+      "c7a0a21a13f7f6eda4c23f202a951936a59d29d30311dff991add6a36d4c949a"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"7\",\"expected\":\"7\",\"pass\":true,\"target\":\"choose\",\"test\":\"case_0\"},{\"actual\":\"0\",\"expected\":\"0\",\"pass\":true,\"target\":\"choose\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"2dc34ae535377df5f2797da9eefd5173fb980e9cef2a813a76f10d45eacec837\"}\n",
+    "workspace": "boolean-branches"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"boolean-branches-tested\"}\n",
+    "workspace": "boolean-branches-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/boolean-branches-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"choose\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":10,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"7\",\"expected\":\"7\",\"pass\":true,\"target\":\"choose\",\"test\":\"case_0\"},{\"actual\":\"0\",\"expected\":\"0\",\"pass\":true,\"target\":\"choose\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "boolean-branches-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "boolean-branches-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"vectors-and-loops\"}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/vectors-and-loops.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"product\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_0u\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_1\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_1u\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":37,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"872efcff22e2bcdfd02e093db6bda19e771116a6fd9142d851b40699d866546d\",\"view\":\"# sley view (AV1, non-canonical) root=872efcff after=c1\\nfn product(items: Vec<i64>) -> Result<i64,ArithmeticError>   [8d7db3b4]\\n  entry:\\n    n = vec_len items\\n    entry__t0 = const k_0u (0)\\n    entry__t1 = const k_1 (1)\\n    br loop(entry__t0, entry__t1)\\n  loop(i: u64, acc: i64):\\n    loop__t0 = lt i, entry.n\\n    cond loop__t0 -> body(i, acc), done(acc)\\n  body(i: u64, acc: i64):\\n    x__r = vec_get items, i\\n    switch x__r: None -> bounds, Some -> body__x($, acc, i)\\n  done(acc: i64):\\n    done__ok = ok acc\\n    return done__ok\\n  bounds:\\n    trap unreachable\\n  body__x(x: i64, acc: i64, i: u64):\\n    next__r = mul acc, x\\n    switch next__r: Ok -> body__next($, i), Err -> __err($)\\n  body__next(next: i64, i: u64):\\n    j__a1 = const k_1u (1)\\n    j__r = add i, j__a1\\n    switch j__r: Ok -> body__j($, next), Err -> bounds\\n  body__j(j: u64, next: i64):\\n    br loop(j, next)\\n  __err(e: ArithmeticError):\\n    r = err e\\n    return r\\nconst k_0u: u64 = 0\\nconst k_1: i64 = 1\\nconst k_1u: u64 = 1\\n\"}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "call",
+      "product",
+      "[]",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":11,\"instructions\":5,\"result\":{\"Ok\":1},\"vm_micros\":9}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "call",
+      "product",
+      "[2, -3, 4]",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":95,\"instructions\":20,\"result\":{\"Ok\":-24},\"vm_micros\":11}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"7a6834db62f6457e8b659d81797a94f32122e1d7b61d8114ae20b7f5f12adc2b\"}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"872efcff22e2bcdfd02e093db6bda19e771116a6fd9142d851b40699d866546d\",\"view\":\"# sley view (AV1, non-canonical) root=872efcff\\nconst k_0u: u64 = 0\\nconst k_1: i64 = 1\\nconst k_1u: u64 = 1\\nfn product(items: Vec<i64>) -> Result<i64,ArithmeticError>   [8d7db3b4]\\n  entry:\\n    n = vec_len items\\n    entry__t0 = const k_0u (0)\\n    entry__t1 = const k_1 (1)\\n    br loop(entry__t0, entry__t1)\\n  loop(i: u64, acc: i64):\\n    loop__t0 = lt i, entry.n\\n    cond loop__t0 -> body(i, acc), done(acc)\\n  body(i: u64, acc: i64):\\n    x__r = vec_get items, i\\n    switch x__r: None -> bounds, Some -> body__x($, acc, i)\\n  done(acc: i64):\\n    done__ok = ok acc\\n    return done__ok\\n  bounds:\\n    trap unreachable\\n  body__x(x: i64, acc: i64, i: u64):\\n    next__r = mul acc, x\\n    switch next__r: Ok -> body__next($, i), Err -> __err($)\\n  body__next(next: i64, i: u64):\\n    j__a1 = const k_1u (1)\\n    j__r = add i, j__a1\\n    switch j__r: Ok -> body__j($, next), Err -> bounds\\n  body__j(j: u64, next: i64):\\n    br loop(j, next)\\n  __err(e: ArithmeticError):\\n    r = err e\\n    return r\\n\\n\"}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/vectors-and-loops-tests.json",
+      "--base-root",
+      "872efcff22e2bcdfd02e093db6bda19e771116a6fd9142d851b40699d866546d"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Ok(1)\",\"expected\":\"Ok(1)\",\"pass\":true,\"target\":\"product\",\"test\":\"case_0\"},{\"actual\":\"Ok(-24)\",\"expected\":\"Ok(-24)\",\"pass\":true,\"target\":\"product\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"2eab9370c7be3ddbf8bf30f8be1c4972276092bb345d40fbb1443a8dc77f8300\"}\n",
+    "workspace": "vectors-and-loops"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"vectors-and-loops-tested\"}\n",
+    "workspace": "vectors-and-loops-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/vectors-and-loops-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"product\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_0u\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_1\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_1u\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":39,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Ok(1)\",\"expected\":\"Ok(1)\",\"pass\":true,\"target\":\"product\",\"test\":\"case_0\"},{\"actual\":\"Ok(-24)\",\"expected\":\"Ok(-24)\",\"pass\":true,\"target\":\"product\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "vectors-and-loops-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "vectors-and-loops-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"named-records\"}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/named-records.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"x_of\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"type\",\"name\":\"Point\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":5,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"62d05e91f289e29e0b6e1b5632c5223b3e571da40180fa87b74f5cefa7d57289\",\"view\":\"# sley view (AV1, non-canonical) root=62d05e91 after=c1\\ntype Point = {x: i64, y: i64}\\nfn x_of(p: Point) -> i64   [b7401623]\\n  entry:\\n    entry__t0 = field Point.x p\\n    return entry__t0\\n\"}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "call",
+      "x_of",
+      "{\"x\": 7, \"y\": 11}",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":7,\"vm_micros\":10}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "call",
+      "x_of",
+      "{\"x\": -2, \"y\": 0}",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":-2,\"vm_micros\":10}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"03696e1afd30189f63817753a466457f6a7fbd30cb06de395adc68becd79fe95\"}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"62d05e91f289e29e0b6e1b5632c5223b3e571da40180fa87b74f5cefa7d57289\",\"view\":\"# sley view (AV1, non-canonical) root=62d05e91\\ntype Point = {x: i64, y: i64}\\nfn x_of(p: Point) -> i64   [b7401623]\\n  entry:\\n    entry__t0 = field Point.x p\\n    return entry__t0\\n\\n\"}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/named-records-tests.json",
+      "--base-root",
+      "62d05e91f289e29e0b6e1b5632c5223b3e571da40180fa87b74f5cefa7d57289"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"7\",\"expected\":\"7\",\"pass\":true,\"target\":\"x_of\",\"test\":\"case_0\"},{\"actual\":\"-2\",\"expected\":\"-2\",\"pass\":true,\"target\":\"x_of\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"1b86f3eeeffb25309c4ce5789d01eebe5f30fe602735de768f09a5837287620e\"}\n",
+    "workspace": "named-records"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"named-records-tested\"}\n",
+    "workspace": "named-records-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/named-records-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"x_of\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"type\",\"name\":\"Point\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":7,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"7\",\"expected\":\"7\",\"pass\":true,\"target\":\"x_of\",\"test\":\"case_0\"},{\"actual\":\"-2\",\"expected\":\"-2\",\"pass\":true,\"target\":\"x_of\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "named-records-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "named-records-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"named-variants\"}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/named-variants.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"unwrap\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"type\",\"name\":\"Choice\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_0\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":9,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"3e7b8ebd206dac029645333c738c760481051ef78f5a2a1af2fdae1c704bce78\",\"view\":\"# sley view (AV1, non-canonical) root=3e7b8ebd after=c1\\ntype Choice = Empty | Number(i64)\\nfn unwrap(value: Choice) -> i64   [84ba29d2]\\n  entry:\\n    switch value: Number -> number($), Empty -> empty\\n  empty:\\n    empty__t0 = const k_0 (0)\\n    return empty__t0\\n  number(n: i64):\\n    return n\\nconst k_0: i64 = 0\\n\"}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "call",
+      "unwrap",
+      "\"Empty\"",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":5,\"instructions\":1,\"result\":0,\"vm_micros\":14}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "call",
+      "unwrap",
+      "{\"Number\": 9}",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":5,\"instructions\":0,\"result\":9,\"vm_micros\":12}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"c606601c77c54e5af86e1422643d06e7f111126ba4041e988d751c329affbe5e\"}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"3e7b8ebd206dac029645333c738c760481051ef78f5a2a1af2fdae1c704bce78\",\"view\":\"# sley view (AV1, non-canonical) root=3e7b8ebd\\ntype Choice = Empty | Number(i64)\\nconst k_0: i64 = 0\\nfn unwrap(value: Choice) -> i64   [84ba29d2]\\n  entry:\\n    switch value: Number -> number($), Empty -> empty\\n  empty:\\n    empty__t0 = const k_0 (0)\\n    return empty__t0\\n  number(n: i64):\\n    return n\\n\\n\"}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/named-variants-tests.json",
+      "--base-root",
+      "3e7b8ebd206dac029645333c738c760481051ef78f5a2a1af2fdae1c704bce78"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"0\",\"expected\":\"0\",\"pass\":true,\"target\":\"unwrap\",\"test\":\"case_0\"},{\"actual\":\"9\",\"expected\":\"9\",\"pass\":true,\"target\":\"unwrap\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"ee9275d77b84ec718dd0ae409e6ee0dbd54d8a6b0b4f782822e4995c8c90904b\"}\n",
+    "workspace": "named-variants"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"named-variants-tested\"}\n",
+    "workspace": "named-variants-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/named-variants-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"unwrap\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"type\",\"name\":\"Choice\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":11,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"0\",\"expected\":\"0\",\"pass\":true,\"target\":\"unwrap\",\"test\":\"case_0\"},{\"actual\":\"9\",\"expected\":\"9\",\"pass\":true,\"target\":\"unwrap\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "named-variants-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "named-variants-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"text-equality\"}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/text-equality.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"same\",\"visibility\":\"exported\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":5,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"607b7836242ef5ab990298568a70418beaa0bc552d5941013e51fe4e1022d5d4\",\"view\":\"# sley view (AV1, non-canonical) root=607b7836 after=c1\\nfn same(a: text, b: text) -> bool   [28504b82]\\n  entry:\\n    entry__t0 = eq a, b\\n    return entry__t0\\n\"}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "call",
+      "same",
+      "\"bolt\"",
+      "\"bolt\"",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":true,\"vm_micros\":8}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "call",
+      "same",
+      "\"bolt\"",
+      "\"Bolt\"",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":false,\"vm_micros\":8}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"4bbebbc8f6d0c539be9dadf7bc331c4f6e7b1e45addf5c48c11ada1e707981fc\"}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"607b7836242ef5ab990298568a70418beaa0bc552d5941013e51fe4e1022d5d4\",\"view\":\"# sley view (AV1, non-canonical) root=607b7836\\nfn same(a: text, b: text) -> bool   [28504b82]\\n  entry:\\n    entry__t0 = eq a, b\\n    return entry__t0\\n\\n\"}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/text-equality-tests.json",
+      "--base-root",
+      "607b7836242ef5ab990298568a70418beaa0bc552d5941013e51fe4e1022d5d4"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"true\",\"expected\":\"true\",\"pass\":true,\"target\":\"same\",\"test\":\"case_0\"},{\"actual\":\"false\",\"expected\":\"false\",\"pass\":true,\"target\":\"same\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"ea965f0e689802d0325d352e2a9e07b7b78570fbdfabe60634c42d4c71ee2c31\"}\n",
+    "workspace": "text-equality"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"text-equality-tested\"}\n",
+    "workspace": "text-equality-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/text-equality-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"same\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":7,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"true\",\"expected\":\"true\",\"pass\":true,\"target\":\"same\",\"test\":\"case_0\"},{\"actual\":\"false\",\"expected\":\"false\",\"pass\":true,\"target\":\"same\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "text-equality-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "text-equality-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"ordered-map-lookup\"}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/ordered-map-lookup.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"lookup\",\"visibility\":\"exported\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":5,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"bc6babac541f5b59a0e39e4482ddc0a6f5bdba6b712937e4154638c6a6753ae0\",\"view\":\"# sley view (AV1, non-canonical) root=bc6babac after=c1\\nfn lookup(m: Map<text,i64>, key: text) -> Option<i64>   [d947e38a]\\n  entry:\\n    entry__t0 = map_get m, key\\n    return entry__t0\\n\"}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "call",
+      "lookup",
+      "[[\"bolt\", 8]]",
+      "\"bolt\"",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":{\"Some\":8},\"vm_micros\":16}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "call",
+      "lookup",
+      "[[\"bolt\", 8]]",
+      "\"nut\"",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":\"None\",\"vm_micros\":15}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"502efdfa69f09624c1f12fb9a2e1f292c2b07a4b431d8d5390c7e4dc08758715\"}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"bc6babac541f5b59a0e39e4482ddc0a6f5bdba6b712937e4154638c6a6753ae0\",\"view\":\"# sley view (AV1, non-canonical) root=bc6babac\\nfn lookup(m: Map<text,i64>, key: text) -> Option<i64>   [d947e38a]\\n  entry:\\n    entry__t0 = map_get m, key\\n    return entry__t0\\n\\n\"}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/ordered-map-lookup-tests.json",
+      "--base-root",
+      "bc6babac541f5b59a0e39e4482ddc0a6f5bdba6b712937e4154638c6a6753ae0"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Some(8)\",\"expected\":\"Some(8)\",\"pass\":true,\"target\":\"lookup\",\"test\":\"case_0\"},{\"actual\":\"None\",\"expected\":\"None\",\"pass\":true,\"target\":\"lookup\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"b14a05c0f595d7f23665ca96ea7bfe5bedbb715ff6118a3d912e79c392d89b20\"}\n",
+    "workspace": "ordered-map-lookup"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"ordered-map-lookup-tested\"}\n",
+    "workspace": "ordered-map-lookup-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/ordered-map-lookup-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"lookup\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":7,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Some(8)\",\"expected\":\"Some(8)\",\"pass\":true,\"target\":\"lookup\",\"test\":\"case_0\"},{\"actual\":\"None\",\"expected\":\"None\",\"pass\":true,\"target\":\"lookup\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "ordered-map-lookup-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "ordered-map-lookup-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"floating-addition\"}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/floating-addition.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"float_add\",\"visibility\":\"exported\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":5,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"fb330ccec190674283deebe1bde149adf0c6fb83cec159afafccc9ad5b746515\",\"view\":\"# sley view (AV1, non-canonical) root=fb330cce after=c1\\nfn float_add(x: f64, y: f64) -> f64   [d6723d84]\\n  entry:\\n    entry__t0 = fadd x, y\\n    return entry__t0\\n\"}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "call",
+      "float_add",
+      "1.5",
+      "2.25",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":3.75,\"vm_micros\":11}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "call",
+      "float_add",
+      "-1.0",
+      "0.5",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":-0.5,\"vm_micros\":11}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"7a41c9e038a0f8172d7d12190de61be775d7339591e607a7a4cee26eb8fc0cad\"}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"fb330ccec190674283deebe1bde149adf0c6fb83cec159afafccc9ad5b746515\",\"view\":\"# sley view (AV1, non-canonical) root=fb330cce\\nfn float_add(x: f64, y: f64) -> f64   [d6723d84]\\n  entry:\\n    entry__t0 = fadd x, y\\n    return entry__t0\\n\\n\"}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/floating-addition-tests.json",
+      "--base-root",
+      "fb330ccec190674283deebe1bde149adf0c6fb83cec159afafccc9ad5b746515"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"3.75\",\"expected\":\"3.75\",\"pass\":true,\"target\":\"float_add\",\"test\":\"case_0\"},{\"actual\":\"-0.5\",\"expected\":\"-0.5\",\"pass\":true,\"target\":\"float_add\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"76af4b5b18b6ff917c336d08ec47c273ecbfd53ff43f296d5bc3fbb8f9a0cdfd\"}\n",
+    "workspace": "floating-addition"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"floating-addition-tested\"}\n",
+    "workspace": "floating-addition-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/floating-addition-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"float_add\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":7,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"3.75\",\"expected\":\"3.75\",\"pass\":true,\"target\":\"float_add\",\"test\":\"case_0\"},{\"actual\":\"-0.5\",\"expected\":\"-0.5\",\"pass\":true,\"target\":\"float_add\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "floating-addition-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "floating-addition-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"local-cells\"}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/local-cells.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"local_update\",\"visibility\":\"exported\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":7,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"8a238223c4ae01eb6546f0e5b8333e6aeb48d11dee0d87743ffe21fbcdf18304\",\"view\":\"# sley view (AV1, non-canonical) root=8a238223 after=c1\\nfn local_update(x: i64, y: i64) -> i64   [a02e004f]\\n  entry:\\n    c = cell x\\n    set = cell_set c, y\\n    got = cell_get c\\n    return got\\n\"}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "call",
+      "local_update",
+      "1",
+      "7",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":4,\"instructions\":3,\"result\":7,\"vm_micros\":13}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "call",
+      "local_update",
+      "7",
+      "-2",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":4,\"instructions\":3,\"result\":-2,\"vm_micros\":7}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"511b8ec3c20728b9bd1dabc425ca09a3c8938a969d09d4aea9a1a6869e0c3be4\"}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"8a238223c4ae01eb6546f0e5b8333e6aeb48d11dee0d87743ffe21fbcdf18304\",\"view\":\"# sley view (AV1, non-canonical) root=8a238223\\nfn local_update(x: i64, y: i64) -> i64   [a02e004f]\\n  entry:\\n    c = cell x\\n    set = cell_set c, y\\n    got = cell_get c\\n    return got\\n\\n\"}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/local-cells-tests.json",
+      "--base-root",
+      "8a238223c4ae01eb6546f0e5b8333e6aeb48d11dee0d87743ffe21fbcdf18304"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"7\",\"expected\":\"7\",\"pass\":true,\"target\":\"local_update\",\"test\":\"case_0\"},{\"actual\":\"-2\",\"expected\":\"-2\",\"pass\":true,\"target\":\"local_update\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"9b1450fa9b37578bbc7301d718e6d3828b4ea128d109f3bf2dc678e8f0fb4b0b\"}\n",
+    "workspace": "local-cells"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"local-cells-tested\"}\n",
+    "workspace": "local-cells-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/local-cells-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"local_update\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":9,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"7\",\"expected\":\"7\",\"pass\":true,\"target\":\"local_update\",\"test\":\"case_0\"},{\"actual\":\"-2\",\"expected\":\"-2\",\"pass\":true,\"target\":\"local_update\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "local-cells-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "local-cells-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"direct-calls\"}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/direct-calls.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"checked_add\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"twice\",\"visibility\":\"exported\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":9,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "view",
+      "--after",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"f02c3bb2735a13b58e6c6b484d9496833700622b224ad71eefe7064cf411d9a2\",\"view\":\"# sley view (AV1, non-canonical) root=f02c3bb2 after=c1\\nfn checked_add(x: i64, y: i64) -> Result<i64,ArithmeticError>   [164da776]\\n  entry:\\n    entry__t0 = add x, y\\n    return entry__t0\\nfn twice(x: i64) -> Result<i64,ArithmeticError>   [773d08a4]\\n  entry:\\n    entry__t0 = call checked_add x, x\\n    return entry__t0\\n\"}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "call",
+      "twice",
+      "4",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":5,\"instructions\":2,\"result\":{\"Ok\":8},\"vm_micros\":12}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "call",
+      "twice",
+      "-3",
+      "--on",
+      "c1",
+      "--stats"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"fuel\":5,\"instructions\":2,\"result\":{\"Ok\":-6},\"vm_micros\":12}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"9040d500c528bf79d76c1a7b2a66b67e3b120a8003b87ebdcd80e4d7f499807c\"}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "view"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"root\":\"f02c3bb2735a13b58e6c6b484d9496833700622b224ad71eefe7064cf411d9a2\",\"view\":\"# sley view (AV1, non-canonical) root=f02c3bb2\\nfn checked_add(x: i64, y: i64) -> Result<i64,ArithmeticError>   [164da776]\\n  entry:\\n    entry__t0 = add x, y\\n    return entry__t0\\n\\nfn twice(x: i64) -> Result<i64,ArithmeticError>   [773d08a4]\\n  entry:\\n    entry__t0 = call checked_add x, x\\n    return entry__t0\\n\\n\"}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/direct-calls-tests.json",
+      "--base-root",
+      "f02c3bb2735a13b58e6c6b484d9496833700622b224ad71eefe7064cf411d9a2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":2,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Ok(8)\",\"expected\":\"Ok(8)\",\"pass\":true,\"target\":\"twice\",\"test\":\"case_0\"},{\"actual\":\"Ok(-6)\",\"expected\":\"Ok(-6)\",\"pass\":true,\"target\":\"twice\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "commit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c2\",\"transaction\":\"ec6da8a68e14cb9ef0a21a2578cc39c573e8ff8993febf33ca66436763905416\"}\n",
+    "workspace": "direct-calls"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2626262626262626262626262626262626262626262626262626262626262626"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"direct-calls-tested\"}\n",
+    "workspace": "direct-calls-tested"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/direct-calls-combined.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"checked_add\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"twice\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_0\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"case_1\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"sley-agent submit d1\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":11,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":2,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"Ok(8)\",\"expected\":\"Ok(8)\",\"pass\":true,\"target\":\"twice\",\"test\":\"case_0\"},{\"actual\":\"Ok(-6)\",\"expected\":\"Ok(-6)\",\"pass\":true,\"target\":\"twice\",\"test\":\"case_1\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":2,\"valid\":true}}\n",
+    "workspace": "direct-calls-tested"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n",
+    "workspace": "direct-calls-tested"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2727272727272727272727272727272727272727272727272727272727272727"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"declared-type-parameter\"}\n",
+    "workspace": "declared-type-parameter"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/declared-type-parameter.json"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"generic_marker\",\"visibility\":\"exported\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add AF1 \\\"tests\\\" for what c1 changes and try again (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":3,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n",
+    "workspace": "declared-type-parameter"
+  },
+  {
+    "args": [
+      "call",
+      "generic_marker",
+      "4",
+      "--on",
+      "c1"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"lowering refused: VM_LOWER_PROFILE_UNSUPPORTED\",\"error\":\"AGENT_EXECUTION_REFUSED\"}\n",
+    "workspace": "declared-type-parameter"
+  },
+  {
+    "args": [
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"4111a6208d7b3c091a4565b6e26c706cb62a82d5be4ca155f27b21933720c78f\"}\n",
+    "workspace": "declared-type-parameter"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2828282828282828282828282828282828282828282828282828282828282828"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"effect-definition\"}\n",
+    "workspace": "effect-definition"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/effect-definition.json"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"/0/payload: kind 11 is not supported on the raw path (use kinds 3-9 or 14)\\n  fix: edit inputs/effect-definition.json in place at those pointers (no need to rewrite it) and run try again\",\"draft\":\"d1@r1\",\"error\":\"AGENT_FRAME_INVALID\",\"next\":\"repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\\\"set\\\": [{\\\"at\\\": \\\"/0/payload\\\", \\\"value\\\": ...}]}\",\"obligations\":[{\"at\":\"/0/payload\",\"available\":null,\"count\":1,\"decision\":\"kind 11 is not supported on the raw path (use kinds 3-9 or 14)\",\"expected\":null,\"id\":\"o1\",\"kernel\":null,\"symbol\":\"AGENT_FRAME_INVALID\"}],\"state\":\"incomplete\"}\n",
+    "workspace": "effect-definition"
+  },
+  {
+    "args": [
+      "init",
+      "--seed",
+      "2828282828282828282828282828282828282828282828282828282828282828"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"contract-definition\"}\n",
+    "workspace": "contract-definition"
+  },
+  {
+    "args": [
+      "try",
+      "inputs/contract-definition.json"
+    ],
+    "exit_code": 2,
+    "stderr": "",
+    "stdout": "{\"detail\":\"/0/payload: kind 13 is not supported on the raw path (use kinds 3-9 or 14)\\n  fix: edit inputs/contract-definition.json in place at those pointers (no need to rewrite it) and run try again\",\"draft\":\"d1@r1\",\"error\":\"AGENT_FRAME_INVALID\",\"next\":\"repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\\\"set\\\": [{\\\"at\\\": \\\"/0/payload\\\", \\\"value\\\": ...}]}\",\"obligations\":[{\"at\":\"/0/payload\",\"available\":null,\"count\":1,\"decision\":\"kind 13 is not supported on the raw path (use kinds 3-9 or 14)\",\"expected\":null,\"id\":\"o1\",\"kernel\":null,\"symbol\":\"AGENT_FRAME_INVALID\"}],\"state\":\"incomplete\"}\n",
+    "workspace": "contract-definition"
+  }
+]

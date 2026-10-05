@@ -1,0 +1,4 @@
+sku,reorder_units,status
+SKU-0,18,ok
+SKU-1,0,ok
+SKU-2,,InvalidInput

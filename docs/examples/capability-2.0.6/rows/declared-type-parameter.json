@@ -1,0 +1,24 @@
+{
+  "advisory_execution": "not reached",
+  "authoritative_test_evidence": "not measured",
+  "execution_refusal": {
+    "detail": "lowering refused: VM_LOWER_PROFILE_UNSUPPORTED",
+    "error": "AGENT_EXECUTION_REFUSED"
+  },
+  "feature": "declared-type-parameter",
+  "lowering": "VM_LOWER_PROFILE_UNSUPPORTED",
+  "representation": "canonical raw candidate created",
+  "scope": "one declared, unused type parameter; not a claim of executable polymorphism",
+  "tested_commit": "not measured",
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "4111a6208d7b3c091a4565b6e26c706cb62a82d5be4ca155f27b21933720c78f"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

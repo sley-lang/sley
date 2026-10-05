@@ -1,0 +1,89 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "Some(8)",
+      "expected": "Some(8)",
+      "pass": true,
+      "target": "lookup",
+      "test": "case_0"
+    },
+    {
+      "actual": "None",
+      "expected": "None",
+      "pass": true,
+      "target": "lookup",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": {
+        "Some": 8
+      },
+      "vm_micros": 16
+    },
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": "None",
+      "vm_micros": 15
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "ordered-map-lookup",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "bc6babac541f5b59a0e39e4482ddc0a6f5bdba6b712937e4154638c6a6753ae0",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "Some(8)",
+        "expected": "Some(8)",
+        "pass": true,
+        "target": "lookup",
+        "test": "case_0"
+      },
+      {
+        "actual": "None",
+        "expected": "None",
+        "pass": true,
+        "target": "lookup",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "b14a05c0f595d7f23665ca96ea7bfe5bedbb715ff6118a3d912e79c392d89b20"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "502efdfa69f09624c1f12fb9a2e1f292c2b07a4b431d8d5390c7e4dc08758715"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

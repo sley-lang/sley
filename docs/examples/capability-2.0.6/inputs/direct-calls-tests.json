@@ -1,0 +1,25 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        4
+      ],
+      "expect": {
+        "Ok": 8
+      },
+      "fn": "twice",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        -3
+      ],
+      "expect": {
+        "Ok": -6
+      },
+      "fn": "twice",
+      "name": "case_1"
+    }
+  ]
+}

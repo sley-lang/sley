@@ -1,0 +1,50 @@
+[
+  {
+    "class": "CreateEntity",
+    "key": "generic_marker",
+    "kind": 5,
+    "payload": {
+      "blocks": [
+        "@generic_marker.entry"
+      ],
+      "entry_block": "@generic_marker.entry",
+      "parameters": [
+        "@generic_marker.x"
+      ],
+      "result_type": "i64",
+      "type_parameters": [
+        0
+      ]
+    }
+  },
+  {
+    "class": "CreateEntity",
+    "key": "generic_marker.x",
+    "kind": 6,
+    "payload": {
+      "ordinal": 0,
+      "owner": "@generic_marker",
+      "role": "Function",
+      "value_type": "i64"
+    }
+  },
+  {
+    "class": "CreateEntity",
+    "key": "generic_marker.entry",
+    "kind": 7,
+    "payload": {
+      "function": "@generic_marker",
+      "operations": [],
+      "parameters": [],
+      "terminator": {
+        "value": {
+          "value": {
+            "value": "@generic_marker.x",
+            "variant": "Parameter"
+          }
+        },
+        "variant": "Return"
+      }
+    }
+  }
+]

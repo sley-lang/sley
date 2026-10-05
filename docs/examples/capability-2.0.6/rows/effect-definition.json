@@ -1,0 +1,29 @@
+{
+  "advisory_execution": "not reached",
+  "authoritative_test_evidence": "not reached",
+  "feature": "effect-definition",
+  "lowering": "not reached",
+  "refusal": {
+    "detail": "/0/payload: kind 11 is not supported on the raw path (use kinds 3-9 or 14)\n  fix: edit inputs/effect-definition.json in place at those pointers (no need to rewrite it) and run try again",
+    "draft": "d1@r1",
+    "error": "AGENT_FRAME_INVALID",
+    "next": "repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/0/payload\", \"value\": ...}]}",
+    "obligations": [
+      {
+        "at": "/0/payload",
+        "available": null,
+        "count": 1,
+        "decision": "kind 11 is not supported on the raw path (use kinds 3-9 or 14)",
+        "expected": null,
+        "id": "o1",
+        "kernel": null,
+        "symbol": "AGENT_FRAME_INVALID"
+      }
+    ],
+    "state": "incomplete"
+  },
+  "representation": "canonical kind exists in schema; raw authoring refuses kind",
+  "tested_commit": "not reached",
+  "untested_commit": "not reached",
+  "validation": "not reached"
+}

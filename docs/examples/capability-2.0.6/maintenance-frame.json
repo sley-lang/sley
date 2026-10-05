@@ -1,0 +1,592 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "ops": [
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "needed",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "le",
+                "pack",
+                0
+              ]
+            ],
+            [
+              "q",
+              "div?Overflow",
+              "needed",
+              "pack"
+            ],
+            [
+              "r",
+              "rem?Overflow",
+              "needed",
+              "pack"
+            ]
+          ],
+          "term": [
+            "cond",
+            [
+              "eq",
+              "r",
+              0
+            ],
+            [
+              "exact",
+              "needed"
+            ],
+            [
+              "up",
+              "q"
+            ]
+          ]
+        },
+        {
+          "name": "exact",
+          "params": [
+            [
+              "value",
+              "i64"
+            ]
+          ],
+          "term": [
+            "ok",
+            "value"
+          ]
+        },
+        {
+          "name": "up",
+          "ops": [
+            [
+              "more",
+              "add?Overflow",
+              "q",
+              1
+            ],
+            [
+              "units",
+              "mul?Overflow",
+              "more",
+              "pack"
+            ]
+          ],
+          "params": [
+            [
+              "q",
+              "i64"
+            ]
+          ],
+          "term": [
+            "ok",
+            "units"
+          ]
+        }
+      ],
+      "fn": "round_pack",
+      "params": [
+        [
+          "needed",
+          "i64"
+        ],
+        [
+          "pack",
+          "i64"
+        ]
+      ],
+      "returns": "Result<i64,ReorderError>"
+    },
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "ops": [
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "on_hand",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "on_order",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "reserved",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "daily_demand",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "days",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "safety",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "lt",
+                "pack",
+                0
+              ]
+            ],
+            [
+              "!InvalidInput",
+              "if",
+              [
+                "eq",
+                "pack",
+                0
+              ]
+            ],
+            [
+              "demand",
+              "mul?Overflow",
+              "daily_demand",
+              "days"
+            ],
+            [
+              "buffered",
+              "add?Overflow",
+              "demand",
+              "safety"
+            ],
+            [
+              "target",
+              "add?Overflow",
+              "buffered",
+              "reserved"
+            ],
+            [
+              "available",
+              "add?Overflow",
+              "on_hand",
+              "on_order"
+            ]
+          ],
+          "term": [
+            "cond",
+            [
+              "ge",
+              "available",
+              "target"
+            ],
+            [
+              "enough"
+            ],
+            [
+              "short",
+              "target",
+              "available"
+            ]
+          ]
+        },
+        {
+          "name": "enough",
+          "term": [
+            "ok",
+            0
+          ]
+        },
+        {
+          "name": "short",
+          "ops": [
+            [
+              "needed",
+              "sub?Overflow",
+              "target",
+              "available"
+            ],
+            [
+              "rounded",
+              "call?",
+              "round_pack",
+              "needed",
+              "pack"
+            ]
+          ],
+          "params": [
+            [
+              "target",
+              "i64"
+            ],
+            [
+              "available",
+              "i64"
+            ]
+          ],
+          "term": [
+            "ok",
+            "rounded"
+          ]
+        }
+      ],
+      "fn": "reorder",
+      "params": [
+        [
+          "on_hand",
+          "i64"
+        ],
+        [
+          "on_order",
+          "i64"
+        ],
+        [
+          "reserved",
+          "i64"
+        ],
+        [
+          "daily_demand",
+          "i64"
+        ],
+        [
+          "days",
+          "i64"
+        ],
+        [
+          "safety",
+          "i64"
+        ],
+        [
+          "pack",
+          "i64"
+        ]
+      ],
+      "returns": "Result<i64,ReorderError>"
+    }
+  ],
+  "test_tables": [
+    {
+      "cases": [
+        {
+          "args": [
+            10,
+            5,
+            3,
+            4,
+            7,
+            2,
+            6
+          ],
+          "expect": {
+            "Ok": 18
+          },
+          "name": "reorder_case_0"
+        },
+        {
+          "args": [
+            100,
+            0,
+            0,
+            4,
+            7,
+            2,
+            6
+          ],
+          "expect": {
+            "Ok": 0
+          },
+          "name": "reorder_case_1"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "expect": {
+            "Ok": 0
+          },
+          "name": "reorder_case_2"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            1,
+            6,
+            0,
+            6
+          ],
+          "expect": {
+            "Ok": 6
+          },
+          "name": "reorder_case_3"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            1,
+            7,
+            0,
+            6
+          ],
+          "expect": {
+            "Ok": 12
+          },
+          "name": "reorder_case_4"
+        },
+        {
+          "args": [
+            0,
+            20,
+            5,
+            2,
+            10,
+            0,
+            4
+          ],
+          "expect": {
+            "Ok": 8
+          },
+          "name": "reorder_case_5"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_6"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            9223372036854775807,
+            2,
+            0,
+            1
+          ],
+          "expect": {
+            "Err": "Overflow"
+          },
+          "name": "reorder_case_7"
+        },
+        {
+          "args": [
+            9223372036854775807,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "expect": {
+            "Err": "Overflow"
+          },
+          "name": "reorder_case_8"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            1,
+            9223372036854775807,
+            0,
+            2
+          ],
+          "expect": {
+            "Err": "Overflow"
+          },
+          "name": "reorder_case_9"
+        },
+        {
+          "args": [
+            -1,
+            0,
+            0,
+            1,
+            1,
+            0,
+            1
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_10"
+        },
+        {
+          "args": [
+            0,
+            -1,
+            0,
+            1,
+            1,
+            0,
+            1
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_11"
+        },
+        {
+          "args": [
+            0,
+            0,
+            -1,
+            1,
+            1,
+            0,
+            1
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_12"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            -1,
+            1,
+            0,
+            1
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_13"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            1,
+            -1,
+            0,
+            1
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_14"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            1,
+            1,
+            -1,
+            1
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_15"
+        },
+        {
+          "args": [
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            -1
+          ],
+          "expect": {
+            "Err": "InvalidInput"
+          },
+          "name": "reorder_case_16"
+        },
+        {
+          "args": [
+            8,
+            0,
+            7,
+            1,
+            7,
+            0,
+            4
+          ],
+          "expect": {
+            "Ok": 8
+          },
+          "name": "reserved_stock_regression"
+        }
+      ],
+      "fn": "reorder",
+      "name": "reorder_cases"
+    }
+  ],
+  "types": [
+    {
+      "name": "ReorderError",
+      "variant": [
+        "InvalidInput",
+        "Overflow"
+      ]
+    }
+  ]
+}

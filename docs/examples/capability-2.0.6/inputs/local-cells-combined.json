@@ -1,0 +1,68 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "ops": [
+            [
+              "c",
+              "cell",
+              "x"
+            ],
+            [
+              "set",
+              "cell_set",
+              "c",
+              "y"
+            ],
+            [
+              "got",
+              "cell_get",
+              "c"
+            ]
+          ],
+          "term": [
+            "return",
+            "got"
+          ]
+        }
+      ],
+      "fn": "local_update",
+      "params": [
+        [
+          "x",
+          "i64"
+        ],
+        [
+          "y",
+          "i64"
+        ]
+      ],
+      "returns": "i64"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        1,
+        7
+      ],
+      "expect": 7,
+      "fn": "local_update",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        7,
+        -2
+      ],
+      "expect": -2,
+      "fn": "local_update",
+      "name": "case_1"
+    }
+  ],
+  "types": []
+}

@@ -1,0 +1,23 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        1,
+        7
+      ],
+      "expect": 7,
+      "fn": "local_update",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        7,
+        -2
+      ],
+      "expect": -2,
+      "fn": "local_update",
+      "name": "case_1"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "agent_sha256": "7737c4f09c7236555155c25a967b4d52a8fb8f815464e7bcb33935e12e2728c5",
+  "candidate_stored_sha256": "485bcbc2ee6f304dfc28641abe46cbc05943a9f52c8a38cf20f0952f0939d1f2",
+  "host_runner_sha256": "87abfe928d763d00afd91d9f9d61b404419ac458aab276fbd6930c103c9471fc",
+  "base_root": "7c4bcec70c48084e3426bb00ca9e787754d07ec5bb91beac5e79672b44f6c230",
+  "proposed_root": "436e4089636614ae5c573a1e93c6c11e9cfe83e95cdd8beac8984f28b49acf96",
+  "inventory_sha256": "0a2abee847fc560ef6a67ce7867f1736400db8149f3b697016f7a4e6d7ea235a",
+  "csv_sha256": "672159871c63d91acc0000002cd9a0e0efc963f205b8af89a8dec4db6c04899f",
+  "rows": 3,
+  "advisory": true,
+  "results": [
+    {
+      "Ok": 18
+    },
+    {
+      "Ok": 0
+    },
+    {
+      "Err": "InvalidInput"
+    }
+  ]
+}

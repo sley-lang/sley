@@ -1,0 +1,5 @@
+sku,on_hand,on_order,reserved,daily_demand,days,safety,pack
+BOLT-M8,10,5,3,4,7,2,6
+WASHER-M8,100,0,0,4,7,2,6
+CABLE-1M,0,20,5,2,10,0,4
+CLIP-LARGE,0,0,0,1,7,0,6

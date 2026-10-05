@@ -1,0 +1,87 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "true",
+      "expected": "true",
+      "pass": true,
+      "target": "same",
+      "test": "case_0"
+    },
+    {
+      "actual": "false",
+      "expected": "false",
+      "pass": true,
+      "target": "same",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": true,
+      "vm_micros": 8
+    },
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": false,
+      "vm_micros": 8
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "text-equality",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "607b7836242ef5ab990298568a70418beaa0bc552d5941013e51fe4e1022d5d4",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "true",
+        "expected": "true",
+        "pass": true,
+        "target": "same",
+        "test": "case_0"
+      },
+      {
+        "actual": "false",
+        "expected": "false",
+        "pass": true,
+        "target": "same",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "ea965f0e689802d0325d352e2a9e07b7b78570fbdfabe60634c42d4c71ee2c31"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "4bbebbc8f6d0c539be9dadf7bc331c4f6e7b1e45addf5c48c11ada1e707981fc"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

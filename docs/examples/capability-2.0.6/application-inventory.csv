@@ -1,0 +1,4 @@
+sku,on_hand,on_order,reserved,daily_demand,days,safety,pack
+SKU-0,10,5,3,4,7,2,6
+SKU-1,100,0,0,4,7,2,6
+SKU-2,0,0,0,1,1,0,0

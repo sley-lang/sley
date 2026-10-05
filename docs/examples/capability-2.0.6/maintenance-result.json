@@ -1,0 +1,24 @@
+{
+  "accepted_files_preserved": true,
+  "admission_refusal": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "archive_sha256": "260f72c9672e29cfd64284f7ee5ede566025435ab4e30190b43e9af87a3943f5",
+  "manifest": {
+    "agent_sha256": "7737c4f09c7236555155c25a967b4d52a8fb8f815464e7bcb33935e12e2728c5",
+    "base_root": "7c4bcec70c48084e3426bb00ca9e787754d07ec5bb91beac5e79672b44f6c230",
+    "candidate_stored_sha256": "3e54abb49b967e5205696884572f4f9352c3d2b19662835cce3ab14c7b69e5ca",
+    "execution": "advisory candidate; host CSV/files supplied by Python",
+    "files": {
+      "base.pack": "df45f43e98fb1537340dc8a821a7ef044eb90a142e2ed515ca796be60f15a586",
+      "candidate.hex": "943d3f3483bf59e5baeb0f39c64fb24e2547edc92ceaedf44442d45730ca3354",
+      "frame.json": "560abfe76ec301e7e02ed3981bee229073bb091c716b11255b78bba2d923e9cf",
+      "names.json": "7f4c75be893a025788a83dc29e60fd870dbade96b48ff46f3c7df3d192ad3ca7",
+      "stock_reorder.py": "87abfe928d763d00afd91d9f9d61b404419ac458aab276fbd6930c103c9471fc",
+      "view.txt": "88897c3b93ec09084accbb5cd31e971edacd0c63b7623cdc5c1838ab88172c0c"
+    },
+    "format": "sley-stock-reorder-v1",
+    "proposed_root": "c2514eec6acfe35d0c41a5308a3f84c616ac96e88f0a82a58a55af3ceffbacdb",
+    "selected_tests": 18,
+    "tested_candidate_committed": false
+  },
+  "result": "PASS"
+}
