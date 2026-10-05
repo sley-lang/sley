@@ -69,7 +69,7 @@ sley-agent import <cases.json> [--on <draft>[@r<N>]] [--only <name,...>] [--reba
 sley-agent draft [<draft>[@r<N>]] [--obligations | --expanded | --input | --frame]
 sley-agent submit <draft>[@r<N>] [--untested]
 sley-agent status [--raw]
-sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats]
+sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats] [--reference]
 sley-agent test [<ref>] [--public <cases.json>]
 sley-agent explain [<ref>]
 sley-agent search <fn> --public <cases.json> [--from <handle|draft>[@r<N>]] [--max-neighbors <n>] [--max-millis <ms>]
@@ -88,6 +88,13 @@ sley-agent help [guide|af1|afx|afx-quick|afx-reference|drafts|types|tests|opcode
 on demand. The compact guide is capped at 3,500 UTF-8 bytes; its examples run
 through the ordinary workbench and kernel in the help tests. This byte bound
 does not establish a model-token or cost reduction.
+
+`call --reference` uses the reference interpreter instead of the optional compact
+execution plan, for either one call or a batch. Candidate validation, input
+admission, checked semantics, resource accounting and accepted-state authority
+remain unchanged. Deterministic result/fuel/instruction fields match; measured
+`vm_micros` may differ. This switch is for differential validation and profiling,
+not a different language or a way to bypass checks.
 
 A `<ref>` is a handle (`c3`), `latest`, a file holding stored candidate
 hex, raw stored candidate hex, or a bare candidate record (which is framed

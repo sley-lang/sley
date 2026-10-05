@@ -83,6 +83,14 @@ def authorized_tags(summary: dict[str, Any] | None = None) -> list[str]:
     return list(summary["publication_decision"]["authorized_tags"])
 
 
+def authorized_for_tag(tag: str, summary: dict[str, Any] | None = None) -> bool:
+    """Strict, artifact-scoped authority: prior releases cannot authorize a new tag."""
+    if not isinstance(tag, str) or not tag:
+        raise ValueError("an exact release tag is required")
+    summary = load_summary() if summary is None else summary
+    return authorized(summary) and tag in summary["publication_decision"]["authorized_tags"]
+
+
 if __name__ == "__main__":
     current = load_summary()
     problems = decision_problems(current)

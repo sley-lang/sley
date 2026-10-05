@@ -40,7 +40,8 @@ class ContentTests(unittest.TestCase):
         (stage / "MANIFEST.json").write_bytes(packaging.canonical(manifest) + b"\n")
         artifact = root / packaging.ARTIFACT_NAME
         data = packaging.deterministic_tar(stage, artifact)
-        attestation.update(artifact_sha256=packaging.sha256_bytes(data), artifact_size_bytes=len(data), manifest_digest=manifest["manifest_digest"])
+        # This archive is a new synthetic fixture, not the filed release bytes.
+        attestation.update(artifact_name=packaging.ARTIFACT_NAME, artifact_sha256=packaging.sha256_bytes(data), artifact_size_bytes=len(data), manifest_digest=manifest["manifest_digest"])
         return artifact, attestation
 
     def test_checks_archive_and_refuses_changed_identity(self):

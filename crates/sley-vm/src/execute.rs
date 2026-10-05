@@ -603,6 +603,16 @@ pub fn execute_loaded_image(
         .map_err(LoadedExecutionError::Execution)
 }
 
+/// Local execution strategy; it does not change any semantic/cache identity.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ExecutionMode {
+    /// Use eligible derived plans, with the ordinary reference fallback.
+    #[default]
+    Auto,
+    /// Always use the reference interpreter, retaining every admission check.
+    Reference,
+}
+
 /// Derived-image bytes structurally loaded once and verified against their
 /// manifest-approved digest, for repeated execution.
 ///
@@ -665,6 +675,22 @@ impl VerifiedImage {
     ///
     /// The structural refusal, or [`ImageError::DigestMismatch`].
     pub fn load(expected: &ApprovedImage, bytes: &[u8]) -> Result<Self, LoadedExecutionError> {
+        Self::load_with_mode(expected, bytes, ExecutionMode::Auto)
+    }
+
+    /// Loads an image with an explicit reference/derived execution choice.
+    ///
+    /// The choice changes only the local execution strategy, never bytecode,
+    /// cache identity, input admission, resource rules or observation identity.
+    /// Reference mode skips compact-plan preparation as well as its execution.
+    ///
+    /// # Errors
+    /// The same structural and digest refusals as [`Self::load`].
+    pub fn load_with_mode(
+        expected: &ApprovedImage,
+        bytes: &[u8],
+        mode: ExecutionMode,
+    ) -> Result<Self, LoadedExecutionError> {
         let loaded = load_image(bytes).map_err(LoadedExecutionError::Image)?;
         if loaded.digest != expected.digest {
             return Err(LoadedExecutionError::Image(ImageError::DigestMismatch));
@@ -674,7 +700,10 @@ impl VerifiedImage {
         // key per request and refuses unless the two are equal, so the
         // runner and the observation see exactly the key it would.
         Ok(Self {
-            scalar: scalar::Plan::compile(&loaded.entry),
+            scalar: match mode {
+                ExecutionMode::Auto => scalar::Plan::compile(&loaded.entry),
+                ExecutionMode::Reference => None,
+            },
             lowered: LoweredFunction {
                 bytecode: loaded.entry,
                 bytes: bytes.to_vec(),

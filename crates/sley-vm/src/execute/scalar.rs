@@ -344,15 +344,33 @@ impl Plan {
             // Bind the current inventory on every call. The compiled list has
             // one slot per constant reference, independent of block/step count.
             // A changed or unsupported inventory still takes the reference path.
+            // Large projected inventories are normally in strict entity order.
+            // Check that condition on the current slice before binary lookup;
+            // unsorted/duplicate inventories retain the reference's first-match
+            // behavior. This allocates no index and caches no mutable binding.
+            let ordered = self.constants.len() >= 16
+                && source.constants.len() >= 16
+                && source
+                    .constants
+                    .windows(2)
+                    .all(|pair| pair[0].entity_id < pair[1].entity_id);
             let constants = self
                 .constants
                 .iter()
                 .map(|binding| {
-                    let value = &source
-                        .constants
-                        .iter()
-                        .find(|v| v.entity_id == binding.entity)?
-                        .value;
+                    let constant = if ordered {
+                        let index = source
+                            .constants
+                            .binary_search_by_key(&binding.entity, |v| v.entity_id)
+                            .ok()?;
+                        &source.constants[index]
+                    } else {
+                        source
+                            .constants
+                            .iter()
+                            .find(|v| v.entity_id == binding.entity)?
+                    };
+                    let value = &constant.value;
                     if value.value_type != lowered.bytecode.register_types[binding.register] {
                         return None;
                     }

@@ -46,6 +46,7 @@ from bench.accounting import report as accounting
 import build_reproducibility_report as reproducibility
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import publication_authority  # noqa: E402  (sibling module)
+import release_version  # noqa: E402  (sibling module)
 
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 CONFORMANCE = ROOT / "evidence/conformance/independent-conformance-report.json"
@@ -70,7 +71,7 @@ BENCHMARK_PLAN = ROOT / "bench/benchmark-plan.json"
 REGISTER_BUILDER = ROOT / "scripts/build_finding_register.py"
 REPORT = ROOT / "evidence/release/ga-acceptance-report.json"
 CONTRACT = "sley2.ga-acceptance-report.v1"
-ARTIFACT_NAME = "sley-2.0.6-linux-x86_64.tar.gz"
+ARTIFACT_NAME = release_version.artifact_name()
 
 EVIDENCED = "EVIDENCED"
 AWAITS_REVIEW = "AWAITS_REVIEW"
@@ -482,12 +483,13 @@ def derive_criteria(sources: dict) -> list[dict]:
     tree_clean = attestation.get("working_tree_clean") is True
     # Unpublished, or published only under a consistent operator decision
     # that the reproducibility report agrees with.
-    publication_granted = publication_authority.is_authorized(summary)
+    publication_granted = (
+        publication_authority.is_authorized(summary)
+        and "v" + ARTIFACT_NAME.removeprefix("sley-").removesuffix("-linux-x86_64.tar.gz")
+        in publication_authority.authorized_tags(summary)
+    )
     unpublished = (
-        (
-            (summary.get("publication_authorized") is False and not publication_authority.decision_problems(summary))
-            or publication_granted
-        )
+        not publication_authority.decision_problems(summary)
         and repro.get("publication_authorized") is publication_granted
         and anti_goal("unauthorized publication/deploy/spend") == "HOLDS"
     )

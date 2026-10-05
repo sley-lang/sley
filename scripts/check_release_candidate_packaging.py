@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import publication_authority  # noqa: E402  (sibling module)
 import generate_third_party_licenses as third_party  # noqa: E402  (sibling module)
+import release_version  # noqa: E402  (sibling module)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,7 +97,7 @@ SCRIPT_MARKERS = (
     "def run_conformance_subset(",
     "def run_demo(",
     "def build_candidate(",
-    "sley-2.0.6-linux-x86_64",
+    "release_version.artifact_stem()",
     "def verify_third_party_licenses(",
     "third_party.OUTPUT_NAME, \"demo/run_demo.py\"",
 )
@@ -193,12 +194,12 @@ def main() -> int:
     expected = {
         "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
         "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
-        "artifact_name": "sley-2.0.6-linux-x86_64.tar.gz",
+        "artifact_name": release_version.artifact_name(),
         "manifest_contract": "sley2.release-candidate-manifest.v1",
         "new_stable_error_codes": len(CODES),
         "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
         "ga_claimed": False,
-        "publication_authorized": publication_authority.is_authorized(),
+        "publication_authorized": publication_authority.authorized_for_tag("v" + release_version.workspace_version()),
         "implementation_complete": status == COMPLETE_STATUS,
     }
     for key, value in expected.items():

@@ -26,6 +26,8 @@ except ImportError:  # loaded by path (unit lane) without scripts/ on sys.path
     import build_reproducibility_report as repro
     import records_closure
 
+import release_version
+
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
@@ -36,7 +38,7 @@ SPDX = ROOT / "evidence/release/sbom/spdx-2.3.json"
 INVENTORY_CONTRACT = "s20-710-pre-release-inventory-v1"
 TOOL_NAME = "sley2-standards-sbom"
 TOOL_VERSION = "1"
-CANDIDATE_VERSION = "2.0.6"
+CANDIDATE_VERSION = release_version.workspace_version()
 ROOT_LICENSE = "Apache-2.0"
 SPDX_ID = re.compile(r"[^A-Za-z0-9.\-]")
 LICENSE_TOKEN = re.compile(r"[A-Za-z0-9:._+\-]+")
