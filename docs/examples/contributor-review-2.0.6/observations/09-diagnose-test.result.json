@@ -1,0 +1,26 @@
+{
+  "public": [],
+  "tests": [
+    {
+      "actual": "-1",
+      "expected": "-6",
+      "pass": false,
+      "target": "scale",
+      "test": "negative"
+    },
+    {
+      "actual": "6",
+      "expected": "8",
+      "pass": false,
+      "target": "scale",
+      "test": "positive"
+    },
+    {
+      "actual": "2",
+      "expected": "0",
+      "pass": false,
+      "target": "scale",
+      "test": "zero"
+    }
+  ]
+}

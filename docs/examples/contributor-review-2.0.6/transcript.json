@@ -1,0 +1,483 @@
+[
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "init",
+      "--seed",
+      "0707070707070707070707070707070707070707070707070707070707070707"
+    ],
+    "exit_code": 0,
+    "name": "01-init",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"ceilings\":{\"fuel\":1000000,\"memory_bytes\":16777216,\"mutations\":10000,\"output_bytes\":65536},\"workspace\":\"author\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "try",
+      "inputs/initial.json"
+    ],
+    "exit_code": 0,
+    "name": "02-author-base",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"scale\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"fn\",\"name\":\"sentinel\",\"visibility\":\"exported\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_7\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":7,\"deleted\":0,\"replaced\":0},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "name": "03-commit-base",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"1d31a44da233a4f58482450c14858dcf58064777ec595e0ea6841a31180c28ab\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "view"
+    ],
+    "exit_code": 0,
+    "name": "04-base-root",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff\",\"view\":\"# sley view (AV1, non-canonical) root=a6d3d552\\nconst k_7: i64 = 7\\nfn scale(x: i64) -> i64   [812cfc9c]\\n  b-1:\\n    return x\\n\\nfn sentinel() -> i64   [8560cd09]\\n  b-1:\\n    b-1__t0 = const k_7 (7)\\n    return b-1__t0\\n\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "view",
+      "scale",
+      "sentinel",
+      "--ids",
+      "--types"
+    ],
+    "exit_code": 0,
+    "name": "05-base-view",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff\",\"view\":\"# sley view (AV1, non-canonical) root=a6d3d552\\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\\n    return x\\nfn sentinel() -> i64   [8560cd0909fdc9f515e26ac615fd650055add862a9288ff81e2c2795501c8713]\\n  b-1:   [87f59967af44bfb3102b28fd3b8f58d0c5424f5610a5d4d90dee60343c27c3b4]\\n    b-1__t0: i64 = const k_7 (7)   [b988d08c8c593e84058927d658e186858ed008aa254bc70b83916c64c974bdb9]\\n    return b-1__t0\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "export",
+      "base.pack"
+    ],
+    "exit_code": 0,
+    "name": "06-export-base",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"bytes\":11341,\"exported\":\"base.pack\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "try",
+      "inputs/wrong.json",
+      "--base-root",
+      "a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff"
+    ],
+    "exit_code": 1,
+    "name": "07-failing-proposal",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"replaced\",\"existing_export\":true,\"kind\":\"fn\",\"name\":\"scale\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_2\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"negative\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"positive\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"zero\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"fix only what failed on top of d2: sley-agent try --on d2 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"edit\\\": [...]}' (or \\\"patch\\\", \\\"tests\\\")\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":9,\"deleted\":0,\"replaced\":2},\"provenance\":{\"authored\":3,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[{\"actual\":\"-1\",\"expected\":\"-6\",\"pass\":false,\"target\":\"scale\",\"test\":\"negative\"},{\"actual\":\"6\",\"expected\":\"8\",\"pass\":false,\"target\":\"scale\",\"test\":\"positive\"},{\"actual\":\"2\",\"expected\":\"0\",\"pass\":false,\"target\":\"scale\",\"test\":\"zero\"}],\"tests_failed\":3,\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":3,\"valid\":true}}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "view",
+      "scale",
+      "--after",
+      "c2",
+      "--ids"
+    ],
+    "exit_code": 0,
+    "name": "08-diagnose-view",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"a3ae1f9527bd7812fab3dde57967a466cb8f3fd441e1c669570f71f20d332a39\",\"view\":\"# sley view (AV1, non-canonical) root=a3ae1f95 after=c2\\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\\n    t-5__a1 = const k_2 (2)   [6e4d597a0e1aa0097c2f03b1ae680925a537527a46152fcd7bdd5eebbc308507]\\n    t-5__r = add x, t-5__a1   [e78b612bc7616f9f9cd15eeee5480f6ebb41c36d9b8f3b161f2791493184fc05]\\n    switch t-5__r: Ok -> b-1__t-5($), Err -> trap-4\\n  trap-4:   [7a6bfa136ed2e4712638d7d039c2c3c233b20cf2c4409aa19107cee55fface3c]\\n    trap unreachable\\n  b-1__t-5(t-5: i64):   [3bf76d092f28f4bac01665e53a5a01aeae67f08216dcb054605b91afc800769b]\\n    return t-5\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "test",
+      "c2"
+    ],
+    "exit_code": 1,
+    "name": "09-diagnose-test",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"public\":[],\"tests\":[{\"actual\":\"-1\",\"expected\":\"-6\",\"pass\":false,\"target\":\"scale\",\"test\":\"negative\"},{\"actual\":\"6\",\"expected\":\"8\",\"pass\":false,\"target\":\"scale\",\"test\":\"positive\"},{\"actual\":\"2\",\"expected\":\"0\",\"pass\":false,\"target\":\"scale\",\"test\":\"zero\"}]}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "try",
+      "inputs/corrected.json",
+      "--base-root",
+      "a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff",
+      "--raw"
+    ],
+    "exit_code": 0,
+    "name": "10-corrected-proposal",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"replaced\",\"existing_export\":true,\"kind\":\"fn\",\"name\":\"scale\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_2\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"negative\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"positive\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"zero\"}],\"draft\":\"d3@r1\",\"handle\":\"c3\",\"next\":\"sley-agent submit d3\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":9,\"deleted\":0,\"replaced\":2},\"provenance\":{\"authored\":3,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"stored_hex\":\"534c455943414e3101e8150d0101010220d5276032b56a3eb36001aa2881903a657286095c0fe913e15e517b834dace1dd03201d31a44da233a4f58482450c14858dcf58064777ec595e0ea6841a31180c28ab0420a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff0520a7fcf97a85d41ef9b1c89394a324f2dc7ec875b9ded48a783104314857dc870e062054f343a03f2f617ef83d8e7ff8938964d337a79d9e54f33a817515306f75dc0a0720d5276032b56a3eb36001aa2881903a657286095c0fe913e15e517b834dace1dd08207ebee78546a1d4b5180f5bcb1bb02e4a4270ab6682d8997e54c9c926c145031309d40e0ba0010701010002010103010e0420740abf97113c441c6ab5cdf99edcab0bd83780c3351e9db178371f4d9dd3692705020000066b01690e67060120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020d010b02010303014002030301050303010100040d010b020103030140020303010b050100061c060103c0843d0204808080080303808004040100050280020602904e070100a0010701010102010103010e0420a5f509deea4c75f59d8d5bc655d7f4421997adcaf6240aa504bf9d8519e8299e05020000066b01690e67060120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020d010b02010303014002030301000303010100040d010b0201030301400203030100050100061c060103c0843d0204808080080303808004040100050280020602904e070101a0010701010202010103010e042059a1a5e3e6dd70c72b8ff1be4c4d78e9b953d4a886caf1a3711ab94a1aa4e13505020000066b01690e67060120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020d010b02010303014002030301080303010100040d010b0201030301400203030110050100061c060103c0843d0204808080080303808004040100050280020602904e0701029001070101030201010301080420346810befe7f554ef6dbbfef9f9fd4fa5dbc1412306fe87b894e823cf9749cb905020000065b01590857060120e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f590201000301010401000505010303014006220220e7ce191533d812cd5c66bc53f71de62b77b66e45f0e4b464715433125d6e26e1070103c9010701010402010103010804201654577c7a9d675bab632db0ccc06bfef2371be5e22b17a35bb28d95e07d2b7905020000069301019001088d01060120e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59020101030142044d02220120c95c4038d8ebc1e639bf9c9691ad7602a6f21d412bb5ce1749dce204500dfb34280226020120346810befe7f554ef6dbbfef9f9fd4fa5dbc1412306fe87b894e823cf9749cb9020100050f010d0e0b020103030140020314010106020100070104710701010502010103010704203ea1ec8992739c3a2c2ce5290684618c523acb5d2b9e57efaee76ba736ed2e9f05020000063c013a0738050120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020100030100040a05080201010102020000050101070105af010701010602010103010704201cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e8405020000067a01780776050120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64022201202c0890d6bade4baa15cd3de014bfa6afc2e6111c1a8a6c7175a6e530077d072f0301000427012501012201202c0890d6bade4baa15cd3de014bfa6afc2e6111c1a8a6c7175a6e530077d072f050101070106670701010702010103010604202c0890d6bade4baa15cd3de014bfa6afc2e6111c1a8a6c7175a6e530077d072f0502000006320130062e0401201cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e84020102030100040303014007010747070101080201010301090420e7ce191533d812cd5c66bc53f71de62b77b66e45f0e4b464715433125d6e26e10502000006120110090e01010b0201030301400203030104070108fa01070101090201020301050420812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc640502000006c40102c10105be010801010002220120c95c4038d8ebc1e639bf9c9691ad7602a6f21d412bb5ce1749dce204500dfb3403030301400401000520e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f5906640320e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59203ea1ec8992739c3a2c2ce5290684618c523acb5d2b9e57efaee76ba736ed2e9f201cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e84070100080104070109bf020701010a0201020301070420e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f5905020000068902028602078302050120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc6402010003430220346810befe7f554ef6dbbfef9f9fd4fa5dbc1412306fe87b894e823cf9749cb9201654577c7a9d675bab632db0ccc06bfef2371be5e22b17a35bb28d95e07d2b79049201048f0102012802260201201654577c7a9d675bab632db0ccc06bfef2371be5e22b17a35bb28d95e07d2b790201000262023102010302010302290201201cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e840204010202002e02010302010402260201203ea1ec8992739c3a2c2ce5290684618c523acb5d2b9e57efaee76ba736ed2e9f02010005010107010a0aca040b2e0301010002010103250123010120740abf97113c441c6ab5cdf99edcab0bd83780c3351e9db178371f4d9dd369272e0301010102010103250123010120a5f509deea4c75f59d8d5bc655d7f4421997adcaf6240aa504bf9d8519e8299e2e030101020201010325012301012059a1a5e3e6dd70c72b8ff1be4c4d78e9b953d4a886caf1a3711ab94a1aa4e1352e0301010302010103250123010120346810befe7f554ef6dbbfef9f9fd4fa5dbc1412306fe87b894e823cf9749cb92e03010104020101032501230101201654577c7a9d675bab632db0ccc06bfef2371be5e22b17a35bb28d95e07d2b792e03010105020101032501230101203ea1ec8992739c3a2c2ce5290684618c523acb5d2b9e57efaee76ba736ed2e9f2e03010106020101032501230101201cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e842e03010107020101032501230101202c0890d6bade4baa15cd3de014bfa6afc2e6111c1a8a6c7175a6e530077d072f2e0301010802010103250123010120e7ce191533d812cd5c66bc53f71de62b77b66e45f0e4b464715433125d6e26e1500301010902010203470245020120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc640220532f9c7bf1c75911310fe31bdf4ff7837c8c712263e849f6bcbe5a768a523c59500301010a02010203470245020120e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f5902201a8739bedf79fb62c215282c420af6207a01ce98043734e101d610c53ed6c3cf0b207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d540c20c86c30fc1dcf62ad48355834b86937818f113289e16116749cf1c1dbe8b47da10d0c02010101020680b08fe6b277824769e21c1241d47504ff121c8591719f65be7c58fdb1bf97d276394cec79b7\",\"tests\":[{\"actual\":\"-6\",\"expected\":\"-6\",\"pass\":true,\"target\":\"scale\",\"test\":\"negative\"},{\"actual\":\"8\",\"expected\":\"8\",\"pass\":true,\"target\":\"scale\",\"test\":\"positive\"},{\"actual\":\"0\",\"expected\":\"0\",\"pass\":true,\"target\":\"scale\",\"test\":\"zero\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":3,\"valid\":true}}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "view",
+      "scale",
+      "sentinel",
+      "--after",
+      "c3",
+      "--ids",
+      "--types"
+    ],
+    "exit_code": 0,
+    "name": "11-corrected-view",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"b2c5f5f382963a92c37226f09e5886e9e928990267c0b7636962fa075ae847d9\",\"view\":\"# sley view (AV1, non-canonical) root=b2c5f5f3 after=c3\\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\\n    t-5__a1: i64 = const k_2 (2)   [346810befe7f554ef6dbbfef9f9fd4fa5dbc1412306fe87b894e823cf9749cb9]\\n    t-5__r: Result<i64,ArithmeticError> = mul x, t-5__a1   [1654577c7a9d675bab632db0ccc06bfef2371be5e22b17a35bb28d95e07d2b79]\\n    switch t-5__r: Ok -> b-1__t-5($), Err -> trap-4\\n  trap-4:   [3ea1ec8992739c3a2c2ce5290684618c523acb5d2b9e57efaee76ba736ed2e9f]\\n    trap unreachable\\n  b-1__t-5(t-5: i64):   [1cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e84]\\n    return t-5\\nfn sentinel() -> i64   [8560cd0909fdc9f515e26ac615fd650055add862a9288ff81e2c2795501c8713]\\n  b-1:   [87f59967af44bfb3102b28fd3b8f58d0c5424f5610a5d4d90dee60343c27c3b4]\\n    b-1__t0: i64 = const k_7 (7)   [b988d08c8c593e84058927d658e186858ed008aa254bc70b83916c64c974bdb9]\\n    return b-1__t0\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "submit",
+      "c3"
+    ],
+    "exit_code": 0,
+    "name": "12-submit",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"bytes\":2835,\"draft\":null,\"file\":\"final_candidate.hex\",\"selected_tests\":3,\"submitted\":\"c3\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "author",
+      "--json",
+      "view"
+    ],
+    "exit_code": 0,
+    "name": "13-author-still-base",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff\",\"view\":\"# sley view (AV1, non-canonical) root=a6d3d552\\nconst k_7: i64 = 7\\nfn scale(x: i64) -> i64   [812cfc9c]\\n  b-1:\\n    return x\\n\\nfn sentinel() -> i64   [8560cd09]\\n  b-1:\\n    b-1__t0 = const k_7 (7)\\n    return b-1__t0\\n\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "reviewer",
+      "--json",
+      "view"
+    ],
+    "exit_code": 0,
+    "name": "14-reviewer-base",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff\",\"view\":\"# sley view (AV1, non-canonical) root=a6d3d552\\nconst k_7: i64 = 7\\nfn scale(x: i64) -> i64   [812cfc9c]\\n  b-1:\\n    return x\\n\\nfn sentinel() -> i64   [8560cd09]\\n  b-1:\\n    b-1__t0 = const k_7 (7)\\n    return b-1__t0\\n\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "reviewer",
+      "--json",
+      "submit",
+      "candidate.hex"
+    ],
+    "exit_code": 0,
+    "name": "15-reviewer-replay",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"bytes\":2835,\"draft\":null,\"file\":\"final_candidate.hex\",\"selected_tests\":3,\"submitted\":\"c1\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "reviewer",
+      "--json",
+      "view",
+      "--after",
+      "c1",
+      "--ids",
+      "--types"
+    ],
+    "exit_code": 0,
+    "name": "16-reviewer-view",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"b2c5f5f382963a92c37226f09e5886e9e928990267c0b7636962fa075ae847d9\",\"view\":\"# sley view (AV1, non-canonical) root=b2c5f5f3 after=c1\\ntest negative: scale(-3) == -6   [740abf97113c441c6ab5cdf99edcab0bd83780c3351e9db178371f4d9dd36927]\\ntest zero: scale(0) == 0   [a5f509deea4c75f59d8d5bc655d7f4421997adcaf6240aa504bf9d8519e8299e]\\ntest positive: scale(4) == 8   [59a1a5e3e6dd70c72b8ff1be4c4d78e9b953d4a886caf1a3711ab94a1aa4e135]\\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\\n    t-5__a1: i64 = const k_2 (2)   [346810befe7f554ef6dbbfef9f9fd4fa5dbc1412306fe87b894e823cf9749cb9]\\n    t-5__r: Result<i64,ArithmeticError> = mul x, t-5__a1   [1654577c7a9d675bab632db0ccc06bfef2371be5e22b17a35bb28d95e07d2b79]\\n    switch t-5__r: Ok -> b-1__t-5($), Err -> trap-4\\n  trap-4:   [3ea1ec8992739c3a2c2ce5290684618c523acb5d2b9e57efaee76ba736ed2e9f]\\n    trap unreachable\\n  b-1__t-5(t-5: i64):   [1cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e84]\\n    return t-5\\nconst k_2: i64 = 2   [e7ce191533d812cd5c66bc53f71de62b77b66e45f0e4b464715433125d6e26e1]\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "reviewer",
+      "--json",
+      "test",
+      "c1"
+    ],
+    "exit_code": 0,
+    "name": "17-reviewer-test",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"public\":[],\"tests\":[{\"actual\":\"-6\",\"expected\":\"-6\",\"pass\":true,\"target\":\"scale\",\"test\":\"negative\"},{\"actual\":\"8\",\"expected\":\"8\",\"pass\":true,\"target\":\"scale\",\"test\":\"positive\"},{\"actual\":\"0\",\"expected\":\"0\",\"pass\":true,\"target\":\"scale\",\"test\":\"zero\"}]}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "reviewer",
+      "--json",
+      "commit",
+      "c1"
+    ],
+    "exit_code": 2,
+    "name": "18-admission-boundary",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"detail\":\"commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "view"
+    ],
+    "exit_code": 0,
+    "name": "19-maintainer-base",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff\",\"view\":\"# sley view (AV1, non-canonical) root=a6d3d552\\nconst k_7: i64 = 7\\nfn scale(x: i64) -> i64   [812cfc9c]\\n  b-1:\\n    return x\\n\\nfn sentinel() -> i64   [8560cd09]\\n  b-1:\\n    b-1__t0 = const k_7 (7)\\n    return b-1__t0\\n\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "try",
+      "inputs/concurrent.json",
+      "--base-root",
+      "a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff",
+      "--functions",
+      "sentinel"
+    ],
+    "exit_code": 0,
+    "name": "20-concurrent-change",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"replaced\",\"existing_export\":true,\"kind\":\"fn\",\"name\":\"sentinel\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_8\"}],\"draft\":\"d1@r1\",\"handle\":\"c1\",\"next\":\"add tests without restating the frame: sley-agent try --on d1 '{\\\"af1\\\": 1, \\\"afx\\\": 1, \\\"tests\\\": [...]}' (submit refuses an untested change; --untested overrides)\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":1,\"deleted\":0,\"replaced\":1},\"provenance\":{\"authored\":0,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"tests\":[],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":0,\"valid\":true}}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "commit",
+      "c1"
+    ],
+    "exit_code": 0,
+    "name": "21-commit-concurrent",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"committed\":\"c1\",\"transaction\":\"764638fdd3627ac5d5e71960fd0e253b8c4b90968af050e0ed1f0c646c5fc8f3\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "view"
+    ],
+    "exit_code": 0,
+    "name": "22-fresh-root",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"6bbce34f77c28c12c505d38f1d869e4a46a2ea29f86d82a869f5bcf731393ec2\",\"view\":\"# sley view (AV1, non-canonical) root=6bbce34f\\nconst k_7: i64 = 7\\nconst k_8: i64 = 8\\nfn scale(x: i64) -> i64   [812cfc9c]\\n  b-1:\\n    return x\\n\\nfn sentinel() -> i64   [8560cd09]\\n  b-1:\\n    b-1__t0 = const k_8 (8)\\n    return b-1__t0\\n\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "try",
+      "inputs/corrected.json",
+      "--base-root",
+      "a6d3d55219be9a45d8977724ca2831b0d3793fbd53808d947b7a4c74cef0eeff"
+    ],
+    "exit_code": 2,
+    "name": "23-stale-proposal",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"detail\":\"accepted root changed; read the current context and author a new proposal\",\"error\":\"AGENT_PROPOSAL_STALE\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "submit",
+      "candidate.hex"
+    ],
+    "exit_code": 2,
+    "name": "24-stale-candidate",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"detail\":\"candidate.hex is not Valid (StaleRoot); only Valid candidates are submitted\",\"error\":\"AGENT_SUBMISSION_REFUSED\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "view",
+      "scale",
+      "sentinel",
+      "--ids",
+      "--types"
+    ],
+    "exit_code": 0,
+    "name": "25-inspect-new-base",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"6bbce34f77c28c12c505d38f1d869e4a46a2ea29f86d82a869f5bcf731393ec2\",\"view\":\"# sley view (AV1, non-canonical) root=6bbce34f\\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\\n    return x\\nfn sentinel() -> i64   [8560cd0909fdc9f515e26ac615fd650055add862a9288ff81e2c2795501c8713]\\n  b-1:   [87f59967af44bfb3102b28fd3b8f58d0c5424f5610a5d4d90dee60343c27c3b4]\\n    b-1__t0: i64 = const k_8 (8)   [b988d08c8c593e84058927d658e186858ed008aa254bc70b83916c64c974bdb9]\\n    return b-1__t0\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "try",
+      "inputs/corrected.json",
+      "--base-root",
+      "6bbce34f77c28c12c505d38f1d869e4a46a2ea29f86d82a869f5bcf731393ec2",
+      "--raw"
+    ],
+    "exit_code": 0,
+    "name": "26-reapply-correction",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"also\":[],\"changed\":[{\"change\":\"replaced\",\"existing_export\":true,\"kind\":\"fn\",\"name\":\"scale\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"const\",\"name\":\"k_2\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"negative\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"positive\"},{\"change\":\"created\",\"existing_export\":false,\"kind\":\"test\",\"name\":\"zero\"}],\"draft\":\"d2@r1\",\"handle\":\"c2\",\"next\":\"sley-agent submit d2\",\"notes\":[],\"obligations\":[],\"ops\":{\"created\":9,\"deleted\":0,\"replaced\":2},\"provenance\":{\"authored\":3,\"imported\":0,\"provided\":0},\"public\":[],\"state\":\"valid\",\"stored_hex\":\"534c455943414e3101e8150d0101010220d5276032b56a3eb36001aa2881903a657286095c0fe913e15e517b834dace1dd0320764638fdd3627ac5d5e71960fd0e253b8c4b90968af050e0ed1f0c646c5fc8f304206bbce34f77c28c12c505d38f1d869e4a46a2ea29f86d82a869f5bcf731393ec20520a7fcf97a85d41ef9b1c89394a324f2dc7ec875b9ded48a783104314857dc870e062054f343a03f2f617ef83d8e7ff8938964d337a79d9e54f33a817515306f75dc0a0720d5276032b56a3eb36001aa2881903a657286095c0fe913e15e517b834dace1dd0820e422879b2791bad685e039c8889552f8a47c4e97b08f5e0fbe18283a4f4c54a809d40e0ba0010701010002010103010e0420bc5436ddfebb653d149ee8a1ad0a86e692011c8df39494d58bcbf3a1930d9ae305020000066b01690e67060120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020d010b02010303014002030301050303010100040d010b020103030140020303010b050100061c060103c0843d0204808080080303808004040100050280020602904e070100a0010701010102010103010e042005724da66c3b896bdb686bfb3d56a43bd04299f42b7e28c0ea89b2ce0a866b2a05020000066b01690e67060120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020d010b02010303014002030301000303010100040d010b0201030301400203030100050100061c060103c0843d0204808080080303808004040100050280020602904e070101a0010701010202010103010e0420cd12d18dfe25511bb94a4c753aea266062f51a4ca32e7dad99968ef1561e643e05020000066b01690e67060120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020d010b02010303014002030301080303010100040d010b0201030301400203030110050100061c060103c0843d0204808080080303808004040100050280020602904e0701029001070101030201010301080420d8423f2c302209a7bb5ba695b4f188cc5fef77bebb926cf0074a9044b12c968c05020000065b01590857060120e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f590201000301010401000505010303014006220220ae5528915f9d89d9dd8ee69ee057087a474472ee4350b339b5aa384b6f74d767070103c901070101040201010301080420916c4fe2b49707720452485436b552372d53a818472eaa0e398551b3997970ec05020000069301019001088d01060120e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59020101030142044d02220120c95c4038d8ebc1e639bf9c9691ad7602a6f21d412bb5ce1749dce204500dfb34280226020120d8423f2c302209a7bb5ba695b4f188cc5fef77bebb926cf0074a9044b12c968c020100050f010d0e0b0201030301400203140101060201000701047107010105020101030107042030b2888826b3088d6c3895298e9e8ed9989dd20c2df9221f65c71d7a58b1645f05020000063c013a0738050120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64020100030100040a05080201010102020000050101070105af01070101060201010301070420dce99f30eeab9d80799c2ab888157ca342bf2cf6f3987037dc66402cbecd6c6c05020000067a01780776050120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc6402220120d1d9e655994dfe28f8568d261ce0a474cf23d87ff0df99119ab771bde38d5ed2030100042701250101220120d1d9e655994dfe28f8568d261ce0a474cf23d87ff0df99119ab771bde38d5ed205010107010667070101070201010301060420d1d9e655994dfe28f8568d261ce0a474cf23d87ff0df99119ab771bde38d5ed20502000006320130062e040120dce99f30eeab9d80799c2ab888157ca342bf2cf6f3987037dc66402cbecd6c6c020102030100040303014007010747070101080201010301090420ae5528915f9d89d9dd8ee69ee057087a474472ee4350b339b5aa384b6f74d7670502000006120110090e01010b0201030301400203030104070108fa01070101090201020301050420812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc640502000006c40102c10105be010801010002220120c95c4038d8ebc1e639bf9c9691ad7602a6f21d412bb5ce1749dce204500dfb3403030301400401000520e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f5906640320e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f592030b2888826b3088d6c3895298e9e8ed9989dd20c2df9221f65c71d7a58b1645f20dce99f30eeab9d80799c2ab888157ca342bf2cf6f3987037dc66402cbecd6c6c070100080104070109bf020701010a0201020301070420e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f5905020000068902028602078302050120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc6402010003430220d8423f2c302209a7bb5ba695b4f188cc5fef77bebb926cf0074a9044b12c968c20916c4fe2b49707720452485436b552372d53a818472eaa0e398551b3997970ec049201048f010201280226020120916c4fe2b49707720452485436b552372d53a818472eaa0e398551b3997970ec020100026202310201030201030229020120dce99f30eeab9d80799c2ab888157ca342bf2cf6f3987037dc66402cbecd6c6c0204010202002e020103020104022602012030b2888826b3088d6c3895298e9e8ed9989dd20c2df9221f65c71d7a58b1645f02010005010107010a0aca040b2e0301010002010103250123010120bc5436ddfebb653d149ee8a1ad0a86e692011c8df39494d58bcbf3a1930d9ae32e030101010201010325012301012005724da66c3b896bdb686bfb3d56a43bd04299f42b7e28c0ea89b2ce0a866b2a2e0301010202010103250123010120cd12d18dfe25511bb94a4c753aea266062f51a4ca32e7dad99968ef1561e643e2e0301010302010103250123010120d8423f2c302209a7bb5ba695b4f188cc5fef77bebb926cf0074a9044b12c968c2e0301010402010103250123010120916c4fe2b49707720452485436b552372d53a818472eaa0e398551b3997970ec2e030101050201010325012301012030b2888826b3088d6c3895298e9e8ed9989dd20c2df9221f65c71d7a58b1645f2e0301010602010103250123010120dce99f30eeab9d80799c2ab888157ca342bf2cf6f3987037dc66402cbecd6c6c2e0301010702010103250123010120d1d9e655994dfe28f8568d261ce0a474cf23d87ff0df99119ab771bde38d5ed22e0301010802010103250123010120ae5528915f9d89d9dd8ee69ee057087a474472ee4350b339b5aa384b6f74d767500301010902010203470245020120812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc640220532f9c7bf1c75911310fe31bdf4ff7837c8c712263e849f6bcbe5a768a523c59500301010a02010203470245020120e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f5902201a8739bedf79fb62c215282c420af6207a01ce98043734e101d610c53ed6c3cf0b207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d540c20f080c642e5f04fadc30824163ad42df29cd536b7ef001712035f5a2c716d77010d0c02010101020680b08fe6b277cc6f072346b5922c28684ff72e12c50fd721b4d76f1bdc22de8eb30870a83d54\",\"tests\":[{\"actual\":\"-6\",\"expected\":\"-6\",\"pass\":true,\"target\":\"scale\",\"test\":\"negative\"},{\"actual\":\"8\",\"expected\":\"8\",\"pass\":true,\"target\":\"scale\",\"test\":\"positive\"},{\"actual\":\"0\",\"expected\":\"0\",\"pass\":true,\"target\":\"scale\",\"test\":\"zero\"}],\"verdict\":{\"decision\":\"Valid\",\"selected_tests\":3,\"valid\":true}}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "view",
+      "--after",
+      "c2",
+      "--ids",
+      "--types"
+    ],
+    "exit_code": 0,
+    "name": "27-new-review-view",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"d3543e66783207d2cc241dbe915d45029d18efb102210a01908bf9d6f8a58d79\",\"view\":\"# sley view (AV1, non-canonical) root=d3543e66 after=c2\\ntest negative: scale(-3) == -6   [bc5436ddfebb653d149ee8a1ad0a86e692011c8df39494d58bcbf3a1930d9ae3]\\ntest zero: scale(0) == 0   [05724da66c3b896bdb686bfb3d56a43bd04299f42b7e28c0ea89b2ce0a866b2a]\\ntest positive: scale(4) == 8   [cd12d18dfe25511bb94a4c753aea266062f51a4ca32e7dad99968ef1561e643e]\\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\\n    t-5__a1: i64 = const k_2 (2)   [d8423f2c302209a7bb5ba695b4f188cc5fef77bebb926cf0074a9044b12c968c]\\n    t-5__r: Result<i64,ArithmeticError> = mul x, t-5__a1   [916c4fe2b49707720452485436b552372d53a818472eaa0e398551b3997970ec]\\n    switch t-5__r: Ok -> b-1__t-5($), Err -> trap-4\\n  trap-4:   [30b2888826b3088d6c3895298e9e8ed9989dd20c2df9221f65c71d7a58b1645f]\\n    trap unreachable\\n  b-1__t-5(t-5: i64):   [dce99f30eeab9d80799c2ab888157ca342bf2cf6f3987037dc66402cbecd6c6c]\\n    return t-5\\nconst k_2: i64 = 2   [ae5528915f9d89d9dd8ee69ee057087a474472ee4350b339b5aa384b6f74d767]\\n\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "call",
+      "sentinel",
+      "--on",
+      "c2"
+    ],
+    "exit_code": 0,
+    "name": "28-preserved-concurrent-change",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"fuel\":2,\"instructions\":1,\"result\":8,\"vm_micros\":7}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "submit",
+      "c2"
+    ],
+    "exit_code": 0,
+    "name": "29-submit-fresh",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"bytes\":2835,\"draft\":null,\"file\":\"final_candidate.hex\",\"selected_tests\":3,\"submitted\":\"c2\"}\n"
+  },
+  {
+    "argv": [
+      "sley-agent",
+      "--workspace",
+      "maintainer",
+      "--json",
+      "view"
+    ],
+    "exit_code": 0,
+    "name": "30-maintainer-still-fresh",
+    "status": "completed",
+    "stderr": "",
+    "stdout": "{\"root\":\"6bbce34f77c28c12c505d38f1d869e4a46a2ea29f86d82a869f5bcf731393ec2\",\"view\":\"# sley view (AV1, non-canonical) root=6bbce34f\\nconst k_7: i64 = 7\\nconst k_8: i64 = 8\\nfn scale(x: i64) -> i64   [812cfc9c]\\n  b-1:\\n    return x\\n\\nfn sentinel() -> i64   [8560cd09]\\n  b-1:\\n    b-1__t0 = const k_8 (8)\\n    return b-1__t0\\n\\n\"}\n"
+  }
+]

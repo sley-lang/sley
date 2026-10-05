@@ -1,0 +1,14 @@
+# sley view (AV1, non-canonical) root=b2c5f5f3 after=c3
+fn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]
+  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]
+    t-5__a1: i64 = const k_2 (2)   [346810befe7f554ef6dbbfef9f9fd4fa5dbc1412306fe87b894e823cf9749cb9]
+    t-5__r: Result<i64,ArithmeticError> = mul x, t-5__a1   [1654577c7a9d675bab632db0ccc06bfef2371be5e22b17a35bb28d95e07d2b79]
+    switch t-5__r: Ok -> b-1__t-5($), Err -> trap-4
+  trap-4:   [3ea1ec8992739c3a2c2ce5290684618c523acb5d2b9e57efaee76ba736ed2e9f]
+    trap unreachable
+  b-1__t-5(t-5: i64):   [1cfb2d5cf673c1eaebf3762cbc95e69ddc796615cc8a9c7745cbd0cb25b94e84]
+    return t-5
+fn sentinel() -> i64   [8560cd0909fdc9f515e26ac615fd650055add862a9288ff81e2c2795501c8713]
+  b-1:   [87f59967af44bfb3102b28fd3b8f58d0c5424f5610a5d4d90dee60343c27c3b4]
+    b-1__t0: i64 = const k_7 (7)   [b988d08c8c593e84058927d658e186858ed008aa254bc70b83916c64c974bdb9]
+    return b-1__t0

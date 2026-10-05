@@ -1,0 +1,52 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "body": [
+        [
+          "return",
+          [
+            "mul",
+            "x",
+            2
+          ]
+        ]
+      ],
+      "fn": "scale",
+      "params": [
+        [
+          "x",
+          "i64"
+        ]
+      ],
+      "returns": "i64"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        -3
+      ],
+      "expect": -6,
+      "fn": "scale",
+      "name": "negative"
+    },
+    {
+      "args": [
+        0
+      ],
+      "expect": 0,
+      "fn": "scale",
+      "name": "zero"
+    },
+    {
+      "args": [
+        4
+      ],
+      "expect": 8,
+      "fn": "scale",
+      "name": "positive"
+    }
+  ]
+}

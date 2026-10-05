@@ -1,0 +1,4 @@
+{
+  "root": "6bbce34f77c28c12c505d38f1d869e4a46a2ea29f86d82a869f5bcf731393ec2",
+  "view": "# sley view (AV1, non-canonical) root=6bbce34f\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\n    return x\nfn sentinel() -> i64   [8560cd0909fdc9f515e26ac615fd650055add862a9288ff81e2c2795501c8713]\n  b-1:   [87f59967af44bfb3102b28fd3b8f58d0c5424f5610a5d4d90dee60343c27c3b4]\n    b-1__t0: i64 = const k_8 (8)   [b988d08c8c593e84058927d658e186858ed008aa254bc70b83916c64c974bdb9]\n    return b-1__t0\n"
+}

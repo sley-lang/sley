@@ -1,0 +1,9 @@
+{
+  "ceilings": {
+    "fuel": 1000000,
+    "memory_bytes": 16777216,
+    "mutations": 10000,
+    "output_bytes": 65536
+  },
+  "workspace": "author"
+}
