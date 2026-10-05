@@ -38,13 +38,16 @@ graph through bounded queries and changes it by proposing typed mutations. A
 deterministic kernel checks every proposal before anything is committed.
 
 ```text
-verified state ─▶ bounded query ─▶ proposed change ─▶ validation ─▶ atomic commit ─▶ new verified state
+verified state ─▶ query ─▶ proposal ─▶ validation ─▶ commit admission ─▶ atomic commit
 ```
 
-There's no parser to confuse, no formatting to fight over, and no "it
-compiled on my machine". Every accepted state has an exact cryptographic
-root. Every change carries a receipt. Every failure comes back as a stable
-machine code instead of prose.
+Every accepted state has an exact cryptographic root. Accepted transactions
+carry receipts, and supported refusals use stable machine codes.
+
+"Verified" names checks under a specific profile and policy. Static validity,
+advisory test matches, resource evidence and accepted state are separate;
+none alone establishes correctness against user requirements. The
+[guarantee matrix](docs/GUARANTEES.md) explains what each result means.
 
 ## Why Sley?
 
@@ -150,7 +153,9 @@ flowchart LR
     P --> Q[Queries and capsules]
     P --> M[Mutation candidates]
     M --> C{Checker and policy<br/>14-phase validation}
-    C -- accepted --> T[Transaction engine]
+    C -- valid --> G{Commit admission}
+    G -- admitted --> T[Transaction engine]
+    G -- refused --> R
     C -- refused --> R[/Stable error code/]
     T --> S[(Content-addressed<br/>object store)]
     T --> RC[/Receipt + new state root/]

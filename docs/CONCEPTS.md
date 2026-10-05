@@ -5,6 +5,10 @@ changes, and why each piece exists. It takes about fifteen minutes to read.
 When you're ready to run something, go to the [Quickstart](QUICKSTART.md). For
 exact rules, every section links to its normative spec.
 
+Start with the [guarantee matrix](GUARANTEES.md) when interpreting a success
+result: validity, advisory test matches, admission and application correctness
+have different evidence requirements.
+
 **Contents**
 
 - [The doctrine](#the-doctrine)
@@ -135,7 +139,9 @@ flowchart LR
     S0[(Verified state<br/>root R)] --> Q[Query<br/>bounded context]
     Q --> C[Candidate<br/>proposed mutations]
     C --> V{Validate<br/>14 phases}
-    V -- VALID --> T[Commit<br/>atomic transaction]
+    V -- VALID --> G{Commit admission}
+    G -- admitted --> T[Commit<br/>atomic transaction]
+    G -- refused --> E
     V -- refused --> E[/Decision + stable code/]
     T --> S1[(Verified state<br/>root R′)]
     T --> RC[/Receipt/]
@@ -167,9 +173,21 @@ change the rules it is judged by.
 A valid result has 14 passed phases. An invalid one has a passed prefix,
 exactly one failed phase with a decision such as `TYPE_ERROR`, `STALE_ROOT`,
 or `CAPABILITY_DENIED`, and a not-run suffix. Every phase records an evidence
-digest, so a result is checkable and can't be forged.
+digest. A parsed result or digest alone grants no commit authority: the
+transaction owner recomputes validation in its current trusted context.
 
-**4. Commit.** The kernel **revalidates at commit time**, then stages
+Static contract/test checks validate supported shapes and select tests; they
+do not run the predicates or establish general behavioral correctness.
+Workbench `tests: … passed` results are separate advisory comparisons.
+
+**4. Admission and commit.** The transaction owner **revalidates at commit
+time** and applies the selected route's admission gate. The v1 route refuses
+a nonempty selected-test set. Native admission requires bound execution and
+resource evidence plus its separately authorized acceptance statement; it
+cannot consume an advisory workbench match as that evidence. A configured
+native path also needs qualification of the actual deployment.
+
+Only an admitted change proceeds: the transaction owner stages
 immutable objects, verifies them, promotes them, writes and syncs a receipt,
 syncs directories, and only then compare-and-swaps the head. A crash at any
 point leaves either the old state or the complete new state, never a partial
@@ -212,11 +230,16 @@ Spec: [Root-backed queries](spec/ROOT_BACKED_QUERY_PROFILE_V1.md) ·
 
 ## Execution: the deterministic VM
 
-Sley programs run in a **deterministic VM**. The same state and inputs always
-produce the same observations, byte for byte, on every machine. Functions are
+Supported Sley programs run in a **deterministic VM**. The same verified
+program, inputs, execution profile and relevant request limits produce the
+same deterministic observations; measured wall time and host memory are
+separate evidence. Functions are
 lowered to bytecode and executed under explicit **fuel, value, output, and
-cancellation limits**. Each run produces a canonical observation digest and a
-stored **execution report** that you can read back later by its ID.
+cancellation limits**. The report path binds execution observations in a
+stored **execution report** that can be read back by ID. Workbench `call` and
+`test` instead return advisory results; they do not store authoritative
+reports or confer admission. The [resource-policy disclosure](spec/SLEY_AGENT_V1.md#101-testcase-resource-reporting)
+separates applied VM limits from unapplied TestCase declarations.
 
 Bytecode and caches are derived state. They're keyed by root and profile and
 can always be rebuilt.

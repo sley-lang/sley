@@ -1375,6 +1375,124 @@ fn call_and_test_write_nothing_to_the_repository() {
 }
 
 #[test]
+fn advisory_resource_policy_is_visible_for_passing_tests_in_every_result_view() {
+    let temp = committed_program("resource-policy", None);
+    // These declarations cannot establish host-byte or deadline compliance.
+    // The pure function still matches under the advisory VM's fixed limits.
+    let frame = json!({"af1": 1,
+        "edit": [{"fn": "bound", "replace_op": "above.r", "with": ["ok", "high"]}],
+        "tests": [{
+        "fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5},
+        "limits": {"memory_bytes": 1, "output_bytes": 1, "effect_count": 0,
+                   "call_depth": 1, "wall_timeout_millis": 0}
+    }]});
+    let (status, result) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{result}");
+    let policy = &result["test_execution_policy"];
+    assert_eq!(policy["mode"], "advisory");
+    assert_eq!(policy["pass_basis"], "expected_value_or_trap");
+    assert_eq!(policy["admission_evidence"], false);
+    assert_eq!(policy["declared_limits"]["fuel"], "vm_fuel");
+    for field in [
+        "memory_bytes",
+        "output_bytes",
+        "effect_count",
+        "call_depth",
+        "wall_timeout_millis",
+    ] {
+        assert_eq!(policy["declared_limits"][field], "not_applied", "{field}");
+    }
+    assert_eq!(policy["fixed_vm_limits"]["instructions"], 100_000_000);
+    assert_eq!(policy["fixed_vm_limits"]["value_units"], 1_000_000_000);
+    assert_eq!(policy["fixed_vm_limits"]["output_units"], 16_777_216);
+    assert_eq!(result["tests"][0]["pass"], true);
+    assert_eq!(run(&temp.path, &["submit", "c2"]).0, 0);
+    let before = snapshot(&temp.path.join("repo"));
+    for args in [vec!["test", "c2"], vec!["status"]] {
+        let (status, result) = run_json(&temp.path, &args);
+        assert_eq!(status, 0, "{result}");
+        assert_eq!(
+            &result["test_execution_policy"], policy,
+            "{args:?}: {result}"
+        );
+        assert_eq!(result["tests"][0]["pass"], true);
+    }
+    for args in [
+        vec!["try", &frame.to_string()],
+        vec!["test", "c2"],
+        vec!["status"],
+    ] {
+        let (status, text) = run(&temp.path, &args);
+        assert_eq!(status, 0, "{text}");
+        assert!(text.contains("tests: 1/1 passed"), "{text}");
+        assert!(
+            text.contains("advisory value/trap comparison; not admission evidence"),
+            "{text}"
+        );
+        assert!(text.contains("fuel=VM fuel"), "{text}");
+        for field in [
+            "memory_bytes",
+            "output_bytes",
+            "effect_count",
+            "call_depth",
+            "wall_timeout_millis",
+        ] {
+            assert!(text.contains(&format!("{field}=not applied")), "{text}");
+        }
+        assert!(text.contains("VM units are not host bytes"), "{text}");
+    }
+    assert_eq!(snapshot(&temp.path.join("repo")), before);
+}
+
+#[test]
+fn advisory_resource_policy_does_not_turn_fuel_exhaustion_into_a_match() {
+    let temp = committed_program("resource-policy-fuel", None);
+    let frame = json!({"af1": 1, "tests": [{
+        "fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}, "limits": {"fuel": 1}
+    }]});
+    let (status, result) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 1, "{result}");
+    assert_eq!(result["tests"][0]["pass"], false);
+    assert_eq!(result["tests"][0]["actual"], "resource limit (Fuel)");
+    assert_eq!(
+        result["test_execution_policy"]["declared_limits"]["fuel"],
+        "vm_fuel"
+    );
+    assert_eq!(result["test_execution_policy"]["admission_evidence"], false);
+}
+
+#[test]
+fn advisory_resource_policy_is_absent_when_no_testcase_ran() {
+    let temp = committed_program("resource-policy-empty", None);
+    let (status, result) = run_json(&temp.path, &["test"]);
+    assert_eq!(status, 0, "{result}");
+    assert_eq!(result["tests"], json!([]));
+    assert_eq!(result.get("test_execution_policy"), Some(&Value::Null));
+    let public = temp.path.join("public.json");
+    fs::write(
+        &public,
+        r#"[{"function":"bound","args":[5,0,10],"expect":{"Ok":5}}]"#,
+    )
+    .unwrap();
+    let (status, result) = run_json(&temp.path, &["test", "--public", public.to_str().unwrap()]);
+    assert_eq!(status, 0, "{result}");
+    assert_eq!(result["tests"], json!([]));
+    assert_eq!(result["public"][0]["pass"], true);
+    assert_eq!(result.get("test_execution_policy"), Some(&Value::Null));
+    let frame = json!({"af1": 1, "tests": [{
+        "fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}
+    }]})
+    .to_string();
+    let (status, result) = run_json(&temp.path, &["try", &frame, "--no-test"]);
+    assert_eq!(status, 0, "{result}");
+    assert_eq!(result["tests"], json!([]));
+    assert_eq!(result.get("test_execution_policy"), Some(&Value::Null));
+    let (status, text) = run(&temp.path, &["try", &frame, "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(!text.contains("test execution:"), "{text}");
+}
+
+#[test]
 fn help_topics_and_hints_cover_the_common_refusals() {
     for topic in sley_agent::help::TOPICS {
         assert!(sley_agent::help::topic(topic).is_some(), "{topic}");
