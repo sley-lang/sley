@@ -1,0 +1,4 @@
+{
+  "detail": "accepted root changed; read the current context and author a new proposal",
+  "error": "AGENT_PROPOSAL_STALE"
+}

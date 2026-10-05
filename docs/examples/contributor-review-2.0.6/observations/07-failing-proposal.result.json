@@ -1,0 +1,81 @@
+{
+  "also": [],
+  "changed": [
+    {
+      "change": "replaced",
+      "existing_export": true,
+      "kind": "fn",
+      "name": "scale"
+    },
+    {
+      "change": "created",
+      "existing_export": false,
+      "kind": "const",
+      "name": "k_2"
+    },
+    {
+      "change": "created",
+      "existing_export": false,
+      "kind": "test",
+      "name": "negative"
+    },
+    {
+      "change": "created",
+      "existing_export": false,
+      "kind": "test",
+      "name": "positive"
+    },
+    {
+      "change": "created",
+      "existing_export": false,
+      "kind": "test",
+      "name": "zero"
+    }
+  ],
+  "draft": "d2@r1",
+  "handle": "c2",
+  "next": "fix only what failed on top of d2: sley-agent try --on d2 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")",
+  "notes": [],
+  "obligations": [],
+  "ops": {
+    "created": 9,
+    "deleted": 0,
+    "replaced": 2
+  },
+  "provenance": {
+    "authored": 3,
+    "imported": 0,
+    "provided": 0
+  },
+  "public": [],
+  "state": "valid",
+  "tests": [
+    {
+      "actual": "-1",
+      "expected": "-6",
+      "pass": false,
+      "target": "scale",
+      "test": "negative"
+    },
+    {
+      "actual": "6",
+      "expected": "8",
+      "pass": false,
+      "target": "scale",
+      "test": "positive"
+    },
+    {
+      "actual": "2",
+      "expected": "0",
+      "pass": false,
+      "target": "scale",
+      "test": "zero"
+    }
+  ],
+  "tests_failed": 3,
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 3,
+    "valid": true
+  }
+}

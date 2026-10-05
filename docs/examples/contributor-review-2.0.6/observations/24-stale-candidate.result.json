@@ -1,0 +1,4 @@
+{
+  "detail": "candidate.hex is not Valid (StaleRoot); only Valid candidates are submitted",
+  "error": "AGENT_SUBMISSION_REFUSED"
+}

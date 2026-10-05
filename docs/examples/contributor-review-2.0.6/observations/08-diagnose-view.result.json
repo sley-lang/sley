@@ -1,0 +1,4 @@
+{
+  "root": "a3ae1f9527bd7812fab3dde57967a466cb8f3fd441e1c669570f71f20d332a39",
+  "view": "# sley view (AV1, non-canonical) root=a3ae1f95 after=c2\nfn scale(x: i64) -> i64   [812cfc9ceff10d42a4f5076a3725575e758828f1020977a7baf8cafbff21bc64]\n  b-1:   [e5ffb4172359bd6dd8f3a7e355856aa8ba4ddc3b276d45394ab8494070a74f59]\n    t-5__a1 = const k_2 (2)   [6e4d597a0e1aa0097c2f03b1ae680925a537527a46152fcd7bdd5eebbc308507]\n    t-5__r = add x, t-5__a1   [e78b612bc7616f9f9cd15eeee5480f6ebb41c36d9b8f3b161f2791493184fc05]\n    switch t-5__r: Ok -> b-1__t-5($), Err -> trap-4\n  trap-4:   [7a6bfa136ed2e4712638d7d039c2c3c233b20cf2c4409aa19107cee55fface3c]\n    trap unreachable\n  b-1__t-5(t-5: i64):   [3bf76d092f28f4bac01665e53a5a01aeae67f08216dcb054605b91afc800769b]\n    return t-5\n"
+}

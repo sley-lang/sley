@@ -1,0 +1,4 @@
+{
+  "root": "6bbce34f77c28c12c505d38f1d869e4a46a2ea29f86d82a869f5bcf731393ec2",
+  "view": "# sley view (AV1, non-canonical) root=6bbce34f\nconst k_7: i64 = 7\nconst k_8: i64 = 8\nfn scale(x: i64) -> i64   [812cfc9c]\n  b-1:\n    return x\n\nfn sentinel() -> i64   [8560cd09]\n  b-1:\n    b-1__t0 = const k_8 (8)\n    return b-1__t0\n\n"
+}

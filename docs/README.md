@@ -17,6 +17,7 @@ Everything about Sley 2, organized by what you're trying to do.
 | 🧭 [Architecture walkthrough](https://sleylang.org/tutorial) *(sleylang.org)* | Follow state → proposal → validation → transaction → new state, step by step |
 | 🏗️ [Architecture](../ARCHITECTURE.md) | Learn crate authority, the dependency law, and commit durability order |
 | 🐍 [Example client](examples/smp1_json_client.py) | Copy a working SMP1 JSON-lines client (Python, standard library only) |
+| [Contributor review walkthrough](CONTRIBUTOR_REVIEW.md) | Build and replay a root-bound change, diagnose failed cases, and handle a changed base in fresh workspaces |
 | 📦 [Sley 2.0.0 release notes](release/SLEY-2.0.0.md) | See what shipped, how to verify the artifact, and the known limits |
 | 🩹 [Sley 2.0.1 release notes](release/SLEY-2.0.1.md) | See the fixes since 2.0.0, including four contributed by Fred Nix |
 | 🤖 [Sley 2.0.2 release notes](release/SLEY-2.0.2.md) | See the agent workbench `sley-agent`: views, frames, tests and refusals agents can act on |

@@ -1,0 +1,48 @@
+{
+  "also": [],
+  "changed": [
+    {
+      "change": "created",
+      "existing_export": false,
+      "kind": "fn",
+      "name": "scale",
+      "visibility": "exported"
+    },
+    {
+      "change": "created",
+      "existing_export": false,
+      "kind": "fn",
+      "name": "sentinel",
+      "visibility": "exported"
+    },
+    {
+      "change": "created",
+      "existing_export": false,
+      "kind": "const",
+      "name": "k_7"
+    }
+  ],
+  "draft": "d1@r1",
+  "handle": "c1",
+  "next": "add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)",
+  "notes": [],
+  "obligations": [],
+  "ops": {
+    "created": 7,
+    "deleted": 0,
+    "replaced": 0
+  },
+  "provenance": {
+    "authored": 0,
+    "imported": 0,
+    "provided": 0
+  },
+  "public": [],
+  "state": "valid",
+  "tests": [],
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

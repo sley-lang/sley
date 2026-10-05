@@ -1,0 +1,33 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "body": [
+        [
+          "return",
+          "x"
+        ]
+      ],
+      "fn": "scale",
+      "params": [
+        [
+          "x",
+          "i64"
+        ]
+      ],
+      "returns": "i64"
+    },
+    {
+      "body": [
+        [
+          "return",
+          7
+        ]
+      ],
+      "fn": "sentinel",
+      "params": [],
+      "returns": "i64"
+    }
+  ]
+}
