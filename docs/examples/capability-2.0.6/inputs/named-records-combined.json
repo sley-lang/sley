@@ -1,0 +1,68 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "field",
+              "Point.x",
+              "p"
+            ]
+          ]
+        }
+      ],
+      "fn": "x_of",
+      "params": [
+        [
+          "p",
+          "Point"
+        ]
+      ],
+      "returns": "i64"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        {
+          "x": 7,
+          "y": 11
+        }
+      ],
+      "expect": 7,
+      "fn": "x_of",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        {
+          "x": -2,
+          "y": 0
+        }
+      ],
+      "expect": -2,
+      "fn": "x_of",
+      "name": "case_1"
+    }
+  ],
+  "types": [
+    {
+      "name": "Point",
+      "record": [
+        [
+          "x",
+          "i64"
+        ],
+        [
+          "y",
+          "i64"
+        ]
+      ]
+    }
+  ]
+}

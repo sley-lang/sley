@@ -1,0 +1,54 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "fadd",
+              "x",
+              "y"
+            ]
+          ]
+        }
+      ],
+      "fn": "float_add",
+      "params": [
+        [
+          "x",
+          "f64"
+        ],
+        [
+          "y",
+          "f64"
+        ]
+      ],
+      "returns": "f64"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        1.5,
+        2.25
+      ],
+      "expect": 3.75,
+      "fn": "float_add",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        -1.0,
+        0.5
+      ],
+      "expect": -0.5,
+      "fn": "float_add",
+      "name": "case_1"
+    }
+  ],
+  "types": []
+}

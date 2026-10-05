@@ -1,0 +1,58 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "add",
+              "x",
+              "y"
+            ]
+          ]
+        }
+      ],
+      "fn": "checked_add",
+      "params": [
+        [
+          "x",
+          "i64"
+        ],
+        [
+          "y",
+          "i64"
+        ]
+      ],
+      "returns": "Result<i64,ArithmeticError>"
+    },
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "call",
+              "checked_add",
+              "x",
+              "x"
+            ]
+          ]
+        }
+      ],
+      "fn": "twice",
+      "params": [
+        [
+          "x",
+          "i64"
+        ]
+      ],
+      "returns": "Result<i64,ArithmeticError>"
+    }
+  ],
+  "types": []
+}

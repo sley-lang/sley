@@ -1,0 +1,48 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "ops": [
+            [
+              "c",
+              "cell",
+              "x"
+            ],
+            [
+              "set",
+              "cell_set",
+              "c",
+              "y"
+            ],
+            [
+              "got",
+              "cell_get",
+              "c"
+            ]
+          ],
+          "term": [
+            "return",
+            "got"
+          ]
+        }
+      ],
+      "fn": "local_update",
+      "params": [
+        [
+          "x",
+          "i64"
+        ],
+        [
+          "y",
+          "i64"
+        ]
+      ],
+      "returns": "i64"
+    }
+  ],
+  "types": []
+}

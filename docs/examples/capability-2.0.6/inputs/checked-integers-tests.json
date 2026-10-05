@@ -1,0 +1,29 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        3,
+        4
+      ],
+      "expect": {
+        "Ok": 7
+      },
+      "fn": "checked_add",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        9223372036854775807,
+        1
+      ],
+      "expect": {
+        "Err": {
+          "ArithmeticError": "Overflow"
+        }
+      },
+      "fn": "checked_add",
+      "name": "case_1"
+    }
+  ]
+}

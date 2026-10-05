@@ -1,0 +1,123 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "ops": [
+            [
+              "n",
+              "vec_len",
+              "items"
+            ]
+          ],
+          "term": [
+            "br",
+            "loop",
+            0,
+            1
+          ]
+        },
+        {
+          "name": "loop",
+          "params": [
+            [
+              "i",
+              "u64"
+            ],
+            [
+              "acc",
+              "i64"
+            ]
+          ],
+          "term": [
+            "cond",
+            [
+              "lt",
+              "i",
+              "entry.n"
+            ],
+            [
+              "body",
+              "i",
+              "acc"
+            ],
+            [
+              "done",
+              "acc"
+            ]
+          ]
+        },
+        {
+          "name": "body",
+          "ops": [
+            [
+              "x",
+              "vec_get?bounds",
+              "items",
+              "i"
+            ],
+            [
+              "next",
+              "mul?",
+              "acc",
+              "x"
+            ],
+            [
+              "j",
+              "add?bounds",
+              "i",
+              1
+            ]
+          ],
+          "params": [
+            [
+              "i",
+              "u64"
+            ],
+            [
+              "acc",
+              "i64"
+            ]
+          ],
+          "term": [
+            "br",
+            "loop",
+            "j",
+            "next"
+          ]
+        },
+        {
+          "name": "done",
+          "params": [
+            [
+              "acc",
+              "i64"
+            ]
+          ],
+          "term": [
+            "ok",
+            "acc"
+          ]
+        },
+        {
+          "name": "bounds",
+          "term": [
+            "trap"
+          ]
+        }
+      ],
+      "fn": "product",
+      "params": [
+        [
+          "items",
+          "Vec<i64>"
+        ]
+      ],
+      "returns": "Result<i64,ArithmeticError>"
+    }
+  ],
+  "types": []
+}

@@ -1,0 +1,86 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "switch",
+            "value",
+            [
+              "Empty",
+              "empty"
+            ],
+            [
+              "Number",
+              "number",
+              "$"
+            ]
+          ]
+        },
+        {
+          "name": "empty",
+          "term": [
+            "return",
+            0
+          ]
+        },
+        {
+          "name": "number",
+          "params": [
+            [
+              "n",
+              "i64"
+            ]
+          ],
+          "term": [
+            "return",
+            "n"
+          ]
+        }
+      ],
+      "fn": "unwrap",
+      "params": [
+        [
+          "value",
+          "Choice"
+        ]
+      ],
+      "returns": "i64"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        "Empty"
+      ],
+      "expect": 0,
+      "fn": "unwrap",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        {
+          "Number": 9
+        }
+      ],
+      "expect": 9,
+      "fn": "unwrap",
+      "name": "case_1"
+    }
+  ],
+  "types": [
+    {
+      "name": "Choice",
+      "variant": [
+        "Empty",
+        [
+          "Number",
+          "i64"
+        ]
+      ]
+    }
+  ]
+}

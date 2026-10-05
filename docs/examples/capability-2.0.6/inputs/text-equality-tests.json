@@ -1,0 +1,23 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        "bolt",
+        "bolt"
+      ],
+      "expect": true,
+      "fn": "same",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        "bolt",
+        "Bolt"
+      ],
+      "expect": false,
+      "fn": "same",
+      "name": "case_1"
+    }
+  ]
+}

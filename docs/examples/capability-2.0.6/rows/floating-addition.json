@@ -1,0 +1,87 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "3.75",
+      "expected": "3.75",
+      "pass": true,
+      "target": "float_add",
+      "test": "case_0"
+    },
+    {
+      "actual": "-0.5",
+      "expected": "-0.5",
+      "pass": true,
+      "target": "float_add",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": 3.75,
+      "vm_micros": 11
+    },
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": -0.5,
+      "vm_micros": 11
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "floating-addition",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "fb330ccec190674283deebe1bde149adf0c6fb83cec159afafccc9ad5b746515",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "3.75",
+        "expected": "3.75",
+        "pass": true,
+        "target": "float_add",
+        "test": "case_0"
+      },
+      {
+        "actual": "-0.5",
+        "expected": "-0.5",
+        "pass": true,
+        "target": "float_add",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "76af4b5b18b6ff917c336d08ec47c273ecbfd53ff43f296d5bc3fbb8f9a0cdfd"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "7a41c9e038a0f8172d7d12190de61be775d7339591e607a7a4cee26eb8fc0cad"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

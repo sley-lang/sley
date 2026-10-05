@@ -1,0 +1,34 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "fadd",
+              "x",
+              "y"
+            ]
+          ]
+        }
+      ],
+      "fn": "float_add",
+      "params": [
+        [
+          "x",
+          "f64"
+        ],
+        [
+          "y",
+          "f64"
+        ]
+      ],
+      "returns": "f64"
+    }
+  ],
+  "types": []
+}

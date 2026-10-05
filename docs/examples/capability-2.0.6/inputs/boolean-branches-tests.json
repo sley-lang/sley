@@ -1,0 +1,23 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        true,
+        7
+      ],
+      "expect": 7,
+      "fn": "choose",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        false,
+        7
+      ],
+      "expect": 0,
+      "fn": "choose",
+      "name": "case_1"
+    }
+  ]
+}

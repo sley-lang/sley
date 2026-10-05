@@ -1,0 +1,87 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "0",
+      "expected": "0",
+      "pass": true,
+      "target": "unwrap",
+      "test": "case_0"
+    },
+    {
+      "actual": "9",
+      "expected": "9",
+      "pass": true,
+      "target": "unwrap",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 5,
+      "instructions": 1,
+      "result": 0,
+      "vm_micros": 14
+    },
+    {
+      "fuel": 5,
+      "instructions": 0,
+      "result": 9,
+      "vm_micros": 12
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "named-variants",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "3e7b8ebd206dac029645333c738c760481051ef78f5a2a1af2fdae1c704bce78",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "0",
+        "expected": "0",
+        "pass": true,
+        "target": "unwrap",
+        "test": "case_0"
+      },
+      {
+        "actual": "9",
+        "expected": "9",
+        "pass": true,
+        "target": "unwrap",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "ee9275d77b84ec718dd0ae409e6ee0dbd54d8a6b0b4f782822e4995c8c90904b"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "c606601c77c54e5af86e1422643d06e7f111126ba4041e988d751c329affbe5e"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "Ok(1)",
+      "expected": "Ok(1)",
+      "pass": true,
+      "target": "product",
+      "test": "case_0"
+    },
+    {
+      "actual": "Ok(-24)",
+      "expected": "Ok(-24)",
+      "pass": true,
+      "target": "product",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 11,
+      "instructions": 5,
+      "result": {
+        "Ok": 1
+      },
+      "vm_micros": 9
+    },
+    {
+      "fuel": 95,
+      "instructions": 20,
+      "result": {
+        "Ok": -24
+      },
+      "vm_micros": 11
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "vectors-and-loops",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "872efcff22e2bcdfd02e093db6bda19e771116a6fd9142d851b40699d866546d",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "Ok(1)",
+        "expected": "Ok(1)",
+        "pass": true,
+        "target": "product",
+        "test": "case_0"
+      },
+      {
+        "actual": "Ok(-24)",
+        "expected": "Ok(-24)",
+        "pass": true,
+        "target": "product",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "2eab9370c7be3ddbf8bf30f8be1c4972276092bb345d40fbb1443a8dc77f8300"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "7a6834db62f6457e8b659d81797a94f32122e1d7b61d8114ae20b7f5f12adc2b"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

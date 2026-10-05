@@ -1,0 +1,87 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "7",
+      "expected": "7",
+      "pass": true,
+      "target": "x_of",
+      "test": "case_0"
+    },
+    {
+      "actual": "-2",
+      "expected": "-2",
+      "pass": true,
+      "target": "x_of",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": 7,
+      "vm_micros": 10
+    },
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": -2,
+      "vm_micros": 10
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "named-records",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "62d05e91f289e29e0b6e1b5632c5223b3e571da40180fa87b74f5cefa7d57289",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "7",
+        "expected": "7",
+        "pass": true,
+        "target": "x_of",
+        "test": "case_0"
+      },
+      {
+        "actual": "-2",
+        "expected": "-2",
+        "pass": true,
+        "target": "x_of",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "1b86f3eeeffb25309c4ce5789d01eebe5f30fe602735de768f09a5837287620e"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "03696e1afd30189f63817753a466457f6a7fbd30cb06de395adc68becd79fe95"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

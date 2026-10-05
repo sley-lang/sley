@@ -1,0 +1,44 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "field",
+              "Point.x",
+              "p"
+            ]
+          ]
+        }
+      ],
+      "fn": "x_of",
+      "params": [
+        [
+          "p",
+          "Point"
+        ]
+      ],
+      "returns": "i64"
+    }
+  ],
+  "types": [
+    {
+      "name": "Point",
+      "record": [
+        [
+          "x",
+          "i64"
+        ],
+        [
+          "y",
+          "i64"
+        ]
+      ]
+    }
+  ]
+}

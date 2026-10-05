@@ -1,0 +1,93 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "Ok(7)",
+      "expected": "Ok(7)",
+      "pass": true,
+      "target": "checked_add",
+      "test": "case_0"
+    },
+    {
+      "actual": "Err(ArithmeticError.Overflow)",
+      "expected": "Err(ArithmeticError.Overflow)",
+      "pass": true,
+      "target": "checked_add",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": {
+        "Ok": 7
+      },
+      "vm_micros": 10
+    },
+    {
+      "fuel": 2,
+      "instructions": 1,
+      "result": {
+        "Err": {
+          "ArithmeticError": "Overflow"
+        }
+      },
+      "vm_micros": 6
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "checked-integers",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "59dafec6ad3cef91d2ef0fcc0d51c0a2a0b41c9a837d3866e4c4368ce25693a7",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "Ok(7)",
+        "expected": "Ok(7)",
+        "pass": true,
+        "target": "checked_add",
+        "test": "case_0"
+      },
+      {
+        "actual": "Err(ArithmeticError.Overflow)",
+        "expected": "Err(ArithmeticError.Overflow)",
+        "pass": true,
+        "target": "checked_add",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "3aaa2e3fca92011683a04d8bdf1602374b4f17c144bcb26ed9403b54fdaa0f68"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "ffb43e69f9908c464a1963b54fd102bd183d76c106d963c9f6ec2b94171586fe"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

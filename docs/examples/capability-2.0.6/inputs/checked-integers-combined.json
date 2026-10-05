@@ -1,0 +1,60 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "add",
+              "x",
+              "y"
+            ]
+          ]
+        }
+      ],
+      "fn": "checked_add",
+      "params": [
+        [
+          "x",
+          "i64"
+        ],
+        [
+          "y",
+          "i64"
+        ]
+      ],
+      "returns": "Result<i64,ArithmeticError>"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        3,
+        4
+      ],
+      "expect": {
+        "Ok": 7
+      },
+      "fn": "checked_add",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        9223372036854775807,
+        1
+      ],
+      "expect": {
+        "Err": {
+          "ArithmeticError": "Overflow"
+        }
+      },
+      "fn": "checked_add",
+      "name": "case_1"
+    }
+  ],
+  "types": []
+}

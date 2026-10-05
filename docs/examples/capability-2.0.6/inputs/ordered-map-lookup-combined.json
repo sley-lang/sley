@@ -1,0 +1,66 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "map_get",
+              "m",
+              "key"
+            ]
+          ]
+        }
+      ],
+      "fn": "lookup",
+      "params": [
+        [
+          "m",
+          "Map<text,i64>"
+        ],
+        [
+          "key",
+          "text"
+        ]
+      ],
+      "returns": "Option<i64>"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        [
+          [
+            "bolt",
+            8
+          ]
+        ],
+        "bolt"
+      ],
+      "expect": {
+        "Some": 8
+      },
+      "fn": "lookup",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        [
+          [
+            "bolt",
+            8
+          ]
+        ],
+        "nut"
+      ],
+      "expect": "None",
+      "fn": "lookup",
+      "name": "case_1"
+    }
+  ],
+  "types": []
+}

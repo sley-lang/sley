@@ -1,0 +1,91 @@
+{
+  "advisory_execution": "matched finite cases",
+  "advisory_tests": [
+    {
+      "actual": "Ok(8)",
+      "expected": "Ok(8)",
+      "pass": true,
+      "target": "twice",
+      "test": "case_0"
+    },
+    {
+      "actual": "Ok(-6)",
+      "expected": "Ok(-6)",
+      "pass": true,
+      "target": "twice",
+      "test": "case_1"
+    }
+  ],
+  "authoritative_test_evidence": "not supplied by this v1 route",
+  "calls": [
+    {
+      "fuel": 5,
+      "instructions": 2,
+      "result": {
+        "Ok": 8
+      },
+      "vm_micros": 12
+    },
+    {
+      "fuel": 5,
+      "instructions": 2,
+      "result": {
+        "Ok": -6
+      },
+      "vm_micros": 12
+    }
+  ],
+  "combined_verdict": {
+    "decision": "Valid",
+    "selected_tests": 2,
+    "valid": true
+  },
+  "feature": "direct-calls",
+  "lowering": "observed via successful VM calls",
+  "proposed_root": "f02c3bb2735a13b58e6c6b484d9496833700622b224ad71eefe7064cf411d9a2",
+  "representation": "canonical candidate created",
+  "test_definition_only": {
+    "advisory_tests": [
+      {
+        "actual": "Ok(8)",
+        "expected": "Ok(8)",
+        "pass": true,
+        "target": "twice",
+        "test": "case_0"
+      },
+      {
+        "actual": "Ok(-6)",
+        "expected": "Ok(-6)",
+        "pass": true,
+        "target": "twice",
+        "test": "case_1"
+      }
+    ],
+    "commit": {
+      "committed": "c2",
+      "transaction": "ec6da8a68e14cb9ef0a21a2578cc39c573e8ff8993febf33ca66436763905416"
+    },
+    "native_evidence": false,
+    "verdict": {
+      "decision": "Valid",
+      "selected_tests": 0,
+      "valid": true
+    }
+  },
+  "tested_commit": "TXN_TEST_EVIDENCE_UNSUPPORTED",
+  "tested_refusal": {
+    "detail": "commit refused: TXN_TEST_EVIDENCE_UNSUPPORTED",
+    "error": "AGENT_SUBMISSION_REFUSED"
+  },
+  "untested_commit": "accepted",
+  "untested_receipt": {
+    "committed": "c1",
+    "transaction": "9040d500c528bf79d76c1a7b2a66b67e3b120a8003b87ebdcd80e4d7f499807c"
+  },
+  "validation": "Valid",
+  "verdict": {
+    "decision": "Valid",
+    "selected_tests": 0,
+    "valid": true
+  }
+}

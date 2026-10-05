@@ -24,6 +24,11 @@ Everything about Sley 2, organized by what you're trying to do.
 | 🧩 [Sley 2.0.5 release notes](release/SLEY-2.0.5.md) | Structured function bodies, checked integer conversion, optional familiar proposals, experimental residual authoring, faster execution |
 | ❓ [FAQ](https://sleylang.org/faq) *(sleylang.org)* | Get quick answers about scope, status, and Sley 1.x |
 
+## Executable examples
+
+- [Capability matrix](CAPABILITIES.md): reproduce distinct authoring, validation, execution and commit observations with the published binary.
+- [Stock reorder report](STOCK_REORDER.md): run, package, test and maintain a CSV application with an explicit Python host boundary.
+
 ## Specifications
 
 Every spec under [`spec/`](spec/) is normative: the implementation, the

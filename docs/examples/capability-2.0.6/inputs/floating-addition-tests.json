@@ -1,0 +1,23 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        1.5,
+        2.25
+      ],
+      "expect": 3.75,
+      "fn": "float_add",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        -1.0,
+        0.5
+      ],
+      "expect": -0.5,
+      "fn": "float_add",
+      "name": "case_1"
+    }
+  ]
+}

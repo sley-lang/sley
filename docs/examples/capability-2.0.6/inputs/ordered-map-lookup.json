@@ -1,0 +1,34 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "map_get",
+              "m",
+              "key"
+            ]
+          ]
+        }
+      ],
+      "fn": "lookup",
+      "params": [
+        [
+          "m",
+          "Map<text,i64>"
+        ],
+        [
+          "key",
+          "text"
+        ]
+      ],
+      "returns": "Option<i64>"
+    }
+  ],
+  "types": []
+}

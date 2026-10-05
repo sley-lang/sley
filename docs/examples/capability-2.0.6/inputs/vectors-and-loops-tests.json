@@ -1,0 +1,29 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        []
+      ],
+      "expect": {
+        "Ok": 1
+      },
+      "fn": "product",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        [
+          2,
+          -3,
+          4
+        ]
+      ],
+      "expect": {
+        "Ok": -24
+      },
+      "fn": "product",
+      "name": "case_1"
+    }
+  ]
+}

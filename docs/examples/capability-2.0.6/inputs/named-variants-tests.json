@@ -1,0 +1,23 @@
+{
+  "af1": 1,
+  "tests": [
+    {
+      "args": [
+        "Empty"
+      ],
+      "expect": 0,
+      "fn": "unwrap",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        {
+          "Number": 9
+        }
+      ],
+      "expect": 9,
+      "fn": "unwrap",
+      "name": "case_1"
+    }
+  ]
+}

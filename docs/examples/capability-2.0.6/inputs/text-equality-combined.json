@@ -1,0 +1,54 @@
+{
+  "af1": 1,
+  "afx": 1,
+  "fns": [
+    {
+      "blocks": [
+        {
+          "name": "entry",
+          "term": [
+            "return",
+            [
+              "eq",
+              "a",
+              "b"
+            ]
+          ]
+        }
+      ],
+      "fn": "same",
+      "params": [
+        [
+          "a",
+          "text"
+        ],
+        [
+          "b",
+          "text"
+        ]
+      ],
+      "returns": "bool"
+    }
+  ],
+  "tests": [
+    {
+      "args": [
+        "bolt",
+        "bolt"
+      ],
+      "expect": true,
+      "fn": "same",
+      "name": "case_0"
+    },
+    {
+      "args": [
+        "bolt",
+        "Bolt"
+      ],
+      "expect": false,
+      "fn": "same",
+      "name": "case_1"
+    }
+  ],
+  "types": []
+}
