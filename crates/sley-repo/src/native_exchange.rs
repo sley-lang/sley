@@ -1566,7 +1566,7 @@ fn check_receipt_trust_grants(
         acceptance_manifest,
     )
     .map_err(map_trust_error)?;
-    let plan = NativeTestPlanV1::parse(receipt.bundle.plan_stored())
+    NativeTestPlanV1::parse(receipt.bundle.plan_stored())
         .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
     for embedded in receipt.bundle.measurements() {
         let attestation = MeasuredTestAttestationV1::parse(&embedded.stored)
@@ -1575,7 +1575,6 @@ fn check_receipt_trust_grants(
         verify_measurement_attestation(
             &attestation,
             receipt.transaction.record.workspace_id,
-            plan.execution_profile(),
             measurement_manifest,
         )
         .map_err(map_trust_error)?;

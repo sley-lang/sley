@@ -20,12 +20,10 @@ use sley_tests::{
     MEASUREMENT_PROFILE_V1, NATIVE_WALL_CAP_MILLIS, NativeAdmissionProfileParts,
     NativeAdmissionProfileV1, NativeAggregateLimits, NativeExpected, NativeResourcePolicyParts,
     NativeResourcePolicyV1, NativeTestPlanParts, NativeTestPlanV1, PREPROMOTION_WATCHDOG_MILLIS,
-    SELECTION_RULE_NATIVE_V1, SelectedEntry, ValidationLimits,
+    SELECTION_RULE_NATIVE_V1, SelectedEntry, ValidationLimits, execution_report_capacity_required,
     plan::{SELECTION_MODE_CANDIDATE_AFFECTED, SELECTION_MODE_EXPLICIT_ROOT},
 };
-use sley_vm::native_execution::{
-    NativeDeclaredLimits, NativeImplementationLimits, observation_capacity_required, profile_id,
-};
+use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits, profile_id};
 
 use super::candidate_program::{CandidateProgram, CandidateProgramError};
 use super::candidate_validation::CandidateValidationOutput;
@@ -857,7 +855,7 @@ fn check_evidence(
             .get(&entry.test_entity)
             .map(|test| test.inputs.len())
             .ok_or(selection_invalid())?;
-        let required = observation_capacity_required(
+        let required = execution_report_capacity_required(
             test_inputs,
             entry.declared_limits,
             implementation_limits,

@@ -4,6 +4,7 @@
 
 use std::fmt::Write as _;
 use std::io::{Read as _, Write as _};
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -21,6 +22,11 @@ use sley_protocol::{
 };
 use sley_repo::test_support::{TempDir, complete_bodies, complete_dependency_root, genesis};
 use sley_scb1::encode_uvar;
+use sley_tests::{
+    HistoricalTrustPolicyParts, HistoricalTrustPolicyV1, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
+    TrustEntry,
+};
+use sley_txn::{Ed25519AcceptanceSigner, NativeAcceptanceSigner};
 
 const BRIDGE_FIXTURE: &str =
     include_str!("../../../conformance/smp1-json-bridge/v1/roundtrip.json");
@@ -1909,6 +1915,114 @@ fn v3_serve_routes_live_attempt_status_past_reservation() {
 }
 
 #[test]
+fn native_authority_requires_explicit_v3_receiver_configuration_before_hello() {
+    let (_temp, path) = repository("cli-native-authority-gate");
+    let repo = path.to_str().unwrap();
+    let missing = path.parent().unwrap().join("missing-native-authority.json");
+    let config = missing.to_str().unwrap();
+    let hello = encode_hello_frame(&offered_v3()).unwrap().bytes;
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v3-capable",
+            "--native-authority-config",
+            config,
+        ],
+        &hello,
+    );
+    assert_eq!(status, 4);
+    assert!(stdout.is_empty());
+    let failure: Value = serde_json::from_str(&stderr).unwrap();
+    assert_eq!(failure["symbol"], "CLI_IO_FAILURE");
+    assert_eq!(failure["cause"], "NATIVE_CLI_CONFIG_UNAVAILABLE");
+
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--native-authority-config",
+            config,
+        ],
+        &hello,
+    );
+    assert_eq!(status, 2);
+    assert!(stdout.is_empty());
+    let failure: Value = serde_json::from_str(&stderr).unwrap();
+    assert_eq!(failure["symbol"], "CLI_USAGE_INVALID");
+    assert_eq!(failure["cause"], "--native-authority-config");
+}
+
+#[test]
+fn valid_receiver_configuration_serves_the_v3_hello() {
+    let (_temp, path) = repository("cli-native-authority-v3-hello");
+    let directory = path.parent().unwrap();
+    let key = directory.join("acceptance.key");
+    let measurement = directory.join("measurement.sleyntr1");
+    let acceptance = directory.join("acceptance.sleyntr1");
+    let config = directory.join("native-authority.json");
+    let signer = Ed25519AcceptanceSigner::from_secret_bytes([7; 32]);
+    let policy = |key_id: [u8; 32], role: u32| {
+        HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [u8::try_from(role).unwrap(); 32],
+            entries: vec![TrustEntry {
+                key_id,
+                role,
+                workspaces: vec![[4; 32]],
+                profiles: vec![[3; 32]],
+                valid_from_unix_millis: 1,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .unwrap()
+    };
+    std::fs::write(&key, [7; 32]).unwrap();
+    std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+    std::fs::write(
+        &measurement,
+        policy([8; 32], ROLE_MEASUREMENT).stored_bytes(),
+    )
+    .unwrap();
+    std::fs::write(
+        &acceptance,
+        policy(signer.key_id(), ROLE_ACCEPTANCE).stored_bytes(),
+    )
+    .unwrap();
+    std::fs::write(
+        &config,
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "acceptance_key_path": key,
+            "measurement_trust_path": measurement,
+            "acceptance_trust_path": acceptance,
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let hello = encode_hello_frame(&offered_v3()).unwrap().bytes;
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            path.to_str().unwrap(),
+            "--protocol-profile",
+            "v3-capable",
+            "--native-authority-config",
+            config.to_str().unwrap(),
+        ],
+        &hello,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(stdout, hello);
+}
+
+#[test]
 fn v3_frame_commands_enforce_the_expected_version() {
     // A version 3 request converts under expected 3, including a native
     // tag (conversion names, dispatch admits): naming is not admission.
@@ -2540,14 +2654,42 @@ fn frame_decode_keeps_partial_stdout_before_failure() {
     assert_eq!(converted["kind"], "request");
 }
 
+fn assert_real_binary_native_worker_reports(
+    scratch: &TempDir,
+    run_unit: &impl Fn(&std::path::Path) -> (i32, Vec<u8>, Vec<u8>),
+) {
+    use sley_test_runner::worker::{EXIT_SOURCE_INVALID, WorkerRequest};
+
+    let observed = scratch.child("observed.bin");
+    std::fs::write(
+        &observed,
+        include_bytes!("../../../conformance/native-worker/v1/observed-input.bin"),
+    )
+    .unwrap();
+    let (status, stdout, stderr) = run_unit(&observed);
+    assert_eq!(status, 0);
+    assert_eq!(
+        stdout,
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    assert!(stderr.is_empty());
+    let mut substituted = WorkerRequest::decode_frame(include_bytes!(
+        "../../../conformance/native-worker/v1/observed-input.bin"
+    ))
+    .unwrap();
+    substituted.input_hashes[0] = [99; 32];
+    let substituted_path = scratch.child("substituted.bin");
+    std::fs::write(&substituted_path, substituted.encode_frame().unwrap()).unwrap();
+    let (status, stdout, stderr) = run_unit(&substituted_path);
+    assert_eq!(status, EXIT_SOURCE_INVALID);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 2);
+    assert_eq!(&stdout[4..], b"NATIVE_WORKER_SOURCE_INVALID");
+    assert!(stderr.is_empty());
+}
+
 #[test]
-fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
-    use sley_id::{PrincipalId, WorkspaceId};
-    use sley_test_runner::config::{AllowedCaller, default_config};
-    use sley_test_runner::unit::render_transient_unit;
-    use sley_test_runner::worker::{
-        EXIT_INPUT_UNREADABLE, EXIT_MALFORMED, EXIT_NOT_WIRED, WorkerRequest,
-    };
+fn native_test_worker_direct_path_entry_checks_the_real_binary() {
+    use sley_test_runner::worker::{EXIT_INPUT_UNREADABLE, EXIT_MALFORMED, WorkerRequest};
     use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
 
     let frame = WorkerRequest {
@@ -2571,6 +2713,80 @@ fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
     let junk = scratch.child("junk.bin");
     std::fs::write(&junk, b"junk").unwrap();
     let worker = env!("CARGO_BIN_EXE_sley");
+    // The direct path mode keeps local vector and symlink refusals testable.
+    let run_unit = |input_path: &std::path::Path| {
+        let output = Command::new(worker)
+            .arg("__native-test-worker")
+            .arg(input_path)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        (output.status.code().unwrap(), output.stdout, output.stderr)
+    };
+    assert_real_binary_native_worker_reports(&scratch, &run_unit);
+    // The envelope decodes, but its portable program is malformed.
+    let (status, stdout, stderr) = run_unit(&input);
+    assert_eq!(status, EXIT_MALFORMED);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 1);
+    assert_eq!(&stdout[4..], b"SCB_LENGTH_OVERFLOW");
+    assert!(stderr.is_empty());
+    // Malformed input: worker status 1 with the stable SCB string.
+    let (status, stdout, stderr) = run_unit(&junk);
+    assert_eq!(status, EXIT_MALFORMED);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 1);
+    assert!(stderr.is_empty());
+    // An absent binding: worker status 7, refusal tag 3.
+    let (status, stdout, _) = run_unit(&scratch.child("absent.bin"));
+    assert_eq!(status, EXIT_INPUT_UNREADABLE);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 3);
+    let linked = scratch.child("linked.bin");
+    std::os::unix::fs::symlink(&input, &linked).unwrap();
+    let (status, stdout, stderr) = run_unit(&linked);
+    assert_eq!(status, EXIT_INPUT_UNREADABLE);
+    assert_eq!(&stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+    assert!(stderr.is_empty());
+    let directory = scratch.child("directory");
+    std::fs::create_dir(&directory).unwrap();
+    let (status, stdout, stderr) = run_unit(&directory);
+    assert_eq!(status, EXIT_INPUT_UNREADABLE);
+    assert_eq!(&stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+    assert!(stderr.is_empty());
+    // Worker statuses never collide with the CLI's own statuses 2..=5, and
+    // any other argv shape is a CLI usage failure (exit 2, JSON on stderr).
+    for words in [
+        vec!["__native-test-worker"],
+        vec!["__native-test-worker", "relative.bin"],
+        vec!["__native-test-worker", input.to_str().unwrap(), "extra"],
+    ] {
+        let (status, stdout, stderr) = run(&words, &frame);
+        assert_eq!(status, 2, "{words:?}");
+        assert!(stdout.is_empty());
+        let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
+        assert_eq!(failure["code"], 43000);
+    }
+}
+
+#[test]
+fn native_test_worker_credential_entry_runs_the_rendered_unit_argv() {
+    use sley_id::{PrincipalId, WorkspaceId};
+    use sley_test_runner::config::{AllowedCaller, default_config};
+    use sley_test_runner::unit::render_transient_unit;
+    use sley_test_runner::worker::{
+        EXIT_INPUT_UNREADABLE, EXIT_OUTPUT_FAILED, WORKER_INPUT_CREDENTIAL, WORKER_RELEASE_GATE,
+        WORKER_START_GATE,
+    };
+
+    let scratch = TempDir::new("native-worker-credential");
+    let source = scratch.child("input.bin");
+    std::fs::write(
+        &source,
+        include_bytes!("../../../conformance/native-worker/v1/observed-input.bin"),
+    )
+    .unwrap();
+    let credentials = scratch.child("credentials");
+    std::fs::create_dir(&credentials).unwrap();
+    std::fs::copy(&source, credentials.join(WORKER_INPUT_CREDENTIAL)).unwrap();
+    let worker = env!("CARGO_BIN_EXE_sley");
     let config = default_config(
         "/run/sley-test-supervisor",
         worker,
@@ -2585,47 +2801,115 @@ fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
         "/etc/sley-test-supervisor/trust",
     )
     .unwrap();
-    // The supervisor's own rendering is the argv contract: everything after
-    // the worker path is handed to the real binary unchanged.
-    let run_unit = |input_path: &std::path::Path| {
-        let unit =
-            render_transient_unit(&config, "9f2c", input_path.to_str().unwrap(), 8192, 1_000)
-                .unwrap();
-        let at = unit.argv.iter().position(|word| word == worker).unwrap();
-        let output = Command::new(worker)
+    let unit = render_transient_unit(
+        &config,
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        source.to_str().unwrap(),
+        8192,
+        1_000,
+    )
+    .unwrap();
+    assert!(unit.argv.contains(&format!(
+        "--property=LoadCredential={WORKER_INPUT_CREDENTIAL}:{}",
+        source.display()
+    )));
+    let at = unit.argv.iter().position(|word| word == worker).unwrap();
+    let run = |credential_dir: Option<&std::path::Path>, control: &[u8]| {
+        let mut command = Command::new(worker);
+        command
             .args(&unit.argv[at + 1..])
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
-        (output.status.code().unwrap(), output.stdout, output.stderr)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(directory) = credential_dir {
+            command.env("CREDENTIALS_DIRECTORY", directory);
+        } else {
+            command.env_remove("CREDENTIALS_DIRECTORY");
+        }
+        let mut child = command.spawn().unwrap();
+        child.stdin.take().unwrap().write_all(control).unwrap();
+        child.wait_with_output().unwrap()
     };
-    // Well-formed envelope reaches the unwired dispatch refusal: raw
-    // refusal words on stdout, nothing on stderr, worker status 6.
-    let (status, stdout, stderr) = run_unit(&input);
-    assert_eq!(status, EXIT_NOT_WIRED);
-    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 2);
-    assert_eq!(&stdout[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
-    assert!(stderr.is_empty());
-    // Malformed input: worker status 1 with the stable SCB string.
-    let (status, stdout, stderr) = run_unit(&junk);
-    assert_eq!(status, EXIT_MALFORMED);
-    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 1);
-    assert!(stderr.is_empty());
-    // An absent binding: worker status 7, refusal tag 3.
-    let (status, stdout, _) = run_unit(&scratch.child("absent.bin"));
-    assert_eq!(status, EXIT_INPUT_UNREADABLE);
-    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 3);
-    // Worker statuses never collide with the CLI's own statuses 2..=5, and
-    // any other argv shape is a CLI usage failure (exit 2, JSON on stderr).
-    for words in [
-        vec!["__native-test-worker"],
-        vec!["__native-test-worker", "relative.bin"],
-        vec!["__native-test-worker", input.to_str().unwrap(), "extra"],
-    ] {
-        let (status, stdout, stderr) = run(&words, &frame);
-        assert_eq!(status, 2, "{words:?}");
-        assert!(stdout.is_empty());
-        let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
-        assert_eq!(failure["code"], 43000);
-    }
+    let output = run(
+        Some(&credentials),
+        &[WORKER_START_GATE, WORKER_RELEASE_GATE],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        output.stdout,
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    assert!(output.stderr.is_empty());
+    let output = run(Some(&credentials), &[WORKER_START_GATE]);
+    assert_eq!(output.status.code(), Some(EXIT_OUTPUT_FAILED));
+    assert_eq!(
+        output.stdout,
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    let output = run(Some(&credentials), &[0]);
+    assert_eq!(output.status.code(), Some(EXIT_INPUT_UNREADABLE));
+    assert_eq!(&output.stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+    let output = run(None, &[WORKER_START_GATE, WORKER_RELEASE_GATE]);
+    assert_eq!(output.status.code(), Some(EXIT_INPUT_UNREADABLE));
+    assert_eq!(&output.stdout[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+}
+
+#[test]
+fn native_test_worker_channel_reads_real_report_before_release() {
+    use std::net::Shutdown;
+    use std::os::unix::net::UnixStream;
+    use std::time::{Duration, Instant};
+
+    use sley_test_runner::channel::{ChannelError, read_report_before, require_output_eof_before};
+    use sley_test_runner::worker::{WORKER_RELEASE_GATE, WORKER_START_GATE};
+
+    let scratch = TempDir::new("native-worker-channel");
+    let credentials = scratch.child("credentials");
+    std::fs::create_dir(&credentials).unwrap();
+    std::fs::write(
+        credentials.join("sley-input"),
+        include_bytes!("../../../conformance/native-worker/v1/observed-input.bin"),
+    )
+    .unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sley"))
+        .args(["__native-test-worker", "--credential"])
+        .env("CREDENTIALS_DIRECTORY", &credentials)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let (peer, client) = UnixStream::pair().unwrap();
+    client.shutdown(Shutdown::Write).unwrap();
+    assert_eq!(
+        read_report_before(
+            child.stdout.as_mut().unwrap(),
+            &peer,
+            Instant::now() + Duration::from_millis(20),
+        ),
+        Err(ChannelError::Deadline)
+    );
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&[WORKER_START_GATE])
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let report = read_report_before(child.stdout.as_mut().unwrap(), &peer, deadline).unwrap();
+    assert_eq!(
+        report.stored_bytes(),
+        include_bytes!("../../../conformance/native-worker/v1/observed-report.bin")
+    );
+    assert!(child.try_wait().unwrap().is_none());
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&[WORKER_RELEASE_GATE])
+        .unwrap();
+    require_output_eof_before(child.stdout.as_mut().unwrap(), &peer, deadline).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
 }

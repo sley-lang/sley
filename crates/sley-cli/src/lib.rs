@@ -236,6 +236,13 @@ pub enum Command {
         /// The protocol profile (legacy default).
         profile: ProtocolProfile,
     },
+    /// Explicit v3 serving with receiver-provisioned native authority.
+    ServeNative {
+        /// Unchanged serve transport options.
+        options: ServeOptions,
+        /// Private local receiver configuration selected by the operator.
+        authority_config: PathBuf,
+    },
     /// `sley frame decode`.
     FrameDecode {
         /// The protocol profile (legacy default).
@@ -271,13 +278,14 @@ pub enum Command {
     ///
     /// Not a user command and not a protocol method: the root supervisor
     /// spawns exactly the transient unit's argv
-    /// (`__native-test-worker <input_path>`, an absolute path to the
-    /// daemon-owned read-only input binding). The worker's refusal words
-    /// go to stdout and its exit status (1, 6, 7, or 8; disjoint from
-    /// section 4) passes through unwrapped.
+    /// (`__native-test-worker --credential`, reading the manager-installed
+    /// service credential). The worker's report or refusal
+    /// goes to stdout and its exit status (0 for complete output, or the
+    /// worker refusals 1, 6, 7, and 8) passes through unwrapped.
     NativeTestWorker {
-        /// The absolute input binding path from the unit argv.
-        input: PathBuf,
+        /// A direct path is retained for local diagnostics and vectors;
+        /// the production transient unit uses the fixed credential mode.
+        input: Option<PathBuf>,
     },
 }
 
@@ -339,6 +347,55 @@ fn parse_profile_only(words: &[String]) -> Result<ProtocolProfile> {
     Ok(profile)
 }
 
+fn parse_serve(rest: &[String]) -> Result<Command> {
+    let usage = |word: &str| CliFailure::with_cause(CliErrorCode::UsageInvalid, word);
+    let mut repository = None;
+    let mut json = false;
+    let mut batch = false;
+    let mut report = None;
+    let mut profile = ProtocolProfile::Legacy;
+    let mut native_authority_config = None;
+    let mut words = rest.iter();
+    while let Some(word) = words.next() {
+        match word.as_str() {
+            "--repository" if repository.is_none() => {
+                repository = Some(PathBuf::from(words.next().ok_or_else(|| usage(word))?));
+            }
+            "--json" if !json => json = true,
+            "--batch" if !batch => batch = true,
+            "--report" if report.is_none() => {
+                report = Some(PathBuf::from(words.next().ok_or_else(|| usage(word))?));
+            }
+            "--protocol-profile" if profile == ProtocolProfile::Legacy => {
+                let value = words.next().ok_or_else(|| usage(word))?;
+                profile = profile_value(value)?;
+            }
+            "--native-authority-config" if native_authority_config.is_none() => {
+                native_authority_config =
+                    Some(PathBuf::from(words.next().ok_or_else(|| usage(word))?));
+            }
+            _ => return Err(usage(word)),
+        }
+    }
+    let options = ServeOptions {
+        repository: repository.ok_or_else(|| usage("--repository"))?,
+        json,
+        batch,
+        report,
+    };
+    if let Some(authority_config) = native_authority_config {
+        if profile != ProtocolProfile::V3Capable {
+            return Err(usage("--native-authority-config"));
+        }
+        Ok(Command::ServeNative {
+            options,
+            authority_config,
+        })
+    } else {
+        Ok(Command::Serve { options, profile })
+    }
+}
+
 /// Parses the exact command line; every deviation is `CLI_USAGE_INVALID`.
 ///
 /// # Errors
@@ -350,40 +407,7 @@ pub fn parse(args: &[String]) -> Result<Command> {
         return Err(CliFailure::new(CliErrorCode::UsageInvalid));
     };
     match command.as_str() {
-        "serve" => {
-            let mut repository = None;
-            let mut json = false;
-            let mut batch = false;
-            let mut report = None;
-            let mut profile = ProtocolProfile::Legacy;
-            let mut words = rest.iter();
-            while let Some(word) = words.next() {
-                match word.as_str() {
-                    "--repository" if repository.is_none() => {
-                        repository = Some(PathBuf::from(words.next().ok_or_else(|| usage(word))?));
-                    }
-                    "--json" if !json => json = true,
-                    "--batch" if !batch => batch = true,
-                    "--report" if report.is_none() => {
-                        report = Some(PathBuf::from(words.next().ok_or_else(|| usage(word))?));
-                    }
-                    "--protocol-profile" if profile == ProtocolProfile::Legacy => {
-                        let value = words.next().ok_or_else(|| usage(word))?;
-                        profile = profile_value(value)?;
-                    }
-                    _ => return Err(usage(word)),
-                }
-            }
-            Ok(Command::Serve {
-                options: ServeOptions {
-                    repository: repository.ok_or_else(|| usage("--repository"))?,
-                    json,
-                    batch,
-                    report,
-                },
-                profile,
-            })
-        }
+        "serve" => parse_serve(rest),
         "frame" => match rest.first().map(String::as_str) {
             Some("decode") => {
                 let (profile, expected_version) = parse_frame_flags(&rest[1..])?;
@@ -409,8 +433,11 @@ pub fn parse(args: &[String]) -> Result<Command> {
         }),
         "__native-test-worker" if rest.len() == 1 && rest[0].starts_with('/') => {
             Ok(Command::NativeTestWorker {
-                input: PathBuf::from(&rest[0]),
+                input: Some(PathBuf::from(&rest[0])),
             })
+        }
+        "__native-test-worker" if rest == ["--credential"] => {
+            Ok(Command::NativeTestWorker { input: None })
         }
         "hello" => {
             let mut json = false;
@@ -479,11 +506,14 @@ pub fn run(
             return failure.code.exit_status();
         }
     };
-    // Private fixed worker IPC entry: raw refusal words on stdout and the
-    // worker exit code passes through unwrapped, never as a CLI JSON
+    // Private fixed worker IPC entry: raw report or refusal words on stdout
+    // and the worker exit code passes through unwrapped, never as a CLI JSON
     // failure. Every other command keeps the exact contract below.
     if let Command::NativeTestWorker { input } = &command {
-        let status = sley_test_runner::worker::run_input_path(input, stdout);
+        let status = match input {
+            Some(path) => sley_test_runner::worker::run_input_path(path, stdout),
+            None => sley_test_runner::worker::run_credential_input(stdin, stdout),
+        };
         if let Err(error) = stdout.flush() {
             let failure = stream_failure(error);
             let _ = writeln!(stderr, "{}", failure.value());
@@ -494,6 +524,10 @@ pub fn run(
     let outcome = match command {
         Command::NativeTestWorker { .. } => unreachable!("worker entry returns above"),
         Command::Serve { options, profile } => serve_profile(&options, profile, stdin, stdout),
+        Command::ServeNative {
+            options,
+            authority_config,
+        } => serve_profile_with_native_authority(&options, &authority_config, stdin, stdout),
         Command::FrameDecode {
             expected_version, ..
         } => frame_decode(expected_version, stdin, stdout),
@@ -996,13 +1030,40 @@ pub fn serve_profile(
     stdin: &mut dyn Read,
     stdout: &mut dyn Write,
 ) -> Result<()> {
+    serve_profile_inner(options, profile, None, stdin, stdout)
+}
+
+fn serve_profile_with_native_authority(
+    options: &ServeOptions,
+    authority_config: &std::path::Path,
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+) -> Result<()> {
+    let authority = sley_protocol::load_native_authority(authority_config)
+        .map_err(|symbol| CliFailure::with_cause(CliErrorCode::IoFailure, symbol))?;
+    serve_profile_inner(
+        options,
+        ProtocolProfile::V3Capable,
+        Some(authority),
+        stdin,
+        stdout,
+    )
+}
+
+fn serve_profile_inner(
+    options: &ServeOptions,
+    profile: ProtocolProfile,
+    authority: Option<sley_protocol::NativeAuthority>,
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+) -> Result<()> {
     let mut report = Report {
         mode_json: options.json,
         batch: options.batch,
         profile,
         ..Report::default()
     };
-    let outcome = serve_frames(options, profile, stdin, stdout, &mut report);
+    let outcome = serve_frames(options, profile, authority, stdin, stdout, &mut report);
     if let Err(failure) = &outcome {
         report.cli_failure = Some(failure.clone());
         report.exit_code = failure.code.exit_status();
@@ -1133,9 +1194,29 @@ fn write_answer(
     Ok(())
 }
 
+fn configured_server(
+    repository: &std::path::Path,
+    capable: bool,
+    client: &Hello,
+    offered: &Hello,
+    authority: Option<sley_protocol::NativeAuthority>,
+) -> Result<Server> {
+    let mut server = if capable {
+        Server::new_versioned(repository, client, offered)
+    } else {
+        Server::new(repository, client, offered)
+    }
+    .map_err(endpoint_failure)?;
+    if let Some(authority) = authority {
+        server.set_native_authority(authority);
+    }
+    Ok(server)
+}
+
 fn serve_frames(
     options: &ServeOptions,
     profile: ProtocolProfile,
+    authority: Option<sley_protocol::NativeAuthority>,
     stdin: &mut dyn Read,
     stdout: &mut dyn Write,
     report: &mut Report,
@@ -1184,12 +1265,7 @@ fn serve_frames(
             );
         }
     }
-    let mut server = if capable {
-        Server::new_versioned(&options.repository, &client, &offered)
-    } else {
-        Server::new(&options.repository, &client, &offered)
-    }
-    .map_err(endpoint_failure)?;
+    let mut server = configured_server(&options.repository, capable, &client, &offered, authority)?;
     report.handshake_id = Some(hex(server.handshake_id().as_bytes()));
     // Past the handshake every later line converts, and every answer
     // renders, under the actual selection; the hello above already

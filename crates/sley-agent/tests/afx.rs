@@ -1432,6 +1432,43 @@ fn qualification_threading_and_generated_names_are_visible_in_the_expansion() {
 }
 
 #[test]
+fn continuation_inputs_keep_suffix_first_use_order() {
+    let temp = workspace("thread-order");
+    let frame = json!({"af1": 1, "afx": 1, "fns": [{
+        "fn": "f", "params": params(&["a", "b", "c"], "i64"),
+        "returns": "Result<i64,ArithmeticError>", "blocks": [
+            {"name": "entry", "term": ["br", "work", "a", "b", "c"]},
+            {"name": "work", "params": params(&["p", "q", "r"], "i64"),
+             "ops": [["x", "add?", "p", "q"], ["y", "add?", "r", "p"],
+                     ["z", "add?", "q", "x"]], "term": ["ok", "y"]}
+        ]
+    }]});
+    let expansion = expand(&temp.path, &frame);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let blocks = expansion.frame["fns"][0]["blocks"].as_array().unwrap();
+    for (name, expected) in [
+        (
+            "work__x",
+            json!([["x", "i64"], ["r", "i64"], ["p", "i64"], ["q", "i64"]]),
+        ),
+        ("work__y", json!([["y", "i64"], ["q", "i64"], ["x", "i64"]])),
+        ("work__z", json!([["z", "i64"], ["y", "i64"]])),
+    ] {
+        let block = blocks.iter().find(|block| block["name"] == name).unwrap();
+        assert_eq!(block["params"], expected, "{name}");
+    }
+    let mut runner = Runner::new(&temp.path, &frame);
+    assert_eq!(
+        runner.call("f", &[json!(1), json!(2), json!(3)]),
+        json!({"Ok": 4})
+    );
+}
+
+#[test]
 fn explicit_edges_are_never_repaired() {
     let temp = workspace("edges");
     let ab = params(&["a", "b"], "i64");

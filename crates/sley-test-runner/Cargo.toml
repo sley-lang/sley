@@ -8,11 +8,23 @@ description = "Sley 2 native test host supervisor: root daemon config, closed ru
 
 [dependencies]
 ed25519-dalek = "=3.0.0"
+getrandom = "=0.4.3"
+nix = { version = "=0.31.3", default-features = false, features = ["socket", "fs", "poll", "user"] }
 sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+zeroize = "=1.9.0"
 sley-id = { path = "../sley-id" }
+sley-mutate = { path = "../sley-mutate" }
 sley-scb1 = { path = "../sley-scb1" }
+sley-state-root = { path = "../sley-state-root" }
 sley-tests = { path = "../sley-tests" }
 sley-vm = { path = "../sley-vm" }
+
+[dev-dependencies]
+sley-policy = { path = "../sley-policy" }
+sley-schema = { path = "../sley-schema" }
+sley-ssmc = { path = "../sley-ssmc" }
 
 [lints]
 workspace = true

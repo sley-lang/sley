@@ -1,9 +1,9 @@
 # Native Test Execution v1
 
-Status: N0 owner-contract proposal, revision 3 (2026-09-15). The architecture
-passed independent design review with zero open issues. This wire-contract
-proposal still requires review, vectors and implementation before accepting
-paths are enabled. No native TestCase execution or PASS is claimed here.
+Status: N0 owner-contract proposal, revision 4 (2026-09-27). Revision 3's
+architecture passed independent design review with zero open issues. Revision
+4 adds the private worker output channel below; its wire delta awaits review.
+Pure worker execution has no host measurement or native admission authority.
 
 ## 1. Ownership and preservation
 
@@ -376,6 +376,51 @@ does not make an unsupported profile accepted.
 
 ## 7. Measured supervisor and authenticated telemetry
 
+### 7.1 Private worker output channel (revision 4)
+
+The production `sley __native-test-worker --credential` entry reads one exact
+`SLEYWRK1` frame from the manager-installed `sley-input` credential copied
+from a daemon-owned regular file. The direct absolute-path worker entry remains
+for local vectors and diagnostics; the transient unit never uses it. The worker
+strictly parses the embedded portable `SLEYPRG1` program, checks the frame's
+declared and implementation limits against that program, and runs its selected `TestCase`
+through the pure test owner and VM. A complete worker result exits 0 and
+writes exactly one raw canonical `SLEYNEX1` stored report, at most 262,144
+bytes, with no prefix, newline, or stderr. Both Observed and VM-owned Rejected
+evidence are complete reports; Rejected cannot pass admission. A report
+proves canonical bytes, not that the host enforced memory or wall limits.
+
+The production worker waits for one fixed stdin start byte (`0xa5`) before
+opening the credential or executing Sley. The daemon sends it only after it
+has identified the live transient unit and opened its cgroup telemetry. After
+writing and flushing the raw report, the worker waits for one fixed release
+byte (`0x5a`) so the daemon can read final live memory counters. Missing or
+wrong start refuses with input-unreadable tag 3 and exit 7; missing or wrong
+release exits 8 after the report, which cannot be admitted. The gate adds no
+bytes to stdout. The manager runtime backstop still bounds a lost daemon.
+The fixed launch mapping explicitly sets `Slice=system.slice`. The daemon
+accepts only the manager's exact
+`/system.slice/sley-native-test-<nonce>.service` control group and its sole
+`MainPID`. It reads bounded `memory.max`, `memory.swap.max`, `memory.peak`,
+`memory.events`, and `cgroup.procs` files through symlink-free directory
+handles while the report-holding worker is still alive. Missing files,
+substituted limits or PID, or any nonzero limit/OOM/group-kill event refuse.
+After release, the daemon must still confirm worker exit and an empty group;
+the live sample alone is not a successful attestation.
+
+Before report output, a malformed frame or portable artifact exits 1 with
+big-endian refusal tag 1 and the exact SCB registry symbol. A decoded frame
+whose program, envelope bindings, or source execution is invalid exits 6 with
+tag 2 and `NATIVE_WORKER_SOURCE_INVALID`. An absent, symlinked, or non-regular
+input binding exits 7 with tag 3 and `NATIVE_WORKER_INPUT_UNREADABLE`. A write
+or release-handshake failure exits 8; a later CLI stdout flush failure remains `CLI_IO_FAILURE`
+(exit 4). Refusal words contain no paths, arbitrary stderr, or source text.
+The daemon must bind a complete report to its authenticated request and
+measure the isolated worker independently before any owner admission.
+The checked-in `conformance/native-worker/v1` vector pins one complete
+observed report through the real `sley` binary; it is a transport/codec
+vector derived from the Rust VM owner, not an independent semantics oracle.
+
 Initial enforcer: root-owned `sley-test-supervisor.service`, authenticated local
 Unix socket, one systemd **system** transient service per test. No
 same-credential worker, arbitrary command/property interface or spawn-then-move
@@ -424,6 +469,21 @@ under this profile rather than relying on manager defaults. Services must bind
 to the supervisor unit lifetime; that ownership is launch_profile1, not a
 caller-chosen property. Configuration digest binds each run.
 
+For launch_profile1, the normalized `CapabilityBoundingSet=empty` value is
+installed using systemd's empty assignment, `CapabilityBoundingSet=`. The
+normalized microsecond duration properties are installed through
+`TimeoutStopSec=<milliseconds>ms` and `RuntimeMaxSec=<milliseconds>ms`;
+the runner verifies the resulting typed `TimeoutStopUSec` and
+`RuntimeMaxUSec` values from the manager before opening the worker gate. The
+staged worker request stays root-owned mode 0600; the manager copies it via
+`LoadCredential=sley-input:<staged-path>` into the dynamic UID's private
+credential directory. The worker reads `$CREDENTIALS_DIRECTORY/sley-input`
+with a symlink-free `openat2` walk, or a component-by-component `openat` walk
+with `O_NOFOLLOW` on every component when the sandbox returns `ENOSYS`.
+The source path is never directly opened by the dynamic UID. `LoadCredential`
+source and credential name are fixed launch mapping, outside the normalized
+16-property attestation.
+
 `MeasuredTestAttestationV1` (`SLEYMTA1`) exact record:
 
 | Tag | Field | Type |
@@ -463,6 +523,8 @@ complete output, confirmed empty cgroup, zero memory events, bounded peak and
 strict wall deadline. VM mismatch can have valid measurement but cannot pass
 admission. Missing/failed telemetry remains diagnostic. Only daemon holds the
 root-only measurement key; separate acceptance key is unavailable to worker.
+The root daemon opens a symlink-free root-owned regular key file with one link,
+mode 0400 or 0600, and exactly 32 seed bytes before signing any measurement.
 
 Both intended hosts must prove actual placement/controller availability,
 distinct UID/control/key isolation, private IPC/network, exact deadlines,

@@ -2,13 +2,21 @@
 //!
 //! Probes are structured, evidence-carrying checks. The unprivileged subset
 //! runs anywhere (cgroup layout, controller availability, manager version,
-//! socket directory, page size) and is executed live by operators; the
+//! supervisor socket, page size, worker input path resolution) and is
+//! executed live by operators; the
 //! privileged subset (pre-exec placement, transient units, UID/key
 //! isolation, peer-death and daemon-crash cleanup, manager backstop) needs
 //! the authenticated privilege handoff and is reported as pending, never
 //! as a mocked pass.
 
 use std::collections::BTreeSet;
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+use std::os::unix::net::UnixStream;
+use std::path::Path;
+
+use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
+
+use crate::config::SOCKET_NAME;
 
 /// One readiness check outcome with attached evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -80,6 +88,35 @@ pub fn parse_page_size(output: &str) -> Option<u64> {
     output.trim().parse().ok().filter(|size| *size > 0)
 }
 
+/// Checks the installed supervisor endpoint without sending a run request.
+///
+/// The service runtime directory and socket must be owned by the expected
+/// daemon UID; the directory must not be writable by another UID. A socket
+/// inode alone is insufficient: a successful connect proves a listener is
+/// present. This is a readiness observation, not an authentication decision.
+fn check_supervisor_socket(socket_dir: &Path, expected_uid: u32) -> Result<String, String> {
+    let directory = std::fs::symlink_metadata(socket_dir)
+        .map_err(|error| format!("runtime directory unavailable: {error}"))?;
+    if !directory.file_type().is_dir() {
+        return Err("runtime path is not a directory".to_owned());
+    }
+    if directory.uid() != expected_uid || directory.permissions().mode() & 0o022 != 0 {
+        return Err("runtime directory owner or mode is unsafe".to_owned());
+    }
+    let socket_path = socket_dir.join(SOCKET_NAME);
+    let socket = std::fs::symlink_metadata(&socket_path)
+        .map_err(|error| format!("supervisor socket unavailable: {error}"))?;
+    if !socket.file_type().is_socket() || socket.uid() != expected_uid {
+        return Err("supervisor endpoint is not a daemon-owned Unix socket".to_owned());
+    }
+    UnixStream::connect(&socket_path)
+        .map_err(|error| format!("supervisor socket is not accepting connections: {error}"))?;
+    Ok(format!(
+        "{} (owner UID {expected_uid}, listening)",
+        socket_path.display()
+    ))
+}
+
 /// Runs one shell-free command and returns trimmed stdout on success.
 fn run_capture(program: &str, args: &[&str]) -> Option<String> {
     let output = std::process::Command::new(program)
@@ -137,13 +174,27 @@ pub fn probe_unprivileged(socket_dir: &str, page_size_override: Option<u64>) -> 
         passed: page_size.is_some_and(u64::is_power_of_two),
         evidence: page_size.map_or_else(|| "unknown".to_owned(), |size| size.to_string()),
     });
-    let socket_writable = std::fs::metadata(socket_dir)
-        .map(|metadata| !metadata.permissions().readonly())
-        .unwrap_or(false);
+    let openat2 = std::fs::File::open("/")
+        .map_err(|error| error.to_string())
+        .and_then(|root| {
+            let how = OpenHow::new()
+                .flags(OFlag::O_PATH | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC)
+                .resolve(ResolveFlag::RESOLVE_BENEATH | ResolveFlag::RESOLVE_NO_SYMLINKS);
+            openat2(&root, ".", how).map_err(|error| error.to_string())
+        });
     checks.push(ProbeCheck {
-        name: "socket-dir-writable",
-        passed: socket_writable,
-        evidence: socket_dir.to_owned(),
+        name: "worker-input-openat2",
+        passed: openat2.is_ok(),
+        evidence: openat2.map_or_else(
+            |reason| format!("symlink-safe openat2 unavailable: {reason}"),
+            |_| "RESOLVE_BENEATH|RESOLVE_NO_SYMLINKS available".to_owned(),
+        ),
+    });
+    let socket = check_supervisor_socket(Path::new(socket_dir), 0);
+    checks.push(ProbeCheck {
+        name: "supervisor-socket-listening",
+        passed: socket.is_ok(),
+        evidence: socket.unwrap_or_else(|reason| format!("{socket_dir}: {reason}")),
     });
     ProbeReport {
         checks,
@@ -180,6 +231,85 @@ pub fn render_report(report: &ProbeReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::net::UnixListener;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_DIR: AtomicU64 = AtomicU64::new(0);
+
+    struct SocketDir(std::path::PathBuf);
+
+    impl SocketDir {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "sley-supervisor-probe-{}-{}",
+                std::process::id(),
+                NEXT_DIR.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir(&path).expect("create isolated socket directory");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
+                .expect("secure socket directory");
+            Self(path)
+        }
+    }
+
+    impl Drop for SocketDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn socket_probe_requires_a_live_daemon_owned_endpoint() {
+        let directory = SocketDir::new();
+        let uid = std::fs::symlink_metadata(&directory.0)
+            .expect("directory metadata")
+            .uid();
+        assert!(
+            check_supervisor_socket(&directory.0, uid)
+                .expect_err("missing socket")
+                .contains("socket unavailable")
+        );
+        let path = directory.0.join(SOCKET_NAME);
+        let listener = UnixListener::bind(&path).expect("bind live socket");
+        assert!(
+            check_supervisor_socket(&directory.0, uid)
+                .expect("listening socket")
+                .contains("listening")
+        );
+        assert!(
+            check_supervisor_socket(&directory.0, uid.wrapping_add(1))
+                .expect_err("wrong owner")
+                .contains("owner or mode is unsafe")
+        );
+        drop(listener);
+        assert!(
+            check_supervisor_socket(&directory.0, uid)
+                .expect_err("stale socket")
+                .contains("not accepting connections")
+        );
+    }
+
+    #[test]
+    fn socket_probe_rejects_writable_or_substituted_paths() {
+        let directory = SocketDir::new();
+        let uid = std::fs::symlink_metadata(&directory.0)
+            .expect("directory metadata")
+            .uid();
+        let path = directory.0.join(SOCKET_NAME);
+        std::fs::write(&path, b"not a socket").expect("create regular file");
+        assert!(
+            check_supervisor_socket(&directory.0, uid)
+                .expect_err("regular file")
+                .contains("not a daemon-owned Unix socket")
+        );
+        std::fs::set_permissions(&directory.0, std::fs::Permissions::from_mode(0o777))
+            .expect("set unsafe permissions");
+        assert!(
+            check_supervisor_socket(&directory.0, uid)
+                .expect_err("unsafe directory")
+                .contains("owner or mode is unsafe")
+        );
+    }
 
     #[test]
     fn mountinfo_parser_finds_cgroup2() {
