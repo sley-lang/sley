@@ -441,44 +441,54 @@ a JSON authoring frame (AF1) into one candidate, validates it, and runs its
 tests, all in one command. Its guide is `sley-agent help`, under 8 KiB, and
 the contract is [SLEY_AGENT_V1](spec/SLEY_AGENT_V1.md).
 
-Create a workspace, then try the guide's first example, a checked `percent`
-function with three tests:
+Create a workspace, then try the shipped guide's first example, a checked
+`area` function with three tests. The guide uses compact AF1-X authoring,
+which expands into an AF1 candidate:
 
 ```console
 $ sley-agent init demo && cd demo
 initialized demo (policy: fuel 1000000, memory 16777216, output 65536, 10000 mutations per candidate)
-$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../percent.json
-$ sley-agent try ../percent.json
-c1: Valid (+27 created, 0 replaced, 0 deleted)
-tests: 3/3 passed
-  ok   t_percent_1 = Ok(25)
-  ok   t_percent_2 = Err(MathError.ZeroWhole)
-  ok   t_percent_3 = Err(MathError.Overflow)
-next: sley-agent submit c1
+$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../area.json
+$ sley-agent try ../area.json
+c1: Valid (+25 created, 0 replaced, 0 deleted) draft d1@r1
+changed: fn +area; type +ShapeError; const +k_1; test +area_cases_0 +area_cases_1 +area_cases_2
+tests: 3/3 passed [authored 3]
+next: sley-agent submit d1
 ```
 
-`c1` is the candidate's handle. Read the function the way the candidate
-would leave it, and call it:
+`c1` is the candidate's handle; `d1` is its persistent draft. Use the handles
+printed by your own successful `try` if they differ. Read the function the
+way the candidate would leave it, and call it (listing abbreviated):
 
 ```console
-$ sley-agent view percent --after c1
-# sley view (AV1, non-canonical) root=49f93284 after=c1
-fn percent(part: i64, whole: i64) -> Result<i64,MathError>   [9af4c7fa]
+$ sley-agent view area --after c1
+# sley view (AV1, non-canonical) root=95130542 after=c1
+fn area(w: i64, h: i64) -> Result<i64,ShapeError>   [bfb8e42c]
   entry:
-    zero = const k_0 (0)
-    is_zero = eq whole, zero
-    cond is_zero -> zero_whole, scale
+    entry__if0__a1 = const k_1 (1)
+    entry__if0 = lt w, entry__if0__a1
+    cond entry__if0 -> __fail_BadSide, entry__if0
   ...
-$ sley-agent call percent 3 8 --on c1
-{"Ok":37}
+$ sley-agent call area 3 4 --on c1
+{"Ok":12}
 ```
 
 The listing is output only: nothing reads it back. `sley-agent submit c1`
-writes `final_candidate.hex`, and `sley-agent commit c1` makes the candidate
-the workspace's accepted head. A refused candidate prints the decision, the
-phase, the kernel's symbol, a hint, and where the problem is. Run
-`sley-agent help` for the guide, and `sley-agent help af1`, `types`, `tests`,
-`opcodes` or `refusals` for the references.
+writes `final_candidate.hex`; `sley-agent submit d1` submits the draft's
+latest revision when valid. Submission does not change the workspace's accepted
+head.
+
+`Valid` reports candidate validation, and `3/3 passed` reports advisory test
+matches. In 2.0.7, `sley-agent commit c1` refuses this example with
+`TXN_TEST_EVIDENCE_UNSUPPORTED`: its code-and-test candidate selects TestCases,
+and authoritative native test evidence is not available. These advisory
+matches are not commit-admission evidence. Keep candidate validation, test
+results, submission and accepted state separate when interpreting the output.
+
+A refused candidate prints the decision, the phase, the kernel's symbol, a
+hint, and where the problem is. Run `sley-agent help` for the shipped guide,
+and `sley-agent help afx`, `af1`, `drafts`, `types`, `tests`, `opcodes` or
+`refusals` for the references.
 
 ## 8. Where to go next
 
