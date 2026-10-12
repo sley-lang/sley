@@ -53,6 +53,7 @@ pub fn module() -> Module {
     lower::define(&mut m);
     fingerprint::define(&mut m);
     package::define(&mut m);
+    driver::define(&mut m);
     scb::define(&mut m);
     scb::define_entry_key(&mut m);
     define_entries(&mut m);
