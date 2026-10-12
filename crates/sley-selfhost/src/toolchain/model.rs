@@ -42,6 +42,10 @@ pub const EPT: &str = "EPt";
 pub const ENT: &str = "Ent";
 /// Decoded object.
 pub const OBJ: &str = "Obj";
+/// Bootstrap-profile gate claims.
+pub const GATE: &str = "Gate";
+/// Execution limits.
+pub const LIM: &str = "Lim";
 
 /// Declares the model types.
 pub fn declare(m: &mut Module) {
@@ -189,6 +193,30 @@ pub fn declare(m: &mut Module) {
             ("C", Some(m.ty(CST))),
             ("I", Some(m.ty(IMP))),
             ("E", Some(m.ty(EPT))),
+        ],
+    );
+    m.record(
+        GATE,
+        &[
+            // Reached functions in gate pre-order (entry first).
+            ("functions", ids()),
+            ("ops", t::u64()),
+            ("bridges", t::u64()),
+            // Carried import identities, in inventory order.
+            ("imports", ids()),
+            // Semantic fingerprints, parallel to `functions`.
+            ("fps", ids()),
+        ],
+    );
+    m.record(
+        LIM,
+        &[
+            ("instructions", t::u64()),
+            ("fuel", t::u64()),
+            ("units", t::u64()),
+            ("output", t::u64()),
+            ("has_cancel", t::bool()),
+            ("cancel", t::u64()),
         ],
     );
     m.record(

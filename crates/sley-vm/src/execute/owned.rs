@@ -67,6 +67,22 @@ fn search(entries: &[MapEntryConst], query: &[u8]) -> RuntimeResult<Result<usize
     Ok(Err(low))
 }
 
+/// Whether a projected part is worth sharing instead of copying: parts
+/// that own heap data. Scalars copy faster than a view tracks them.
+fn shares_well(value: &ConstValue) -> bool {
+    matches!(
+        value.data,
+        ConstData::Sequence(_)
+            | ConstData::Map(_)
+            | ConstData::Record(_)
+            | ConstData::Bytes(_)
+            | ConstData::Text(_)
+            | ConstData::Variant(_)
+            | ConstData::Option(Some(_))
+            | ConstData::Result(_)
+    )
+}
+
 fn add(left: u64, right: u64) -> Option<u64> {
     left.checked_add(right)
 }
@@ -198,11 +214,17 @@ pub(super) fn execute(
                 }
                 items.swap_remove(index)
             } else {
-                let ConstData::Sequence(items) = &read_register(runtime, *register)?.value()?.data
-                else {
+                let source = read_register(runtime, *register)?;
+                let ConstData::Sequence(items) = &source.value()?.data else {
                     return Err(RuntimeFault);
                 };
-                items.get(index).cloned().ok_or(RuntimeFault)?
+                let element = items.get(index).ok_or(RuntimeFault)?;
+                let units = value_units_const(element);
+                if shares_well(element) {
+                    let index = u32::try_from(index).map_err(|_| RuntimeFault)?;
+                    return Ok(Some(source.item_view(index, units)?));
+                }
+                element.clone()
             };
             let units = value_units_const(&element);
             Some((element, units))
@@ -224,16 +246,22 @@ pub(super) fn execute(
                     .map(|field| field.value)
                     .ok_or(RuntimeFault)?
             } else {
-                let ConstData::Record(record) = &read_register(runtime, *register)?.value()?.data
-                else {
+                let source = read_register(runtime, *register)?;
+                let ConstData::Record(record) = &source.value()?.data else {
                     return Err(RuntimeFault);
                 };
-                record
+                let position = record
                     .fields
                     .iter()
-                    .find(|field| field.member_id == *member)
-                    .map(|field| field.value.clone())
-                    .ok_or(RuntimeFault)?
+                    .position(|field| field.member_id == *member)
+                    .ok_or(RuntimeFault)?;
+                let element = &record.fields[position].value;
+                let units = value_units_const(element);
+                if shares_well(element) {
+                    let position = u32::try_from(position).map_err(|_| RuntimeFault)?;
+                    return Ok(Some(source.item_view(position, units)?));
+                }
+                element.clone()
             };
             let units = value_units_const(&element);
             Some((element, units))

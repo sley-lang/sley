@@ -402,11 +402,74 @@ impl From<FingerprintError> for ExecutionError {
     }
 }
 
+/// One step from a value into a part of it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Step {
+    /// The payload of a variant, `Some`, `Ok`, or `Err`.
+    Payload,
+    /// Element `i` of a tuple/vector, or field `i` of a record.
+    Item(u32),
+}
+
+/// Longest view path kept inline; deeper views materialize their target.
+const MAX_VIEW_PATH: usize = 6;
+
+/// A runtime value: a shared immutable root plus a view path into it.
+///
+/// Views let projections share the root instead of deep-copying the part
+/// they select; only host copying changes, never a value or a charge.
 #[derive(Clone, Debug)]
 struct RuntimeValue {
     root: Arc<ConstValue>,
-    payload_depth: usize,
+    path: [Step; MAX_VIEW_PATH],
+    depth: u8,
     units: u64,
+}
+
+fn step_into(value: &ConstValue, step: Step) -> Option<&ConstValue> {
+    match step {
+        Step::Payload => match &value.data {
+            ConstData::Variant(variant) => variant.payload.as_deref(),
+            ConstData::Option(Some(payload))
+            | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
+                Some(payload)
+            }
+            _ => None,
+        },
+        Step::Item(index) => {
+            let index = usize::try_from(index).ok()?;
+            match &value.data {
+                ConstData::Sequence(items) => items.get(index),
+                ConstData::Record(record) => record.fields.get(index).map(|field| &field.value),
+                _ => None,
+            }
+        }
+    }
+}
+
+fn step_out(value: ConstValue, step: Step) -> Option<ConstValue> {
+    match step {
+        Step::Payload => match value.data {
+            ConstData::Variant(variant) => variant.payload.map(|payload| *payload),
+            ConstData::Option(Some(payload))
+            | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
+                Some(*payload)
+            }
+            _ => None,
+        },
+        Step::Item(index) => {
+            let index = usize::try_from(index).ok()?;
+            match value.data {
+                ConstData::Sequence(mut items) if index < items.len() => {
+                    Some(items.swap_remove(index))
+                }
+                ConstData::Record(mut record) if index < record.fields.len() => {
+                    Some(record.fields.swap_remove(index).value)
+                }
+                _ => None,
+            }
+        }
+    }
 }
 
 impl RuntimeValue {
@@ -418,24 +481,36 @@ impl RuntimeValue {
     fn with_units(value: ConstValue, units: u64) -> Self {
         Self {
             root: Arc::new(value),
-            payload_depth: 0,
+            path: [Step::Payload; MAX_VIEW_PATH],
+            depth: 0,
             units,
         }
     }
 
     fn value(&self) -> RuntimeResult<&ConstValue> {
         let mut value = self.root.as_ref();
-        for _ in 0..self.payload_depth {
-            value = match &value.data {
-                ConstData::Variant(variant) => variant.payload.as_deref().ok_or(RuntimeFault)?,
-                ConstData::Option(Some(payload))
-                | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
-                    payload
-                }
-                _ => return Err(RuntimeFault),
-            };
+        for step in &self.path[..usize::from(self.depth)] {
+            value = step_into(value, *step).ok_or(RuntimeFault)?;
         }
         Ok(value)
+    }
+
+    /// A view one step deeper with the given units, materializing the
+    /// target when the inline path is full.
+    fn view(&self, step: Step, units: u64) -> RuntimeResult<Self> {
+        if usize::from(self.depth) == MAX_VIEW_PATH {
+            let target = step_into(self.value()?, step).ok_or(RuntimeFault)?.clone();
+            return Ok(Self::with_units(target, units));
+        }
+        step_into(self.value()?, step).ok_or(RuntimeFault)?;
+        let mut path = self.path;
+        path[usize::from(self.depth)] = step;
+        Ok(Self {
+            root: Arc::clone(&self.root),
+            path,
+            depth: self.depth + 1,
+            units,
+        })
     }
 
     fn payload_view(&self) -> RuntimeResult<Self> {
@@ -450,11 +525,15 @@ impl RuntimeValue {
             }
             _ => return Err(RuntimeFault),
         };
-        Ok(Self {
-            root: Arc::clone(&self.root),
-            payload_depth: self.payload_depth.checked_add(1).ok_or(RuntimeFault)?,
-            units: self.units.checked_sub(wrapper_units).ok_or(RuntimeFault)?,
-        })
+        self.view(
+            Step::Payload,
+            self.units.checked_sub(wrapper_units).ok_or(RuntimeFault)?,
+        )
+    }
+
+    /// A shared view of element/field `index` (units of the part, given).
+    fn item_view(&self, index: u32, units: u64) -> RuntimeResult<Self> {
+        self.view(Step::Item(index), units)
     }
 
     /// Consuming [`Self::payload_view`]: the view keeps this value's root
@@ -466,18 +545,22 @@ impl RuntimeValue {
     }
 
     fn into_value(self) -> RuntimeResult<ConstValue> {
-        let mut value = Arc::try_unwrap(self.root).unwrap_or_else(|root| root.as_ref().clone());
-        for _ in 0..self.payload_depth {
-            value = match value.data {
-                ConstData::Variant(variant) => *variant.payload.ok_or(RuntimeFault)?,
-                ConstData::Option(Some(payload))
-                | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
-                    *payload
+        let depth = usize::from(self.depth);
+        match Arc::try_unwrap(self.root) {
+            Ok(mut value) => {
+                for step in &self.path[..depth] {
+                    value = step_out(value, *step).ok_or(RuntimeFault)?;
                 }
-                _ => return Err(RuntimeFault),
-            };
+                Ok(value)
+            }
+            Err(root) => {
+                let mut value = root.as_ref();
+                for step in &self.path[..depth] {
+                    value = step_into(value, *step).ok_or(RuntimeFault)?;
+                }
+                Ok(value.clone())
+            }
         }
-        Ok(value)
     }
 }
 
@@ -3937,7 +4020,7 @@ mod tests {
         let (_, payload) = selected_case(runtime.clone()).unwrap();
         let payload = payload.unwrap();
         assert!(Arc::ptr_eq(&runtime.root, &payload.root));
-        assert_eq!(payload.payload_depth, 1);
+        assert_eq!(payload.depth, 1);
         assert_eq!(payload.units, value_units_const(payload.value().unwrap()));
 
         for wrapped in [

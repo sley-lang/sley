@@ -5,15 +5,23 @@
 //! - `rt_*` / `wr_*`: runtime library ([`rt`]);
 //! - `scb_*`: schema-directed SCB1 validation of nested values;
 //! - `cd_*`: entity-object and state-root decoding;
-//! - `ck_*`: semantic checking and the bootstrap-profile gate;
+//! - `inv_*` / `drv_load`: the decoded program inventory;
+//! - `ck_*`: type-environment and function-graph validation;
+//! - `jg_*`: extended operation judgment and the bootstrap-profile gate;
 //! - `lw_*`: SSMC-to-`SLEYBC02` lowering;
 //! - `fp_*`: semantic fingerprints;
 //! - `pk_*`: execution-package sections and envelope;
 //! - `drv_*`: the build driver.
 
+pub mod check;
 pub mod codec;
 pub mod codes;
+pub mod fingerprint;
+pub mod inv;
+pub mod judge;
+pub mod lower;
 pub mod model;
+pub mod package;
 pub mod rt;
 pub mod scb;
 
@@ -29,6 +37,12 @@ pub fn module() -> Module {
     model::declare(&mut m);
     rt::define(&mut m);
     codec::define(&mut m);
+    inv::define(&mut m);
+    check::define(&mut m);
+    judge::define(&mut m);
+    lower::define(&mut m);
+    fingerprint::define(&mut m);
+    package::define(&mut m);
     scb::define(&mut m);
     scb::define_entry_key(&mut m);
     define_entries(&mut m);
@@ -38,6 +52,20 @@ pub fn module() -> Module {
 /// Test and driver entry points over the library functions.
 fn define_entries(m: &mut Module) {
     use crate::seed::*;
+    // Loads S and reports (functions, operations, index size).
+    m.func(
+        "t_load_counts",
+        &[("objects", t::vec(t::bytes())), ("epoch", t::bytes())],
+        rt::r(t::tuple(vec![t::u64(), t::u64(), t::u64()])),
+        |f| {
+            f.let_("inv", tri(call("drv_load", vec![v("objects"), v("epoch")])));
+            f.ret_ok(tup(vec![
+                vlen(field(v("inv"), "fns")),
+                vlen(field(v("inv"), "ops")),
+                vlen(field(v("inv"), "ids")),
+            ]));
+        },
+    );
     // Validates one complete ConstValue encoding.
     m.func(
         "scb_const_exact",
