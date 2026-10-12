@@ -13,6 +13,7 @@
 # 4. Failure preservation: an omitted object refuses (29002) with no output.
 # 5. A fake builder that ignores its input and returns the prior image C2 is
 #    rejected: its "changed" toolchain does not change.
+# 6. The Sley toolchain compiles an unrelated program like the seed does.
 #
 # Usage: scripts/sh2_changed_input.sh WORKDIR
 set -euo pipefail
@@ -104,4 +105,10 @@ if [ "$(cat "$work/FAKE-BAD/status")" = toolchain-error-10900 ]; then
   log "FAIL: the fake builder's output passed the changed-behavior check"; exit 1
 fi
 log "fake builder REJECTED: its output refuses with $(cat "$work/FAKE-BAD/status"), not 10900"
+
+# 6. Use closure: the Sley toolchain compiles another program (the fake
+#    builder's own S) exactly as the native seed does.
+run_host USE "$c2" "$c2_digest" "$work/fake/S"
+"$sh2" compare "$work/fake/fake.pkg" "$work/USE/output.pkg" | tee "$work/parity-use.json"
+log "use closure: C2 builds an unrelated program byte-identically to C0"
 log "CHANGED INPUT PROOF: PASS"

@@ -94,3 +94,37 @@ log "C3 package digest $c3_digest"
 "$sh2" compare "$work/C2/output.pkg" "$work/C3/output.pkg" | tee "$work/fixed-point-c2-c3.json"
 "$sh2" compare "$work/stage/C1.pkg" "$work/C2/output.pkg" | tee "$work/parity-c1-c2.json"
 log "FIXED POINT: C2 == C3 and C1 == C2 (package $c2_digest)"
+
+# 5. The self-rebuild package closure (REWEAVE §13.5): everything a clean
+#    environment needs to repeat the self-build from canonical graphs and a
+#    preceding trusted Sley image, and nothing else.
+dist="$work/dist"
+rm -rf "$dist"
+mkdir -p "$dist/bin" "$dist/toolchain"
+cp "$work/bin/sley-host" "$dist/bin/sley-host"
+cp "$work/C2/output.pkg" "$dist/toolchain/sley-toolchain.pkg"
+echo "$c2_digest" >"$dist/toolchain/sley-toolchain.digest"
+cp -r "$work/stage/S" "$dist/S"
+cat >"$dist/rebuild.sh" <<'REBUILD'
+#!/bin/sh
+# Rebuilds the Sley toolchain from its canonical graphs (S) with the
+# preceding trusted Sley toolchain image and the pinned host. Needs only
+# this directory (and bubblewrap for isolation). The output must equal
+# toolchain/sley-toolchain.pkg byte for byte.
+set -eu
+here="$(cd "$(dirname "$0")" && pwd)"
+mkdir -p "$here/out"
+bwrap --unshare-all --die-with-parent --new-session --clearenv \
+  --ro-bind "$here/bin/sley-host" /sley-host \
+  --ro-bind "$here/S" /S \
+  --ro-bind "$here/toolchain/sley-toolchain.pkg" /toolchain.pkg \
+  --bind "$here/out" /out \
+  --chdir / \
+  /sley-host build --package /toolchain.pkg --trust "$(cat "$here/toolchain/sley-toolchain.digest")" \
+    --stage /S --out /out/sley-toolchain.pkg --receipt /out/receipt.json
+cmp "$here/out/sley-toolchain.pkg" "$here/toolchain/sley-toolchain.pkg"
+echo "fixed point: the rebuilt toolchain is byte-identical"
+REBUILD
+chmod +x "$dist/rebuild.sh"
+(cd "$dist" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum >SHA256SUMS)
+log "self-rebuild closure assembled in $dist ($(du -sh "$dist" | cut -f1))"
