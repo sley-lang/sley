@@ -231,6 +231,7 @@ fn width(bits: u16) -> TypeExpr {
 // ----- the full toolchain -----
 
 #[test]
+#[ignore = "full toolchain inventory (tens of minutes); the SH2 bootstrap covers the closure"]
 fn toolchain_passes_types_and_every_function() {
     static FULL: OnceLock<(Program, HashMap<String, EntityId>)> = OnceLock::new();
     let full = FULL.get_or_init(|| toolchain::module().finish());

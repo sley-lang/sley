@@ -114,12 +114,13 @@ pub fn define(m: &mut Module) {
         f.for_u64("i", u64c(0), v("count"), |f| {
             rd(f, "es", "p", rcall("rt_rd_payload", vec![]));
             f.let_("id", tri(dcall("cd_id", v("es"), v("p"))));
-            let check_order = !fault("codec-set-order");
-            f.if_(and(and(v("set"), boolc(check_order)), gt(v("i"), u64c(0))), |f| {
-                f.let_("prev", vget(v("out"), sub(v("i"), u64c(1))));
-                f.if_(eq(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
-                f.if_(gt(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_ORDER)));
-            });
+            if !fault("codec-set-order") {
+                f.if_(and(v("set"), gt(v("i"), u64c(0))), |f| {
+                    f.let_("prev", vget(v("out"), sub(v("i"), u64c(1))));
+                    f.if_(eq(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
+                    f.if_(gt(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_ORDER)));
+                });
+            }
             f.set("out", push(v("out"), v("id")));
         });
         finished(f);

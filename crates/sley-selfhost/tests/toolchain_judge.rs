@@ -119,6 +119,7 @@ fn sley_gate(s: &CanonicalS, entry: EntityId, image: &[u8]) -> (Result<GateClaim
 }
 
 #[test]
+#[ignore = "full toolchain inventory (tens of minutes); the SH2 bootstrap covers the closure"]
 fn every_toolchain_function_is_judged_like_native() {
     let (program, names) = program();
     let s = canonical::build(program, names["t_jg_all"], "jg-all");
