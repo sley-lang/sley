@@ -318,6 +318,7 @@ impl Plan {
             cells: Vec::new(),
             max_call_depth: MAX_CALL_DEPTH,
             peak_call_depth: 1,
+            returned_units: 0,
         };
         let termination = if initial > request.limits.max_value_units {
             ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits)

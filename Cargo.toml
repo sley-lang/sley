@@ -14,6 +14,7 @@ members = [
     "crates/sley-repo",
     "crates/sley-query",
     "crates/sley-scb1",
+    "crates/sley-selfhost",
     "crates/sley-schema",
     "crates/sley-ssmc",
     "crates/sley-state-root",

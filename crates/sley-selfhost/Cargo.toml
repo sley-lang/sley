@@ -1,0 +1,19 @@
+[package]
+name = "sley-selfhost"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sley 2 SH2 self-hosted toolchain: the C0 seed assembler, the canonical toolchain program, and the bootstrap harness."
+publish = false
+
+[dependencies]
+sley-check = { path = "../sley-check" }
+sley-id = { path = "../sley-id" }
+sley-mutate = { path = "../sley-mutate" }
+sley-ssmc = { path = "../sley-ssmc" }
+sley-vm = { path = "../sley-vm" }
+blake3 = "=1.8.2"
+
+[lints]
+workspace = true

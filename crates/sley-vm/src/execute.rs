@@ -4,6 +4,8 @@ use core::fmt;
 use std::borrow::Cow;
 use std::sync::Arc;
 
+mod liveness;
+mod owned;
 mod scalar;
 
 use sley_check::{TypeEnvironment, TypeError};
@@ -455,6 +457,14 @@ impl RuntimeValue {
         })
     }
 
+    /// Consuming [`Self::payload_view`]: the view keeps this value's root
+    /// without taking another reference, so a later move can unwrap it.
+    fn into_payload_view(self) -> RuntimeResult<Self> {
+        let view = self.payload_view()?;
+        drop(self);
+        Ok(view)
+    }
+
     fn into_value(self) -> RuntimeResult<ConstValue> {
         let mut value = Arc::try_unwrap(self.root).unwrap_or_else(|root| root.as_ref().clone());
         for _ in 0..self.payload_depth {
@@ -515,6 +525,8 @@ struct Runtime {
     cells: Vec<ConstValue>,
     max_call_depth: usize,
     peak_call_depth: usize,
+    /// Cached value units of the value the last `Return` produced.
+    returned_units: u64,
 }
 
 /// Executes one restricted-v1 Function through the integrated lowering authority boundary.
@@ -1018,6 +1030,75 @@ pub fn execute_approved_package_v2(
     )
     .map_err(PackageExecutionError::Execution)
 }
+/// Executes an approved `EXEC_PACKAGE_V3` package (the v2 path with the v3
+/// binding).
+///
+/// # Errors
+///
+/// The v2 package-execution vocabulary.
+pub fn execute_approved_package_v3(
+    package: &crate::exec_package::ExecutionPackage,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    request: ExecutionRequest,
+) -> Result<ExecutionOutcome, PackageExecutionError> {
+    use crate::exec_package::{hydrate_layouts, package_digests_v3, verify_package_binding_v3};
+    let digests = package_digests_v3(package).map_err(PackageExecutionError::Package)?;
+    verify_package_binding_v3(package, &digests, expected)
+        .map_err(PackageExecutionError::Package)?;
+    if request.limits != expected.admitted_limits {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let loaded = load_image(&package.image_bytes).map_err(PackageExecutionError::Image)?;
+    if loaded.digest != expected.image_digest {
+        return Err(PackageExecutionError::Image(ImageError::DigestMismatch));
+    }
+    let types = hydrate_layouts(package.type_definitions.clone())
+        .map_err(PackageExecutionError::Package)?;
+    let source = ExecutionSource {
+        types: &types,
+        constants: &package.constants,
+        globals: &package.globals,
+        contracts: &package.contracts,
+        adapters: &package.imports,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        function: loaded.entry.function,
+    };
+    let cache_key = crate::derive_cache_key(
+        source.schema_epoch,
+        source.state_root,
+        source.function,
+        source.profile,
+    )
+    .map_err(|error| PackageExecutionError::Execution(ExecutionError::Lowering(error.into())))?;
+    if cache_key != expected.cache_key {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let validated_inputs =
+        validate_package_inputs_structural(&types, &loaded.entry, &request, source.schema_epoch)
+            .map_err(PackageExecutionError::Execution)?;
+    let lowered = LoweredFunction {
+        bytecode: loaded.entry.clone(),
+        bytes: package.image_bytes.clone(),
+        cache_key,
+        lowering_work: 0,
+        callees: loaded.callees.clone(),
+    };
+    execute_core_package(
+        &source,
+        &lowered,
+        &validated_inputs,
+        request,
+        expected,
+        &digests,
+    )
+    .map_err(PackageExecutionError::Execution)
+}
 
 /// Validates package-path inputs structurally (no semantic judgment).
 ///
@@ -1095,6 +1176,7 @@ fn execute_core_package(
         cells: Vec::new(),
         max_call_depth: MAX_CALL_DEPTH,
         peak_call_depth: 1,
+        returned_units: 0,
     };
     if runtime.peak_value_units > limits.max_value_units {
         return finish_package(
@@ -1449,6 +1531,7 @@ fn run_core(
         cells: Vec::new(),
         max_call_depth,
         peak_call_depth: 1,
+        returned_units: 0,
     };
     let termination = if runtime.peak_value_units > limits.max_value_units {
         ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits)
@@ -1505,12 +1588,26 @@ fn run(
     source: &ExecutionSource<'_>,
     lowered: Option<&LoweredFunction>,
 ) -> RuntimeResult<ExecutionTermination> {
+    // Per-execution mechanics tables: register liveness for the entry body
+    // and every callee body, a callee index, and the constant index. None
+    // of them changes what executes or what is charged.
+    let mut livenesses = vec![liveness::compute(blocks)];
+    let mut callee_index: std::collections::HashMap<EntityId, usize> =
+        std::collections::HashMap::new();
+    if let Some(lowered) = lowered {
+        for (position, callee) in lowered.callees.iter().enumerate() {
+            livenesses.push(liveness::compute(&callee.blocks));
+            callee_index.entry(callee.function).or_insert(position + 1);
+        }
+    }
+    let constants = owned::constant_index(source);
     let mut stack: Vec<Suspended<'_>> = Vec::new();
     let mut current = Current {
         blocks,
         result_type,
         register_types,
         pc: 0,
+        func: 0,
     };
     loop {
         let block = current.blocks.get(runtime.block).ok_or(RuntimeFault)?;
@@ -1522,6 +1619,7 @@ fn run(
                 return Ok(unwind(runtime, stack, termination));
             }
             if source.profile.is_extended() {
+                let mask = livenesses[current.func].mask(runtime.block, current.pc - 1);
                 let call = if instruction.opcode == sley_ssmc::Opcode::CallDirect.tag() {
                     Some(prepare_call(
                         runtime,
@@ -1530,6 +1628,8 @@ fn run(
                         current.register_types,
                         lowered,
                         stack.len().saturating_add(1),
+                        &callee_index,
+                        mask,
                     )?)
                 } else if instruction.opcode == sley_ssmc::Opcode::ContractAssert.tag() {
                     Some(prepare_contract_assert(
@@ -1540,6 +1640,8 @@ fn run(
                         lowered,
                         stack.len().saturating_add(1),
                         source.contracts,
+                        &callee_index,
+                        mask,
                     )?)
                 } else {
                     None
@@ -1552,6 +1654,7 @@ fn run(
                         CallStep::Enter {
                             child,
                             callee,
+                            func,
                             result_register,
                             shape,
                         } => {
@@ -1561,6 +1664,7 @@ fn run(
                                 result_type: current.result_type,
                                 register_types: current.register_types,
                                 pc: current.pc,
+                                func: current.func,
                                 result_register,
                                 shape,
                             });
@@ -1569,6 +1673,7 @@ fn run(
                                 result_type: &callee.result_type,
                                 register_types: &callee.register_types,
                                 pc: 0,
+                                func,
                             };
                         }
                     }
@@ -1578,8 +1683,8 @@ fn run(
                     runtime,
                     &limits,
                     instruction,
-                    block,
-                    current.pc - 1,
+                    mask,
+                    &constants,
                     current.register_types,
                     source,
                 )? {
@@ -1599,6 +1704,7 @@ fn run(
             &block.terminator,
             current.blocks,
             current.result_type,
+            &livenesses[current.func],
         )?
         else {
             current.pc = 0;
@@ -1623,31 +1729,39 @@ fn return_to_caller<'a>(
     termination: ExecutionTermination,
 ) -> RuntimeResult<Result<Current<'a>, ExecutionTermination>> {
     let child = core::mem::replace(runtime, parent.runtime);
+    let returned_units = child.returned_units;
     adopt_frame(runtime, child);
     let ExecutionTermination::Success(value) = termination else {
         return Ok(Err(termination));
     };
-    let value = match parent.shape {
-        ReturnShape::Direct => value,
+    let (value, units) = match parent.shape {
+        ReturnShape::Direct => (value, returned_units),
         ReturnShape::ContractAssertion => {
             let ConstData::Bool(held) = value.data else {
                 return Err(RuntimeFault);
             };
-            contract_assert_value(held)
+            let value = contract_assert_value(held);
+            let units = value_units_const(&value);
+            (value, units)
         }
     };
-    if !charge_value(runtime, value_units_const(&value), limits.max_value_units) {
+    if !charge_value(runtime, units, limits.max_value_units) {
         return Ok(Err(ExecutionTermination::ResourceLimit(
             ResourceKind::ValueUnits,
         )));
     }
     runtime.instruction_count = runtime.instruction_count.saturating_add(1);
-    write_register(runtime, parent.result_register, RuntimeValue::new(value))?;
+    write_register(
+        runtime,
+        parent.result_register,
+        RuntimeValue::with_units(value, units),
+    )?;
     Ok(Ok(Current {
         blocks: parent.blocks,
         result_type: parent.result_type,
         register_types: parent.register_types,
         pc: parent.pc,
+        func: parent.func,
     }))
 }
 
@@ -1710,6 +1824,7 @@ struct Suspended<'a> {
     result_type: &'a TypeExpr,
     register_types: &'a [TypeExpr],
     pc: usize,
+    func: usize,
     result_register: usize,
     shape: ReturnShape,
 }
@@ -1733,6 +1848,8 @@ struct Current<'a> {
     result_type: &'a TypeExpr,
     register_types: &'a [TypeExpr],
     pc: usize,
+    /// Index into the execution's liveness table (0 = entry body).
+    func: usize,
 }
 
 /// What a `call_direct` instruction does next.
@@ -1741,6 +1858,7 @@ enum CallStep<'a> {
     Enter {
         child: Runtime,
         callee: &'a crate::BytecodeFunction,
+        func: usize,
         result_register: usize,
         shape: ReturnShape,
     },
@@ -1766,6 +1884,8 @@ fn prepare_call<'a>(
     register_types: &[TypeExpr],
     lowered: Option<&'a LoweredFunction>,
     frames: usize,
+    callees: &std::collections::HashMap<EntityId, usize>,
+    mask: u64,
 ) -> RuntimeResult<CallStep<'a>> {
     let sley_ssmc::Immediate::Function(reference) = &instruction.immediate else {
         return Err(RuntimeFault);
@@ -1779,6 +1899,8 @@ fn prepare_call<'a>(
         frames,
         reference.function,
         ReturnShape::Direct,
+        callees,
+        mask,
     )
 }
 
@@ -1792,6 +1914,8 @@ fn prepare_contract_assert<'a>(
     lowered: Option<&'a LoweredFunction>,
     frames: usize,
     contracts: &[sley_ssmc::ContractDefinition],
+    callees: &std::collections::HashMap<EntityId, usize>,
+    mask: u64,
 ) -> RuntimeResult<CallStep<'a>> {
     let sley_ssmc::Immediate::Entity(contract) = &instruction.immediate else {
         return Err(RuntimeFault);
@@ -1809,6 +1933,8 @@ fn prepare_contract_assert<'a>(
         frames,
         definition.predicate,
         ReturnShape::ContractAssertion,
+        callees,
+        mask,
     )
 }
 
@@ -1823,6 +1949,8 @@ fn prepare_frame<'a>(
     frames: usize,
     function: sley_id::EntityId,
     shape: ReturnShape,
+    callees: &std::collections::HashMap<EntityId, usize>,
+    mask: u64,
 ) -> RuntimeResult<CallStep<'a>> {
     // The ceiling counts live frames including the running one: opening a
     // frame that would make 257 live is refused, so 256 live frames (entry
@@ -1836,11 +1964,10 @@ fn prepare_frame<'a>(
         return Ok(CallStep::Terminated(termination));
     }
     let lowered = lowered.ok_or(RuntimeFault)?;
-    let callee = lowered
-        .callees
-        .iter()
-        .find(|callee| callee.function == function)
-        .or_else(|| (lowered.bytecode.function == function).then_some(&lowered.bytecode))
+    let (callee, func) = callees
+        .get(&function)
+        .and_then(|position| Some((lowered.callees.get(position - 1)?, *position)))
+        .or_else(|| (lowered.bytecode.function == function).then_some((&lowered.bytecode, 0)))
         .ok_or(RuntimeFault)?;
     let [result_register] = instruction.results.as_slice() else {
         return Err(RuntimeFault);
@@ -1868,9 +1995,19 @@ fn prepare_frame<'a>(
         cells: core::mem::take(&mut runtime.cells),
         max_call_depth: runtime.max_call_depth,
         peak_call_depth: runtime.peak_call_depth.max(frames.saturating_add(1)),
+        returned_units: 0,
     };
-    for (operand, parameter) in instruction.operands.iter().zip(&callee.parameter_registers) {
-        let value = read_register(runtime, *operand)?.clone();
+    for (k, (operand, parameter)) in instruction
+        .operands
+        .iter()
+        .zip(&callee.parameter_registers)
+        .enumerate()
+    {
+        let value = if k < 64 && mask & (1_u64 << k) != 0 {
+            take_register(runtime, *operand)?
+        } else {
+            read_register(runtime, *operand)?.clone()
+        };
         if !charge_value(&mut child, value.units, limits.max_value_units) {
             adopt_frame(runtime, child);
             return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
@@ -1883,6 +2020,7 @@ fn prepare_frame<'a>(
     Ok(CallStep::Enter {
         child,
         callee,
+        func,
         result_register,
         shape,
     })
@@ -1941,8 +2079,8 @@ fn execute_extended(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
     instruction: &crate::Instruction,
-    block: &crate::BytecodeBlock,
-    instruction_index: usize,
+    mask: u64,
+    constants: &owned::ConstantIndex<'_>,
     register_types: &[TypeExpr],
     source: &ExecutionSource<'_>,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
@@ -1956,7 +2094,7 @@ fn execute_extended(
         && matches!(
             instruction.immediate,
             sley_ssmc::Immediate::Entity(entry)
-                if entry == crate::extended::bridge_entry_id(*b"PSH1")
+                if crate::extended::is_push_identity(&entry)
         );
     let (value, stored, known_units) = if owned_push {
         let [scope_register, request_register] = instruction.operands.as_slice() else {
@@ -1970,7 +2108,7 @@ fn execute_extended(
         let request = read_register(runtime, *request_register)?.clone();
         let request_units = request.units;
         let request = request.into_value()?;
-        let scope = if register_is_dead_block_local(block, instruction_index, *scope_register) {
+        let scope = if mask & 1 != 0 {
             take_register(runtime, *scope_register)?
         } else {
             read_register(runtime, *scope_register)?.clone()
@@ -1991,6 +2129,16 @@ fn execute_extended(
                 .saturating_add(request_units)
         });
         (value, 0, known_units)
+    } else if let Some((value, units)) = owned::execute(
+        runtime,
+        constants,
+        source,
+        opcode,
+        instruction,
+        mask,
+        result_type,
+    )? {
+        (value, 0, Some(units))
     } else {
         // Slice E8: bridge fuel is charged up front, before the arm allocates
         // or converts, so a starved budget terminates without the work being
@@ -2092,6 +2240,11 @@ fn execute_extended(
     // with the budget intact; contract E5 counts cell contents as live value
     // units, and this is where they are counted.
     let value_units = known_units.unwrap_or_else(|| value_units_const(&value));
+    debug_assert_eq!(
+        value_units,
+        value_units_const(&value),
+        "derived value units must equal the full walk"
+    );
     if !charge_value(
         runtime,
         value_units.saturating_add(stored),
@@ -2555,26 +2708,32 @@ fn dispatch_terminator(
     terminator: &BytecodeTerminator,
     blocks: &[crate::BytecodeBlock],
     result_type: &TypeExpr,
+    live: &liveness::FnLiveness,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     if let Some(termination) = charge_action(runtime, limits, None) {
         return Ok(Some(termination));
     }
+    let source_block = runtime.block;
     match terminator {
         BytecodeTerminator::Return(register) => {
-            let value = read_register(runtime, *register)?.value()?.clone();
+            // The frame ends here, so every register is dead: move the value.
+            let value = take_register(runtime, *register)?;
+            let units = value.units;
+            let value = value.into_value()?;
             if &value.value_type != result_type {
                 return Ok(Some(ExecutionTermination::InternalInvariant));
             }
-            if value_units_const(&value) > limits.max_output_units {
+            if units > limits.max_output_units {
                 return Ok(Some(ExecutionTermination::ResourceLimit(
                     ResourceKind::OutputUnits,
                 )));
             }
+            runtime.returned_units = units;
             Ok(Some(ExecutionTermination::Success(value)))
         }
         BytecodeTerminator::Branch(edge) => {
-            let source = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            if let Some(termination) = bind_edge(runtime, blocks, source, edge, limits)? {
+            if let Some(termination) = bind_edge(runtime, blocks, edge, limits, live, source_block)?
+            {
                 return Ok(Some(termination));
             }
             Ok(None)
@@ -2589,8 +2748,8 @@ fn dispatch_terminator(
                 return Ok(Some(ExecutionTermination::InternalInvariant));
             };
             let edge = if condition { if_true } else { if_false };
-            let source = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            if let Some(termination) = bind_edge(runtime, blocks, source, edge, limits)? {
+            if let Some(termination) = bind_edge(runtime, blocks, edge, limits, live, source_block)?
+            {
                 return Ok(Some(termination));
             }
             Ok(None)
@@ -2601,13 +2760,13 @@ fn dispatch_terminator(
                     matches!(argument, BytecodeSwitchArgument::Value(register) if register == value)
                 })
             });
-            let block = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            let selected = if carried_as_argument || !register_is_block_local(block, *value) {
+            let selected = if carried_as_argument || !live.dead_after_terminator(source_block, *value)
+            {
                 read_register(runtime, *value)?.clone()
             } else {
                 take_register(runtime, *value)?
             };
-            let (case_key, payload) = selected_case(&selected)?;
+            let (case_key, payload) = selected_case(selected)?;
             for case in cases {
                 if let Some(termination) = charge_action(runtime, limits, None) {
                     return Ok(Some(termination));
@@ -2616,10 +2775,11 @@ fn dispatch_terminator(
                     return bind_switch_edge(
                         runtime,
                         blocks,
-                        block,
                         &case.edge,
-                        payload.as_ref(),
+                        payload,
                         limits,
+                        live,
+                        source_block,
                     );
                 }
             }
@@ -2650,17 +2810,19 @@ fn dispatch_terminator(
 fn bind_edge(
     runtime: &mut Runtime,
     blocks: &[crate::BytecodeBlock],
-    source: &crate::BytecodeBlock,
     edge: &BytecodeTargetEdge,
     limits: &ExecutionLimits,
+    live: &liveness::FnLiveness,
+    source_block: usize,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     let mut values = Vec::with_capacity(edge.arguments.len());
-    for register in &edge.arguments {
+    for (position, register) in edge.arguments.iter().enumerate() {
         if let Some(termination) = charge_action(runtime, limits, None) {
             return Ok(Some(termination));
         }
+        let last_occurrence = !edge.arguments[position + 1..].contains(register);
         values.push(
-            if register_is_block_local(source, *register) && edge_use_count(edge, *register) == 1 {
+            if last_occurrence && live.dead_after_terminator(source_block, *register) {
                 take_register(runtime, *register)?
             } else {
                 read_register(runtime, *register)?.clone()
@@ -2674,27 +2836,24 @@ fn bind_edge(
 fn bind_switch_edge(
     runtime: &mut Runtime,
     blocks: &[crate::BytecodeBlock],
-    source: &crate::BytecodeBlock,
     edge: &BytecodeSwitchEdge,
-    payload: Option<&RuntimeValue>,
+    mut payload: Option<RuntimeValue>,
     limits: &ExecutionLimits,
+    live: &liveness::FnLiveness,
+    source_block: usize,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     let mut values = Vec::with_capacity(edge.arguments.len());
-    for argument in &edge.arguments {
+    for (position, argument) in edge.arguments.iter().enumerate() {
         if let Some(termination) = charge_action(runtime, limits, None) {
             return Ok(Some(termination));
         }
         match argument {
             BytecodeSwitchArgument::Value(register) => {
-                let selected_uses = edge
-                    .arguments
-                    .iter()
-                    .filter(|argument| {
-                        matches!(argument, BytecodeSwitchArgument::Value(value) if value == register)
-                    })
-                    .count();
+                let last_occurrence = !edge.arguments[position + 1..].iter().any(|later| {
+                    matches!(later, BytecodeSwitchArgument::Value(value) if value == register)
+                });
                 values.push(
-                    if register_is_block_local(source, *register) && selected_uses == 1 {
+                    if last_occurrence && live.dead_after_terminator(source_block, *register) {
                         take_register(runtime, *register)?
                     } else {
                         read_register(runtime, *register).cloned()?
@@ -2705,10 +2864,14 @@ fn bind_switch_edge(
                 if let Some(termination) = charge_action(runtime, limits, None) {
                     return Ok(Some(termination));
                 }
-                let Some(payload) = payload.cloned() else {
+                let more = edge.arguments[position + 1..]
+                    .iter()
+                    .any(|later| matches!(later, BytecodeSwitchArgument::CasePayload));
+                let value = if more { payload.clone() } else { payload.take() };
+                let Some(value) = value else {
                     return Ok(Some(ExecutionTermination::InternalInvariant));
                 };
-                values.push(payload);
+                values.push(value);
             }
         }
     }
@@ -2735,31 +2898,21 @@ fn bind_values(
     Ok(())
 }
 
-fn selected_case(value: &RuntimeValue) -> RuntimeResult<(CaseKey, Option<RuntimeValue>)> {
-    match &value.value()?.data {
-        ConstData::Variant(variant) => Ok((
-            CaseKey::Member(variant.member_id),
-            variant
-                .payload
-                .as_ref()
-                .map(|_| value.payload_view())
-                .transpose()?,
-        )),
-        ConstData::Option(None) => Ok((CaseKey::Builtin(BuiltinCase::None), None)),
-        ConstData::Option(Some(_)) => Ok((
-            CaseKey::Builtin(BuiltinCase::Some),
-            Some(value.payload_view()?),
-        )),
-        ConstData::Result(ResultConst::Ok(_)) => Ok((
-            CaseKey::Builtin(BuiltinCase::Ok),
-            Some(value.payload_view()?),
-        )),
-        ConstData::Result(ResultConst::Err(_)) => Ok((
-            CaseKey::Builtin(BuiltinCase::Err),
-            Some(value.payload_view()?),
-        )),
-        _ => Err(RuntimeFault),
-    }
+fn selected_case(value: RuntimeValue) -> RuntimeResult<(CaseKey, Option<RuntimeValue>)> {
+    let (key, has_payload) = match &value.value()?.data {
+        ConstData::Variant(variant) => (CaseKey::Member(variant.member_id), variant.payload.is_some()),
+        ConstData::Option(None) => (CaseKey::Builtin(BuiltinCase::None), false),
+        ConstData::Option(Some(_)) => (CaseKey::Builtin(BuiltinCase::Some), true),
+        ConstData::Result(ResultConst::Ok(_)) => (CaseKey::Builtin(BuiltinCase::Ok), true),
+        ConstData::Result(ResultConst::Err(_)) => (CaseKey::Builtin(BuiltinCase::Err), true),
+        _ => return Err(RuntimeFault),
+    };
+    let payload = if has_payload {
+        Some(value.into_payload_view()?)
+    } else {
+        None
+    };
+    Ok((key, payload))
 }
 
 fn charge_action(
@@ -2824,61 +2977,6 @@ fn take_register(runtime: &mut Runtime, register: Register) -> RuntimeResult<Run
         .get_mut(register)
         .and_then(Option::take)
         .ok_or(RuntimeFault)
-}
-
-fn edge_use_count(edge: &BytecodeTargetEdge, register: Register) -> usize {
-    edge.arguments
-        .iter()
-        .filter(|candidate| **candidate == register)
-        .count()
-}
-
-fn terminator_use_count(terminator: &BytecodeTerminator, register: Register) -> usize {
-    match terminator {
-        BytecodeTerminator::Return(value) => usize::from(*value == register),
-        BytecodeTerminator::Branch(edge) => edge_use_count(edge, register),
-        BytecodeTerminator::CondBranch {
-            condition,
-            if_true,
-            if_false,
-        } => {
-            usize::from(*condition == register)
-                + edge_use_count(if_true, register)
-                + edge_use_count(if_false, register)
-        }
-        BytecodeTerminator::VariantSwitch { value, cases } => {
-            usize::from(*value == register)
-                + cases
-                    .iter()
-                    .flat_map(|case| &case.edge.arguments)
-                    .filter(|argument| {
-                        matches!(
-                            argument,
-                            BytecodeSwitchArgument::Value(value) if *value == register
-                        )
-                    })
-                    .count()
-        }
-        BytecodeTerminator::Trap { payload, .. } => usize::from(*payload == Some(register)),
-    }
-}
-
-fn register_is_dead_block_local(
-    block: &crate::BytecodeBlock,
-    instruction_index: usize,
-    register: Register,
-) -> bool {
-    register_is_block_local(block, register)
-        && block.instructions[instruction_index + 1..]
-            .iter()
-            .all(|instruction| !instruction.operands.contains(&register))
-        && terminator_use_count(&block.terminator, register) == 0
-}
-
-fn register_is_block_local(block: &crate::BytecodeBlock, register: Register) -> bool {
-    // Operation results remain visible in every block they dominate. Only
-    // block parameters are confined to this block and safe to move away.
-    block.parameter_registers.contains(&register)
 }
 
 fn write_register(
@@ -3817,7 +3915,7 @@ mod tests {
             value_type: TypeExpr::Option(Box::new(TypeExpr::Bool)),
             data: ConstData::Option(Some(Box::new(bool_value(true)))),
         });
-        let (_, payload) = selected_case(&runtime).unwrap();
+        let (_, payload) = selected_case(runtime.clone()).unwrap();
         let payload = payload.unwrap();
         assert!(Arc::ptr_eq(&runtime.root, &payload.root));
         assert_eq!(payload.payload_depth, 1);
@@ -4050,6 +4148,7 @@ mod tests {
             cells: Vec::new(),
             max_call_depth: MAX_CALL_DEPTH,
             peak_call_depth: 1,
+            returned_units: 0,
         };
         let blocks = vec![crate::BytecodeBlock {
             slot: 0,

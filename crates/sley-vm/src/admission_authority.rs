@@ -59,7 +59,8 @@ use crate::bootstrap::{
 };
 use crate::exec_package::{
     AdmissionReceipt, ExecutionPackage, PackageDigests, PackageError, admit_package_v2,
-    approve_package_v2, package_digests_v2,
+    admit_package_v3, approve_package_v2, approve_package_v3, package_digests_v2,
+    package_digests_v3,
 };
 use crate::lower::{LoweringInput, lower_function};
 
@@ -175,6 +176,34 @@ pub fn admit_v2_package(
         .map_err(|_| AuthorityError::ApprovalMismatch)?;
     Ok((digests, receipt, report))
 }
+/// SH2 successor route: [`admit_v2_package`] under `BOOTSTRAP_PROFILE_3`
+/// and `EXEC_PACKAGE_V3` (C0 seed path; the same native legs and the same
+/// permanent mechanics).
+///
+/// # Errors
+///
+/// [`AuthorityError`] on the first failed leg.
+pub fn admit_v3_package(
+    closure: &V2Closure<'_>,
+    package: &ExecutionPackage,
+) -> Result<(PackageDigests, AdmissionReceipt, BootstrapProfileReport), AuthorityError> {
+    let entry = closure
+        .functions
+        .iter()
+        .find(|graph| graph.entity_id == closure.entry)
+        .ok_or(AuthorityError::UnknownEntry)?;
+    // Semantic leg 1 (C0 seed): profile judgment.
+    let report = judge_closure_for_seed_version(closure, entry, &package.image_bytes, BootstrapProfileVersion::V3)?;
+    // Semantic leg 2 (C0 seed): reference re-lowering.
+    let reference = reference_lower_for_seed(closure, entry)?;
+    // Permanent mechanics from here on: no language judgment.
+    verify_structural_correspondence(closure, package, &report, &reference.bytes)?;
+    let digests = package_digests_v3(package).map_err(AuthorityError::Digests)?;
+    let receipt = admit_package_v3(digests.package_digest);
+    approve_package_v3(package, &digests, receipt, &report)
+        .map_err(|_| AuthorityError::ApprovalMismatch)?;
+    Ok((digests, receipt, report))
+}
 
 /// Semantic leg 1, C0 seed only: judge the closure under the successor
 /// profile with the native gate. Excluded from clean stages after C1;
@@ -183,6 +212,21 @@ fn judge_closure_for_seed(
     closure: &V2Closure<'_>,
     entry: &FunctionGraph,
     presented_image_bytes: &[u8],
+) -> Result<BootstrapProfileReport, AuthorityError> {
+    judge_closure_for_seed_version(
+        closure,
+        entry,
+        presented_image_bytes,
+        BootstrapProfileVersion::V2,
+    )
+}
+
+/// [`judge_closure_for_seed`] under an explicit profile version.
+fn judge_closure_for_seed_version(
+    closure: &V2Closure<'_>,
+    entry: &FunctionGraph,
+    presented_image_bytes: &[u8],
+    profile_version: BootstrapProfileVersion,
 ) -> Result<BootstrapProfileReport, AuthorityError> {
     judge_bootstrap_profile(&BootstrapProfileInput {
         types: closure.types,
@@ -195,10 +239,9 @@ fn judge_closure_for_seed(
         operations: closure.operations,
         adapters: closure.adapters,
         constants: closure.constants,
-        // The staged authority judges under the successor profile: it is
-        // the only production path that may admit `RHW1` closures, and
-        // its reports approve v2 packages only.
-        profile_version: BootstrapProfileVersion::V2,
+        // The staged authority judges under the requested successor
+        // profile; v2 reports approve v2 packages only, v3 reports v3.
+        profile_version,
     })
     .map_err(|_| AuthorityError::GateRefused)
 }

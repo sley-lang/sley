@@ -81,6 +81,10 @@ pub enum BootstrapProfileVersion {
     V1,
     /// Successor v2 subset: raw-hash row admitted.
     V2,
+    /// SH2 successor v3 subset (`BOOTSTRAP_PROFILE_3`): v2 plus the
+    /// `HOST_ABI_V3` large primitives (`RHW2`, `RSH2`, `BCT1`, `BSL1`) and
+    /// discriminated per-element-type push rows.
+    V3,
 }
 
 /// One gate admission request: the entry function plus the root-wide
@@ -412,8 +416,10 @@ pub fn judge_bootstrap_profile(
         // that typed refusal as backstop. V1 needs no bound (no `RHW1`;
         // `ValueHash` stays canonical at any size under its own
         // encoder/work limits).
-        if input.profile_version == BootstrapProfileVersion::V2
-            && matches!(&constant.value.data, ConstData::Bytes(bytes) if bytes.len() > crate::raw_hash::RAW_HASH_MAX_BYTES)
+        if matches!(
+            input.profile_version,
+            BootstrapProfileVersion::V2 | BootstrapProfileVersion::V3
+        ) && matches!(&constant.value.data, ConstData::Bytes(bytes) if bytes.len() > crate::raw_hash::RAW_HASH_MAX_BYTES)
         {
             return gate_fail(LowerErrorCode::ResourceLimit);
         }
@@ -658,7 +664,20 @@ fn bootstrap_row_ok(
     // successor profile. V1 authority therefore cannot cover a closure
     // naming `RHW1` — no v1-judged report names it, and approval pins
     // the report version to the receipt profile.
-    if kind == BridgeKind::RawHash && profile_version != BootstrapProfileVersion::V2 {
+    if kind == BridgeKind::RawHash && profile_version == BootstrapProfileVersion::V1 {
+        return false;
+    }
+    // HOST_ABI_V3 rows admit only under the v3 profile: the large raw
+    // primitives, byte concat/slice, and discriminated push identities.
+    let v3_only = matches!(
+        kind,
+        BridgeKind::RawHashLarge
+            | BridgeKind::RawSha256
+            | BridgeKind::BytesConcat
+            | BridgeKind::BytesSlice
+    ) || (kind == BridgeKind::VectorPush
+        && crate::extended::push_discriminator(&carried.entity_id) != 0);
+    if v3_only && profile_version != BootstrapProfileVersion::V3 {
         return false;
     }
     bootstrap_type_ok(types, &resolved.request_type, true, &mut BTreeSet::new())

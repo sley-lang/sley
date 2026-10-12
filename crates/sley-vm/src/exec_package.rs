@@ -133,6 +133,15 @@ pub const BOOTSTRAP_PROFILE_2_DIGEST: [u8; 32] = [
     0x7a, 0x00, 0x62, 0xac, 0xb6, 0xed, 0x08, 0x7d, 0x85, 0xf8, 0x99, 0xda, 0x1a, 0x84, 0x74, 0x59,
 ];
 
+/// SH2 successor `BOOTSTRAP_PROFILE_3` digest: raw-byte SHA-256 of
+/// `conformance/bootstrap-profile/v3/profile.json`.
+pub const BOOTSTRAP_PROFILE_3_DIGEST: [u8; 32] = [0; 32];
+/// SH2 successor package identity.
+pub const EXEC_PACKAGE_V3_IDENTITY: &str = "EXEC_PACKAGE_V3";
+/// SH2 successor package contract.
+pub const EXEC_PACKAGE_V3_CONTRACT: &str = "sley2-exec-package-3";
+/// SH2 successor package version.
+pub const EXEC_PACKAGE_V3_VERSION: u32 = 3;
 /// Successor execution-package identity (RW-075 correction).
 pub const EXEC_PACKAGE_V2_IDENTITY: &str = "EXEC_PACKAGE_V2";
 /// Successor execution-package contract.
@@ -2015,6 +2024,452 @@ pub fn approve_package_v2(
     })
 }
 
+// ---------------------------------------------------------------------------
+// EXEC_PACKAGE_V3 (SH2 successor): the v2 envelope layout bound to
+// `BOOTSTRAP_PROFILE_3` and `HOST_ABI_V3`.
+// ---------------------------------------------------------------------------
+
+fn package_header_v3(package: &ExecutionPackage, digests: &PackageDigests) -> Vec<u8> {
+    let mut header = Vec::with_capacity(EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES);
+    header.extend_from_slice(EXEC_PACKAGE_MAGIC);
+    push_u32(&mut header, EXEC_PACKAGE_V3_VERSION);
+    header.extend_from_slice(&BOOTSTRAP_PROFILE_3_DIGEST);
+    push_u32(&mut header, crate::host_abi::HOST_ABI_V3_VERSION);
+    for part in package.profile.vm_version {
+        push_u32(&mut header, part);
+    }
+    header.extend_from_slice(&digests.image_digest);
+    header.extend_from_slice(&digests.constants_digest);
+    header.extend_from_slice(&digests.layouts_digest);
+    header.extend_from_slice(&digests.imports_digest);
+    header.extend_from_slice(&digests.dependency_digest);
+    header.extend_from_slice(package.entry.as_bytes());
+    header.extend_from_slice(package.schema_epoch.as_bytes());
+    header.extend_from_slice(package.state_root.as_bytes());
+    debug_assert_eq!(header.len(), EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES);
+    header
+}
+/// SH2 successor package digests: the v2 layout binding
+/// `BOOTSTRAP_PROFILE_3_DIGEST`, `HOST_ABI_V3_VERSION`, and version 3.
+///
+/// # Errors
+///
+/// Same ceilings as v2.
+pub fn package_digests_v3(package: &ExecutionPackage) -> Result<PackageDigests, PackageError> {
+    if package.image_bytes.len() > IMAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let image_digest = image_digest(&package.image_bytes);
+    let constants_bytes = encode_constants_section(&package.constants)?;
+    let constants_digest = section_digest(&constants_bytes);
+    let layouts_bytes = encode_layouts_section(&package.type_definitions)?;
+    let layouts_digest = section_digest(&layouts_bytes);
+    let imports_bytes = encode_imports_section(&package.imports)?;
+    let imports_digest = section_digest(&imports_bytes);
+    let dependency_bytes = encode_dependency_section(package)?;
+    let dependency_digest = section_digest(&dependency_bytes);
+    let envelope_len = package
+        .image_bytes
+        .len()
+        .saturating_add(constants_bytes.len())
+        .saturating_add(layouts_bytes.len())
+        .saturating_add(imports_bytes.len())
+        .saturating_add(dependency_bytes.len());
+    if envelope_len > EXEC_PACKAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let mut digests = PackageDigests {
+        image_digest,
+        constants_digest,
+        layouts_digest,
+        imports_digest,
+        dependency_digest,
+        package_digest: [0; 32],
+    };
+    digests.package_digest = section_digest(&package_header_v3(package, &digests));
+    Ok(digests)
+}
+/// Encodes the canonical v3 package envelope (the v2 layout, v3 binding).
+///
+/// # Errors
+///
+/// Same failures as [`package_digests_v3`].
+pub fn encode_package_envelope_v3(package: &ExecutionPackage) -> Result<Vec<u8>, PackageError> {
+    let constants = encode_constants_section(&package.constants)?;
+    let layouts = encode_layouts_section(&package.type_definitions)?;
+    let imports = encode_imports_section(&package.imports)?;
+    let dependency = encode_dependency_section(package)?;
+    let sections: [&[u8]; 5] = [
+        &package.image_bytes,
+        &constants,
+        &layouts,
+        &imports,
+        &dependency,
+    ];
+    let payload_len = sections.iter().try_fold(0_usize, |total, section| {
+        total
+            .checked_add(section.len())
+            .ok_or(PackageError::Oversized)
+    })?;
+    if payload_len > EXEC_PACKAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let digests = package_digests_v3(package)?;
+    let capacity = EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES
+        .checked_add(EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES)
+        .and_then(|overhead| overhead.checked_add(payload_len))
+        .ok_or(PackageError::Oversized)?;
+    let mut output = package_header_v3(package, &digests);
+    output.reserve(EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES + payload_len);
+    for section in sections {
+        push_u64(
+            &mut output,
+            u64::try_from(section.len()).map_err(|_| PackageError::Oversized)?,
+        );
+        output.extend_from_slice(section);
+    }
+    debug_assert_eq!(output.len(), capacity);
+    Ok(output)
+}
+/// Strictly decodes a v3 package envelope (the v2 layout, v3 binding).
+///
+/// # Errors
+///
+/// The v2 framing vocabulary.
+pub fn decode_package_envelope_v3(bytes: &[u8]) -> Result<DecodedPackageEnvelopeV2, PackageError> {
+    let serialized_ceiling = EXEC_PACKAGE_MAX_BYTES
+        .checked_add(EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES)
+        .and_then(|value| value.checked_add(EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES))
+        .ok_or(PackageError::Oversized)?;
+    if bytes.len() > serialized_ceiling {
+        return Err(PackageError::Oversized);
+    }
+    let mut cursor = PackageEnvelopeCursor::new(bytes);
+    if cursor.take(EXEC_PACKAGE_MAGIC.len())? != EXEC_PACKAGE_MAGIC {
+        return Err(PackageError::UnknownMagic);
+    }
+    if cursor.u32()? != EXEC_PACKAGE_V3_VERSION {
+        return Err(PackageError::UnsupportedVersion);
+    }
+    if cursor.fixed_32()? != BOOTSTRAP_PROFILE_3_DIGEST
+        || cursor.u32()? != crate::host_abi::HOST_ABI_V3_VERSION
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    let vm_version = [cursor.u32()?, cursor.u32()?, cursor.u32()?];
+    if vm_version != CacheProfile::EXTENDED_V1.vm_version {
+        return Err(PackageError::BindingMismatch);
+    }
+    let expected_image_digest = cursor.fixed_32()?;
+    let expected_constants_digest = cursor.fixed_32()?;
+    let expected_layouts_digest = cursor.fixed_32()?;
+    let expected_imports_digest = cursor.fixed_32()?;
+    let expected_dependency_digest = cursor.fixed_32()?;
+    let entry = EntityId::from_bytes(cursor.fixed_32()?);
+    let schema_epoch = SchemaEpochId::from_bytes(cursor.fixed_32()?);
+    let state_root = StateRoot::from_bytes(cursor.fixed_32()?);
+    debug_assert_eq!(cursor.position, EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES);
+
+    let image = cursor.section(IMAGE_MAX_BYTES)?;
+    let constants = cursor.section(EXEC_PACKAGE_MAX_CONSTANTS_BYTES)?;
+    let layouts = cursor.section(EXEC_PACKAGE_MAX_LAYOUTS_BYTES)?;
+    let imports = cursor.section(EXEC_PACKAGE_MAX_IMPORTS_BYTES)?;
+    let dependency = cursor.section(EXEC_PACKAGE_MAX_DEPENDENCY_BYTES)?;
+    let payload_len = [image, constants, layouts, imports, dependency]
+        .iter()
+        .try_fold(0_usize, |total, section| {
+            total
+                .checked_add(section.len())
+                .ok_or(PackageError::Oversized)
+        })?;
+    if payload_len > EXEC_PACKAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    if cursor.position != bytes.len() {
+        return Err(PackageError::TrailingData);
+    }
+
+    let image_digest = image_digest(image);
+    let constants_digest = section_digest(constants);
+    let layouts_digest = section_digest(layouts);
+    let imports_digest = section_digest(imports);
+    let dependency_digest = section_digest(dependency);
+    if image_digest != expected_image_digest
+        || constants_digest != expected_constants_digest
+        || layouts_digest != expected_layouts_digest
+        || imports_digest != expected_imports_digest
+        || dependency_digest != expected_dependency_digest
+    {
+        return Err(PackageError::SectionDigestMismatch);
+    }
+    let package_digest = section_digest(&bytes[..EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES]);
+    Ok(DecodedPackageEnvelopeV2 {
+        image_bytes: image.to_vec(),
+        constants_bytes: constants.to_vec(),
+        layouts_bytes: layouts.to_vec(),
+        imports_bytes: imports.to_vec(),
+        dependency_bytes: dependency.to_vec(),
+        entry,
+        schema_epoch,
+        state_root,
+        digests: PackageDigests {
+            image_digest,
+            constants_digest,
+            layouts_digest,
+            imports_digest,
+            dependency_digest,
+            package_digest,
+        },
+    })
+}
+/// Decodes and structurally hydrates a v3 package envelope.
+///
+/// # Errors
+///
+/// The v2 framing and hydration vocabulary.
+pub fn hydrate_package_envelope_v3(
+    bytes: &[u8],
+) -> Result<HydratedPackageEnvelopeV2, PackageError> {
+    let decoded = decode_package_envelope_v3(bytes)?;
+    let constants = decode_constants_section(&decoded.constants_bytes)?;
+    let type_definitions = decode_layouts_section(&decoded.layouts_bytes)?;
+    let imports = decode_imports_section(&decoded.imports_bytes)?;
+    let dependency = decode_dependency_section(&decoded.dependency_bytes)?;
+    if dependency.entry != decoded.entry
+        || dependency.schema_epoch != decoded.schema_epoch
+        || dependency.state_root != decoded.state_root
+        || dependency.profile != CacheProfile::EXTENDED_V1
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    let package = ExecutionPackage {
+        image_bytes: decoded.image_bytes.clone(),
+        constants,
+        type_definitions,
+        imports,
+        globals: dependency.globals,
+        contracts: dependency.contracts,
+        entry: dependency.entry,
+        schema_epoch: dependency.schema_epoch,
+        state_root: dependency.state_root,
+        profile: dependency.profile,
+        admitted_limits: dependency.admitted_limits,
+        gate_operation_count: dependency.gate_operation_count,
+        gate_bridge_uses: dependency.gate_bridge_uses,
+        gate_closure_fingerprints: dependency.gate_closure_fingerprints,
+    };
+    if encode_constants_section(&package.constants)? != decoded.constants_bytes
+        || encode_layouts_section(&package.type_definitions)? != decoded.layouts_bytes
+        || encode_imports_section(&package.imports)? != decoded.imports_bytes
+        || encode_dependency_section(&package)? != decoded.dependency_bytes
+    {
+        return Err(PackageError::Malformed);
+    }
+    let digests = package_digests_v3(&package)?;
+    if digests != decoded.digests {
+        return Err(PackageError::BindingMismatch);
+    }
+    Ok(HydratedPackageEnvelopeV2 { package, digests })
+}
+/// Mints the v3 admission receipt (crate-private: only reviewed
+/// authorities call it).
+pub(crate) fn admit_package_v3(package_digest: [u8; 32]) -> AdmissionReceipt {
+    AdmissionReceipt {
+        package_digest,
+        profile_digest: BOOTSTRAP_PROFILE_3_DIGEST,
+        host_abi_version: crate::host_abi::HOST_ABI_V3_VERSION,
+    }
+}
+/// Approves a v3 package against a v3-judged gate report.
+///
+/// # Errors
+///
+/// The v2 approval vocabulary.
+pub fn approve_package_v3(
+    package: &ExecutionPackage,
+    digests: &PackageDigests,
+    receipt: AdmissionReceipt,
+    gate: &BootstrapProfileReport,
+) -> Result<ApprovedExecutionPackage, PackageError> {
+    if receipt.package_digest != digests.package_digest {
+        return Err(PackageError::ReceiptMismatch);
+    }
+    if gate.functions().first() != Some(&package.entry) {
+        return Err(PackageError::BindingMismatch);
+    }
+    let mut gate_imports = gate.imports().to_vec();
+    gate_imports.sort();
+    let mut package_imports: Vec<EntityId> =
+        package.imports.iter().map(|row| row.entity_id).collect();
+    package_imports.sort();
+    if gate_imports != package_imports {
+        return Err(PackageError::BindingMismatch);
+    }
+    if gate.operation_count() != package.gate_operation_count
+        || gate.bridge_uses() != package.gate_bridge_uses
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    if gate.closure_fingerprints() != package.gate_closure_fingerprints.as_slice() {
+        return Err(PackageError::BindingMismatch);
+    }
+    if gate.admitted_image_digest() != &crate::host_abi::image_digest(&package.image_bytes) {
+        return Err(PackageError::BindingMismatch);
+    }
+    if receipt.profile_digest != BOOTSTRAP_PROFILE_3_DIGEST {
+        return Err(PackageError::BindingMismatch);
+    }
+    // Mirror pin: a v2 approval requires a v2-judged report, so a
+    // v1-judged report can never back a successor package.
+    if gate.profile_version() != BootstrapProfileVersion::V3 {
+        return Err(PackageError::BindingMismatch);
+    }
+    if receipt.host_abi_version != crate::host_abi::HOST_ABI_V3_VERSION {
+        return Err(PackageError::BindingMismatch);
+    }
+    if package.profile != CacheProfile::EXTENDED_V1 {
+        return Err(PackageError::BindingMismatch);
+    }
+    let cache_key = crate::derive_cache_key(
+        package.schema_epoch,
+        package.state_root,
+        package.entry,
+        package.profile,
+    )
+    .map_err(|_| PackageError::BindingMismatch)?;
+    Ok(ApprovedExecutionPackage {
+        package_digest: digests.package_digest,
+        image_digest: digests.image_digest,
+        constants_digest: digests.constants_digest,
+        layouts_digest: digests.layouts_digest,
+        imports_digest: digests.imports_digest,
+        dependency_digest: digests.dependency_digest,
+        cache_key,
+        imports: package.imports.clone(),
+        entry: package.entry,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        profile_digest: BOOTSTRAP_PROFILE_3_DIGEST,
+        vm_version: package.profile.vm_version,
+        host_abi_version: crate::host_abi::HOST_ABI_V3_VERSION,
+        admitted_limits: package.admitted_limits,
+        receipt,
+    })
+}
+/// Approves a v3 package admitted by pinned toolchain identity (the SH2
+/// seed-absent host route). The package's gate claims were produced by the
+/// pinned toolchain itself and are bound through its digest, so no native
+/// gate report is consulted; every structural binding check still runs.
+///
+/// # Errors
+///
+/// The v2 approval vocabulary.
+pub fn approve_pinned_package_v3(
+    package: &ExecutionPackage,
+    digests: &PackageDigests,
+    receipt: AdmissionReceipt,
+) -> Result<ApprovedExecutionPackage, PackageError> {
+    if receipt.package_digest != digests.package_digest {
+        return Err(PackageError::ReceiptMismatch);
+    }
+    if receipt.profile_digest != BOOTSTRAP_PROFILE_3_DIGEST {
+        return Err(PackageError::BindingMismatch);
+    }
+    if receipt.host_abi_version != crate::host_abi::HOST_ABI_V3_VERSION {
+        return Err(PackageError::BindingMismatch);
+    }
+    if package.profile != CacheProfile::EXTENDED_V1 {
+        return Err(PackageError::BindingMismatch);
+    }
+    let cache_key = crate::derive_cache_key(
+        package.schema_epoch,
+        package.state_root,
+        package.entry,
+        package.profile,
+    )
+    .map_err(|_| PackageError::BindingMismatch)?;
+    Ok(ApprovedExecutionPackage {
+        package_digest: digests.package_digest,
+        image_digest: digests.image_digest,
+        constants_digest: digests.constants_digest,
+        layouts_digest: digests.layouts_digest,
+        imports_digest: digests.imports_digest,
+        dependency_digest: digests.dependency_digest,
+        cache_key,
+        imports: package.imports.clone(),
+        entry: package.entry,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        profile_digest: BOOTSTRAP_PROFILE_3_DIGEST,
+        vm_version: package.profile.vm_version,
+        host_abi_version: crate::host_abi::HOST_ABI_V3_VERSION,
+        admitted_limits: package.admitted_limits,
+        receipt,
+    })
+}
+/// Verifies a v3 package against its approved binding.
+///
+/// # Errors
+///
+/// The v2 binding vocabulary.
+pub fn verify_package_binding_v3(
+    package: &ExecutionPackage,
+    digests: &PackageDigests,
+    expected: &ApprovedExecutionPackage,
+) -> Result<(), PackageError> {
+    if digests.package_digest != expected.package_digest
+        || digests.package_digest != expected.receipt.package_digest
+    {
+        return Err(PackageError::ReceiptMismatch);
+    }
+    if digests.image_digest != expected.image_digest {
+        return Err(PackageError::BindingMismatch);
+    }
+    if image_digest(&package.image_bytes) != expected.image_digest {
+        return Err(PackageError::BindingMismatch);
+    }
+    if digests.constants_digest != expected.constants_digest
+        || digests.layouts_digest != expected.layouts_digest
+        || digests.imports_digest != expected.imports_digest
+        || digests.dependency_digest != expected.dependency_digest
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    let recomputed = package_digests_v3(package)?;
+    if recomputed != *digests {
+        return Err(PackageError::BindingMismatch);
+    }
+    if package.entry != expected.entry
+        || package.schema_epoch != expected.schema_epoch
+        || package.state_root != expected.state_root
+        || package.profile != expected.profile
+        || package.admitted_limits != expected.admitted_limits
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    if expected.profile_digest != BOOTSTRAP_PROFILE_3_DIGEST
+        || expected.host_abi_version != crate::host_abi::HOST_ABI_V3_VERSION
+        || expected.vm_version != package.profile.vm_version
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    if package.imports != expected.imports {
+        return Err(PackageError::BindingMismatch);
+    }
+    let cache_key = crate::derive_cache_key(
+        package.schema_epoch,
+        package.state_root,
+        package.entry,
+        package.profile,
+    )
+    .map_err(|_| PackageError::BindingMismatch)?;
+    if cache_key != expected.cache_key {
+        return Err(PackageError::BindingMismatch);
+    }
+    Ok(())
+}
 /// Hydrates the runtime type/layout closure structurally (no semantic
 /// judgment).
 ///
