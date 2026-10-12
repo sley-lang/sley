@@ -11,6 +11,11 @@
 //!                                 C0.build of a staged S (recovery and parity)
 //! sley-sh2 corrupt --stage DIR --out DIR
 //!                                 a copy of S whose first object has a bad magic
+//! sley-sh2 omit --stage DIR --out DIR
+//!                                 a copy of S missing one bound object
+//! sley-sh2 fake --prior PKG --out DIR
+//!                                 a fake builder (S and its C0 package) that
+//!                                 ignores its input and returns PKG
 //! ```
 //!
 //! `stage` writes `DIR/S/{epoch.bin, root.bin, objects/<entity-id-hex>.obj}`,
@@ -308,6 +313,50 @@ fn corrupt(stage: &Path, out: &Path) -> Result<(), String> {
     write(&out.join("objects").join(name), &bytes)
 }
 
+/// A copy of a staged S without its last object (the root still binds it).
+fn omit(stage: &Path, out: &Path) -> Result<(), String> {
+    let s = load_stage(stage)?;
+    write_stage(out, &s)?;
+    let last = s.objects.last().ok_or("no objects")?;
+    let name = format!("{}.obj", hex(last.record().entity_id.as_bytes()));
+    std::fs::remove_file(out.join("objects").join(name)).map_err(|e| e.to_string())
+}
+
+/// A fake builder: a toolchain-shaped program whose `drv_build` ignores its
+/// input and returns the prior package bytes (embedded as constants below
+/// the 1 MiB constant bound). Writes its staged S and its C0 package.
+fn fake(prior: &Path, out: &Path) -> Result<(), String> {
+    use sley_selfhost::seed::*;
+    let bytes = std::fs::read(prior).map_err(|e| format!("{}: {e}", prior.display()))?;
+    let mut m = Module::new("sley.sh2.fake-builder.v1");
+    let chunks: Vec<Vec<u8>> = bytes.chunks(1 << 19).map(<[u8]>::to_vec).collect();
+    m.func(
+        "drv_build",
+        &[
+            ("objects", t::vec(t::bytes())),
+            ("root_bytes", t::bytes()),
+            ("epoch", t::bytes()),
+            (
+                "limits",
+                t::tuple(vec![t::u64(), t::u64(), t::u64(), t::u64(), t::bool(), t::u64()]),
+            ),
+        ],
+        t::res(t::bytes(), t::u32()),
+        move |f| {
+            let parts = chunks.iter().map(|c| bytesc(c)).collect();
+            f.ret_ok(concat(vnew(t::bytes(), parts)));
+        },
+    );
+    let (program, names) = m.finish();
+    let s = canonical::build(&program, names["drv_build"], "sley.sh2.fake-builder.s.v1");
+    write_stage(&out.join("S"), &s)?;
+    let built = native::c0_build(&s, native::toolchain_limits())?;
+    write(&out.join("fake.pkg"), &built.envelope)?;
+    write(&out.join("fake.digest"), hex(&built.digests.package_digest).as_bytes())?;
+    println!("{{\"fake_package_digest\": \"{}\"}}", hex(&built.digests.package_digest));
+    Ok(())
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.as_slice() {
@@ -331,6 +380,12 @@ fn main() -> ExitCode {
         }
         [cmd, f1, stage_dir, f2, out] if cmd == "corrupt" && f1 == "--stage" && f2 == "--out" => {
             corrupt(Path::new(stage_dir), Path::new(out))
+        }
+        [cmd, f1, stage_dir, f2, out] if cmd == "omit" && f1 == "--stage" && f2 == "--out" => {
+            omit(Path::new(stage_dir), Path::new(out))
+        }
+        [cmd, f1, prior, f2, out] if cmd == "fake" && f1 == "--prior" && f2 == "--out" => {
+            fake(Path::new(prior), Path::new(out))
         }
         _ => Err("usage: sley-sh2 stage --out DIR | inspect PKG | compare PKG PKG | mutate-constant --stage DIR --out DIR --from N --to N | c0 --stage DIR --out PKG | corrupt --stage DIR --out DIR".into()),
     };
