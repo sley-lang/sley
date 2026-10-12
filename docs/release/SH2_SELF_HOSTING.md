@@ -60,3 +60,88 @@ differential test suites, and the packaging scripts.
 | §14.2 | Paired Rust/Sley checks on accepted and rejected programs | `crates/sley-selfhost/tests/toolchain_*.rs` |
 | §15 | Canonical, semantic, and executable parity; refusal parity; failure preservation | differential and mutation suites; omitted, corrupt and substituted inputs |
 | §15 | Fault seeds are detected | `crates/sley-selfhost/tests/toolchain_faults.rs` (seven seeds) |
+
+## Evidence (2026-10-12)
+
+Recorded run: repository `07b43cf`, clean tree, on one x86_64 Linux host.
+The receipts, comparisons, manifests and logs are in
+`evidence/reweave/sh2-bootstrap-20261012/`. Paths are normalized to
+`WORKDIR` and `REPO`.
+
+### Canonical S and C1 (native seed)
+
+| Item | Value |
+|---|---|
+| State root | `3f60d7b9179bb34fe7a19ddcb87786ecf9b7434fe9e45cd8a698872a5f29e17e` |
+| Objects | 62,322 entity objects (15,766,603 bytes); root 4,113,552 bytes |
+| C1 package digest | `389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca` |
+| C1 envelope | 2,525,082 bytes, SHA-256 `7382fc9d93a27c34ded8c46ed5365719eed3af5549cc84fd5ca0f783dd98e029` |
+| C0 build | 36.7 s |
+
+### Fixed point (§13.1–13.3)
+
+| Stage | Toolchain | Status | VM instructions | Wall time | Output SHA-256 |
+|---|---|---|---|---|---|
+| C2 = H.run(C1, S) | C1 | ok | 783,179,198 | 603 s | `7382fc9d…` |
+| C3 = H.run(C2, S) | C2 | ok | 783,179,198 | 604 s | `7382fc9d…` |
+
+C1, C2 and C3 are byte-identical. An earlier independent run produced the
+same C1, C2 and C3 bytes, so S, C1 and the fixed point are reproducible.
+
+The host (`sley-host`, SHA-256 `f8a20ad2…`) is a static-pie musl binary.
+Its 2,361 symbols include no native compile, check, lower, judge or
+admission-authority entry point. Stages after C1 run in a bubblewrap root
+that holds only the host, S, the preceding package and an output
+directory: no shell, no Rust toolchain, no sources and no network.
+
+### Changed input and fake-builder rejection (§13.4)
+
+1. **Typed candidate.** `cb97f2a2…` replaces constant `9bc36f1d…`
+   (`SCB_MAGIC_INVALID`, 10000 → 10900). The state root moves from
+   `3f60d7b9…` to `eb24e774…`.
+2. **C2′.** The prior Sley toolchain C2 rebuilt S′ seed-absent into C2′
+   (package `6b2f8f5a…`). C2′:
+   - differs from C2;
+   - is byte-identical to the native C0 build of S′;
+   - rebuilds itself to the same bytes (C3′ == C2′).
+3. **Changed behavior.** On a build request whose first object has a
+   corrupt magic, C2 refuses with `toolchain-error-10000` and C2′ with
+   `toolchain-error-10900`. Neither writes output.
+4. **Fake builder.** It ignores its input and returns the prior image,
+   C2. Its output still refuses the same request with
+   `toolchain-error-10000`, so it is rejected.
+5. **Use closure.** C2 compiles an unrelated program (the fake builder's
+   own S, 35 objects) byte-identically to C0.
+
+### Failure preservation (§15)
+
+| Input | Result |
+|---|---|
+| One object omitted | `toolchain-error-29002`, no output |
+| Corrupt object | the diagnostic code above, no output |
+| Substituted object (same entity, other body) | `29002` (`toolchain_faults.rs`) |
+
+### Self-rebuild package closure (§13.5)
+
+`WORKDIR/dist` holds:
+- the host;
+- the toolchain image (`7382fc9d…`);
+- S;
+- `rebuild.sh`;
+- `SHA256SUMS` (`cc0f5363…`).
+
+A copy outside the repository passed its checksums and ran `rebuild.sh`
+under `env -i`, in 600 s. The rebuilt toolchain was byte-identical.
+
+### Differential and fault-seed suites (§14.2, §15)
+
+| Module | Corpus | Result |
+|---|---|---|
+| SCB walker | 5,887 mutated encodings | accept/reject parity |
+| Codec | 11,760 corrupted objects | parity; sampled exact decodes |
+| Root decoder | 2,405 corruptions | parity |
+| Checker | 359 mutated cases; all 271 toolchain functions | identical first failure |
+| Judge and gate | 3,300 operation and 223 gate mutants | 0 code deviations |
+| Lowerer | toolchain closures up to 972 KB | byte-identical |
+| Fingerprints, package | toolchain closures | identical |
+| Fault seeds | 7 defective toolchains | all detected |

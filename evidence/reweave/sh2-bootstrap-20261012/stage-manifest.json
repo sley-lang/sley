@@ -1,0 +1,14 @@
+{
+  "schema": "sley2.sh2.stage.v1",
+  "state_root": "3f60d7b9179bb34fe7a19ddcb87786ecf9b7434fe9e45cd8a698872a5f29e17e",
+  "epoch": "a7fcf97a85d41ef9b1c89394a324f2dc7ec875b9ded48a783104314857dc870e",
+  "objects": 62322,
+  "object_bytes": 15766603,
+  "root_bytes": 4113552,
+  "c1_package_digest": "389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca",
+  "c1_envelope_sha256": "7382fc9d93a27c34ded8c46ed5365719eed3af5549cc84fd5ca0f783dd98e029",
+  "c1_envelope_bytes": 2525082,
+  "c1_image_bytes": 2410782,
+  "seed_ms": 499,
+  "c0_build_ms": 36720
+}
