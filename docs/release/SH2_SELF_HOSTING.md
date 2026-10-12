@@ -2,7 +2,8 @@
 
 Status: implementation record for `SH2_SELF_HOSTED_TOOLCHAIN` (REWEAVE §10).
 Decision record: `docs/adr/ADR-0056-sh2-self-hosted-toolchain.md`.
-Reproduce with `scripts/sh2_bootstrap.sh WORKDIR`.
+Reproduce with `scripts/sh2_bootstrap.sh WORKDIR` and then
+`scripts/sh2_changed_input.sh WORKDIR`.
 
 ## The claim
 
@@ -54,6 +55,8 @@ differential test suites, and the packaging scripts.
 |---|---|---|
 | §13.1–13.2 | `C1 = C0.build(S, P)`, `C2 = H.run(C1)`, `C3 = H.run(C2)`, `C2 == C3` | `scripts/sh2_bootstrap.sh` |
 | §13.3 | Stages 2 and 3 run seed-absent in an isolated environment | empty bubblewrap root; static host; symbol audit |
-| §13.4 | Changed input via typed mutation, rebuilt by the prior Sley toolchain; fake builder rejected | `sley-sh2 mutate-constant`; changed-behavior check |
+| §13.4 | Changed input via typed mutation, rebuilt by the prior Sley toolchain; fake builder rejected | `scripts/sh2_changed_input.sh` |
+| §13.5 | Self-rebuild package closure | `WORKDIR/dist` (host, toolchain image, S, `rebuild.sh`, `SHA256SUMS`) |
 | §14.2 | Paired Rust/Sley checks on accepted and rejected programs | `crates/sley-selfhost/tests/toolchain_*.rs` |
-| §15 | Canonical, semantic, and executable parity; refusal parity; failure preservation | differential and mutation suites |
+| §15 | Canonical, semantic, and executable parity; refusal parity; failure preservation | differential and mutation suites; omitted, corrupt and substituted inputs |
+| §15 | Fault seeds are detected | `crates/sley-selfhost/tests/toolchain_faults.rs` (seven seeds) |

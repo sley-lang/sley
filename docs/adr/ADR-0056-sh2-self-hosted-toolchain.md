@@ -72,3 +72,31 @@ which made a complete toolchain impractical by that method.
   entry point, no effects, no contracts, no type parameters, no recursion,
   and eleven entity kinds. Anything outside it refuses with a typed
   `TOOL_*` code rather than a silent fallback.
+- Recorded narrowings relative to the native reference:
+  - **Multi-fault precedence.** A list or record reads all of its own
+    framing before it visits its children. Suppose a later sibling's
+    framing and an earlier child's content are both malformed. The SCB
+    walker then reports the framing error, and both implementations
+    refuse. Single-defect inputs report the native code.
+  - **Labels.** Entity labels must be ASCII. A non-ASCII label refuses
+    with `TOOL_LABEL_OUT_OF_DOMAIN`.
+  - **Entity kinds.** The seven kinds outside the bootstrap domain refuse
+    with `TOOL_KIND_OUT_OF_DOMAIN`.
+  - **The checker's unreachable branches.** `TYPE_*` 21006, 21010, 21012
+    and 21013 are guarded but cannot arise after the loader's checks.
+    The visit-budget path 21018 is implemented without a corpus case.
+- **Fault seeds** (REWEAVE §15). Build-time switches of the seed
+  assembler (`seed::with_faults`) construct seven deliberately defective
+  toolchains:
+  - a skipped magic check;
+  - a skipped set-order check;
+  - a wrong operation type rule;
+  - a disabled dominance check;
+  - a lowering register off by one;
+  - a wrong package digest;
+  - a disabled root-binding check.
+
+  The differential suite detects each one. Inactive seeds emit no code, so
+  canonical S is unchanged.
+- The proof runs on one host (x86_64 Linux, static musl host). A second
+  pinned host family is future work and is not claimed.
