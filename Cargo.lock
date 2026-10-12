@@ -345,6 +345,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sley-host"
+version = "2.0.7"
+dependencies = [
+ "sha2",
+ "sley-ssmc",
+ "sley-vm",
+]
+
+[[package]]
 name = "sley-id"
 version = "2.0.7"
 dependencies = [
@@ -471,6 +480,7 @@ name = "sley-selfhost"
 version = "2.0.7"
 dependencies = [
  "blake3",
+ "sha2",
  "sley-check",
  "sley-id",
  "sley-mutate",

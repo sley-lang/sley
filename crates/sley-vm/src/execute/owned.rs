@@ -41,6 +41,12 @@ pub(super) fn constant_index(source: &ExecutionSource<'_>) -> ConstantIndex {
     index
 }
 
+/// Whether a register's value is the only owner of its root: moving out of
+/// a shared root would copy the whole root, so projections share instead.
+fn unique(runtime: &Runtime, register: u32) -> bool {
+    read_register(runtime, register).is_ok_and(|value| std::sync::Arc::strong_count(&value.root) == 1)
+}
+
 fn operand(runtime: &mut Runtime, register: u32, dead: bool) -> RuntimeResult<RuntimeValue> {
     if dead {
         take_register(runtime, register)
@@ -202,7 +208,7 @@ pub(super) fn execute(
                 return Err(RuntimeFault);
             };
             let index = usize::try_from(*index).map_err(|_| RuntimeFault)?;
-            let element = if dead(0) {
+            let element = if dead(0) && unique(runtime, *register) {
                 let ConstData::Sequence(mut items) = take_register(runtime, *register)?
                     .into_value()?
                     .data
@@ -233,7 +239,7 @@ pub(super) fn execute(
             let Immediate::Field(member) = &instruction.immediate else {
                 return Err(RuntimeFault);
             };
-            let element = if dead(0) {
+            let element = if dead(0) && unique(runtime, *register) {
                 let ConstData::Record(record) =
                     take_register(runtime, *register)?.into_value()?.data
                 else {
@@ -271,7 +277,7 @@ pub(super) fn execute(
                 return Err(RuntimeFault);
             };
             let position = usize::try_from(index).ok();
-            let element = if dead(0) {
+            let element = if dead(0) && unique(runtime, *vector) {
                 let ConstData::Sequence(mut items) =
                     take_register(runtime, *vector)?.into_value()?.data
                 else {

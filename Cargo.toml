@@ -6,6 +6,7 @@ members = [
     "crates/sley-check",
     "crates/sley-cli",
     "crates/sley-conformance",
+    "crates/sley-host",
     "crates/sley-id",
     "crates/sley-json-bridge",
     "crates/sley-mutate",

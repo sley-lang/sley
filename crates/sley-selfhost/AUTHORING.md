@@ -27,7 +27,7 @@ closure over `FnB`, the structured builder:
 - host bridges (`HOST_ABI_V3`): `b2v` (`Bytes -> Vector<UInt(8)>`, at most
   1 MiB), `v2b`, `push` (any element type), `concat` (`Vector<Bytes> ->
   Bytes`), `slice(bytes, start, len)`, `blake3` (at most 1 MiB),
-  `blake3_large`, `sha256`.
+  `blake3_large`, `sha256`, `blen` (`Bytes` length).
 
 Records and variants are declared with `Module::record` / `Module::variant`
 (no generics, no recursion: epoch 1 rejects recursive type definitions).

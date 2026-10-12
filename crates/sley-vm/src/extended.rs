@@ -197,6 +197,8 @@ pub(crate) enum BridgeEntry {
     BytesConcat,
     /// `bytes-slice` (`BSL1`, `HOST_ABI_V3`): byte-unaware bounded slice.
     BytesSlice,
+    /// `bytes-length` (`BLN1`, `HOST_ABI_V3`): the length of a `Bytes` value.
+    BytesLength,
 }
 
 /// The frozen `Entity` identity of one bridge entry: twelve ASCII bytes
@@ -248,6 +250,7 @@ pub(crate) fn bridge_import(
         BridgeEntry::RawSha256 => *b"RSH2",
         BridgeEntry::BytesConcat => *b"BCT1",
         BridgeEntry::BytesSlice => *b"BSL1",
+        BridgeEntry::BytesLength => *b"BLN1",
     };
     AdapterImport {
         entity_id: bridge_entry_id(code),
@@ -321,6 +324,7 @@ pub(crate) enum BridgeKind {
     RawSha256,
     BytesConcat,
     BytesSlice,
+    BytesLength,
 }
 
 /// The `HOST_ABI_V3` byte ceiling of the large primitives (`RHW2`, `RSH2`,
@@ -390,6 +394,8 @@ pub(crate) fn resolve_bridge_entry<'a>(
         BridgeEntry::BytesConcat
     } else if carried.entity_id == bridge_entry_id(*b"BSL1") {
         BridgeEntry::BytesSlice
+    } else if carried.entity_id == bridge_entry_id(*b"BLN1") {
+        BridgeEntry::BytesLength
     } else {
         return None;
     };
@@ -435,6 +441,7 @@ pub(crate) fn resolve_bridge_entry<'a>(
                     TypeExpr::Bytes,
                     BridgeKind::BytesSlice,
                 ),
+                BridgeEntry::BytesLength => (TypeExpr::Bytes, u64_type(), BridgeKind::BytesLength),
                 BridgeEntry::VectorPush => return None,
             };
             if carried.request_type == request && carried.response_type == response {
@@ -607,6 +614,10 @@ pub(crate) fn bridge_fuel_surcharge_borrowed(
                 }
                 _ => None,
             },
+            _ => None,
+        },
+        BridgeKind::BytesLength => match operands {
+            [_, _] => Some(1),
             _ => None,
         },
         BridgeKind::BytesSlice => match operands {
@@ -812,6 +823,24 @@ fn bridge_execute(
                 }
             }
             Ok(done(ConstData::Bytes(joined)))
+        }
+        BridgeKind::BytesLength => {
+            // HOST_ABI_V3: the byte length; no other inspection.
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Unit || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Unit = scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Bytes(bytes) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            Ok(done(ConstData::UInt(
+                u128::try_from(bytes.len()).map_err(|_| ExtendedFault)?,
+            )))
         }
         BridgeKind::BytesSlice => {
             // HOST_ABI_V3: `scope[start..start+length]`; a range outside the
@@ -1673,6 +1702,12 @@ pub fn judge_extended_operation(
                             return fail(LowerErrorCode::SignatureMismatch);
                         }
                         TypeExpr::Bytes
+                    }
+                    BridgeKind::BytesLength => {
+                        if **scope != TypeExpr::Unit || **request != TypeExpr::Bytes {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        u64_type()
                     }
                     BridgeKind::BytesSlice => {
                         if **scope != TypeExpr::Bytes || **request != carried.request_type {

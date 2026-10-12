@@ -6,6 +6,7 @@
 //! - `scb_*`: schema-directed SCB1 validation of nested values;
 //! - `cd_*`: entity-object and state-root decoding;
 //! - `ty_*`: canonical `TypeExpr` bytes ([`types`]);
+//! - `sr_*`: the state-root record ([`root`]);
 //! - `inv_*` / `drv_load`: the decoded program inventory;
 //! - `ck_*`: type-environment and function-graph validation;
 //! - `jg_*`: extended operation judgment and the bootstrap-profile gate;
@@ -17,12 +18,14 @@
 pub mod check;
 pub mod codec;
 pub mod codes;
+pub mod driver;
 pub mod fingerprint;
 pub mod inv;
 pub mod judge;
 pub mod lower;
 pub mod model;
 pub mod package;
+pub mod root;
 pub mod rt;
 pub mod scb;
 pub mod types;
@@ -31,6 +34,9 @@ use crate::seed::Module;
 
 /// Seed for every toolchain identity.
 pub const TOOLCHAIN_SEED: &str = "sley.sh2.toolchain.v1";
+/// Seed for the workspace/package/namespace/entry-point identities of the
+/// toolchain's canonical state.
+pub const S_SEED: &str = "sley.sh2.toolchain.s.v1";
 
 /// Builds the complete toolchain module.
 #[must_use]
@@ -41,6 +47,7 @@ pub fn module() -> Module {
     codec::define(&mut m);
     types::define(&mut m);
     inv::define(&mut m);
+    root::define(&mut m);
     check::define(&mut m);
     judge::define(&mut m);
     lower::define(&mut m);
@@ -85,6 +92,21 @@ fn define_entries(m: &mut Module) {
             ],
         ));
     });
+    // Decodes a stored root: (digest, binding count, entry count).
+    m.func(
+        "t_sr_root",
+        &[("bs", t::bytes()), ("epoch", t::bytes())],
+        rt::r(t::tuple(vec![t::bytes(), t::u64(), t::u64(), t::bytes()])),
+        |f| {
+            f.let_("root", tri(call("sr_root", vec![v("bs"), v("epoch")])));
+            f.ret_ok(tup(vec![
+                field(v("root"), "root"),
+                vlen(field(v("root"), "keys")),
+                vlen(field(v("root"), "entries")),
+                vget(field(v("root"), "vals"), u64c(0)),
+            ]));
+        },
+    );
     // Loads S and reports (functions, operations, index size).
     m.func(
         "t_load_counts",

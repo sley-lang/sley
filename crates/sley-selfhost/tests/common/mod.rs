@@ -3,13 +3,13 @@
 
 use sley_id::EntityId;
 use sley_selfhost::canonical::{self, CanonicalS};
-use sley_selfhost::native::{big_limits, execute};
+use sley_selfhost::native::{Runner, big_limits, execute};
 use sley_selfhost::seed::{Program, t};
 use sley_selfhost::toolchain;
 use sley_ssmc::{ConstData, ConstValue, ResultConst, TypeExpr};
 use sley_vm::ExecutionTermination;
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 /// The complete toolchain module (all functions, including test entries).
 pub fn program() -> &'static (Program, HashMap<String, EntityId>) {
@@ -17,22 +17,40 @@ pub fn program() -> &'static (Program, HashMap<String, EntityId>) {
     P.get_or_init(|| toolchain::module().finish())
 }
 
+/// One cached runner per entry (lowering happens once per entry).
+fn runner(entry: &str) -> &'static Runner<'static> {
+    static RUNNERS: OnceLock<Mutex<HashMap<String, &'static Runner<'static>>>> = OnceLock::new();
+    let map = RUNNERS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = map.lock().unwrap();
+    if let Some(found) = guard.get(entry) {
+        return found;
+    }
+    let (program, names) = program();
+    let created: &'static Runner<'static> = Box::leak(Box::new(Runner::new(program, names[entry])));
+    guard.insert(entry.to_owned(), created);
+    created
+}
+
 /// Runs one toolchain function natively and returns its value.
 pub fn run(entry: &str, inputs: Vec<ConstValue>) -> ConstValue {
-    let (program, names) = program();
-    let outcome = execute(program, names[entry], inputs, big_limits()).expect("executes");
-    match outcome.termination {
-        ExecutionTermination::Success(value) => value,
-        other => panic!("{entry}: {other:?}"),
-    }
+    run_counted(entry, inputs).0
 }
 
 /// Runs and reports (value, instruction count).
 pub fn run_counted(entry: &str, inputs: Vec<ConstValue>) -> (ConstValue, u64) {
+    let outcome = runner(entry).run(inputs, big_limits()).expect("executes");
+    match outcome.termination {
+        ExecutionTermination::Success(value) => (value, outcome.instruction_count),
+        other => panic!("{entry}: {other:?}"),
+    }
+}
+
+/// Runs through the full lowering path (no cache).
+pub fn run_uncached(entry: &str, inputs: Vec<ConstValue>) -> ConstValue {
     let (program, names) = program();
     let outcome = execute(program, names[entry], inputs, big_limits()).expect("executes");
     match outcome.termination {
-        ExecutionTermination::Success(value) => (value, outcome.instruction_count),
+        ExecutionTermination::Success(value) => value,
         other => panic!("{entry}: {other:?}"),
     }
 }

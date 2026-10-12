@@ -65,6 +65,8 @@ pub const BRIDGE_CODE_RSH2: [u8; 4] = *b"RSH2";
 pub const BRIDGE_CODE_BCT1: [u8; 4] = *b"BCT1";
 /// `HOST_ABI_V3` entry code: `bytes-slice`.
 pub const BRIDGE_CODE_BSL1: [u8; 4] = *b"BSL1";
+/// `HOST_ABI_V3` entry code: `bytes-length`.
+pub const BRIDGE_CODE_BLN1: [u8; 4] = *b"BLN1";
 /// `HOST_ABI_V3` byte ceiling of the large primitives.
 pub const HOST_ABI_V3_LARGE_MAX_BYTES: usize = 67_108_864;
 

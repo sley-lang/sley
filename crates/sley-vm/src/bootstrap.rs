@@ -675,6 +675,7 @@ fn bootstrap_row_ok(
             | BridgeKind::RawSha256
             | BridgeKind::BytesConcat
             | BridgeKind::BytesSlice
+            | BridgeKind::BytesLength
     ) || (kind == BridgeKind::VectorPush
         && crate::extended::push_discriminator(&carried.entity_id) != 0);
     if v3_only && profile_version != BootstrapProfileVersion::V3 {

@@ -135,7 +135,10 @@ pub const BOOTSTRAP_PROFILE_2_DIGEST: [u8; 32] = [
 
 /// SH2 successor `BOOTSTRAP_PROFILE_3` digest: raw-byte SHA-256 of
 /// `conformance/bootstrap-profile/v3/profile.json`.
-pub const BOOTSTRAP_PROFILE_3_DIGEST: [u8; 32] = [0; 32];
+pub const BOOTSTRAP_PROFILE_3_DIGEST: [u8; 32] = [
+    0x8c, 0xc5, 0x67, 0x7c, 0xd4, 0x7d, 0x80, 0x3c, 0xac, 0xcc, 0xda, 0xa5, 0x3d, 0xa2, 0x68, 0x6a,
+    0x81, 0xea, 0xff, 0x6a, 0x76, 0xd9, 0x54, 0x6c, 0x9e, 0xdc, 0x84, 0x6f, 0xa6, 0xb2, 0x4c, 0xed,
+];
 /// SH2 successor package identity.
 pub const EXEC_PACKAGE_V3_IDENTITY: &str = "EXEC_PACKAGE_V3";
 /// SH2 successor package contract.

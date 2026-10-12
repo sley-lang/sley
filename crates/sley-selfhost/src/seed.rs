@@ -209,6 +209,8 @@ pub enum Prim {
     Concat,
     /// `Bytes` slice `(bytes, start, length)` (`BSL1`; traps out of range).
     Slice,
+    /// `Bytes` length (`BLN1`).
+    BytesLen,
     /// Option/Result unwrap (traps on `None`/`Err`).
     Unwrap,
     /// `Option` is `Some`.
@@ -368,6 +370,7 @@ prim2! {
 prim1! {
     neg => Neg, not => Not, vlen => VLen, vhash => VHash, b2v => B2V, v2b => V2B,
     blake3 => RawBlake3, blake3_large => RawBlake3Large, sha256 => Sha256, concat => Concat,
+    blen => BytesLen,
     unwrap => Unwrap, is_some => IsSome, is_ok => IsOk,
 }
 /// `bytes[start..start + length]`.
@@ -2071,7 +2074,7 @@ impl<'a> FnB<'a> {
                 | Prim::Shr | Prim::Neg => self.static_type(&args[0]),
                 Prim::Eq | Prim::Ne | Prim::Lt | Prim::Le | Prim::Gt | Prim::Ge | Prim::Not
                 | Prim::And | Prim::Or | Prim::MHas | Prim::IsSome | Prim::IsOk => Some(t::bool()),
-                Prim::VLen => Some(t::u64()),
+                Prim::VLen | Prim::BytesLen => Some(t::u64()),
                 Prim::VGet => match self.static_type(&args[0])? {
                     TypeExpr::Vector(element) => Some(*element),
                     _ => None,
@@ -2277,8 +2280,10 @@ impl<'a> FnB<'a> {
             | Prim::RawBlake3
             | Prim::RawBlake3Large
             | Prim::Sha256
-            | Prim::Concat => {
+            | Prim::Concat
+            | Prim::BytesLen => {
                 let (code, request, response) = match prim {
+                    Prim::BytesLen => (*b"BLN1", t::bytes(), t::u64()),
                     Prim::B2V => (*b"B2V1", t::bytes(), t::vec(t::u8())),
                     Prim::V2B => (*b"V2B1", t::vec(t::u8()), t::bytes()),
                     Prim::RawBlake3 => (*b"RHW1", t::bytes(), t::bytes()),

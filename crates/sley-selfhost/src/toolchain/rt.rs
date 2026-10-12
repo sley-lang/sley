@@ -347,9 +347,9 @@ pub fn define(m: &mut Module) {
             f.ret(v("o"));
         },
     );
-    // `Bytes` length (through the bridge).
+    // `Bytes` length.
     m.func("rt_blen", &[("x", t::bytes())], t::u64(), |f| {
-        f.ret(vlen(b2v(v("x"))));
+        f.ret(blen(v("x")));
     });
     // Big-endian u32/u64 as standalone `Bytes`.
     m.func("be32", &[("x", t::u64())], t::bytes(), |f| {
