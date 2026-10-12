@@ -12,6 +12,8 @@ sley-check = { path = "../sley-check" }
 sley-id = { path = "../sley-id" }
 sley-mutate = { path = "../sley-mutate" }
 sley-ssmc = { path = "../sley-ssmc" }
+sley-scb1 = { path = "../sley-scb1" }
+sley-state-root = { path = "../sley-state-root" }
 sley-vm = { path = "../sley-vm" }
 blake3 = "=1.8.2"
 

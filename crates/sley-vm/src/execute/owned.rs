@@ -24,17 +24,19 @@ use super::{
     take_register, value_units_const, value_units_type,
 };
 
-/// Constant inventory index with each constant's cached value units.
-pub(super) type ConstantIndex<'a> = HashMap<EntityId, (&'a ConstValue, u64)>;
+/// Constant inventory index: each constant shared once per execution with
+/// its cached value units, so `constant_ref` hands out a shared root
+/// instead of a deep copy.
+pub(super) type ConstantIndex = HashMap<EntityId, RuntimeValue>;
 
 /// Builds the constant index for one execution.
-pub(super) fn constant_index<'a>(source: &ExecutionSource<'a>) -> ConstantIndex<'a> {
+pub(super) fn constant_index(source: &ExecutionSource<'_>) -> ConstantIndex {
     let mut index = HashMap::with_capacity(source.constants.len());
     for constant in source.constants {
         // The first definition wins, as the reference linear search does.
         index
             .entry(constant.entity_id)
-            .or_insert_with(|| (&constant.value, value_units_const(&constant.value)));
+            .or_insert_with(|| RuntimeValue::new(constant.value.clone()));
     }
     index
 }
@@ -79,26 +81,25 @@ fn whole(value_type: &TypeExpr, data_units: u64) -> Option<u64> {
 #[allow(clippy::too_many_lines)]
 pub(super) fn execute(
     runtime: &mut Runtime,
-    constants: &ConstantIndex<'_>,
+    constants: &ConstantIndex,
     source: &ExecutionSource<'_>,
     opcode: Opcode,
     instruction: &crate::Instruction,
     mask: u64,
     result_type: &TypeExpr,
-) -> RuntimeResult<Option<(ConstValue, u64)>> {
+) -> RuntimeResult<Option<RuntimeValue>> {
     let dead = |k: usize| k < 64 && mask & (1_u64 << k) != 0;
     let operands = instruction.operands.as_slice();
     let typed = |data: ConstData| ConstValue {
         value_type: result_type.clone(),
         data,
     };
-    Ok(match (opcode, operands) {
+    let produced = match (opcode, operands) {
         (Opcode::ConstantRef, []) => {
             let Immediate::Entity(id) = &instruction.immediate else {
                 return Err(RuntimeFault);
             };
-            let (value, units) = constants.get(id).ok_or(RuntimeFault)?;
-            Some(((*value).clone(), *units))
+            return Ok(Some(constants.get(id).ok_or(RuntimeFault)?.clone()));
         }
         (Opcode::TupleNew | Opcode::VectorNew, registers) => {
             let mut items = Vec::with_capacity(registers.len());
@@ -394,5 +395,6 @@ pub(super) fn execute(
             Some((map, units))
         }
         _ => None,
-    })
+    };
+    Ok(produced.map(|(value, units)| RuntimeValue::with_units(value, units)))
 }

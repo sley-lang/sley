@@ -4,5 +4,7 @@
 //! - [`native`]: the C0-side native harness (reference lowering and
 //!   execution through the existing `sley-vm` authority).
 
+pub mod canonical;
 pub mod native;
+pub mod toolchain;
 pub mod seed;

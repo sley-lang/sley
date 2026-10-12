@@ -199,8 +199,16 @@ pub enum Prim {
     V2B,
     /// `vector-push` bridge.
     Push,
-    /// Raw BLAKE3-256 over a complete preimage.
+    /// Raw BLAKE3-256 over a complete preimage (`RHW1`, at most 1 MiB).
     RawBlake3,
+    /// Raw BLAKE3-256 with the package ceiling (`RHW2`).
+    RawBlake3Large,
+    /// Raw SHA-256 (`RSH2`).
+    Sha256,
+    /// Concatenation of a `Vector<Bytes>` (`BCT1`).
+    Concat,
+    /// `Bytes` slice `(bytes, start, length)` (`BSL1`; traps out of range).
+    Slice,
     /// Option/Result unwrap (traps on `None`/`Err`).
     Unwrap,
     /// `Option` is `Some`.
@@ -248,6 +256,9 @@ pub enum E {
     TupleGet(Box<E>, u32),
     /// A conditional expression; only the chosen side runs.
     Select(Box<E>, Box<E>, Box<E>),
+    /// `expr?`: the `Ok` payload, or an early return of the `Err` payload
+    /// from the enclosing function (whose error type must match).
+    Try(Box<E>),
 }
 
 /// Variable reference.
@@ -356,7 +367,13 @@ prim2! {
 }
 prim1! {
     neg => Neg, not => Not, vlen => VLen, vhash => VHash, b2v => B2V, v2b => V2B,
-    blake3 => RawBlake3, unwrap => Unwrap, is_some => IsSome, is_ok => IsOk,
+    blake3 => RawBlake3, blake3_large => RawBlake3Large, sha256 => Sha256, concat => Concat,
+    unwrap => Unwrap, is_some => IsSome, is_ok => IsOk,
+}
+/// `bytes[start..start + length]`.
+#[must_use]
+pub fn slice(bytes: E, start: E, length: E) -> E {
+    E::Prim(Prim::Slice, vec![bytes, start, length])
 }
 /// Persistent vector update.
 #[must_use]
@@ -437,6 +454,11 @@ pub fn tup(items: Vec<E>) -> E {
 #[must_use]
 pub fn tget(value: E, index: u32) -> E {
     E::TupleGet(Box::new(value), index)
+}
+/// `expr?`.
+#[must_use]
+pub fn tri(value: E) -> E {
+    E::Try(Box::new(value))
 }
 /// Conditional expression.
 #[must_use]
@@ -533,6 +555,7 @@ struct Core {
     constants: Vec<ConstantDefinition>,
     constant_index: HashMap<String, EntityId>,
     imports: Vec<AdapterImport>,
+    push_rows: Vec<Ty>,
     out: Program,
 }
 
@@ -550,6 +573,7 @@ impl Module {
                 constants: Vec::new(),
                 constant_index: HashMap::new(),
                 imports: Vec::new(),
+                push_rows: Vec::new(),
                 out: Program::default(),
             },
             bodies: Vec::new(),
@@ -704,8 +728,20 @@ impl Module {
     }
 }
 
-fn type_id(seed: &str, name: &str) -> EntityId {
+/// The identity of the named type `name` in a module seeded `seed`.
+#[must_use]
+pub fn type_id(seed: &str, name: &str) -> EntityId {
     EntityId::from_bytes(hash_id("type", &[seed.as_bytes(), name.as_bytes()]))
+}
+
+/// The member identity of `member` of type `type_name` in a module seeded
+/// `seed`.
+#[must_use]
+pub fn member_id(seed: &str, type_name: &str, member: &str) -> MemberId {
+    MemberId::from_bytes(hash_id(
+        "member",
+        &[seed.as_bytes(), type_name.as_bytes(), member.as_bytes()],
+    ))
 }
 
 fn named_type(seed: &str, name: &str) -> Ty {
@@ -742,6 +778,19 @@ impl Core {
         let id = row.entity_id;
         self.imports.push(row);
         id
+    }
+
+    /// The discriminator of the push row for one element type (`HOST_ABI_V3`
+    /// discriminated rows, allocated from 1 in order of first use).
+    fn push_discriminator(&mut self, element: &Ty) -> u32 {
+        let position = match self.push_rows.iter().position(|ty| ty == element) {
+            Some(position) => position,
+            None => {
+                self.push_rows.push(element.clone());
+                self.push_rows.len() - 1
+            }
+        };
+        u32::try_from(position + 1).expect("push row count fits u32")
     }
 
     fn named_by_id(&self, id: EntityId) -> Option<(&str, &NamedInfo)> {
@@ -822,6 +871,7 @@ pub struct FnB<'a> {
     block_params: std::collections::HashSet<EntityId>,
     loops: Vec<LoopCtx>,
     trap_block: Option<usize>,
+    err_block: Option<usize>,
     trap_sites: u32,
     dead_blocks: Vec<usize>,
     counter: u64,
@@ -845,6 +895,7 @@ impl<'a> FnB<'a> {
             block_params: std::collections::HashSet::new(),
             loops: Vec::new(),
             trap_block: None,
+            err_block: None,
             trap_sites: 0,
             dead_blocks: Vec::new(),
             counter: 0,
@@ -1250,6 +1301,57 @@ impl<'a> FnB<'a> {
         self.current = saved;
         self.trap_block = Some(block);
         block
+    }
+
+    /// The shared early-return block: one `Err` payload parameter, wrapped
+    /// as the function's `Result` and returned.
+    fn err_target(&mut self, error: &Ty) -> usize {
+        let TypeExpr::Result { error: declared, .. } = &self.result else {
+            panic!("{}: try in a function that does not return Result", self.name)
+        };
+        assert_eq!(
+            declared.as_ref(),
+            error,
+            "{}: try error type differs from the function's",
+            self.name
+        );
+        if let Some(block) = self.err_block {
+            return block;
+        }
+        let saved = self.current;
+        let block = self.new_block();
+        let payload = self.block_param(block, error.clone());
+        self.current = Some(block);
+        let result = self.result.clone();
+        let wrapped = self.emit(Opcode::ResultErr, vec![payload], result, Immediate::None);
+        self.terminate(Terminator::Return(ReturnTerminator { value: wrapped }));
+        self.current = saved;
+        self.err_block = Some(block);
+        block
+    }
+
+    /// Returns `Err(code)` from a `Result`-returning function.
+    ///
+    /// # Panics
+    ///
+    /// Panics outside a `Result` function.
+    pub fn ret_err(&mut self, code: E) {
+        let TypeExpr::Result { ok, .. } = self.result.clone() else {
+            panic!("{}: ret_err outside a Result function", self.name)
+        };
+        self.ret(err(code, *ok));
+    }
+
+    /// Returns `Ok(value)` from a `Result`-returning function.
+    ///
+    /// # Panics
+    ///
+    /// Panics outside a `Result` function.
+    pub fn ret_ok(&mut self, value: E) {
+        let TypeExpr::Result { error, .. } = self.result.clone() else {
+            panic!("{}: ret_ok outside a Result function", self.name)
+        };
+        self.ret(ok(value, *error));
     }
 
     /// `if condition { then }`.
@@ -1859,6 +1961,40 @@ impl<'a> FnB<'a> {
                     element,
                 )
             }
+            E::Try(value) => {
+                let (value, ty) = self.eval(value);
+                let TypeExpr::Result { ok, error } = ty else {
+                    panic!("{}: try of a non-Result", self.name)
+                };
+                let target = self.err_target(&error);
+                let carry = self.threaded(false);
+                let carry_values = self.values(&carry);
+                let next = self.new_block();
+                let payload = self.block_param(next, (*ok).clone());
+                let params = self.slot_params(next, &carry);
+                let mut good = vec![SwitchArgument::CasePayload];
+                good.extend(carry_values.iter().map(|v| SwitchArgument::Value(*v)));
+                let cases = vec![
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::Ok),
+                        edge: SwitchEdge {
+                            target: self.blocks[next].id,
+                            arguments: good,
+                        },
+                    },
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::Err),
+                        edge: SwitchEdge {
+                            target: self.blocks[target].id,
+                            arguments: vec![SwitchArgument::CasePayload],
+                        },
+                    },
+                ];
+                self.terminate(Terminator::VariantSwitch(VariantSwitchTerminator { value, cases }));
+                self.current = Some(next);
+                self.set_values(&carry, &params);
+                (payload, *ok)
+            }
             E::Select(condition, then, otherwise) => {
                 let (condition, ty) = self.eval(condition);
                 assert_eq!(ty, t::bool());
@@ -1914,6 +2050,10 @@ impl<'a> FnB<'a> {
             E::Err(inner, ok) => self.static_type(inner).map(|e| t::res(ok.clone(), e)),
             E::VecNew(element, _) => Some(t::vec(element.clone())),
             E::Select(_, then, _) => self.static_type(then),
+            E::Try(inner) => match self.static_type(inner)? {
+                TypeExpr::Result { ok, .. } => Some(*ok),
+                _ => None,
+            },
             E::Field(value, field_name) => {
                 let ty = self.static_type(value)?;
                 let info = self.named_info(&ty);
@@ -1941,7 +2081,13 @@ impl<'a> FnB<'a> {
                     _ => None,
                 },
                 Prim::VSet | Prim::MIns | Prim::MDel | Prim::Push => self.static_type(&args[0]),
-                Prim::VHash | Prim::V2B | Prim::RawBlake3 => Some(t::bytes()),
+                Prim::VHash
+                | Prim::V2B
+                | Prim::RawBlake3
+                | Prim::RawBlake3Large
+                | Prim::Sha256
+                | Prim::Concat
+                | Prim::Slice => Some(t::bytes()),
                 Prim::B2V => Some(t::vec(t::u8())),
                 Prim::Unwrap => match self.static_type(&args[0])? {
                     TypeExpr::Option(inner) | TypeExpr::Result { ok: inner, .. } => Some(*inner),
@@ -2126,11 +2272,19 @@ impl<'a> FnB<'a> {
                 self.emit(Opcode::ValueHash, values, t::bytes(), Immediate::None),
                 t::bytes(),
             ),
-            Prim::B2V | Prim::V2B | Prim::RawBlake3 => {
+            Prim::B2V
+            | Prim::V2B
+            | Prim::RawBlake3
+            | Prim::RawBlake3Large
+            | Prim::Sha256
+            | Prim::Concat => {
                 let (code, request, response) = match prim {
                     Prim::B2V => (*b"B2V1", t::bytes(), t::vec(t::u8())),
                     Prim::V2B => (*b"V2B1", t::vec(t::u8()), t::bytes()),
-                    _ => (*b"RHW1", t::bytes(), t::bytes()),
+                    Prim::RawBlake3 => (*b"RHW1", t::bytes(), t::bytes()),
+                    Prim::RawBlake3Large => (*b"RHW2", t::bytes(), t::bytes()),
+                    Prim::Sha256 => (*b"RSH2", t::bytes(), t::bytes()),
+                    _ => (*b"BCT1", t::vec(t::bytes()), t::bytes()),
                 };
                 assert_eq!(types[0], request, "{}: bridge request type", self.name);
                 self.pending.push(args[0].clone());
@@ -2143,8 +2297,28 @@ impl<'a> FnB<'a> {
                     panic!("{}: push onto non-vector", self.name)
                 };
                 assert_eq!(&types[1], element.as_ref(), "{}: push element type", self.name);
-                let row = bridge_row(*b"PSH1", 0, (**element).clone(), types[0].clone());
+                let discriminator = self.core.push_discriminator(element);
+                let row = bridge_row(
+                    *b"PSH1",
+                    discriminator,
+                    (**element).clone(),
+                    types[0].clone(),
+                );
                 self.bridge(row, values[0], values[1])
+            }
+            Prim::Slice => {
+                assert_eq!(types[0], t::bytes(), "{}: slice of non-Bytes", self.name);
+                assert_eq!(types[1], t::u64());
+                assert_eq!(types[2], t::u64());
+                let range_ty = t::tuple(vec![t::u64(), t::u64()]);
+                let range = self.emit(
+                    Opcode::TupleNew,
+                    vec![values[1], values[2]],
+                    range_ty.clone(),
+                    Immediate::None,
+                );
+                let row = bridge_row(*b"BSL1", 0, range_ty, t::bytes());
+                self.bridge(row, values[0], range)
             }
             Prim::Unwrap => self.unwrap_value(values[0], &types[0]),
             Prim::IsSome | Prim::IsOk => {
@@ -2199,7 +2373,7 @@ impl<'a> FnB<'a> {
             .collect();
         let mut live: Set<EntityId> = Set::new();
         let mut work: Vec<EntityId> = Vec::new();
-        let mut mark = |id: Option<EntityId>, live: &mut Set<EntityId>, work: &mut Vec<EntityId>| {
+        let mark = |id: Option<EntityId>, live: &mut Set<EntityId>, work: &mut Vec<EntityId>| {
             if let Some(id) = id
                 && live.insert(id)
             {

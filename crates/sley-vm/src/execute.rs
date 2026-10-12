@@ -2080,7 +2080,7 @@ fn execute_extended(
     limits: &ExecutionLimits,
     instruction: &crate::Instruction,
     mask: u64,
-    constants: &owned::ConstantIndex<'_>,
+    constants: &owned::ConstantIndex,
     register_types: &[TypeExpr],
     source: &ExecutionSource<'_>,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
@@ -2129,7 +2129,7 @@ fn execute_extended(
                 .saturating_add(request_units)
         });
         (value, 0, known_units)
-    } else if let Some((value, units)) = owned::execute(
+    } else if let Some(produced) = owned::execute(
         runtime,
         constants,
         source,
@@ -2138,7 +2138,26 @@ fn execute_extended(
         mask,
         result_type,
     )? {
-        (value, 0, Some(units))
+        // Shared-root results (constants) and derived-unit results skip the
+        // generic construction path; they are charged and written exactly as
+        // the general path would.
+        if &produced.value()?.value_type != result_type {
+            return Err(RuntimeFault);
+        }
+        if runtime.cells.len() >= MAX_EXECUTION_CELLS {
+            return Ok(Some(ExecutionTermination::ResourceLimit(
+                ResourceKind::ValueUnits,
+            )));
+        }
+        debug_assert_eq!(produced.units, value_units_const(produced.value()?));
+        if !charge_value(runtime, produced.units, limits.max_value_units) {
+            return Ok(Some(ExecutionTermination::ResourceLimit(
+                ResourceKind::ValueUnits,
+            )));
+        }
+        runtime.instruction_count = runtime.instruction_count.saturating_add(1);
+        write_register(runtime, register, produced)?;
+        return Ok(None);
     } else {
         // Slice E8: bridge fuel is charged up front, before the arm allocates
         // or converts, so a starved budget terminates without the work being
