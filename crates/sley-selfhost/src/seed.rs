@@ -29,6 +29,29 @@ use sley_ssmc::{
 /// A seed type.
 pub type Ty = TypeExpr;
 
+thread_local! {
+    static FAULTS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Whether the named fault seed is active (REWEAVE §15 fault seeding).
+///
+/// Fault seeds construct deliberately defective toolchains so the
+/// differential corpus can prove it detects them. They are build-time
+/// switches of the seed assembler only: canonical S is never built with
+/// one active.
+#[must_use]
+pub fn fault(name: &str) -> bool {
+    FAULTS.with(|faults| faults.borrow().iter().any(|f| f == name))
+}
+
+/// Runs `body` (module construction and `finish`) with fault seeds active.
+pub fn with_faults<T>(names: &[&str], body: impl FnOnce() -> T) -> T {
+    FAULTS.with(|faults| *faults.borrow_mut() = names.iter().map(|n| (*n).to_owned()).collect());
+    let out = body();
+    FAULTS.with(|faults| faults.borrow_mut().clear());
+    out
+}
+
 /// Type constructors.
 pub mod t {
     use super::{BuiltinFailureKind, IntegerWidth, Ty, TypeExpr};

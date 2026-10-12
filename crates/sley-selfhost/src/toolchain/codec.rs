@@ -114,7 +114,8 @@ pub fn define(m: &mut Module) {
         f.for_u64("i", u64c(0), v("count"), |f| {
             rd(f, "es", "p", rcall("rt_rd_payload", vec![]));
             f.let_("id", tri(dcall("cd_id", v("es"), v("p"))));
-            f.if_(and(v("set"), gt(v("i"), u64c(0))), |f| {
+            let check_order = !fault("codec-set-order");
+            f.if_(and(and(v("set"), boolc(check_order)), gt(v("i"), u64c(0))), |f| {
                 f.let_("prev", vget(v("out"), sub(v("i"), u64c(1))));
                 f.if_(eq(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
                 f.if_(gt(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_ORDER)));
@@ -772,9 +773,11 @@ fn define_object(m: &mut Module) {
             f.let_("e", sub(v("n"), u64c(32)));
             f.var("p", u64c(0));
             f.if_(lt(v("e"), u64c(8)), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
-            f.if_(ne(slice(v("bs"), u64c(0), u64c(8)), bytesc(b"SLEYSCB1")), |f| {
-                f.ret_err(code(SCB_MAGIC_INVALID));
-            });
+            if !fault("codec-magic") {
+                f.if_(ne(slice(v("bs"), u64c(0), u64c(8)), bytesc(b"SLEYSCB1")), |f| {
+                    f.ret_err(code(SCB_MAGIC_INVALID));
+                });
+            }
             f.set("p", u64c(8));
             rd(f, "version", "p", rcall("rt_rd_uvar", vec![u32c(64)]));
             f.if_(ne(v("version"), u64c(1)), |f| f.ret_err(code(SCB_VERSION_UNSUPPORTED)));

@@ -2363,7 +2363,11 @@ fn define_function(m: &mut Module) {
                             |f| f.ret(tup(vec![u32c(0), vget(field(v("p"), "pty"), v("k"))])),
                         );
                         f.if_(v("unreach"), move |f| bad(f, CFG_UNREACHABLE_VALUE));
-                        bad(f, CFG_DOMINANCE);
+                        if crate::seed::fault("check-dominance") {
+                            f.ret(tup(vec![u32c(0), vget(field(v("p"), "pty"), v("k"))]));
+                        } else {
+                            bad(f, CFG_DOMINANCE);
+                        }
                     },
                     move |f| bad(f, CFG_VALUE_UNRESOLVED),
                 );
@@ -2397,7 +2401,11 @@ fn define_function(m: &mut Module) {
                                 gt(at("dpost", v("use")), at("dpost", v("db"))),
                             ),
                         ),
-                        move |f| bad(f, CFG_DOMINANCE),
+                        move |f| {
+                            if !crate::seed::fault("check-dominance") {
+                                bad(f, CFG_DOMINANCE);
+                            }
+                        },
                     );
                     f.ret(tup(vec![u32c(0), v("ty")]));
                 },

@@ -124,6 +124,10 @@ pub fn define(m: &mut Module) {
         &[("root", m.ty(super::root::ROOT)), ("inv", m.ty(super::inv::INV))],
         r(t::unit()),
         |f| {
+            if fault("driver-binding") {
+                f.ret_ok(unitc());
+                return;
+            }
             f.let_("keys", field(v("root"), "keys"));
             f.let_("vals", field(v("root"), "vals"));
             f.let_("ids", field(v("inv"), "ids"));

@@ -1147,7 +1147,9 @@ fn define_ops(m: &mut Module) {
             f.if_(ne(v("c"), u64c(0)), |f| f.ret(v("c")));
             f.let_("dec", field(v("op"), "results"));
             f.if_(ne(vlen(v("dec")), u64c(1)), |f| f.ret(u64c(SM)));
-            f.if_(ne(vget(v("dec"), u64c(0)), tget(v("res"), 1)), |f| f.ret(u64c(SM)));
+            if !crate::seed::fault("judge-declared") {
+                f.if_(ne(vget(v("dec"), u64c(0)), tget(v("res"), 1)), |f| f.ret(u64c(SM)));
+            }
             f.ret(u64c(0));
         },
     );

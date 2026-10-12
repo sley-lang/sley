@@ -408,7 +408,11 @@ pub fn define(m: &mut Module) {
                 t::bytes(),
                 vec![
                     bytesc(&header_prefix()),
-                    sha256(v("image")),
+                    if crate::seed::fault("package-digest") {
+                        blake3_large(v("image"))
+                    } else {
+                        sha256(v("image"))
+                    },
                     sha256(v("c")),
                     sha256(v("l")),
                     sha256(v("i")),

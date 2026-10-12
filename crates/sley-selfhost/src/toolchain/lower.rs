@@ -186,7 +186,11 @@ fn reg(f: &mut FnB<'_>, out: &'static str, vr: E) {
                 ),
                 |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
             );
-            f.set(out, add(div(v("#hi"), v("K2")), v("#idx")));
+            if crate::seed::fault("lower-register") {
+                f.set(out, add(add(div(v("#hi"), v("K2")), v("#idx")), u64c(1)));
+            } else {
+                f.set(out, add(div(v("#hi"), v("K2")), v("#idx")));
+            }
         },
         |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
     );

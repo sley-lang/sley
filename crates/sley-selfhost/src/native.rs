@@ -222,6 +222,15 @@ pub fn c0_build(
     limits: ExecutionLimits,
 ) -> Result<C0Build, String> {
     use sley_vm::bootstrap::{BootstrapProfileInput, BootstrapProfileVersion};
+    // The root binds exactly the supplied objects.
+    let bound: Vec<(EntityId, sley_id::ObjectId)> = s
+        .objects
+        .iter()
+        .map(|object| (object.record().entity_id, object.object_id()))
+        .collect();
+    if bound != s.root.record.entity_bindings {
+        return Err("the root does not bind exactly the supplied objects".into());
+    }
     let decoded = decode_s(s)?;
     let entry_point = s
         .root
