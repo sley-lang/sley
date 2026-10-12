@@ -74,6 +74,16 @@ otherwise shares or copies it.
 - Memoize repeated pure work (for example per-type byte conversions) in a
   map keyed by the input bytes.
 - Never re-walk a large structure per element.
+- Project large parts of a record once (`f.let_("ops", field(v("inv"),
+  "ops"))`) and reuse the binding: each `field` walks the selected part to
+  count its value units.
+- Embedding a large shared value in a new aggregate (`rec`, `tup`,
+  `vnew`, `some`, ...) deep-copies it: aggregates own their parts. Pass
+  large values as separate arguments instead.
+- The assembler carries each distinct live block-parameter value once
+  across a branch (a value bound and also pending is not passed twice).
+  Long-lived values in branch-heavy code still cost one parameter per
+  split; that is cheap at run time (a shared reference per edge).
 
 ## Testing
 

@@ -60,11 +60,29 @@ fn key_bytes(value: &ConstValue) -> RuntimeResult<Vec<u8>> {
 }
 
 /// Binary search over canonically ordered map entries.
-fn search(entries: &[MapEntryConst], query: &[u8]) -> RuntimeResult<Result<usize, usize>> {
+///
+/// Keys order by their complete canonical encodings. Two `Bytes` keys of
+/// one map share a type, and when they also share a length their encodings
+/// share every header byte, so their order is the order of their raw
+/// bytes: that common case (entity identities) compares without encoding.
+fn search(
+    entries: &[MapEntryConst],
+    query_value: &ConstValue,
+    query: &[u8],
+) -> RuntimeResult<Result<usize, usize>> {
     let (mut low, mut high) = (0_usize, entries.len());
     while low < high {
         let middle = low + (high - low) / 2;
-        match key_bytes(&entries[middle].key)?.as_slice().cmp(query) {
+        let stored = &entries[middle].key;
+        let order = match (&stored.data, &query_value.data) {
+            (ConstData::Bytes(left), ConstData::Bytes(right))
+                if left.len() == right.len() && stored.value_type == query_value.value_type =>
+            {
+                left.as_slice().cmp(right.as_slice())
+            }
+            _ => key_bytes(stored)?.as_slice().cmp(query),
+        };
+        match order {
             core::cmp::Ordering::Less => low = middle + 1,
             core::cmp::Ordering::Greater => high = middle,
             core::cmp::Ordering::Equal => return Ok(Ok(middle)),
@@ -125,6 +143,7 @@ pub(super) fn execute(
         }
         (Opcode::TupleNew | Opcode::VectorNew, registers) => {
             let mut items = Vec::with_capacity(registers.len());
+            let mut parts = Vec::with_capacity(registers.len());
             let mut units = u64::try_from(registers.len())
                 .ok()
                 .and_then(|n| add(1, n))
@@ -132,10 +151,15 @@ pub(super) fn execute(
             for (k, register) in registers.iter().enumerate() {
                 let value = operand(runtime, *register, dead(k))?;
                 units = add(units, value.units).ok_or(RuntimeFault)?;
+                parts.push(value.units);
                 items.push(value.into_value()?);
             }
             let units = whole(result_type, units).ok_or(RuntimeFault)?;
-            Some((typed(ConstData::Sequence(items)), units))
+            let value = typed(ConstData::Sequence(items));
+            if opcode == Opcode::TupleNew {
+                return Ok(Some(RuntimeValue::with_parts(value, units, parts)));
+            }
+            Some((value, units))
         }
         (Opcode::RecordNew, registers) => {
             let Immediate::Entity(definition) = &instruction.immediate else {
@@ -151,22 +175,25 @@ pub(super) fn execute(
                 .and_then(|n| add(33, n))
                 .ok_or(RuntimeFault)?;
             let mut values = Vec::with_capacity(registers.len());
+            let mut parts = Vec::with_capacity(registers.len());
             for (k, (field, register)) in fields.iter().zip(registers).enumerate() {
                 let value = operand(runtime, *register, dead(k))?;
                 units = add(units, add(32, value.units).ok_or(RuntimeFault)?).ok_or(RuntimeFault)?;
+                parts.push(value.units);
                 values.push(FieldConst {
                     member_id: field.member_id,
                     value: value.into_value()?,
                 });
             }
             let units = whole(result_type, units).ok_or(RuntimeFault)?;
-            Some((
+            return Ok(Some(RuntimeValue::with_parts(
                 typed(ConstData::Record(RecordConst {
                     definition: *definition,
                     fields: values,
                 })),
                 units,
-            ))
+                parts,
+            )));
         }
         (Opcode::VariantNew, registers) if registers.len() <= 1 => {
             let Immediate::Variant(variant) = &instruction.immediate else {
@@ -195,13 +222,14 @@ pub(super) fn execute(
             let value = operand(runtime, *register, dead(0))?;
             let units = whole(result_type, add(2, value.units).ok_or(RuntimeFault)?)
                 .ok_or(RuntimeFault)?;
+            let inner = value.parts.clone();
             let payload = Box::new(value.into_value()?);
             let data = match opcode {
                 Opcode::OptionSome => ConstData::Option(Some(payload)),
                 Opcode::ResultOk => ConstData::Result(ResultConst::Ok(payload)),
                 _ => ConstData::Result(ResultConst::Err(payload)),
             };
-            Some((typed(data), units))
+            return Ok(Some(RuntimeValue::with_inner(typed(data), units, inner)));
         }
         (Opcode::TupleGet, [register]) => {
             let Immediate::Index(index) = &instruction.immediate else {
@@ -225,8 +253,10 @@ pub(super) fn execute(
                     return Err(RuntimeFault);
                 };
                 let element = items.get(index).ok_or(RuntimeFault)?;
-                let units = value_units_const(element);
                 if shares_well(element) {
+                    let units = source
+                        .part_units(index)
+                        .unwrap_or_else(|| value_units_const(element));
                     let index = u32::try_from(index).map_err(|_| RuntimeFault)?;
                     return Ok(Some(source.item_view(index, units)?));
                 }
@@ -262,8 +292,10 @@ pub(super) fn execute(
                     .position(|field| field.member_id == *member)
                     .ok_or(RuntimeFault)?;
                 let element = &record.fields[position].value;
-                let units = value_units_const(element);
                 if shares_well(element) {
+                    let units = source
+                        .part_units(position)
+                        .unwrap_or_else(|| value_units_const(element));
                     let position = u32::try_from(position).map_err(|_| RuntimeFault)?;
                     return Ok(Some(source.item_view(position, units)?));
                 }
@@ -345,12 +377,13 @@ pub(super) fn execute(
             }
         }
         (Opcode::MapGet | Opcode::MapContains, [map, key]) => {
-            let query = key_bytes(read_register(runtime, *key)?.value()?)?;
+            let key_value = read_register(runtime, *key)?.value()?;
+            let query = key_bytes(key_value)?;
             let map = read_register(runtime, *map)?.value()?;
             let ConstData::Map(entries) = &map.data else {
                 return Err(RuntimeFault);
             };
-            let found = search(entries, &query)?.ok();
+            let found = search(entries, key_value, &query)?.ok();
             let value = if opcode == Opcode::MapGet {
                 typed(ConstData::Option(
                     found.map(|position| Box::new(entries[position].value.clone())),
@@ -375,11 +408,12 @@ pub(super) fn execute(
             let ConstData::Map(entries) = &mut map.data else {
                 return Err(RuntimeFault);
             };
+            let entry_key = key.clone();
             let entry = MapEntryConst {
                 key,
                 value: value.into_value()?,
             };
-            let delta = match search(entries, &query)? {
+            let delta = match search(entries, &entry_key, &query)? {
                 Ok(position) => {
                     let old = value_units_const(&entries[position].key)
                         .checked_add(value_units_const(&entries[position].value));
@@ -403,14 +437,15 @@ pub(super) fn execute(
             Some((map, units))
         }
         (Opcode::MapRemove, [map, key]) => {
-            let query = key_bytes(read_register(runtime, *key)?.value()?)?;
+            let key_value = read_register(runtime, *key)?.value()?.clone();
+            let query = key_bytes(&key_value)?;
             let map = operand(runtime, *map, dead(0))?;
             let map_units = map.units;
             let mut map = map.into_value()?;
             let ConstData::Map(entries) = &mut map.data else {
                 return Err(RuntimeFault);
             };
-            let removed = match search(entries, &query)? {
+            let removed = match search(entries, &key_value, &query)? {
                 Ok(position) => {
                     let entry = entries.remove(position);
                     add(1, value_units_const(&entry.key))

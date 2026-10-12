@@ -424,6 +424,13 @@ struct RuntimeValue {
     path: [Step; MAX_VIEW_PATH],
     depth: u8,
     units: u64,
+    /// Cached value units of each immediate part (tuple element or record
+    /// field) of an unviewed root the VM built, so projections charge the
+    /// same units without walking the part.
+    parts: Option<Arc<[u64]>>,
+    /// The same table for the payload of a wrapper (`Some`, `Ok`, `Err`, a
+    /// variant case), handed to its payload view.
+    inner: Option<Arc<[u64]>>,
 }
 
 fn step_into(value: &ConstValue, step: Step) -> Option<&ConstValue> {
@@ -484,7 +491,29 @@ impl RuntimeValue {
             path: [Step::Payload; MAX_VIEW_PATH],
             depth: 0,
             units,
+            parts: None,
+            inner: None,
         }
+    }
+
+    /// A wrapper whose payload carries `inner` part units.
+    fn with_inner(value: ConstValue, units: u64, inner: Option<Arc<[u64]>>) -> Self {
+        Self {
+            inner,
+            ..Self::with_units(value, units)
+        }
+    }
+
+    fn with_parts(value: ConstValue, units: u64, parts: Vec<u64>) -> Self {
+        Self {
+            parts: Some(parts.into()),
+            ..Self::with_units(value, units)
+        }
+    }
+
+    /// The cached units of part `index`, when known.
+    fn part_units(&self, index: usize) -> Option<u64> {
+        self.parts.as_ref().and_then(|parts| parts.get(index).copied())
     }
 
     fn value(&self) -> RuntimeResult<&ConstValue> {
@@ -510,6 +539,13 @@ impl RuntimeValue {
             path,
             depth: self.depth + 1,
             units,
+            // A payload view inherits the wrapper's payload table.
+            parts: if step == Step::Payload {
+                self.inner.clone()
+            } else {
+                None
+            },
+            inner: None,
         })
     }
 
@@ -608,8 +644,9 @@ struct Runtime {
     cells: Vec<ConstValue>,
     max_call_depth: usize,
     peak_call_depth: usize,
-    /// Cached value units of the value the last `Return` produced.
-    returned_units: u64,
+    /// The value the last `Return` produced (handed to the caller frame
+    /// with its cached units and parts).
+    returned: Option<RuntimeValue>,
 }
 
 /// Executes one restricted-v1 Function through the integrated lowering authority boundary.
@@ -1259,7 +1296,7 @@ fn execute_core_package(
         cells: Vec::new(),
         max_call_depth: MAX_CALL_DEPTH,
         peak_call_depth: 1,
-        returned_units: 0,
+        returned: None,
     };
     if runtime.peak_value_units > limits.max_value_units {
         return finish_package(
@@ -1614,7 +1651,7 @@ fn run_core(
         cells: Vec::new(),
         max_call_depth,
         peak_call_depth: 1,
-        returned_units: 0,
+        returned: None,
     };
     let termination = if runtime.peak_value_units > limits.max_value_units {
         ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits)
@@ -1794,6 +1831,10 @@ fn run(
             continue;
         };
         let Some(parent) = stack.pop() else {
+            if let ExecutionTermination::Success(_) = termination {
+                let value = runtime.returned.take().ok_or(RuntimeFault)?;
+                return Ok(ExecutionTermination::Success(value.into_value()?));
+            }
             return Ok(termination);
         };
         match return_to_caller(runtime, &limits, parent, termination)? {
@@ -1811,34 +1852,30 @@ fn return_to_caller<'a>(
     parent: Suspended<'a>,
     termination: ExecutionTermination,
 ) -> RuntimeResult<Result<Current<'a>, ExecutionTermination>> {
-    let child = core::mem::replace(runtime, parent.runtime);
-    let returned_units = child.returned_units;
+    let mut child = core::mem::replace(runtime, parent.runtime);
+    let returned = child.returned.take();
     adopt_frame(runtime, child);
-    let ExecutionTermination::Success(value) = termination else {
+    let ExecutionTermination::Success(_) = termination else {
         return Ok(Err(termination));
     };
-    let (value, units) = match parent.shape {
-        ReturnShape::Direct => (value, returned_units),
+    let returned = returned.ok_or(RuntimeFault)?;
+    let value = match parent.shape {
+        ReturnShape::Direct => returned,
         ReturnShape::ContractAssertion => {
-            let ConstData::Bool(held) = value.data else {
+            let ConstData::Bool(held) = returned.value()?.data else {
                 return Err(RuntimeFault);
             };
-            let value = contract_assert_value(held);
-            let units = value_units_const(&value);
-            (value, units)
+            RuntimeValue::new(contract_assert_value(held))
         }
     };
+    let units = value.units;
     if !charge_value(runtime, units, limits.max_value_units) {
         return Ok(Err(ExecutionTermination::ResourceLimit(
             ResourceKind::ValueUnits,
         )));
     }
     runtime.instruction_count = runtime.instruction_count.saturating_add(1);
-    write_register(
-        runtime,
-        parent.result_register,
-        RuntimeValue::with_units(value, units),
-    )?;
+    write_register(runtime, parent.result_register, value)?;
     Ok(Ok(Current {
         blocks: parent.blocks,
         result_type: parent.result_type,
@@ -2078,7 +2115,7 @@ fn prepare_frame<'a>(
         cells: core::mem::take(&mut runtime.cells),
         max_call_depth: runtime.max_call_depth,
         peak_call_depth: runtime.peak_call_depth.max(frames.saturating_add(1)),
-        returned_units: 0,
+        returned: None,
     };
     for (k, (operand, parameter)) in instruction
         .operands
@@ -2188,7 +2225,11 @@ fn execute_extended(
         {
             return Ok(Some(termination));
         }
-        let request = read_register(runtime, *request_register)?.clone();
+        let request = if mask & 2 != 0 {
+            take_register(runtime, *request_register)?
+        } else {
+            read_register(runtime, *request_register)?.clone()
+        };
         let request_units = request.units;
         let request = request.into_value()?;
         let scope = if mask & 1 != 0 {
@@ -2820,18 +2861,21 @@ fn dispatch_terminator(
         BytecodeTerminator::Return(register) => {
             // The frame ends here, so every register is dead: move the value.
             let value = take_register(runtime, *register)?;
-            let units = value.units;
-            let value = value.into_value()?;
-            if &value.value_type != result_type {
+            if &value.value()?.value_type != result_type {
                 return Ok(Some(ExecutionTermination::InternalInvariant));
             }
-            if units > limits.max_output_units {
+            if value.units > limits.max_output_units {
                 return Ok(Some(ExecutionTermination::ResourceLimit(
                     ResourceKind::OutputUnits,
                 )));
             }
-            runtime.returned_units = units;
-            Ok(Some(ExecutionTermination::Success(value)))
+            // The value travels in `runtime.returned`; the frame's caller (or
+            // the top-level runner) takes it from there.
+            runtime.returned = Some(value);
+            Ok(Some(ExecutionTermination::Success(ConstValue {
+                value_type: TypeExpr::Unit,
+                data: ConstData::Unit,
+            })))
         }
         BytecodeTerminator::Branch(edge) => {
             if let Some(termination) = bind_edge(runtime, blocks, edge, limits, live, source_block)?
@@ -4250,7 +4294,7 @@ mod tests {
             cells: Vec::new(),
             max_call_depth: MAX_CALL_DEPTH,
             peak_call_depth: 1,
-            returned_units: 0,
+            returned: None,
         };
         let blocks = vec![crate::BytecodeBlock {
             slot: 0,

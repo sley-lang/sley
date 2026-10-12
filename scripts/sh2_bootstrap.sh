@@ -72,7 +72,6 @@ run_stage() {
   started="$(date +%s)"
   "${cage[@]}" bwrap \
     --unshare-all --die-with-parent --new-session --clearenv \
-    --tmpfs / \
     --ro-bind "$work/bin/sley-host" /sley-host \
     --ro-bind "$work/stage/S" /S \
     --ro-bind "$package" /toolchain.pkg \

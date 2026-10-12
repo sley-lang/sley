@@ -1082,6 +1082,38 @@ impl<'a> FnB<'a> {
         }
     }
 
+    /// The distinct current values of `slots`, in first-occurrence order:
+    /// the edge arguments of a carry (one argument per value, never two
+    /// for an aliased value, so a carried large value stays unshared).
+    fn distinct(&self, slots: &[Slot]) -> Vec<ValueRef> {
+        let mut out: Vec<ValueRef> = Vec::new();
+        for value in self.values(slots) {
+            if !out.contains(&value) {
+                out.push(value);
+            }
+        }
+        out
+    }
+
+    /// One parameter per distinct carried value on a single-predecessor
+    /// block; returns each slot's parameter.
+    fn carry_params(&mut self, block: usize, slots: &[Slot]) -> Vec<ValueRef> {
+        let mut seen: Vec<(ValueRef, ValueRef)> = Vec::new();
+        let mut out = Vec::with_capacity(slots.len());
+        for slot in slots {
+            let value = self.slot_value(*slot);
+            if let Some((_, param)) = seen.iter().find(|(v, _)| *v == value) {
+                out.push(*param);
+                continue;
+            }
+            let ty = self.slot_ty(*slot);
+            let param = self.block_param(block, ty);
+            seen.push((value, param));
+            out.push(param);
+        }
+        out
+    }
+
     /// Adds one parameter per slot to `block` and returns them.
     fn slot_params(&mut self, block: usize, slots: &[Slot]) -> Vec<ValueRef> {
         let mut out = Vec::new();
@@ -1114,7 +1146,7 @@ impl<'a> FnB<'a> {
         result: Option<Ty>,
     ) -> Option<ValueRef> {
         let carry = self.threaded(false);
-        let carry_values = self.values(&carry);
+        let carry_values = self.distinct(&carry);
         let join_slots = self.threaded(true);
         let before = self.values(&join_slots);
         let mut prepared = Vec::new();
@@ -1124,7 +1156,7 @@ impl<'a> FnB<'a> {
                 .payload
                 .as_ref()
                 .map(|(_, ty)| self.block_param(block, ty.clone()));
-            let params = self.slot_params(block, &carry);
+            let params = self.carry_params(block, &carry);
             prepared.push((block, payload, params));
         }
         let targets: Vec<(usize, bool)> = prepared
@@ -1430,9 +1462,9 @@ impl<'a> FnB<'a> {
             let (condition, ty) = self.eval(&condition);
             assert_eq!(ty, t::bool(), "{}: while condition must be Bool", self.name);
             let carry = self.threaded(false);
-            let carry_values = self.values(&carry);
+            let carry_values = self.distinct(&carry);
             let body_block = self.new_block();
-            let body_params = self.slot_params(body_block, &carry);
+            let body_params = self.carry_params(body_block, &carry);
             let exit_arguments = self.values(&slots);
             let terminator = Terminator::CondBranch(CondBranchTerminator {
                 condition,
@@ -1971,10 +2003,10 @@ impl<'a> FnB<'a> {
                 };
                 let target = self.err_target(&error);
                 let carry = self.threaded(false);
-                let carry_values = self.values(&carry);
+                let carry_values = self.distinct(&carry);
                 let next = self.new_block();
                 let payload = self.block_param(next, (*ok).clone());
-                let params = self.slot_params(next, &carry);
+                let params = self.carry_params(next, &carry);
                 let mut good = vec![SwitchArgument::CasePayload];
                 good.extend(carry_values.iter().map(|v| SwitchArgument::Value(*v)));
                 let cases = vec![
@@ -2116,10 +2148,10 @@ impl<'a> FnB<'a> {
         let (value, _) = self.pending.pop().expect("pending switch value");
         let trap = self.trap_target();
         let carry = self.threaded(false);
-        let carry_values = self.values(&carry);
+        let carry_values = self.distinct(&carry);
         let next = self.new_block();
         let payload = self.block_param(next, payload_ty.clone());
-        let params = self.slot_params(next, &carry);
+        let params = self.carry_params(next, &carry);
         let mut good_arguments = vec![SwitchArgument::CasePayload];
         good_arguments.extend(carry_values.iter().map(|v| SwitchArgument::Value(*v)));
         let mut cases = vec![
