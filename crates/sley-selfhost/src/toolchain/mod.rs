@@ -5,6 +5,7 @@
 //! - `rt_*` / `wr_*`: runtime library ([`rt`]);
 //! - `scb_*`: schema-directed SCB1 validation of nested values;
 //! - `cd_*`: entity-object and state-root decoding;
+//! - `ty_*`: canonical `TypeExpr` bytes ([`types`]);
 //! - `inv_*` / `drv_load`: the decoded program inventory;
 //! - `ck_*`: type-environment and function-graph validation;
 //! - `jg_*`: extended operation judgment and the bootstrap-profile gate;
@@ -24,6 +25,7 @@ pub mod model;
 pub mod package;
 pub mod rt;
 pub mod scb;
+pub mod types;
 
 use crate::seed::Module;
 
@@ -37,6 +39,7 @@ pub fn module() -> Module {
     model::declare(&mut m);
     rt::define(&mut m);
     codec::define(&mut m);
+    types::define(&mut m);
     inv::define(&mut m);
     check::define(&mut m);
     judge::define(&mut m);
@@ -52,6 +55,36 @@ pub fn module() -> Module {
 /// Test and driver entry points over the library functions.
 fn define_entries(m: &mut Module) {
     use crate::seed::*;
+    // Builds two composite types from parts (ty_* constructor test).
+    m.func("t_ty_build", &[("def", t::bytes())], t::vec(t::bytes()), |f| {
+        f.let_("u64", types::ty_u64());
+        f.let_("idx", types::ty_failure(sley_ssmc::BuiltinFailureKind::Index));
+        f.let_("a", call("ty_res", vec![call("ty_vec", vec![v("u64")]), v("idx")]));
+        f.let_(
+            "b",
+            call(
+                "ty_tuple",
+                vec![vnew(t::bytes(), vec![types::ty_bool(), call("ty_named0", vec![v("def")])])],
+            ),
+        );
+        f.let_("c", call("ty_map", vec![v("u64"), call("ty_opt", vec![v("u64")])]));
+        // Round trips through the accessors.
+        f.let_("a_ok", call("ty_first", vec![v("a")]));
+        f.let_("b_items", call("ty_tuple_items", vec![v("b")]));
+        f.let_("named", call("ty_named_parts", vec![vget(v("b_items"), u64c(1))]));
+        f.ret(vnew(
+            t::bytes(),
+            vec![
+                v("a"),
+                v("b"),
+                v("c"),
+                v("a_ok"),
+                tget(v("named"), 0),
+                call("uvarb", vec![call("ty_width", vec![v("u64")])]),
+                call("uvarb", vec![call("ty_tag", vec![v("c")])]),
+            ],
+        ));
+    });
     // Loads S and reports (functions, operations, index size).
     m.func(
         "t_load_counts",
