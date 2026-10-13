@@ -2327,6 +2327,8 @@ Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "
 - `truthy` (2.1.1): a bool as itself, an integer `!= 0`, a vector or text that is not empty;
 - `pow` (2.1.1): `["pow", a, b]` multiplies `a` by itself `b` times with checked multiplication; a
   negative `b` traps. `gcd`: the greatest common divisor of the absolute values (`gcd(0, 0)` is 0).
+  `powmod`: `["powmod", b, e, m]` is `1 % m` multiplied by `b % m` `e` times, each product reduced
+  modulo `m` with `floormod` (a negative `e` traps; `m == 0` fails like a division by zero).
 
 Integer literals take the type of the other operand, the declared variable or the return type, else
 `i64`; integer types never mix. A refusal names the authored location (`/fns/0/body/2/1`); a compiler
@@ -2468,8 +2470,10 @@ else is refused at its line and column.
 - Blocks are indented with spaces; a block may also be one statement after its `:`.
 - Statements: `=` (the first assignment in a block declares, later ones assign), `a = b = e`,
   `a, b = e1, e2` (every value is computed first), `q, r = divmod(a, b)`, `x: T = e`,
-  `+= -= *= //= %=`, `if`/`elif`/`else`, `while`, `for x in xs`, `for i in range(a, b)`
-  (`range(n)` starts at 0; no step), `for i, x in enumerate(xs)`, `for x, y in zip(xs, ys)`,
+  `+= -= *= //= %= <<= >>= &=`, `if`/`elif`/`else`, `while`, `for x in xs`, `for i in range(a, b)`
+  (`range(n)` starts at 0; `range(a, b, step)` visits `a + k * step` for `k` in
+  `0..max(0, -((a - b) // step))`, and a zero step fails like a division by zero),
+  `for i, x in enumerate(xs)`, `for x, y in zip(xs, ys)`,
   `for x in xs[a:b]`, `break`, `continue`, `return e`, `assert c` (traps when false), `raise ...`
   (traps). A top-level class (a record description) and decorator lines are skipped: records come
   from the program.
@@ -2482,7 +2486,11 @@ else is refused at its line and column.
   index fails like a checked operation; a literal `xs[-k]` is `xs[len(xs) - k]`), and `enumerate`'s
   index is `i64`. Every conversion is explicit `to`; nothing converts implicitly.
 - Expressions: `//` and `%` are `floordiv` and `floormod`; `/` is refused (no floats); `**` is `pow`
-  (`-a ** b` is `-(a ** b)`); comparisons chain (`a < b <= c` is `a < b and b <= c`); `x in xs` and
+  (`-a ** b` is `-(a ** b)`); `pow(b, e)` is `pow` and `pow(b, e, m)` is `powmod` (repeated
+  multiplication modulo `m`); `a >> k` is `floordiv(a, 2 ** k)` and `a << k` is `a * 2 ** k`
+  (checked); `a & m` with a literal mask `m = 2**k - 1` is `floormod(a, 2**k)`, exact for negative
+  `a`, and other `&`, `|`, `^` and `~` are refused; `len(set(xs))` counts the positions whose element
+  appears at no earlier position; comparisons chain (`a < b <= c` is `a < b and b <= c`); `x in xs` and
   `x not in xs` are `any` folds; `and` and `or` short-circuit (they lower to the conditional value);
   every condition, and `not`, take Python truthiness (`truthy`); `True` and `False` are booleans;
   `x if c else y`, `len min max abs`, `math.gcd` / `gcd`, `bool(x)`, `int(x)` (the integer itself).
@@ -2492,8 +2500,8 @@ else is refused at its line and column.
   length) and `zip` are read-only views iterated by index; a slice is never a value.
 
 Not supported, and refused: list values (literals, `append`, a slice stored or returned), dicts,
-sets, tuple values, `None`, methods, `lambda`, `try`, `with`, string iteration and float types or
-literals. `help python` is the short reference; its first line is the one-line note for an
+sets other than `len(set(xs))`, tuple values, `None`, methods, `lambda`, `try`, `with`, string
+iteration and float types or literals. `help python` is the short reference; its first line is the one-line note for an
 author's system prompt.
 
 ## 6. Opcodes
