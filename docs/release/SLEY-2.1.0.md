@@ -14,6 +14,15 @@ The decision record is
 implementation and evidence record is
 [SH2_SELF_HOSTING.md](SH2_SELF_HOSTING.md).
 
+The Linux x86_64 archive was built from
+`0716c127de973a00bcb163780a125ad502858244`. Two clean builds on the primary
+host produced identical bytes. Cross-host reproducibility is not claimed.
+The archive SHA-256 is
+`3ab596958624e09a8525d05c73f5e6cf340c4281e0860d7872a24bc05df8c7a1`
+(7,275,190 bytes, 17 members). Provenance remains unsigned. The release
+also carries `sley-2.1.0-selfhost-linux-x86_64.tar.gz`, the self-rebuild
+bundle described [below](#reproduce-it).
+
 ## The bootstrap
 
 | Stage | Built by | Where |
@@ -112,7 +121,10 @@ Together they take about an hour. The differential suites that compare
 each Sley module with the Rust reference run in release builds
 (`cargo test --release -p sley-selfhost`); debug builds skip them. The bootstrap script also assembles the
 self-rebuild bundle in `WORKDIR/dist`: the host, the toolchain image, `S`
-and a `rebuild.sh` that repeats the self-build with nothing else.
+and a `rebuild.sh` that repeats the self-build with nothing else. The
+release's `sley-2.1.0-selfhost-linux-x86_64.tar.gz` is that bundle, with a
+README and the license notices; `./rebuild.sh` (bubblewrap required) prints
+`fixed point: the rebuilt toolchain is byte-identical`.
 
 ## Scope
 
