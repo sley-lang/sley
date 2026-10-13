@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
-  <img alt="Version 2.1.0" src="https://img.shields.io/badge/version-2.1.0-38c8e8?style=flat-square">
+  <img alt="Version 2.1.1" src="https://img.shields.io/badge/version-2.1.1-38c8e8?style=flat-square">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
   <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
   <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
@@ -22,7 +22,7 @@
   <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
-  <a href="docs/release/SLEY-2.1.0.md"><b>Release notes</b></a> ·
+  <a href="docs/release/SLEY-2.1.1.md"><b>Release notes</b></a> ·
   <a href="https://sleylang.org/faq"><b>FAQ</b></a>
 </p>
 
@@ -63,7 +63,7 @@ machine code instead of prose.
 > toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
 > and Python 3 for the demo.
 
-**1. Get the `sley` binary.** Download `sley-2.1.0-linux-x86_64.tar.gz` from
+**1. Get the `sley` binary.** Download `sley-2.1.1-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
 ```sh
@@ -170,6 +170,15 @@ Sley has three canonical layers:
 Read **[Concepts](docs/CONCEPTS.md)** for the full model: identities, state
 roots, the change lifecycle, sessions, and the glossary.
 
+## New in 2.1.1: write Sley like Python
+
+Agents can now write Sley in a typed Python dialect. `sley-agent try --familiar` compiles it into
+the same verified Sley graph. Python's meaning is kept where Sley can express it exactly, and
+anything else is refused at its line and column. On the maintainers' cross-language benchmark,
+2.1.1 cuts the cost of a correct Sley answer by roughly 40–50% compared with 2.1.0, and brings it
+level with Rust and C++. See the [2.1.1 release notes](docs/release/SLEY-2.1.1.md) and
+`sley-agent help python`.
+
 ## New in 2.1: Sley builds Sley
 
 Sley's own toolchain is a Sley program. Decoding, type and graph checking,
@@ -214,22 +223,18 @@ workbench.
 
 ## Project status
 
-**Sley 2.1.0** is the self-hosted release. Sley's semantic toolchain (codec,
-checker, operation judgment, lowerer, fingerprints, package builder and build
-driver) is a Sley program that rebuilds its own executable closure without the
-Rust seed compiler, to a byte-identical fixed point. A typed change to the
-toolchain is rebuilt by the previous Sley toolchain and matches the seed's
-build exactly. See the [2.1.0 release notes](docs/release/SLEY-2.1.0.md) and
-the [self-hosting record](docs/release/SH2_SELF_HOSTING.md). It's a *release*,
-not a GA claim: the
+**Sley 2.1.1** adds the Python dialect of the familiar frontend and shorter, more forgiving
+authoring, cutting what it costs an agent to write Sley. Sley 2.1.0 made the toolchain
+self-hosted: the semantic toolchain is a Sley program that rebuilds itself to a byte-identical
+fixed point. See the [2.1.1 release notes](docs/release/SLEY-2.1.1.md) and the
+[self-hosting record](docs/release/SH2_SELF_HOSTING.md). It's a *release*, not a GA claim: the
 [2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
-list every acceptance criterion that wasn't met at 2.0.0 and every open
-finding. 2.1.0 makes no new GA claim.
+list every acceptance criterion that wasn't met at 2.0.0 and every open finding.
 
 | Track | State |
 |---|---|
 | **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1 and the agent workbench in 2.0.2. The kernel, repository, protocol, CLI, agent workbench, and reproducible packaging are in place. |
-| **Sley 2.1** | Released as 2.1.0. **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
+| **Sley 2.1** | Released as 2.1.0, with the Python dialect in 2.1.1. **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
 | **Sley 1.x** | Frozen at [v1.2.0](https://github.com/GreyforgeLabs/sley-legacy/releases/tag/v1.2.0) in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
 

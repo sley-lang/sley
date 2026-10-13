@@ -483,7 +483,7 @@ fn unsupported_constructs_are_refused_at_their_authored_location() {
         ),
         (json!([["let", "a", 1]]), "/fns/0/body", "reach its end"),
         (
-            json!([["return", ["pow", "x", 2]]]),
+            json!([["return", ["shl", "x", 2]]]),
             "/fns/0/body/0/1",
             "unknown operation",
         ),
