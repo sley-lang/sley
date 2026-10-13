@@ -113,6 +113,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             k: 0,
             python: true,
             scopes: Vec::new(),
+            hoisted: Vec::new(),
         };
         parser.py_program()?
     } else {
@@ -121,6 +122,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             k: 0,
             python: false,
             scopes: Vec::new(),
+            hoisted: Vec::new(),
         };
         parser.program()?
     };
@@ -163,6 +165,7 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         k: 0,
         python: false,
         scopes: Vec::new(),
+        hoisted: Vec::new(),
     };
     let pos = parser.peek().pos;
     let mut statements = Vec::new();
@@ -584,6 +587,9 @@ struct Parser {
     python: bool,
     /// Python dialect: the names assigned in each enclosing block.
     scopes: Vec<Vec<String>>,
+    /// Python dialect: nested `def`s, hoisted to the top level (a helper that
+    /// reads its enclosing function's variables is refused by the lowering).
+    hoisted: Vec<Function>,
 }
 
 type P<T> = Result<T, FamiliarError>;
@@ -1515,6 +1521,27 @@ impl Parser {
         Ok(Node::op(pos, "fold", args))
     }
 
+    /// A built-in applied to a slice: a fold over the window's positions.
+    fn py_view_fold(pos: Pos, kind: &str, view: &View) -> Node {
+        if kind == "count" {
+            // len(xs[a:b]): the window's size, never negative.
+            let size = Node::op(pos, "sub", vec![view.end.clone(), view.start.clone()]);
+            return Node::op(pos, "max", vec![size, Node::atom(pos, Value::from(0))]);
+        }
+        let index = Node::atom(pos, Value::String("slice_at_".into()));
+        let element = view.element_at(pos, index.clone());
+        Node::op(
+            pos,
+            "fold",
+            vec![
+                Node::atom(pos, Value::String(kind.to_owned())),
+                index,
+                Node::op(pos, "range", vec![view.start.clone(), view.end.clone()]),
+                element,
+            ],
+        )
+    }
+
     /// `( value for ... )` as a call's first argument, or `None` (nothing
     /// consumed) when the parentheses hold something else.
     /// `gcd(a, b, ..)` after the `(`.
@@ -1622,6 +1649,15 @@ impl Parser {
                     self.expect_op("]")?;
                     return self.py_fold_default(name, node).map(Some);
                 }
+                if self.py_slice_ahead() {
+                    let saved = self.k;
+                    let view = self.py_slice()?;
+                    if self.at_op(")") || self.at_op(",") {
+                        let node = Self::py_view_fold(pos, name, &view);
+                        return self.py_fold_default(name, node).map(Some);
+                    }
+                    self.k = saved;
+                }
                 if let Some(node) = self.py_parenthesized_generator(pos, name)? {
                     return self.py_fold_default(name, node).map(Some);
                 }
@@ -1664,6 +1700,16 @@ impl Parser {
             }
             _ => return Ok(None),
         };
+        // A built-in over a slice: sum(xs[a:b]), len(xs[a:]).
+        if self.py_slice_ahead() && matches!(self.peek_at(1).text.as_str(), "[") {
+            let saved = self.k;
+            let view = self.py_slice()?;
+            if self.at_op(")") {
+                self.bump();
+                return Ok(Some(Self::py_view_fold(pos, fold_kind, &view)));
+            }
+            self.k = saved;
+        }
         // A list comprehension or a generator.
         if let Some(node) = self.py_parenthesized_generator(pos, fold_kind)? {
             self.expect_op(")")?;
@@ -2117,6 +2163,7 @@ impl Parser {
                 );
             }
             functions.push(self.py_function()?);
+            functions.append(&mut self.hoisted);
         }
         if functions.is_empty() {
             return refuse(self.peek().pos, "expected at least one def");
@@ -2398,13 +2445,20 @@ impl Parser {
                 );
             }
             Some(
-                other @ ("def" | "class" | "lambda" | "with" | "try" | "global" | "nonlocal"
-                | "yield" | "del" | "match" | "async" | "await"),
+                other @ ("class" | "lambda" | "with" | "try" | "global" | "nonlocal" | "yield"
+                | "del" | "match" | "async" | "await"),
             ) => {
                 return refuse(
                     pos,
                     format!("`{other}` is not supported in a function body"),
                 );
+            }
+            Some("def") => {
+                let scopes = std::mem::take(&mut self.scopes);
+                let helper = self.py_function();
+                self.scopes = scopes;
+                self.hoisted.push(helper?);
+                return Ok(None);
             }
             Some("elif" | "else") => {
                 return refuse(pos, format!("`{}` without a matching if", tok.text));
@@ -2602,6 +2656,12 @@ impl Parser {
                         end,
                     ]
                 }
+                PyIter::Enumerate(_) => {
+                    return refuse(
+                        first_pos,
+                        "enumerate binds two names: for i, x in enumerate(xs)",
+                    );
+                }
                 PyIter::Views(views) => {
                     let names: Vec<(String, Pos)> = std::iter::once((first.clone(), first_pos))
                         .chain(second.clone())
@@ -2732,6 +2792,8 @@ enum PyIter {
     Range(Node, Node),
     /// `zip(v, w, ..)` or one slice view: index positions of the windows.
     Views(Vec<View>),
+    /// `enumerate(xs)`: an i64 index and the element at it.
+    Enumerate(Node),
 }
 
 /// Replaces the variable `name` by `with` inside an expression, leaving
@@ -2875,6 +2937,13 @@ impl Parser {
                 self.expect_op(")")?;
                 Ok(PyIter::Range(start, end))
             }
+            Some("enumerate") => {
+                self.bump();
+                self.expect_op("(")?;
+                let list = self.expr()?;
+                self.expect_op(")")?;
+                Ok(PyIter::Enumerate(list))
+            }
             Some("zip") => {
                 self.bump();
                 self.expect_op("(")?;
@@ -2988,6 +3057,23 @@ impl Parser {
                         Node::atom(names[0].1, Value::String(names[0].0.clone())),
                         Node::op(pos, "range", vec![start, end]),
                     )
+                }
+                PyIter::Enumerate(list) => {
+                    if names.len() != 2 {
+                        return refuse(pos, "enumerate binds two names: i, x");
+                    }
+                    let index = Node::atom(names[0].1, Value::String(names[0].0.clone()));
+                    let view = View {
+                        start: Node::atom(pos, Value::from(0)),
+                        end: len_i64(pos, &list),
+                        list,
+                    };
+                    let element = view.element_at(pos, index.clone());
+                    substitute(&mut value, &names[1].0, &element);
+                    if let Some(c) = condition.as_mut() {
+                        substitute(c, &names[1].0, &element);
+                    }
+                    (index, Node::op(pos, "range", vec![view.start, view.end]))
                 }
                 PyIter::Views(views) => {
                     if names.len() != views.len() {
