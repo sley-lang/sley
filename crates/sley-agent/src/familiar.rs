@@ -249,7 +249,7 @@ const COMPOUND: [(&str, &str); 5] = [
     ("%=", "rem"),
 ];
 /// Built-ins that take a generator: `sum(e for x in xs if c)`.
-const FOLDS: [&str; 4] = ["sum", "count", "any", "all"];
+const FOLDS: [&str; 6] = ["sum", "count", "any", "all", "max", "min"];
 
 #[allow(clippy::too_many_lines)]
 fn tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
@@ -1751,7 +1751,7 @@ impl Parser {
                 if !FOLDS.contains(&name) {
                     return refuse(
                         self.peek().pos,
-                        "a generator works only inside sum, count, any or all",
+                        "a generator works only inside sum, count, any, all, max or min",
                     );
                 }
                 return self.fold(pos, name, args.swap_remove(0));
@@ -3118,12 +3118,7 @@ mod tests {
                 2,
                 12,
             ),
-            (
-                "fn f(a: i64) -> i64 {\n  a += 1\n}",
-                "compound assignment",
-                2,
-                5,
-            ),
+            ("fn f(a: i64) -> i64 {\n  a++\n}", "increment", 2, 4),
             (
                 "fn f(a: i64) -> i64 { return a.abs() }",
                 "methods are not supported",
@@ -3149,10 +3144,10 @@ mod tests {
                 36,
             ),
             (
-                "fn f(a: i64) -> i64 { let mut x = a\n return x }",
-                "var x: T = e",
+                "fn f(a: i64) -> i64 { const x = a\n return x }",
+                "write let",
                 1,
-                27,
+                23,
             ),
             (
                 "fn f(a: i64) -> i64 { while true { break } return a }",
@@ -3166,8 +3161,8 @@ mod tests {
                 1,
                 30,
             ),
-            ("fn f(a: i64) -> i64 { return a && a }", "write and", 1, 32),
-            ("fn f(a: bool) -> bool { return !a }", "write not", 1, 32),
+            ("fn f(a: i64) -> i64 { return a & a }", "bitwise", 1, 32),
+            ("fn f(a: bool) -> bool { return a ^ a }", "bitwise", 1, 34),
             (
                 "fn f(a: i64) -> Result<i64,E> { return ok(g(a)?) }",
                 "try(e)",
@@ -3181,17 +3176,18 @@ mod tests {
                 30,
             ),
             (
-                "fn f(a: i64) -> i64 { let x: i64 = a\n return x }",
-                "let takes no type",
+                "fn f(a: i64) -> i64 { let x: = a\n return x }",
+                "expected a type",
                 1,
-                28,
+                30,
             ),
-            ("def f(a):\n  return a", "fn name", 1, 1),
+            ("def f(a):\n  return a", "annotate the parameter", 1, 8),
+            ("function f(a) {}", "fn name", 1, 1),
             ("fn f(a: i64) -> i64 { elif a { } }", "else if", 1, 23),
             ("fn len(a: i64) -> i64 { return a }", "built-in", 1, 1),
             (
-                "fn f(a: i64) -> i64 { f(a) }",
-                "expected a statement",
+                "fn f(a: i64) -> i64 { f(a)\n return a }",
+                "does nothing here",
                 1,
                 23,
             ),
