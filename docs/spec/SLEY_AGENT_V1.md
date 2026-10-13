@@ -2281,7 +2281,9 @@ Statements: `["let", x, e]`; `["var", x, T, e]` or `["var", x, e]` (typed like `
 `["if", c, [..], [..]]` (else optional); `["for", x, xs, [..]]` (elements of a vector, in order; the
 index is not visible); `["for-indexed", i, x, xs, [..]]` (read-only `u64` index and element);
 `["range", i, start, end, [..]]` (read-only integer induction variable); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
-`["ok", e]` and `["fail", "Case"]`; `["trap"]`. Variables declared in a branch or loop body go out of
+`["ok", e]` and `["fail", "Case"]`; `["trap"]`; `["break"]` and `["continue"]` (2.1.1: the
+innermost loop); `["declare", x, w]` (2.1.1: a `var` of `w`'s static type holding its zero; `w` is
+not evaluated). Variables declared in a branch or loop body go out of
 scope at its end. A `let` or `var` in the same statement list as an earlier declaration of the name
 rebinds it; inside a nested branch or loop body, declaring a name that is declared outside that body
 (a variable, a parameter, or a `for` variable) is refused, because hiding and overwriting the outer
@@ -2433,9 +2435,11 @@ Sley 2.1.1 adds, each mapping to the forms above:
   else is refused;
 - `if c { a } else if d { b } else { e }` used as a value, with one expression per branch (the same
   `["if", c, a, b]`);
-- `&&`, `||` and a `!` that does not start `!=`, spelling `and`, `or` and `not`.
+- `&&`, `||` and a `!` that does not start `!=`, spelling `and`, `or` and `not`;
+- `break` and `continue` (structured `["break"]` / `["continue"]`: leave the innermost loop, or go to
+  its next pass; a `for` or range loop advances first).
 
-There is no other syntax. Methods, inclusive ranges, `break`/`continue`, `++`, floating-point
+There is no other syntax. Methods, inclusive ranges, `++`, floating-point
 or hexadecimal literals, slices, tuples, bitwise operators, a trailing `//` and spellings from other
 languages (`elif`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
 their line and column, and the revision is recorded as a text draft: its `input.txt` keeps the
@@ -2463,10 +2467,17 @@ else is refused at its line and column.
   refused by the lowering). `import` and `from` lines are skipped; docstrings and `pass` do nothing.
 - Blocks are indented with spaces; a block may also be one statement after its `:`.
 - Statements: `=` (the first assignment in a block declares, later ones assign), `a = b = e`,
-  `x: T = e`, `+= -= *= //= %=`, `if`/`elif`/`else`, `while`, `for x in xs`, `for i in range(a, b)`
+  `a, b = e1, e2` (every value is computed first), `q, r = divmod(a, b)`, `x: T = e`,
+  `+= -= *= //= %=`, `if`/`elif`/`else`, `while`, `for x in xs`, `for i in range(a, b)`
   (`range(n)` starts at 0; no step), `for i, x in enumerate(xs)`, `for x, y in zip(xs, ys)`,
-  `for x in xs[a:b]`, `return e`, `assert c` (traps when false), `raise ...` (traps). A parameter the
-  body assigns becomes a variable holding its value.
+  `for x in xs[a:b]`, `break`, `continue`, `return e`, `assert c` (traps when false), `raise ...`
+  (traps). A top-level class (a record description) and decorator lines are skipped: records come
+  from the program.
+- Python scoping: a parameter the body assigns becomes a variable holding its value; a loop variable
+  that the body assigns, or that is declared before the loop, is assigned at the top of each pass; a
+  name assigned in every branch of a complete `if`/`elif`/`else` is declared before it (`["declare",
+  x, w]`, typed by its first value, which is not evaluated there) and defined after it. A name that
+  some path leaves unassigned stays local to its block.
 - Integers are `i64`: `len` is converted to `i64`, an index is converted to `u64` (a negative computed
   index fails like a checked operation; a literal `xs[-k]` is `xs[len(xs) - k]`), and `enumerate`'s
   index is `i64`. Every conversion is explicit `to`; nothing converts implicitly.
@@ -2480,9 +2491,9 @@ else is refused at its line and column.
   `max(.., default=v)` gives `d`). Slices (`xs[a:b]`, either bound optional, the end clamped to the
   length) and `zip` are read-only views iterated by index; a slice is never a value.
 
-Not supported, and refused: `break`, `continue`, list values (literals, `append`, a slice stored or
-returned), dicts, sets, tuples, classes, methods, `lambda`, `try`, `with`, string iteration and float
-types or literals. `help python` is the short reference; its first line is the one-line note for an
+Not supported, and refused: list values (literals, `append`, a slice stored or returned), dicts,
+sets, tuple values, `None`, methods, `lambda`, `try`, `with`, string iteration and float types or
+literals. `help python` is the short reference; its first line is the one-line note for an
 author's system prompt.
 
 ## 6. Opcodes
