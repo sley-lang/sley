@@ -1584,7 +1584,7 @@ impl Parser {
 
     /// `len(set(xs))`: the positions whose element appears at no earlier
     /// position.
-    fn py_distinct_count(pos: Pos, list: Node) -> Node {
+    fn py_distinct_count(pos: Pos, list: &Node) -> Node {
         let at = |name: &str| Node::atom(pos, Value::String(name.to_owned()));
         let element = |index: &str| {
             Node::op(
@@ -1619,7 +1619,7 @@ impl Parser {
                 Node::op(
                     pos,
                     "range",
-                    vec![Node::atom(pos, Value::from(0)), len_i64(pos, &list)],
+                    vec![Node::atom(pos, Value::from(0)), len_i64(pos, list)],
                 ),
                 Node::atom(pos, Value::Bool(true)),
                 Node::op(pos, "not", vec![earlier]),
@@ -1831,7 +1831,7 @@ impl Parser {
             }
             self.expect_op(")")?;
             self.expect_op(")")?;
-            return Ok(Some(Self::py_distinct_count(pos, list)));
+            return Ok(Some(Self::py_distinct_count(pos, &list)));
         }
         // A built-in over a slice: sum(xs[a:b]), len(xs[a:]).
         if self.py_slice_ahead() && matches!(self.peek_at(1).text.as_str(), "[") {
@@ -3128,8 +3128,8 @@ enum PyIter {
 /// The number of values of `range(start, stop, step)`: `max(0, ceil((stop -
 /// start) / step))`, written with floor division (a zero step fails like a
 /// division by zero, as Python refuses it).
-fn stepped_count(pos: Pos, start: &Node, stop: Node, step: &Node) -> Node {
-    let gap = Node::op(pos, "sub", vec![start.clone(), stop]);
+fn stepped_count(pos: Pos, start: &Node, end: Node, step: &Node) -> Node {
+    let gap = Node::op(pos, "sub", vec![start.clone(), end]);
     let floor = Node::op(pos, "floordiv", vec![gap, step.clone()]);
     Node::op(
         pos,
