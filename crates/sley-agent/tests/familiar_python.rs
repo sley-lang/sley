@@ -370,10 +370,10 @@ fn python_refusals_name_their_position() {
     );
     refused(
         &temp.path,
-        "def f(a: int) -> int:\n    while True:\n        break\n    return a\n",
-        "`break`",
-        3,
-        9,
+        "def f(a: int) -> int:\n    try:\n        return a\n    except ValueError:\n        return 0\n",
+        "`try`",
+        2,
+        5,
     );
     refused(
         &temp.path,
@@ -409,5 +409,89 @@ fn python_refusals_name_their_position() {
         "floating-point",
         1,
         10,
+    );
+}
+
+#[test]
+fn python_scoping_break_continue_and_tuples() {
+    let temp = workspace("python-scoping");
+    let text = "\
+from dataclasses import dataclass
+
+@dataclass
+class Invoice:
+    quantity: int
+    price: int
+    region: str
+
+def first_at_least(items: list[int], floor: int) -> int:
+    found = -1
+    for i in range(len(items)):
+        if items[i] < floor:
+            continue
+        found = i
+        break
+    return found
+
+def gcd_all(items: list[int]) -> int:
+    g = 0
+    for x in items:
+        a, b = abs(x), g
+        while b:
+            a, b = b, a % b
+        g = a
+    return g
+
+def clamp_each(items: list[int], low: int, high: int) -> int:
+    total = 0
+    for v in items:
+        if v < low:
+            v = low
+        elif v > high:
+            v = high
+        total += v
+    return total
+
+def branch_value(n: int) -> int:
+    if n < 0:
+        sign = -1
+    elif n == 0:
+        sign = 0
+    else:
+        sign = 1
+    q, r = divmod(n, 3)
+    return sign * 100 + q * 10 + r
+";
+    let h = accepted(&temp.path, text);
+    check(
+        &temp.path,
+        &h,
+        "first_at_least",
+        &[
+            (json!([[1, 5, 9], 4]), json!(1)),
+            (json!([[1], 4]), json!(-1)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "gcd_all",
+        &[(json!([[12, -18, 0]]), json!(6)), (json!([[]]), json!(0))],
+    );
+    check(
+        &temp.path,
+        &h,
+        "clamp_each",
+        &[(json!([[1, 5, 9], 2, 6]), json!(13))],
+    );
+    check(
+        &temp.path,
+        &h,
+        "branch_value",
+        &[
+            (json!([7]), json!(121)),
+            (json!([-7]), json!(-128)),
+            (json!([0]), json!(0)),
+        ],
     );
 }

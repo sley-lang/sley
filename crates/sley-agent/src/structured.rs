@@ -9,7 +9,8 @@
 //! like `let`), `["set", x, e]`,
 //! `["if", c, [..], [..]?]`, `["for", x, xs, [..]]`, `["while", c, [..]]`,
 //! `["range", i, start, end, [..]]`, `["for-indexed", i, x, xs, [..]]`,
-//! `["return", e]`, `["ok", e]`, `["fail", Case]`, `["trap"]`.
+//! `["return", e]`, `["ok", e]`, `["fail", Case]`, `["trap"]`, `["break"]` and
+//! `["continue"]` (the innermost loop: leave it, or go to its next pass).
 //!
 //! Expressions: a name, an integer, `true`/`false`, a typed literal
 //! `{"type": T, "value": v}`, or `[op, args..]`:
@@ -317,6 +318,18 @@ impl Env {
     }
 }
 
+/// The loop a `break` or `continue` leaves: its exit block and the state it
+/// takes, its header and the state that takes, and the index a `continue`
+/// advances first (`for` and `range`).
+#[derive(Clone)]
+struct LoopCx {
+    exit: String,
+    exit_args: Env,
+    header: String,
+    before: Env,
+    step: Option<String>,
+}
+
 struct Block {
     name: String,
     params: Vec<(String, String)>,
@@ -341,6 +354,8 @@ struct Fn<'c, 'a> {
     /// How many blocks (`if` branches, loop bodies) enclose the statement
     /// being lowered; 0 at the top of the body.
     depth: usize,
+    /// The loops enclosing the statement being lowered, innermost last.
+    loops: Vec<LoopCx>,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -394,6 +409,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             trap: None,
             origins: Vec::new(),
             pending_exit: None,
+            loops: Vec::new(),
             depth: 0,
         })
     }
@@ -1261,6 +1277,45 @@ impl<'c, 'a> Fn<'c, 'a> {
                         },
                     );
                 }
+                "declare" => {
+                    // ["declare", x, witness]: a var of the witness's static type
+                    // (never evaluated), holding that type's zero, before branches
+                    // that each assign it.
+                    if items.len() != 3 {
+                        return fail(&here, "[\"declare\", name, witness]");
+                    }
+                    let n = name_ok(1)?;
+                    self.no_shadow(env, outer, &n, &here, internal)?;
+                    // An untyped literal witness is an i64, as everywhere else.
+                    let Some(ty) = self.static_type(&items[2], env, Some("i64")) else {
+                        return fail(
+                            &here,
+                            format!(
+                                "`{n}` is assigned in every branch, but its type is not known before them: assign it once before the if"
+                            ),
+                        );
+                    };
+                    let zero = if is_int(&ty) {
+                        Self::lit(&json!(0), &ty)
+                    } else if ty == "bool" {
+                        Self::lit(&json!(false), "bool")
+                    } else if ty == "text" {
+                        json!({"type": "text", "value": ""})
+                    } else {
+                        return fail(
+                            &here,
+                            format!("`{n}` ({ty}) must be assigned once before the if"),
+                        );
+                    };
+                    env.set(
+                        &n,
+                        Binding {
+                            operand: zero,
+                            ty,
+                            mutable: true,
+                        },
+                    );
+                }
                 "set" => {
                     let target = items.get(1).and_then(Value::as_str).unwrap_or_default();
                     let Some(binding) = env
@@ -1318,6 +1373,23 @@ impl<'c, 'a> Fn<'c, 'a> {
                     self.end(json!(["fail", items[1]]), &here);
                 }
                 "trap" => self.end(json!(["trap"]), &here),
+                "break" | "continue" => {
+                    let Some(cx) = self.loops.last().cloned() else {
+                        return fail(&here, format!("`{kind}` is outside every loop"));
+                    };
+                    let mut state = env.clone();
+                    let (target, args) = if kind == "break" {
+                        (cx.exit, state.scoped(&cx.exit_args).operands())
+                    } else {
+                        if let Some(step) = &cx.step {
+                            self.advance(&mut state, step, &here);
+                        }
+                        (cx.header, state.scoped(&cx.before).operands())
+                    };
+                    let mut term = vec![json!("br"), json!(target)];
+                    term.extend(args);
+                    self.end(Value::Array(term), &here);
+                }
                 _ => return fail(&here, format!("unknown statement `{kind}`")),
             }
         }
@@ -1684,9 +1756,17 @@ impl<'c, 'a> Fn<'c, 'a> {
             },
         );
         let pending = self.pending_exit.take();
+        self.loops.push(LoopCx {
+            exit: pending.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
+            exit_args: local.clone(),
+            header: header.clone(),
+            before: before.clone(),
+            step: Some(keys[0].clone()),
+        });
         self.depth += 1;
         let falls = self.stmts(body, &mut inner, &format!("{at}/4"), false)?;
         self.depth -= 1;
+        self.loops.pop();
         self.pending_exit = pending;
         if falls {
             // Since index < end <= MAX, this checked step cannot overflow.
@@ -1782,9 +1862,17 @@ impl<'c, 'a> Fn<'c, 'a> {
             },
         );
         let pending = self.pending_exit.take();
+        self.loops.push(LoopCx {
+            exit: pending.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
+            exit_args: local.clone(),
+            header: header.clone(),
+            before: before.clone(),
+            step: Some(index.clone()),
+        });
         self.depth += 1;
         let falls = self.stmts(body, &mut inner, &format!("{at}/{}", 3 + offset), false)?;
         self.depth -= 1;
+        self.loops.pop();
         self.pending_exit = pending;
         if falls {
             self.advance(&mut inner, &index, at);
@@ -1825,9 +1913,17 @@ impl<'c, 'a> Fn<'c, 'a> {
         }
         let (mut inner, exit_env) = self.test_loop(&c, &local, at);
         let pending = self.pending_exit.take();
+        self.loops.push(LoopCx {
+            exit: pending.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
+            exit_args: local.clone(),
+            header: header.clone(),
+            before: before.clone(),
+            step: None,
+        });
         self.depth += 1;
         let falls = self.stmts(body, &mut inner, &part(2), internal)?;
         self.depth -= 1;
+        self.loops.pop();
         self.pending_exit = pending;
         self.close_loop(
             &header,

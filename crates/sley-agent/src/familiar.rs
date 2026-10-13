@@ -114,6 +114,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             python: true,
             scopes: Vec::new(),
             hoisted: Vec::new(),
+            fresh: 0,
         };
         parser.py_program()?
     } else {
@@ -123,6 +124,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             python: false,
             scopes: Vec::new(),
             hoisted: Vec::new(),
+            fresh: 0,
         };
         parser.program()?
     };
@@ -166,6 +168,7 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         python: false,
         scopes: Vec::new(),
         hoisted: Vec::new(),
+        fresh: 0,
     };
     let pos = parser.peek().pos;
     let mut statements = Vec::new();
@@ -487,6 +490,14 @@ impl Node {
         }
     }
 
+    /// The word of an atom.
+    fn head_word(&self) -> Option<&str> {
+        match &self.kind {
+            NodeKind::Atom(Value::String(word)) => Some(word),
+            _ => None,
+        }
+    }
+
     fn is_name(&self) -> Option<&str> {
         match &self.kind {
             NodeKind::Atom(Value::String(name)) => Some(name),
@@ -590,6 +601,8 @@ struct Parser {
     /// Python dialect: nested `def`s, hoisted to the top level (a helper that
     /// reads its enclosing function's variables is refused by the lowering).
     hoisted: Vec<Function>,
+    /// Python dialect: a counter for the dialect's own temporary names.
+    fresh: usize,
 }
 
 type P<T> = Result<T, FamiliarError>;
@@ -936,13 +949,10 @@ impl Parser {
                 Ok(Node::list(pos, vec![keyword("trap")]))
             }
             Some("elif") => refuse(pos, "`elif`: write else if"),
-            Some("break" | "continue") => refuse(
-                pos,
-                format!(
-                    "`{}` is not supported: loop with while and a condition, or return",
-                    tok.text
-                ),
-            ),
+            Some(word @ ("break" | "continue")) => {
+                self.bump();
+                Ok(Node::list(pos, vec![keyword(word)]))
+            }
             Some("pass") => refuse(pos, "`pass`: an empty block is { }"),
             Some("match" | "loop" | "switch" | "do") => {
                 refuse(pos, format!("`{}` is not supported", tok.text))
@@ -1841,13 +1851,14 @@ impl Parser {
 // ------------------------------------------------------------------ Python dialect
 
 /// Whether the text is the Python dialect: its first significant line starts
-/// with `def`, `import` or `from` (comments and blank lines skipped).
+/// with `def`, `import`, `from`, `class` or a decorator (comments and blank
+/// lines skipped).
 fn is_python(text: &str) -> bool {
     text.lines()
         .map(str::trim_start)
         .find(|line| !line.is_empty() && !line.starts_with('#') && !line.starts_with("//"))
         .is_some_and(|line| {
-            ["def ", "import ", "from "]
+            ["def ", "import ", "from ", "class ", "@"]
                 .iter()
                 .any(|start| line.starts_with(start))
         })
@@ -1912,7 +1923,9 @@ fn py_tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
                 line_start = i;
                 continue;
             }
-            if bytes[j] == b'#' {
+            if bytes[j] == b'#' || bytes[j] == b'@' {
+                // A comment line, or a decorator (`@dataclass`), says nothing
+                // the dialect uses.
                 i = text[j..].find('\n').map_or(bytes.len(), |n| j + n);
                 continue;
             }
@@ -2155,6 +2168,35 @@ impl Parser {
                 }
                 continue;
             }
+            if self.at_word("class") {
+                // A class describes a record; records come from the program
+                // (a field it lacks is refused where it is used).
+                while !matches!(self.peek().kind, Kind::Newline | Kind::Eof) {
+                    self.bump();
+                }
+                if self.peek().kind == Kind::Newline {
+                    self.bump();
+                }
+                if self.peek().kind == Kind::Indent {
+                    let mut depth = 0_usize;
+                    loop {
+                        match self.peek().kind {
+                            Kind::Indent => depth += 1,
+                            Kind::Dedent => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    self.bump();
+                                    break;
+                                }
+                            }
+                            Kind::Eof => break,
+                            _ => {}
+                        }
+                        self.bump();
+                    }
+                }
+                continue;
+            }
             if !self.at_word("def") {
                 let tok = self.peek().clone();
                 return refuse(
@@ -2238,6 +2280,12 @@ impl Parser {
     /// The parameters the function body assigns (from `:` to the end of
     /// its block).
     fn py_assigned_params(&self, params: &[(String, String, Pos)]) -> Vec<(String, Pos)> {
+        let names: Vec<String> = params.iter().map(|(name, _, _)| name.clone()).collect();
+        self.py_block_assigns(&names)
+    }
+
+    /// Which of `names` the block that starts here (at its `:`) assigns.
+    fn py_block_assigns(&self, names: &[String]) -> Vec<(String, Pos)> {
         let mut found: Vec<(String, Pos)> = Vec::new();
         let mut depth = 0_i64;
         let mut k = self.k;
@@ -2259,11 +2307,14 @@ impl Parser {
                         )
                         || k > 0 && self.toks[k - 1].text == ":";
                     let assigns = self.toks.get(k + 1).is_some_and(|next| {
-                        matches!(next.text.as_str(), "=" | "+=" | "-=" | "*=" | "//=" | "%=")
+                        matches!(
+                            next.text.as_str(),
+                            "=" | "+=" | "-=" | "*=" | "//=" | "%=" | ","
+                        )
                     });
                     if at_start
                         && assigns
-                        && params.iter().any(|(name, _, _)| *name == tok.text)
+                        && names.iter().any(|name| *name == tok.text)
                         && !found.iter().any(|(name, _)| *name == tok.text)
                     {
                         found.push((tok.text.clone(), tok.pos));
@@ -2330,6 +2381,7 @@ impl Parser {
             Self::py_push(&mut body, statement);
         }
         self.scopes.pop();
+        hoist_branch_declarations(&mut body);
         Ok(Node::list(colon.pos, body))
     }
 
@@ -2437,12 +2489,9 @@ impl Parser {
                 Node::list(pos, vec![keyword("trap")])
             }
             Some(other @ ("break" | "continue")) => {
-                return refuse(
-                    pos,
-                    format!(
-                        "`{other}` is not supported: loop with while and a condition, or return"
-                    ),
-                );
+                self.bump();
+                self.py_end_of_statement()?;
+                Node::list(pos, vec![keyword(other)])
             }
             Some(
                 other @ ("class" | "lambda" | "with" | "try" | "global" | "nonlocal" | "yield"
@@ -2557,12 +2606,86 @@ impl Parser {
                         )
                     }
                     "/=" => return refuse(self.peek_at(1).pos, "/ is float division: write //="),
+                    "," => return self.py_tuple_assignment().map(Some),
                     _ => return self.py_expression_statement(),
                 }
             }
             _ => return self.py_expression_statement(),
         };
         Ok(Some(statement))
+    }
+
+    /// `a, b = e1, e2` (every value is computed before any name changes) and
+    /// `q, r = divmod(a, b)`.
+    fn py_tuple_assignment(&mut self) -> P<Node> {
+        let pos = self.peek().pos;
+        let mut targets = vec![self.ident("a name")?];
+        while self.at_op(",") {
+            self.bump();
+            targets.push(self.ident("a name")?);
+        }
+        if !self.at_op("=") {
+            return refuse(self.peek().pos, "expected = after the names");
+        }
+        self.bump();
+        let values = if self.at_word("divmod") && self.peek_at(1).text == "(" {
+            let call = self.bump().pos;
+            self.expect_op("(")?;
+            let a = self.expr()?;
+            self.expect_op(",")?;
+            let b = self.expr()?;
+            self.expect_op(")")?;
+            vec![
+                Node::op(call, "floordiv", vec![a.clone(), b.clone()]),
+                Node::op(call, "floormod", vec![a, b]),
+            ]
+        } else {
+            let mut values = vec![self.expr()?];
+            while self.at_op(",") {
+                self.bump();
+                values.push(self.expr()?);
+            }
+            values
+        };
+        if values.len() != targets.len() {
+            return refuse(
+                pos,
+                format!(
+                    "{} names but {} values (tuples are not supported)",
+                    targets.len(),
+                    values.len()
+                ),
+            );
+        }
+        self.py_end_of_statement()?;
+        let word = |w: &str| Node::atom(pos, Value::String(w.to_owned()));
+        self.fresh += 1;
+        let tag = self.fresh;
+        let mut statements = Vec::new();
+        for ((name, name_pos), value) in targets.iter().zip(values) {
+            statements.push(Node::list(
+                *name_pos,
+                vec![
+                    word("let"),
+                    Node::atom(*name_pos, Value::String(format!("{name}_next_{tag}"))),
+                    value,
+                ],
+            ));
+        }
+        for (name, name_pos) in &targets {
+            let held = Node::atom(*name_pos, Value::String(format!("{name}_next_{tag}")));
+            let target = Node::atom(*name_pos, Value::String(name.clone()));
+            if self.py_declared(name) {
+                statements.push(Node::list(*name_pos, vec![word("set"), target, held]));
+            } else {
+                self.py_declare(name);
+                statements.push(Node::list(*name_pos, vec![word("var"), target, held]));
+            }
+        }
+        Ok(Node::list(
+            pos,
+            vec![word("seq"), Node::list(pos, statements)],
+        ))
     }
 
     fn py_expression_statement(&mut self) -> P<Option<Node>> {
@@ -2676,7 +2799,7 @@ impl Parser {
                         prelude.push(Node::list(
                             *name_pos,
                             vec![
-                                Node::atom(*name_pos, Value::String("let".into())),
+                                Node::atom(*name_pos, Value::String("var".into())),
                                 Node::atom(*name_pos, Value::String(name.clone())),
                                 element,
                             ],
@@ -2691,6 +2814,35 @@ impl Parser {
                 }
             }
         };
+        // A loop variable that is declared outside the loop, or that the
+        // body assigns, is a plain variable in Python: iterate under another
+        // name and assign it at the top of each pass.
+        let plain = matches!(
+            node.first().and_then(Node::head_word),
+            Some("for" | "range")
+        );
+        if plain
+            && (self.py_declared(&first)
+                || !self
+                    .py_block_assigns(std::slice::from_ref(&first))
+                    .is_empty())
+        {
+            let iterate = format!("{first}_item_");
+            node[1] = Node::atom(first_pos, Value::String(iterate.clone()));
+            let word = if self.py_declared(&first) {
+                "set"
+            } else {
+                "var"
+            };
+            prelude.push(Node::list(
+                first_pos,
+                vec![
+                    Node::atom(first_pos, Value::String(word.into())),
+                    Node::atom(first_pos, Value::String(first.clone())),
+                    Node::atom(first_pos, Value::String(iterate)),
+                ],
+            ));
+        }
         self.scopes.push(vec![first.clone()]);
         if let Some((element, _)) = &second {
             self.py_declare(element);
@@ -2708,7 +2860,7 @@ impl Parser {
             let index = Node::list(
                 first_pos,
                 vec![
-                    Node::atom(first_pos, Value::String("let".into())),
+                    Node::atom(first_pos, Value::String("var".into())),
                     Node::atom(first_pos, Value::String(first.clone())),
                     Node::op(
                         first_pos,
@@ -2794,6 +2946,104 @@ enum PyIter {
     Views(Vec<View>),
     /// `enumerate(xs)`: an i64 index and the element at it.
     Enumerate(Node),
+}
+
+/// The names a statement list declares at its top level, with the value of
+/// each declaration.
+fn top_declarations(list: &Node) -> Vec<(String, Node)> {
+    let NodeKind::List(items) = &list.kind else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter(|s| s.head() == Some("var"))
+        .filter_map(|s| match &s.kind {
+            NodeKind::List(parts) => {
+                let name = parts.get(1)?.head_word()?.to_owned();
+                Some((name, parts.last()?.clone()))
+            }
+            NodeKind::Atom(_) => None,
+        })
+        .collect()
+}
+
+/// The names every branch of a complete `if`/`elif`/`else` chain declares.
+fn chain_declarations(statement: &Node) -> Option<Vec<(String, Node)>> {
+    let NodeKind::List(parts) = &statement.kind else {
+        return None;
+    };
+    let (then, otherwise) = (parts.get(2)?, parts.get(3)?);
+    let mut names = top_declarations(then);
+    let rest = match &otherwise.kind {
+        NodeKind::List(items) if items.len() == 1 && items[0].head() == Some("if") => {
+            chain_declarations(&items[0])?
+        }
+        _ => top_declarations(otherwise),
+    };
+    names.retain(|(name, _)| rest.iter().any(|(other, _)| other == name));
+    Some(names)
+}
+
+/// Turns the top-level declarations of `name` in every branch of the chain
+/// into assignments.
+fn assign_in_chain(statement: &mut Node, name: &str) {
+    let NodeKind::List(parts) = &mut statement.kind else {
+        return;
+    };
+    for branch in parts.iter_mut().skip(2) {
+        let NodeKind::List(items) = &mut branch.kind else {
+            continue;
+        };
+        if items.len() == 1 && items[0].head() == Some("if") {
+            assign_in_chain(&mut items[0], name);
+            continue;
+        }
+        for item in items.iter_mut() {
+            if item.head() != Some("var") {
+                continue;
+            }
+            if let NodeKind::List(fields) = &mut item.kind
+                && fields.get(1).and_then(Node::head_word) == Some(name)
+            {
+                let value = fields.pop();
+                let target = fields[1].clone();
+                let pos = fields[0].pos;
+                *fields = vec![Node::atom(pos, Value::String("set".into())), target];
+                fields.extend(value);
+            }
+        }
+    }
+}
+
+/// Python: a name assigned in every branch of a complete `if`/`elif`/`else`
+/// is defined after it. It is declared before the chain (typed by its first
+/// value, which is not evaluated there) and each branch assigns it. A name
+/// some path leaves unassigned stays local to its branch.
+fn hoist_branch_declarations(body: &mut Vec<Node>) {
+    let mut index = 0;
+    while index < body.len() {
+        if body[index].head() == Some("if")
+            && let Some(names) = chain_declarations(&body[index])
+        {
+            for (name, witness) in names {
+                assign_in_chain(&mut body[index], &name);
+                let pos = body[index].pos;
+                body.insert(
+                    index,
+                    Node::list(
+                        pos,
+                        vec![
+                            Node::atom(pos, Value::String("declare".into())),
+                            Node::atom(pos, Value::String(name)),
+                            witness,
+                        ],
+                    ),
+                );
+                index += 1;
+            }
+        }
+        index += 1;
+    }
 }
 
 /// Replaces the variable `name` by `with` inside an expression, leaving
@@ -3236,10 +3486,10 @@ mod tests {
                 23,
             ),
             (
-                "fn f(a: i64) -> i64 { while true { break } return a }",
-                "`break`",
+                "fn f(a: i64) -> i64 { match a { } }",
+                "`match` is not supported",
                 1,
-                36,
+                23,
             ),
             (
                 "fn f(a: i64) -> i64 { return 1.5 }",
