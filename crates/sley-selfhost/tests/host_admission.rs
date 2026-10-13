@@ -8,7 +8,7 @@ use sley_vm::host_admission::{HostAdmissionError, admit_pinned_v3_package};
 fn small_package() -> native::C0Build {
     let mut m = Module::new("host-admission");
     m.func("main", &[("n", t::u64())], t::u64(), |f| {
-        f.ret(add(v("n"), u64c(1)))
+        f.ret(add(v("n"), u64c(1)));
     });
     let (program, names) = m.finish();
     let s = canonical::build(&program, names["main"], "host-admission");

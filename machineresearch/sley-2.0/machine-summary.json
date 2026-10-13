@@ -193,7 +193,8 @@
       "the 2.0.3 point release (GitHub release v2.0.3 with sley-2.0.3-linux-x86_64.tar.gz): operator direction 2026-09-27 to verify a workbench improvement over 2.0.2 and then release it; the improvement was verified before publication preparation",
       "the 2.0.5 point release (GitHub release v2.0.5 with sley-2.0.5-linux-x86_64.tar.gz): operator direction 2026-10-02 to release the current development line as a checkpoint; there is no separate 2.0.4 release",
       "Sley 2.0.6 point release with the verified Linux x86_64 archive and SHA256SUMS: operator-directed parity-plan implementation, approved through goal completion; no GA or economic-parity claim.",
-      "Sley 2.0.7 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-05 to release the shippable runtime and agent changes now and continue the cost research separately; no GA, model-cost or economic-parity claim."
+      "Sley 2.0.7 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-05 to release the shippable runtime and agent changes now and continue the cost research separately; no GA, model-cost or economic-parity claim.",
+      "Sley 2.1.0 release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-12 to release the SH2 self-hosted toolchain (the Sley-written toolchain rebuilding itself to a byte-identical fixed point without the seed compiler); no GA, model-cost or economic-parity claim."
     ],
     "authorized_tags": [
       "v2.0.0",
@@ -202,12 +203,14 @@
       "v2.0.3",
       "v2.0.5",
       "v2.0.6",
-      "v2.0.7"
+      "v2.0.7",
+      "v2.1.0"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry.",
     "decided_2_0_6": "2026-10-04",
-    "decided_2_0_7": "2026-10-05"
+    "decided_2_0_7": "2026-10-05",
+    "decided_2_1_0": "2026-10-12"
   },
   "scb1": {
     "status": "S20_100_SPEC_S20_120_CODEC_S20_130_ORACLE_COMPLETE",
@@ -4876,13 +4879,13 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
-    "cargo_lock_sha256": "53838c76678b8ff567f41ab46d212e3b7b67f879b229e62465b712fa5ac42fd9",
+    "cargo_lock_sha256": "e7a9424f23d114f05ec94c42c16a68d07f61ed3f98b222c02b820a755e1c5ad1",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
-    "cargo_workspace_packages": 21,
+    "cargo_workspace_packages": 23,
     "cargo_registry_packages": 40,
     "python_workspace_packages": 1,
     "python_registry_packages": 2,
-    "dependency_relationships": 193,
+    "dependency_relationships": 205,
     "t52_local_lock_inventory": "PASS",
     "t54_high_confidence_scan": "PASS",
     "history_blobs_scanned": 5950,
@@ -4919,7 +4922,7 @@
     "contract_revision": 9,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.0.7-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.1.0-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
