@@ -2276,7 +2276,8 @@ validation, tests, submission) is unchanged, and `view --after cN` shows the low
 
     {"fn": "f", "params": [["xs", "Vec<i64>"]], "returns": "i64", "body": [statement, ...]}
 
-Statements: `["let", x, e]`; `["var", x, T, e]` and `["set", x, e]` (only a `var` may be set);
+Statements: `["let", x, e]`; `["var", x, T, e]` or `["var", x, e]` (typed like `let`) and
+`["set", x, e]` (only a `var` may be set);
 `["if", c, [..], [..]]` (else optional); `["for", x, xs, [..]]` (elements of a vector, in order; the
 index is not visible); `["for-indexed", i, x, xs, [..]]` (read-only `u64` index and element);
 `["range", i, start, end, [..]]` (read-only integer induction variable); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
@@ -2312,7 +2313,18 @@ Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "
 - `eq ne lt le gt ge not`, and `and or`, which evaluate both operands;
 - `if`: `["if", c, a, b]` evaluates only the chosen value;
 - `len` (`u64`), `get` (`[xs, i]`, `u64` index; out of range traps or `get?Case`), `field`
-  (`[r, "name"]`), `call` (`["f", args...]`; `call?` unwraps a Result).
+  (`[r, "name"]`), `call` (`["f", args...]`; `call?` unwraps a Result);
+- `fold` (2.1.1): `["fold", kind, x, xs, e, c?, d?]` visits every element `x` of the vector `xs`, or
+  every integer of `["range", start, end]` (half-open), where the bool `c` holds when given. `sum`
+  adds `e` with checked addition from 0; `count` counts the elements where the bool `e` holds (an
+  `i64`); `any` and `all` combine the bool `e` with `or` and `and`; `max` and `min` keep the largest or
+  smallest `e`, and when no element is visited give `d` if given, else trap. It lowers to the
+  `var`, `for`/`range`, `if` and `set` statements above, so it means exactly that loop;
+- `floordiv floormod` (2.1.1): Python's `//` and `%`: the quotient rounds toward negative infinity and
+  the remainder takes the divisor's sign; checked like `div` and `rem`, with the same modes;
+- `truthy` (2.1.1): a bool as itself, an integer `!= 0`, a vector or text that is not empty;
+- `pow` (2.1.1): `["pow", a, b]` multiplies `a` by itself `b` times with checked multiplication; a
+  negative `b` traps. `gcd`: the greatest common divisor of the absolute values (`gcd(0, 0)` is 0).
 
 Integer literals take the type of the other operand, the declared variable or the return type, else
 `i64`; integer types never mix. A refusal names the authored location (`/fns/0/body/2/1`); a compiler
@@ -2409,9 +2421,23 @@ is accepted), typed integers (`7u64`), `true`, `false`, and JSON-escaped text in
 Comments run from `#` to the end of the line, or fill a line that starts with `//`. Newlines and
 optional `;` separate statements.
 
-There is no other syntax. Methods, inclusive ranges, `break`/`continue`, compound assignment, floating-point
+Sley 2.1.1 adds, each mapping to the forms above:
+
+- `var t = e` (the type of `e`), and a `let` that is later assigned (a `let` is lowered as an
+  inferred `var`; `let mut x = e` and `let x: T = e` are accepted spellings);
+- compound assignment `t += e` (also `-= *= /= %=`), meaning `t = t op e`;
+- generator folds `sum(e for x in xs if c)`, `count(c for x in xs)`, `any(..)`, `all(..)`, `max(..)`
+  and `min(..)` (section 5.4 `fold`; the `if` part is optional);
+- a bare value as the last statement of a function, or of each branch of a final `if`, is the
+  function's result (`return e`; `Ok(e)` / `Err(Case)` give `ok` / `fail`); a bare value anywhere
+  else is refused;
+- `if c { a } else if d { b } else { e }` used as a value, with one expression per branch (the same
+  `["if", c, a, b]`);
+- `&&`, `||` and a `!` that does not start `!=`, spelling `and`, `or` and `not`.
+
+There is no other syntax. Methods, inclusive ranges, `break`/`continue`, `++`, floating-point
 or hexadecimal literals, slices, tuples, bitwise operators, a trailing `//` and spellings from other
-languages (`&&`, `!`, `elif`, `let mut`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
+languages (`elif`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
 their line and column, and the revision is recorded as a text draft: its `input.txt` keeps the
 text and no frame or candidate is made. A function may not be named after a built-in.
 
@@ -2422,6 +2448,42 @@ the text. Refusals keep the frame's pointers (`/fns/0/body/2/1`) and add, for fa
 pointer's line and column (`"text": {"line": L, "column": C}` on the obligation, and a line in the
 refusal). Positions are diagnostics: they never enter canonical bytes, identities or the program.
 Nothing renders a program back into this syntax. `help familiar` is the short reference.
+
+
+### 5.5.1 The Python dialect (2.1.1, ADR-0057)
+
+Text whose first significant line starts with `def`, `import` or `from` is the Python dialect of the
+same frontend (same feature, same module, same switch). It parses typed Python into the structured
+body frame of section 5.4 and keeps Python's meaning wherever Sley can express it exactly; anything
+else is refused at its line and column.
+
+- Functions: `def f(x: int, xs: list[int]) -> int:` with every parameter and the result annotated;
+  `int` is `i64`, `str` is `text`, `bool`, `list[T]` is `Vec<T>`, other names are records. A nested
+  `def` is lowered as a top-level helper (one that reads its enclosing function's variables is
+  refused by the lowering). `import` and `from` lines are skipped; docstrings and `pass` do nothing.
+- Blocks are indented with spaces; a block may also be one statement after its `:`.
+- Statements: `=` (the first assignment in a block declares, later ones assign), `a = b = e`,
+  `x: T = e`, `+= -= *= //= %=`, `if`/`elif`/`else`, `while`, `for x in xs`, `for i in range(a, b)`
+  (`range(n)` starts at 0; no step), `for i, x in enumerate(xs)`, `for x, y in zip(xs, ys)`,
+  `for x in xs[a:b]`, `return e`, `assert c` (traps when false), `raise ...` (traps). A parameter the
+  body assigns becomes a variable holding its value.
+- Integers are `i64`: `len` is converted to `i64`, an index is converted to `u64` (a negative computed
+  index fails like a checked operation; a literal `xs[-k]` is `xs[len(xs) - k]`), and `enumerate`'s
+  index is `i64`. Every conversion is explicit `to`; nothing converts implicitly.
+- Expressions: `//` and `%` are `floordiv` and `floormod`; `/` is refused (no floats); `**` is `pow`
+  (`-a ** b` is `-(a ** b)`); comparisons chain (`a < b <= c` is `a < b and b <= c`); `x in xs` and
+  `x not in xs` are `any` folds; `and` and `or` short-circuit (they lower to the conditional value);
+  every condition, and `not`, take Python truthiness (`truthy`); `True` and `False` are booleans;
+  `x if c else y`, `len min max abs`, `math.gcd` / `gcd`, `bool(x)`, `int(x)` (the integer itself).
+- Folds: `sum any all max min` over a list, a slice, a generator or a list comprehension, with any
+  number of `for ... in ... if ...` clauses (`len(...)` of a comprehension is a `count`;
+  `max(.., default=v)` gives `d`). Slices (`xs[a:b]`, either bound optional, the end clamped to the
+  length) and `zip` are read-only views iterated by index; a slice is never a value.
+
+Not supported, and refused: `break`, `continue`, list values (literals, `append`, a slice stored or
+returned), dicts, sets, tuples, classes, methods, `lambda`, `try`, `with`, string iteration and float
+types or literals. `help python` is the short reference; its first line is the one-line note for an
+author's system prompt.
 
 ## 6. Opcodes
 
