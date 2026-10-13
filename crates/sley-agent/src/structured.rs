@@ -668,6 +668,7 @@ impl<'c, 'a> Fn<'c, 'a> {
     }
 
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::many_single_char_names)]
     fn expr(
         &mut self,
         e: &Value,
@@ -1554,6 +1555,7 @@ impl<'c, 'a> Fn<'c, 'a> {
 
     /// `["fold", kind, x, xs, e, c?]`: an accumulator loop over `xs`, lowered
     /// through the ordinary `var`, `for`, `if` and `set` statements.
+    #[allow(clippy::too_many_lines)]
     fn fold(
         &mut self,
         args: &[Value],
@@ -1784,6 +1786,7 @@ impl<'c, 'a> Fn<'c, 'a> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn for_stmt(&mut self, items: &[Value], env: &mut Env, at: &str) -> R<()> {
         let indexed = items[0] == "for-indexed";
         let offset = usize::from(indexed);

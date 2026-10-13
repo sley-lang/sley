@@ -1414,7 +1414,7 @@ impl Parser {
                     );
                     continue;
                 }
-                if self.python && self.at_op(":") || self.python && self.peek_at(1).text == ":" {
+                if self.python && (self.at_op(":") || self.peek_at(1).text == ":") {
                     return refuse(pos, "slices are not supported");
                 }
                 let mut index = self.expr()?;
@@ -1629,6 +1629,7 @@ impl Parser {
 
     /// Python built-ins with Python meaning, after the opening `(`; `None`
     /// leaves the call to the shared grammar.
+    #[allow(clippy::too_many_lines)]
     fn py_call(&mut self, pos: Pos, name: &str) -> P<Option<Node>> {
         let fold_kind = match name {
             "len" => "count",
@@ -1795,10 +1796,10 @@ impl Parser {
                 vec![Node::atom(ty_pos, Value::String(ty)), value],
             ));
         }
-        if self.python {
-            if let Some(node) = self.py_call(pos, name)? {
-                return Ok(node);
-            }
+        if self.python
+            && let Some(node) = self.py_call(pos, name)?
+        {
+            return Ok(node);
         }
         let mut args = Vec::new();
         while !self.at_op(")") {
@@ -1997,8 +1998,9 @@ fn py_tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
                 if spelled.len() > 1
                     && spelled.starts_with('0')
                     && spelled
-                        .bytes()
-                        .nth(1)
+                        .as_bytes()
+                        .get(1)
+                        .copied()
                         .is_some_and(|b| b.is_ascii_alphabetic())
                 {
                     return refuse(pos, "write integers in decimal");
@@ -2301,11 +2303,10 @@ impl Parser {
                 Kind::Eof => break,
                 Kind::Name => {
                     let at_start = k > 0
-                        && matches!(
+                        && (matches!(
                             self.toks[k - 1].kind,
                             Kind::Newline | Kind::Indent | Kind::Dedent
-                        )
-                        || k > 0 && self.toks[k - 1].text == ":";
+                        ) || self.toks[k - 1].text == ":");
                     let assigns = self.toks.get(k + 1).is_some_and(|next| {
                         matches!(
                             next.text.as_str(),
@@ -2314,7 +2315,7 @@ impl Parser {
                     });
                     if at_start
                         && assigns
-                        && names.iter().any(|name| *name == tok.text)
+                        && names.contains(&tok.text)
                         && !found.iter().any(|(name, _)| *name == tok.text)
                     {
                         found.push((tok.text.clone(), tok.pos));
@@ -2723,6 +2724,7 @@ impl Parser {
         Ok(Node::list(pos, vec![keyword, condition, then]))
     }
 
+    #[allow(clippy::too_many_lines)]
     fn py_for(&mut self) -> P<Node> {
         let pos = self.bump().pos;
         let (first, first_pos) = self.ident("a loop variable")?;
@@ -3063,8 +3065,7 @@ fn substitute(node: &mut Node, name: &str, with: &Node) {
     };
     let skip: &[usize] = match head.as_deref() {
         Some("field") => &[0, 2],
-        Some("to") => &[0, 1],
-        Some("call" | "tcall") => &[0, 1],
+        Some("to" | "call" | "tcall") => &[0, 1],
         Some("fold") => {
             if matches!(&items.get(2).map(|n| &n.kind), Some(NodeKind::Atom(Value::String(n))) if n == name)
             {
@@ -3248,6 +3249,7 @@ impl Parser {
     /// names in iterable [if c]...` clauses, as nested folds (the caller
     /// consumes the closing bracket). An outer clause of a nested `count` adds
     /// the inner counts; `sum`, `any` and `all` nest as themselves.
+    #[allow(clippy::too_many_lines)]
     fn py_generator(&mut self, pos: Pos, kind: &str, value: Node) -> P<Node> {
         let mut clauses = Vec::new();
         while self.at_word("for") {
