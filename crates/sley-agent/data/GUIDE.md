@@ -10,6 +10,11 @@ it with a JSON frame that `sley-agent` expands, compiles and validates.
     sley-agent fill d1 fix.json --revision 1   # repair only what was refused
     sley-agent submit d1             # d1's latest revision, Valid and tested
 
+The shortest way to write functions is the familiar syntax:
+`sley-agent try --familiar f.txt` (`help card` for a compact reference,
+`help familiar` for all of it), or its Python dialect (`help python`).
+JSON frames below remain the canonical form.
+
 ## Writing a frame
 
 ```json
@@ -72,4 +77,4 @@ again. `draft d1` shows its state and obligations; `--expanded` the plain
 frame derived from yours. A kernel refusal prints the phase, symbol,
 `where:`, `authored:` and a hint. `submit` refuses a change no test covers
 (`--untested` overrides).
-More: `help afx|afx-reference|af1|drafts|tests|search|types|opcodes|refusals`.
+More: `help card|python|familiar|structured|afx|afx-reference|af1|drafts|tests|search|types|opcodes|refusals`.
