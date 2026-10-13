@@ -180,6 +180,10 @@ fn every_toolchain_function_is_judged_like_native() {
 
 /// The judgment's own instruction cost over every function of a closure.
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn jg_function_cost() {
     let (program, names) = program();
     let entry = names["cd_object"];
@@ -231,21 +235,37 @@ fn check_gate(entry_name: &str, baseline: bool) {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn gate_matches_native_cd_object() {
     check_gate("cd_object", true);
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn gate_matches_native_drv_load() {
     check_gate("drv_load", false);
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn gate_matches_native_sr_root() {
     check_gate("sr_root", true);
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn gate_matches_native_judge_closure() {
     // The loader plus every `jg_*` function (the driver entry is not yet
     // part of `toolchain::module()`).
@@ -1310,6 +1330,10 @@ fn run_corpus(
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn operation_judgment_mutation_corpus_matches_native() {
     let cases = generate_cases(0x5EED_1234_ABCD_0001, 1_650);
     let (compared, refused, _, codes) = run_corpus(&cases, true);
@@ -1325,6 +1349,10 @@ fn operation_judgment_mutation_corpus_matches_native() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn big_bytes_constant_bound_matches_native() {
     for (len, expected) in [
         (0_usize, false),
@@ -1842,6 +1870,10 @@ fn gate_mutations(base: &Program) -> Vec<Mutation> {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn gate_mutation_corpus_matches_native() {
     let (base, entry0) = gate_base();
     let mutations = gate_mutations(&base);

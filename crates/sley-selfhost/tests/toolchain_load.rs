@@ -3,6 +3,10 @@ mod common;
 use common::*;
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn loads_the_toolchain_inventory() {
     let s = toolchain_s("cd_object");
     let (value, instructions) = run_counted(

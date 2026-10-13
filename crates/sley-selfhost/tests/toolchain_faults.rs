@@ -93,6 +93,10 @@ fn native_result(s: &CanonicalS) -> Result<Vec<u8>, String> {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn reference_toolchain_agrees_on_the_fault_corpus() {
     let (program, entry) = small_program();
     let s = build(&program, entry);
@@ -103,6 +107,10 @@ fn reference_toolchain_agrees_on_the_fault_corpus() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn lowering_fault_is_detected() {
     let (program, entry) = small_program();
     let s = build(&program, entry);
@@ -115,6 +123,10 @@ fn lowering_fault_is_detected() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn package_digest_fault_is_detected() {
     let (program, entry) = small_program();
     let s = build(&program, entry);
@@ -127,6 +139,10 @@ fn package_digest_fault_is_detected() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn incorrect_type_rule_is_detected() {
     // `vector_len` returns UInt(64); declare it (and the function result)
     // as UInt(32). The graph and edges stay consistent; only the operation
@@ -161,6 +177,10 @@ fn incorrect_type_rule_is_detected() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn disabled_dominance_check_is_detected() {
     let (mut program, entry) = small_program();
     // Make the else arm's addition read the then arm's constant.
@@ -200,6 +220,10 @@ fn disabled_dominance_check_is_detected() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn disabled_canonical_checks_are_detected() {
     // Magic check: a corrupt object refuses natively with SCB_MAGIC_INVALID.
     let (program, entry) = small_program();
@@ -302,6 +326,10 @@ fn disabled_canonical_checks_are_detected() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn substituted_input_with_disabled_binding_check_is_detected() {
     let (program, entry) = small_program();
     let mut s = build(&program, entry);

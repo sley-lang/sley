@@ -212,11 +212,19 @@ fn check_closure(entry: &str) {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn closure_fingerprints_match_the_gate_cd_object() {
     check_closure("cd_object");
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn closure_fingerprints_match_the_gate_drv_load() {
     check_closure("drv_load");
 }
@@ -224,6 +232,10 @@ fn closure_fingerprints_match_the_gate_drv_load() {
 /// Types naming the enclosing function encode it as `u32(2)` (and as an
 /// ordinary reference everywhere else, through the shared memo).
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn self_references_match_native() {
     use sley_ssmc::{FunctionType, NamedType};
     let (program, names) = program();
@@ -263,6 +275,10 @@ fn self_references_match_native() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn refusals_match_native() {
     let (program, names) = program();
     let entry = names["cd_object"];

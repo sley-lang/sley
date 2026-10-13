@@ -3,6 +3,10 @@ mod common;
 use common::*;
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn decodes_the_toolchain_root_and_refuses_corruption() {
     let s = toolchain_s("cd_object");
     let stored = s.root.stored_bytes.clone();
@@ -24,6 +28,10 @@ fn decodes_the_toolchain_root_and_refuses_corruption() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn refuses_corrupted_roots_like_native() {
     // A small program keeps each corrupted decode fast.
     let (program, names) = program();

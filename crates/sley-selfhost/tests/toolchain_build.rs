@@ -111,6 +111,10 @@ fn small_program() -> (Program, sley_id::EntityId) {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn builds_a_small_program_like_c0() {
     let (program, entry) = small_program();
     let s = canonical::build(&program, entry, "e2e-small");
@@ -119,6 +123,10 @@ fn builds_a_small_program_like_c0() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn builds_toolchain_closures_like_c0() {
     let (program, names) = program();
     for entry in ["rt_rd_uvar", "sr_root", "cd_object"] {

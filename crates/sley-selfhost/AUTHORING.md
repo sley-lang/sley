@@ -104,3 +104,11 @@ driver's call closure) never contains them.
 Cage every cargo command: `systemd-run --user --scope -p MemoryMax=3G
 --quiet cargo ...` and use a private `CARGO_TARGET_DIR` when several builds
 run at once. The host has 16 GB of RAM and other work runs on it.
+
+## Running the tests
+
+The toolchain differential suites (`tests/toolchain_*.rs`) interpret the
+whole toolchain on the VM, so they are release-only: run them with
+`cargo test --release -p sley-selfhost`. A debug `cargo test` (as in
+`make quick`) skips them and runs the seed, runtime-library, type and
+host-admission tests.

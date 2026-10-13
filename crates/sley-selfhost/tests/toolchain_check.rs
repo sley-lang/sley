@@ -276,6 +276,10 @@ fn toolchain_passes_types_and_every_function() {
 
 /// The check subset: types and every function, with instruction counts.
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn subset_passes_with_instruction_counts() {
     let tool = ck_program();
     let program = &tool.0;
@@ -1198,6 +1202,10 @@ fn function_mutations() -> Vec<(&'static str, Option<u32>, Mutation)> {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn function_mutations_match_native() {
     let (program, names) = base();
     let mut corpus = Corpus::default();
@@ -1383,6 +1391,10 @@ fn chain(n: usize, pad: usize) -> Program {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn dominator_budget_matches_native() {
     let mut corpus = Corpus::default();
     // Under budget through the cheap bound; exactly at the 50M budget
@@ -1401,6 +1413,10 @@ fn dominator_budget_matches_native() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn edge_budget_matches_native() {
     let mut corpus = Corpus::default();
     for (blocks, code) in [(1600, None), (1700, Some(22_020))] {
@@ -1450,6 +1466,10 @@ fn edge_budget_matches_native() {
 /// Generic definitions and a switch on an instantiated variant.
 #[allow(clippy::too_many_lines)]
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn generic_switches_match_native() {
     let mut corpus = Corpus::default();
     struct G {
@@ -1602,6 +1622,10 @@ fn generic_switches_match_native() {
 
 #[allow(clippy::too_many_lines)]
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn type_environment_mutations_match_native() {
     let mut corpus = Corpus::default();
     let with = |f: &dyn Fn(&mut Raw)| {

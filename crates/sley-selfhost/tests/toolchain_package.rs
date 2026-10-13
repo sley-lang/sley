@@ -182,6 +182,10 @@ fn check_envelope(entry_name: &str, limits: ExecutionLimits, sized: bool, case: 
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn envelope_matches_native_cd_object() {
     let limits = ExecutionLimits {
         max_instructions: 1_000_000,
@@ -195,6 +199,10 @@ fn envelope_matches_native_cd_object() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn envelope_matches_native_drv_load() {
     let limits = ExecutionLimits {
         max_instructions: u64::MAX,

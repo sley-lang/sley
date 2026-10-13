@@ -178,6 +178,10 @@ fn corpus() -> Vec<ConstValue> {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn walker_accepts_and_refuses_like_native() {
     let mut checked = 0;
     for value in corpus() {

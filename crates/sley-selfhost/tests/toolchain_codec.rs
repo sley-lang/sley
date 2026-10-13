@@ -518,6 +518,10 @@ fn sley_decode(object: &[u8], epoch: &[u8]) -> Result<ConstValue, u32> {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn decodes_every_toolchain_object_exactly() {
     let (program, names) = program();
     let s = canonical::build(program, names["cd_object"], "codec-test");
@@ -545,6 +549,10 @@ fn decodes_every_toolchain_object_exactly() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn refuses_corrupted_objects_like_native() {
     let (program, names) = program();
     let s = canonical::build(program, names["cd_object"], "codec-test");

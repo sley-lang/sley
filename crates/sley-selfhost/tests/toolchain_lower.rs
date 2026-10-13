@@ -93,6 +93,10 @@ fn closure_s(entry: EntityId) -> CanonicalS {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn small_toolchain_closures_match_native() {
     let (program, names) = program();
     for entry in ["rt_b", "be32", "rt_rd_uvar", "scb_walk"] {
@@ -101,6 +105,10 @@ fn small_toolchain_closures_match_native() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn large_toolchain_closures_match_native() {
     let (program, names) = program();
     for entry in ["cd_object", "drv_load", "t_lw_image"] {
@@ -232,6 +240,10 @@ fn seed_program() -> (Program, std::collections::HashMap<String, EntityId>) {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn seed_programs_match_native() {
     let (program, names) = seed_program();
     for entry in ["inc", "area", "opt_res", "main", "spin", "ping", "top"] {
@@ -241,6 +253,10 @@ fn seed_programs_match_native() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn self_and_mutual_calls_match_native() {
     // Lowering ignores the profile's call-cycle rule: a self-call refers to
     // the entry, and a cycle among callees lowers each callee once.
@@ -280,6 +296,10 @@ fn self_and_mutual_calls_match_native() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn profile_and_callee_refusals_match_native() {
     let (base, names) = seed_program();
     // A callee with effects (a generic callee is refused earlier, by the
@@ -299,6 +319,10 @@ fn profile_and_callee_refusals_match_native() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn large_functions_match_native() {
     let mut m = Module::new("lw-blocks");
     m.func("many", &[("n", t::u64())], t::u64(), |f| {
@@ -392,6 +416,10 @@ fn sley_ty(scb: &[u8]) -> Result<Vec<u8>, u32> {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn every_type_kind_converts() {
     let id = |b: u8| EntityId::from_bytes([b; 32]);
     let w = IntegerWidth::from_bits;
@@ -442,6 +470,10 @@ fn every_type_kind_converts() {
 }
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn type_depth_limit() {
     // Hand-built canonical SCB bytes: Option^k(Unit) (tag 13 wraps its
     // element as a sized payload).
@@ -509,6 +541,10 @@ fn lw_lowering_only() {
 /// parameters would then share one value, and the next in-place update of
 /// either deep-copies it (quadratic lowering). See `lower.rs` (`put`).
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "release-only: cargo test --release -p sley-selfhost"
+)]
 fn lw_edges_never_duplicate_large_values() {
     use sley_vm::{BytecodeSwitchArgument, BytecodeTerminator};
     let (program, names) = program();

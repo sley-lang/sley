@@ -37,3 +37,13 @@ dependency), each framed by a big-endian `u64` length.
   produced by the pinned toolchain itself and are bound through the package
   digest; every structural binding (profile, ABI, cache key, limits,
   sections) is still checked.
+
+## Host admission refusals
+
+`host_admission::admit_pinned_v3_package` mints no receipt on any refusal:
+
+| Symbol | Meaning |
+|---|---|
+| `HOST_ADMISSION_DIGESTS` | The package digests could not be computed. |
+| `HOST_ADMISSION_NOT_PINNED` | The package identity is not in the caller's pinned set. |
+| `HOST_ADMISSION_APPROVAL_MISMATCH` | The structural approval cross-check refused the package. |
