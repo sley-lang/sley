@@ -495,3 +495,71 @@ def branch_value(n: int) -> int:
         ],
     );
 }
+
+#[test]
+fn python_stepped_ranges_shifts_masks_and_distinct_counts() {
+    let temp = workspace("python-stepped");
+    let text = "\
+def walk(a: int, b: int, s: int) -> int:
+    t = 0
+    for i in range(a, b, s):
+        if i % 3 == 0:
+            continue
+        t = t * 7 + i
+    return t + sum(i for i in range(a, b, s) if i % 2 == 0)
+
+def bits(x: int, k: int) -> int:
+    y = x >> k
+    y <<= 1
+    return y + (x & 7) + (x & 1)
+
+def mod_pow(b: int, e: int, m: int) -> int:
+    return pow(b, e, m) + pow(2, e % 5)
+
+def distinct(xs: list[str]) -> int:
+    return len(set(xs))
+";
+    let h = accepted(&temp.path, text);
+    // Expected values are Python's own results for the same source.
+    check(
+        &temp.path,
+        &h,
+        "walk",
+        &[
+            (json!([0, 12, 1]), json!(1_140_978)),
+            (json!([10, -7, -3]), json!(186_291)),
+            (json!([-5, 12, 5]), json!(-190)),
+            (json!([3, 4, 2]), json!(0)),
+        ],
+    );
+    assert!(traps(&call(
+        &temp.path,
+        &h,
+        "walk",
+        &[json!(0), json!(5), json!(0)]
+    )));
+    check(
+        &temp.path,
+        &h,
+        "bits",
+        &[(json!([45, 2]), json!(28)), (json!([-45, 2]), json!(-20))],
+    );
+    check(
+        &temp.path,
+        &h,
+        "mod_pow",
+        &[
+            (json!([1000, 60, 997]), json!(125)),
+            (json!([5, 0, 1]), json!(1)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "distinct",
+        &[
+            (json!([["a", "b", "a", ""]]), json!(3)),
+            (json!([[]]), json!(0)),
+        ],
+    );
+}

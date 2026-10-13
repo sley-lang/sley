@@ -1193,10 +1193,11 @@ impl Parser {
     }
 
     fn compare(&mut self) -> P<Node> {
-        let value = self.sum()?;
         if self.python {
+            let value = self.py_bitand()?;
             return self.py_compare(value);
         }
+        let value = self.sum()?;
         let Some(op) = self.comparison() else {
             return Ok(value);
         };
@@ -1223,7 +1224,7 @@ impl Parser {
                 if negate_in {
                     self.bump();
                 }
-                let list = self.sum()?;
+                let list = self.py_bitand()?;
                 let item = Node::atom(pos, Value::String("in_item_".into()));
                 let test = Node::op(pos, "eq", vec![item.clone(), left.clone()]);
                 let mut found = Node::op(
@@ -1253,7 +1254,7 @@ impl Parser {
                 break;
             };
             let pos = self.bump().pos;
-            let right = self.sum()?;
+            let right = self.py_bitand()?;
             parts.push(Node::op(pos, op, vec![left, right.clone()]));
             left = right;
         }
@@ -1266,6 +1267,56 @@ impl Parser {
             value = Node::op(pos, "and", vec![value, part]);
         }
         Ok(value)
+    }
+
+    /// Python `&` with a mask `2**k - 1` (the low k bits, which is a floor
+    /// modulo by `2**k`, exact for negative values too).
+    fn py_bitand(&mut self) -> P<Node> {
+        let mut value = self.py_shift()?;
+        while self.at_op("&") {
+            let pos = self.bump().pos;
+            let mask = self.py_shift()?;
+            value = Self::py_mask(pos, value, &mask)?;
+        }
+        Ok(value)
+    }
+
+    fn py_mask(pos: Pos, value: Node, mask: &Node) -> P<Node> {
+        let modulus = match &mask.kind {
+            NodeKind::Atom(Value::Number(n)) => n.as_u64().and_then(|m| m.checked_add(1)),
+            _ => None,
+        };
+        match modulus {
+            Some(modulus) if modulus.is_power_of_two() => Ok(Node::op(
+                pos,
+                "floormod",
+                vec![value, Node::atom(mask.pos, Value::from(modulus))],
+            )),
+            _ => refuse(
+                pos,
+                "`&` takes a literal mask 2**k - 1 (x & 1, x & 255); other bitwise operations are not supported",
+            ),
+        }
+    }
+
+    /// Python `<<` and `>>`: multiplication and floor division by `2**k`.
+    fn py_shift(&mut self) -> P<Node> {
+        let mut value = self.sum()?;
+        while self.at_op("<<") || self.at_op(">>") {
+            let tok = self.bump();
+            let count = self.sum()?;
+            value = Self::py_shifted(tok.pos, &tok.text, value, count);
+        }
+        Ok(value)
+    }
+
+    fn py_shifted(pos: Pos, op: &str, value: Node, count: Node) -> Node {
+        let power = Node::op(pos, "pow", vec![Node::atom(pos, Value::from(2)), count]);
+        Node::op(
+            pos,
+            if op == "<<" { "mul" } else { "floordiv" },
+            vec![value, power],
+        )
     }
 
     fn sum(&mut self) -> P<Node> {
@@ -1531,6 +1582,51 @@ impl Parser {
         Ok(Node::op(pos, "fold", args))
     }
 
+    /// `len(set(xs))`: the positions whose element appears at no earlier
+    /// position.
+    fn py_distinct_count(pos: Pos, list: Node) -> Node {
+        let at = |name: &str| Node::atom(pos, Value::String(name.to_owned()));
+        let element = |index: &str| {
+            Node::op(
+                pos,
+                "get",
+                vec![
+                    list.clone(),
+                    Node::op(pos, "to", vec![at("u64"), at(index)]),
+                ],
+            )
+        };
+        let earlier = Node::op(
+            pos,
+            "fold",
+            vec![
+                at("any"),
+                at("set_j_"),
+                Node::op(
+                    pos,
+                    "range",
+                    vec![Node::atom(pos, Value::from(0)), at("set_i_")],
+                ),
+                Node::op(pos, "eq", vec![element("set_j_"), element("set_i_")]),
+            ],
+        );
+        Node::op(
+            pos,
+            "fold",
+            vec![
+                at("count"),
+                at("set_i_"),
+                Node::op(
+                    pos,
+                    "range",
+                    vec![Node::atom(pos, Value::from(0)), len_i64(pos, &list)],
+                ),
+                Node::atom(pos, Value::Bool(true)),
+                Node::op(pos, "not", vec![earlier]),
+            ],
+        )
+    }
+
     /// A built-in applied to a slice: a fold over the window's positions.
     fn py_view_fold(pos: Pos, kind: &str, view: &View) -> Node {
         if kind == "count" {
@@ -1646,6 +1742,20 @@ impl Parser {
                 );
             }
             "gcd" => return self.py_gcd(pos).map(Some),
+            "pow" => {
+                let mut args = vec![self.expr()?];
+                while self.at_op(",") {
+                    self.bump();
+                    args.push(self.expr()?);
+                }
+                self.expect_op(")")?;
+                let word = match args.len() {
+                    2 => "pow",
+                    3 => "powmod",
+                    _ => return refuse(pos, "pow takes (base, exp) or (base, exp, mod)"),
+                };
+                return Ok(Some(Node::op(pos, word, args)));
+            }
             "bool" => {
                 let value = self.expr()?;
                 self.expect_op(")")?;
@@ -1711,6 +1821,18 @@ impl Parser {
             }
             _ => return Ok(None),
         };
+        // len(set(xs)): the number of distinct elements.
+        if name == "len" && self.at_word("set") && self.peek_at(1).text == "(" {
+            self.bump();
+            self.bump();
+            let list = self.expr()?;
+            if self.at_word("for") {
+                return refuse(pos, "set(..) takes a list here, not a generator");
+            }
+            self.expect_op(")")?;
+            self.expect_op(")")?;
+            return Ok(Some(Self::py_distinct_count(pos, list)));
+        }
         // A built-in over a slice: sum(xs[a:b]), len(xs[a:]).
         if self.py_slice_ahead() && matches!(self.peek_at(1).text.as_str(), "[") {
             let saved = self.k;
@@ -1866,18 +1988,12 @@ fn is_python(text: &str) -> bool {
 }
 
 /// Multi-character Python operators, longest first.
-const PY_OPERATORS: [&str; 26] = [
-    "//=", "**=", "->", "//", "**", "==", "!=", "<=", ">=", "+=", "-=", "*=", "%=", "+", "-", "*",
-    "/", "%", "<", ">", "=", "(", ")", "[", "]", ",",
+const PY_OPERATORS: [&str; 32] = [
+    "//=", "**=", "<<=", ">>=", "->", "//", "**", "<<", ">>", "==", "!=", "<=", ">=", "+=", "-=",
+    "*=", "%=", "&=", "+", "-", "*", "/", "%", "&", "<", ">", "=", "(", ")", "[", "]", ",",
 ];
 /// Python spellings the dialect does not take, with what to write instead.
-const PY_FOREIGN: [(&str, &str); 10] = [
-    ("<<", "bitwise operators are not supported"),
-    (">>", "bitwise operators are not supported"),
-    (
-        "&",
-        "bitwise operators are not supported (logical and is written and)",
-    ),
+const PY_FOREIGN: [(&str, &str); 7] = [
     (
         "|",
         "bitwise operators are not supported (logical or is written or)",
@@ -2310,7 +2426,7 @@ impl Parser {
                     let assigns = self.toks.get(k + 1).is_some_and(|next| {
                         matches!(
                             next.text.as_str(),
-                            "=" | "+=" | "-=" | "*=" | "//=" | "%=" | ","
+                            "=" | "+=" | "-=" | "*=" | "//=" | "%=" | ">>=" | "<<=" | "&=" | ","
                         )
                     });
                     if at_start
@@ -2578,6 +2694,32 @@ impl Parser {
                             Node::list(pos, vec![keyword("var"), target, ty, value])
                         }
                     }
+                    ">>=" | "<<=" | "&=" => {
+                        if !self.py_declared(&name) {
+                            return refuse(
+                                pos,
+                                format!("`{name}` is assigned before it has a value"),
+                            );
+                        }
+                        self.bump();
+                        let op_tok = self.bump();
+                        let value = self.expr()?;
+                        self.py_end_of_statement()?;
+                        let target = Node::atom(pos, Value::String(name.clone()));
+                        let combined = if op == "&=" {
+                            Self::py_mask(op_tok.pos, target, &value)?
+                        } else {
+                            Self::py_shifted(op_tok.pos, &op[..2], target, value)
+                        };
+                        Node::list(
+                            pos,
+                            vec![
+                                keyword("set"),
+                                Node::atom(pos, Value::String(name)),
+                                combined,
+                            ],
+                        )
+                    }
                     "+=" | "-=" | "*=" | "//=" | "%=" => {
                         if !self.py_declared(&name) {
                             return refuse(
@@ -2787,6 +2929,32 @@ impl Parser {
                         "enumerate binds two names: for i, x in enumerate(xs)",
                     );
                 }
+                PyIter::Stepped { start, step, count } => {
+                    if second.is_some() {
+                        return refuse(first_pos, "range binds one name");
+                    }
+                    let k_name = format!("{first}_k_");
+                    let k = Node::atom(first_pos, Value::String(k_name.clone()));
+                    let word = if self.py_declared(&first) {
+                        "set"
+                    } else {
+                        "var"
+                    };
+                    prelude.push(Node::list(
+                        first_pos,
+                        vec![
+                            Node::atom(first_pos, Value::String(word.into())),
+                            Node::atom(first_pos, Value::String(first.clone())),
+                            stepped_value(first_pos, &start, &step, k),
+                        ],
+                    ));
+                    vec![
+                        keyword("range"),
+                        Node::atom(first_pos, Value::String(k_name)),
+                        Node::atom(first_pos, Value::from(0)),
+                        count,
+                    ]
+                }
                 PyIter::Views(views) => {
                     let names: Vec<(String, Pos)> = std::iter::once((first.clone(), first_pos))
                         .chain(second.clone())
@@ -2822,7 +2990,7 @@ impl Parser {
         let plain = matches!(
             node.first().and_then(Node::head_word),
             Some("for" | "range")
-        );
+        ) && node.get(1).and_then(Node::head_word) == Some(first.as_str());
         if plain
             && (self.py_declared(&first)
                 || !self
@@ -2948,6 +3116,37 @@ enum PyIter {
     Views(Vec<View>),
     /// `enumerate(xs)`: an i64 index and the element at it.
     Enumerate(Node),
+    /// `range(start, stop, step)`: position k of `0..count` is
+    /// `start + k * step`.
+    Stepped {
+        start: Node,
+        step: Node,
+        count: Node,
+    },
+}
+
+/// The number of values of `range(start, stop, step)`: `max(0, ceil((stop -
+/// start) / step))`, written with floor division (a zero step fails like a
+/// division by zero, as Python refuses it).
+fn stepped_count(pos: Pos, start: &Node, stop: Node, step: &Node) -> Node {
+    let gap = Node::op(pos, "sub", vec![start.clone(), stop]);
+    let floor = Node::op(pos, "floordiv", vec![gap, step.clone()]);
+    Node::op(
+        pos,
+        "max",
+        vec![
+            Node::op(pos, "neg", vec![floor]),
+            Node::atom(pos, Value::from(0)),
+        ],
+    )
+}
+
+fn stepped_value(pos: Pos, start: &Node, step: &Node, k: Node) -> Node {
+    Node::op(
+        pos,
+        "add",
+        vec![start.clone(), Node::op(pos, "mul", vec![k, step.clone()])],
+    )
 }
 
 /// The names a statement list declares at its top level, with the value of
@@ -3180,10 +3379,11 @@ impl Parser {
                     (Node::atom(call.pos, Value::from(0)), a)
                 };
                 if self.at_op(",") {
-                    return refuse(
-                        self.peek().pos,
-                        "range takes (stop) or (start, stop); a step is not supported",
-                    );
+                    self.bump();
+                    let step = self.expr()?;
+                    self.expect_op(")")?;
+                    let count = stepped_count(call.pos, &start, end, &step);
+                    return Ok(PyIter::Stepped { start, step, count });
                 }
                 self.expect_op(")")?;
                 Ok(PyIter::Range(start, end))
@@ -3308,6 +3508,22 @@ impl Parser {
                     (
                         Node::atom(names[0].1, Value::String(names[0].0.clone())),
                         Node::op(pos, "range", vec![start, end]),
+                    )
+                }
+                PyIter::Stepped { start, step, count } => {
+                    if names.len() != 1 {
+                        return refuse(pos, "range binds one name");
+                    }
+                    let k_name = format!("{}_k_", names[0].0);
+                    let k = Node::atom(pos, Value::String(k_name.clone()));
+                    let current = stepped_value(pos, &start, &step, k);
+                    substitute(&mut value, &names[0].0, &current);
+                    if let Some(c) = condition.as_mut() {
+                        substitute(c, &names[0].0, &current);
+                    }
+                    (
+                        Node::atom(pos, Value::String(k_name)),
+                        Node::op(pos, "range", vec![Node::atom(pos, Value::from(0)), count]),
                     )
                 }
                 PyIter::Enumerate(list) => {

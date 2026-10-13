@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
-  <img alt="Version 2.1.0" src="https://img.shields.io/badge/version-2.1.0-38c8e8?style=flat-square">
+  <img alt="Version 2.1.1" src="https://img.shields.io/badge/version-2.1.1-38c8e8?style=flat-square">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
   <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
   <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
@@ -22,7 +22,7 @@
   <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
-  <a href="docs/release/SLEY-2.1.0.md"><b>Release notes</b></a> ·
+  <a href="docs/release/SLEY-2.1.1.md"><b>Release notes</b></a> ·
   <a href="https://sleylang.org/faq"><b>FAQ</b></a>
 </p>
 
@@ -63,7 +63,7 @@ machine code instead of prose.
 > toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
 > and Python 3 for the demo.
 
-**1. Get the `sley` binary.** Download `sley-2.1.0-linux-x86_64.tar.gz` from
+**1. Get the `sley` binary.** Download `sley-2.1.1-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
 ```sh

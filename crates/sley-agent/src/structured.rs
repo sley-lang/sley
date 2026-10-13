@@ -592,7 +592,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                     }
                     "len" => Some("u64".into()),
                     "truthy" => Some("bool".into()),
-                    "pow" | "gcd" => args.iter().find_map(|a| self.static_type(a, env, None)),
+                    "pow" | "gcd" | "powmod" => {
+                        args.iter().find_map(|a| self.static_type(a, env, None))
+                    }
                     "to" => args.first().and_then(Value::as_str).map(normal),
                     "add" | "sub" | "mul" | "div" | "rem" | "neg" | "abs" | "min" | "max"
                     | "clamp" | "floordiv" | "floormod" => {
@@ -863,6 +865,42 @@ impl<'c, 'a> Fn<'c, 'a> {
                     return Ok((self.emit_value("ne", vec![v, empty], at), "bool".into()));
                 }
                 fail(at, format!("a {t} has no truth value"))
+            }
+            "powmod" => {
+                // Python's pow(b, e, m): repeated checked multiplication modulo m
+                // (floor modulo; m == 0 fails like a division by zero, a
+                // negative e traps).
+                if args.len() != 3 {
+                    return fail(at, "`powmod` takes 3 operands");
+                }
+                let (vals, ty) = self.operands(args, env, at, hint)?;
+                if !is_int(&ty) {
+                    return fail(at, format!("`powmod` needs integer operands, not {ty}"));
+                }
+                self.handler(mode, at)?;
+                let b = self.hold(env, vals[0].clone(), &ty);
+                let e = self.hold(env, vals[1].clone(), &ty);
+                let m = self.hold(env, vals[2].clone(), &ty);
+                let (x, y) = (self.fresh("-x"), self.fresh("-y"));
+                let statements = vec![
+                    json!(["if", ["lt", e, 0], [["trap"]]]),
+                    json!(["var", x, ty, ["floormod", {"type": ty, "value": 1}, m]]),
+                    json!(["var", y, ty, {"type": ty, "value": 0}]),
+                    json!([
+                        "while",
+                        ["lt", y, e],
+                        [
+                            ["set", x, ["floormod", ["mul", x, ["floormod", b, m]], m]],
+                            ["set", y, ["add", y, 1]]
+                        ]
+                    ]),
+                ];
+                self.stmts(&statements, env, at, true)?;
+                let result = env.operand(&x);
+                env.remove(&x);
+                env.remove(&y);
+                Self::release(env, &[b, e, m]);
+                Ok((result, ty))
             }
             "pow" | "gcd" => {
                 if args.len() != 2 {
