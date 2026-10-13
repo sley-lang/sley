@@ -13,6 +13,11 @@
 //! the mutable variables in scope as block arguments, the CFG validation
 //! profile's canonical phi mechanism.
 
+// Builder methods take expressions by value so authors compose them inline,
+// and authoring mistakes panic at construction time by design (the seed is
+// run once, by tests and the staging tool, never on untrusted input).
+#![allow(clippy::needless_pass_by_value, clippy::missing_panics_doc)]
+
 use std::collections::HashMap;
 
 use sley_id::EntityId;
@@ -618,7 +623,11 @@ impl Module {
     ///
     /// Panics on a duplicate type name.
     pub fn record(&mut self, name: &str, fields: &[(&str, Ty)]) -> Ty {
-        self.define(name, true, fields.iter().map(|(n, t)| (*n, Some(t.clone()))).collect())
+        self.define(
+            name,
+            true,
+            fields.iter().map(|(n, t)| (*n, Some(t.clone()))).collect(),
+        )
     }
 
     /// Declares a variant type.
@@ -627,7 +636,11 @@ impl Module {
     ///
     /// Panics on a duplicate type name.
     pub fn variant(&mut self, name: &str, cases: &[(&str, Option<Ty>)]) -> Ty {
-        self.define(name, false, cases.iter().map(|(n, t)| (*n, t.clone())).collect())
+        self.define(
+            name,
+            false,
+            cases.iter().map(|(n, t)| (*n, t.clone())).collect(),
+        )
     }
 
     fn define(&mut self, name: &str, is_record: bool, members: Vec<(&str, Option<Ty>)>) -> Ty {
@@ -638,7 +651,11 @@ impl Module {
             .map(|(member, ty)| {
                 let member_id = MemberId::from_bytes(hash_id(
                     "member",
-                    &[self.core.seed.as_bytes(), name.as_bytes(), member.as_bytes()],
+                    &[
+                        self.core.seed.as_bytes(),
+                        name.as_bytes(),
+                        member.as_bytes(),
+                    ],
                 ));
                 (member.to_owned(), member_id, ty)
             })
@@ -809,12 +826,11 @@ impl Core {
     /// The discriminator of the push row for one element type (`HOST_ABI_V3`
     /// discriminated rows, allocated from 1 in order of first use).
     fn push_discriminator(&mut self, element: &Ty) -> u32 {
-        let position = match self.push_rows.iter().position(|ty| ty == element) {
-            Some(position) => position,
-            None => {
-                self.push_rows.push(element.clone());
-                self.push_rows.len() - 1
-            }
+        let position = if let Some(position) = self.push_rows.iter().position(|ty| ty == element) {
+            position
+        } else {
+            self.push_rows.push(element.clone());
+            self.push_rows.len() - 1
         };
         u32::try_from(position + 1).expect("push row count fits u32")
     }
@@ -878,6 +894,7 @@ struct LoopCtx {
 
 /// One arm of a multi-way split: an optional payload binding and a body
 /// that may produce a value for the join.
+#[allow(clippy::type_complexity)]
 pub struct ArmSpec<'b, 'a> {
     payload: Option<(String, Ty)>,
     body: Box<dyn FnOnce(&mut FnB<'a>) -> Option<(ValueRef, Ty)> + 'b>,
@@ -1364,8 +1381,14 @@ impl<'a> FnB<'a> {
     /// The shared early-return block: one `Err` payload parameter, wrapped
     /// as the function's `Result` and returned.
     fn err_target(&mut self, error: &Ty) -> usize {
-        let TypeExpr::Result { error: declared, .. } = &self.result else {
-            panic!("{}: try in a function that does not return Result", self.name)
+        let TypeExpr::Result {
+            error: declared, ..
+        } = &self.result
+        else {
+            panic!(
+                "{}: try in a function that does not return Result",
+                self.name
+            )
         };
         assert_eq!(
             declared.as_ref(),
@@ -1659,7 +1682,12 @@ impl<'a> FnB<'a> {
     /// # Panics
     ///
     /// Panics on a missing, unknown, or duplicate case.
-    pub fn match_var(&mut self, value: E, arms: Vec<(&str, &str, Box<dyn FnOnce(&mut Self) + '_>)>) {
+    #[allow(clippy::type_complexity)]
+    pub fn match_var(
+        &mut self,
+        value: E,
+        arms: Vec<(&str, &str, Box<dyn FnOnce(&mut Self) + '_>)>,
+    ) {
         let (value, ty) = self.eval(&value);
         let info = self.named_info(&ty);
         assert!(!info.is_record, "{}: match_var on a record", self.name);
@@ -1679,7 +1707,11 @@ impl<'a> FnB<'a> {
                 .unwrap_or_else(|| panic!("{}: unknown case {case_name}", self.name))
                 .clone();
             let key = CaseKey::Member(member_id);
-            assert!(!keys.contains(&key), "{}: duplicate case {case_name}", self.name);
+            assert!(
+                !keys.contains(&key),
+                "{}: duplicate case {case_name}",
+                self.name
+            );
             keys.push(key);
             specs.push(ArmSpec {
                 payload: payload.map(|ty| (binding.to_owned(), ty)),
@@ -1700,10 +1732,10 @@ impl<'a> FnB<'a> {
         let TypeExpr::Named(named) = ty else {
             panic!("{}: expected a named type, got {ty:?}", self.name)
         };
-        self.core
-            .named_by_id(named.definition)
-            .map(|(_, info)| info.clone())
-            .unwrap_or_else(|| panic!("{}: unknown named type", self.name))
+        self.core.named_by_id(named.definition).map_or_else(
+            || panic!("{}: unknown named type", self.name),
+            |(_, info)| info.clone(),
+        )
     }
 
     fn type_of(&self, name: &str) -> NamedInfo {
@@ -1746,7 +1778,12 @@ impl<'a> FnB<'a> {
                 let ty = value.value_type.clone();
                 let id = self.core.constant(value.clone());
                 (
-                    self.emit(Opcode::ConstantRef, Vec::new(), ty.clone(), Immediate::Entity(id)),
+                    self.emit(
+                        Opcode::ConstantRef,
+                        Vec::new(),
+                        ty.clone(),
+                        Immediate::Entity(id),
+                    ),
                     ty,
                 )
             }
@@ -1839,7 +1876,11 @@ impl<'a> FnB<'a> {
             }
             E::Variant(type_name, case_name, payload) => {
                 let info = self.type_of(type_name);
-                assert!(!info.is_record, "{}: {type_name} is not a variant", self.name);
+                assert!(
+                    !info.is_record,
+                    "{}: {type_name} is not a variant",
+                    self.name
+                );
                 let (_, member_id, payload_ty) = info
                     .members
                     .iter()
@@ -1850,7 +1891,11 @@ impl<'a> FnB<'a> {
                 match (payload, payload_ty) {
                     (Some(expr), Some(expected)) => {
                         let (value, ty) = self.eval(expr);
-                        assert_eq!(ty, expected, "{}: {type_name}::{case_name} payload", self.name);
+                        assert_eq!(
+                            ty, expected,
+                            "{}: {type_name}::{case_name} payload",
+                            self.name
+                        );
                         operands.push(value);
                     }
                     (None, None) => {}
@@ -2048,7 +2093,10 @@ impl<'a> FnB<'a> {
                         },
                     },
                 ];
-                self.terminate(Terminator::VariantSwitch(VariantSwitchTerminator { value, cases }));
+                self.terminate(Terminator::VariantSwitch(VariantSwitchTerminator {
+                    value,
+                    cases,
+                }));
                 self.current = Some(next);
                 self.set_values(&carry, &params);
                 (payload, *ok)
@@ -2125,10 +2173,30 @@ impl<'a> FnB<'a> {
                 _ => None,
             },
             E::Prim(prim, args) => match prim {
-                Prim::Add | Prim::Sub | Prim::Mul | Prim::Div | Prim::Rem | Prim::Shl
-                | Prim::Shr | Prim::Neg => self.static_type(&args[0]),
-                Prim::Eq | Prim::Ne | Prim::Lt | Prim::Le | Prim::Gt | Prim::Ge | Prim::Not
-                | Prim::And | Prim::Or | Prim::MHas | Prim::IsSome | Prim::IsOk => Some(t::bool()),
+                Prim::Add
+                | Prim::Sub
+                | Prim::Mul
+                | Prim::Div
+                | Prim::Rem
+                | Prim::Shl
+                | Prim::Shr
+                | Prim::Neg
+                | Prim::VSet
+                | Prim::MIns
+                | Prim::MDel
+                | Prim::Push => self.static_type(&args[0]),
+                Prim::Eq
+                | Prim::Ne
+                | Prim::Lt
+                | Prim::Le
+                | Prim::Gt
+                | Prim::Ge
+                | Prim::Not
+                | Prim::And
+                | Prim::Or
+                | Prim::MHas
+                | Prim::IsSome
+                | Prim::IsOk => Some(t::bool()),
                 Prim::VLen | Prim::BytesLen => Some(t::u64()),
                 Prim::VGet => match self.static_type(&args[0])? {
                     TypeExpr::Vector(element) => Some(*element),
@@ -2138,7 +2206,6 @@ impl<'a> FnB<'a> {
                     TypeExpr::OrderedMap { value, .. } => Some(*value),
                     _ => None,
                 },
-                Prim::VSet | Prim::MIns | Prim::MDel | Prim::Push => self.static_type(&args[0]),
                 Prim::VHash
                 | Prim::V2B
                 | Prim::RawBlake3
@@ -2161,7 +2228,9 @@ impl<'a> FnB<'a> {
     /// payload and branches to the trap block otherwise.
     fn unwrap_value(&mut self, value: ValueRef, ty: &Ty) -> (ValueRef, Ty) {
         let (payload_ty, good, bad) = match ty {
-            TypeExpr::Option(element) => ((**element).clone(), BuiltinCase::Some, BuiltinCase::None),
+            TypeExpr::Option(element) => {
+                ((**element).clone(), BuiltinCase::Some, BuiltinCase::None)
+            }
             TypeExpr::Result { ok, .. } => ((**ok).clone(), BuiltinCase::Ok, BuiltinCase::Err),
             other => panic!("{}: unwrap of {other:?}", self.name),
         };
@@ -2194,7 +2263,10 @@ impl<'a> FnB<'a> {
             },
         ];
         cases.sort_by(|a, b| a.case_key.cmp(&b.case_key));
-        self.terminate(Terminator::VariantSwitch(VariantSwitchTerminator { value, cases }));
+        self.terminate(Terminator::VariantSwitch(VariantSwitchTerminator {
+            value,
+            cases,
+        }));
         self.current = Some(next);
         self.set_values(&carry, &params);
         (payload, payload_ty)
@@ -2224,7 +2296,12 @@ impl<'a> FnB<'a> {
         let checked = |f: &mut Self, opcode: Opcode, unwrap: bool| {
             let ty = types[0].clone();
             if matches!(opcode, Opcode::IntShlChecked | Opcode::IntShrChecked) {
-                assert_eq!(types[1], t::u32(), "{}: shift amount must be UInt(32)", f.name);
+                assert_eq!(
+                    types[1],
+                    t::u32(),
+                    "{}: shift amount must be UInt(32)",
+                    f.name
+                );
             } else if opcode != Opcode::IntNegChecked {
                 assert_eq!(types[0], types[1], "{}: arithmetic operand types", f.name);
             }
@@ -2250,7 +2327,11 @@ impl<'a> FnB<'a> {
             Prim::TryMul => checked(self, Opcode::IntMulChecked, false),
             Prim::TryShl => checked(self, Opcode::IntShlChecked, false),
             Prim::Eq | Prim::Ne | Prim::Lt | Prim::Le | Prim::Gt | Prim::Ge => {
-                assert_eq!(types[0], types[1], "{}: comparison operand types", self.name);
+                assert_eq!(
+                    types[0], types[1],
+                    "{}: comparison operand types",
+                    self.name
+                );
                 let opcode = match prim {
                     Prim::Eq => Opcode::Equal,
                     Prim::Ne => Opcode::NotEqual,
@@ -2259,7 +2340,10 @@ impl<'a> FnB<'a> {
                     Prim::Gt => Opcode::GreaterThan,
                     _ => Opcode::GreaterEqual,
                 };
-                (self.emit(opcode, values, t::bool(), Immediate::None), t::bool())
+                (
+                    self.emit(opcode, values, t::bool(), Immediate::None),
+                    t::bool(),
+                )
             }
             Prim::Not => (
                 self.emit(Opcode::BoolNot, values, t::bool(), Immediate::None),
@@ -2281,7 +2365,12 @@ impl<'a> FnB<'a> {
                 let TypeExpr::Vector(element) = &types[0] else {
                     panic!("{}: vget of non-vector", self.name)
                 };
-                assert_eq!(types[1], t::u64(), "{}: vget index must be UInt(64)", self.name);
+                assert_eq!(
+                    types[1],
+                    t::u64(),
+                    "{}: vget index must be UInt(64)",
+                    self.name
+                );
                 let ty = t::opt((**element).clone());
                 let raw = self.emit(Opcode::VectorGet, values, ty.clone(), Immediate::None);
                 if prim == Prim::VGet {
@@ -2295,7 +2384,12 @@ impl<'a> FnB<'a> {
                     panic!("{}: vset of non-vector", self.name)
                 };
                 assert_eq!(types[1], t::u64());
-                assert_eq!(&types[2], element.as_ref(), "{}: vset element type", self.name);
+                assert_eq!(
+                    &types[2],
+                    element.as_ref(),
+                    "{}: vset element type",
+                    self.name
+                );
                 let raw_ty = t::res(types[0].clone(), t::failure(BuiltinFailureKind::Index));
                 let raw = self.emit(Opcode::VectorSet, values, raw_ty.clone(), Immediate::None);
                 self.unwrap_value(raw, &raw_ty)
@@ -2356,7 +2450,12 @@ impl<'a> FnB<'a> {
                 let TypeExpr::Vector(element) = &types[0] else {
                     panic!("{}: push onto non-vector", self.name)
                 };
-                assert_eq!(&types[1], element.as_ref(), "{}: push element type", self.name);
+                assert_eq!(
+                    &types[1],
+                    element.as_ref(),
+                    "{}: push element type",
+                    self.name
+                );
                 let discriminator = self.core.push_discriminator(element);
                 let row = bridge_row(
                     *b"PSH1",
@@ -2393,7 +2492,11 @@ impl<'a> FnB<'a> {
                     ],
                     _ => panic!("{}: is_some/is_ok type", self.name),
                 };
-                let hits = if prim == Prim::IsSome { [false, true] } else { [true, false] };
+                let hits = if prim == Prim::IsSome {
+                    [false, true]
+                } else {
+                    [true, false]
+                };
                 let arms = hits
                     .iter()
                     .map(|hit| {
@@ -2419,6 +2522,7 @@ impl<'a> FnB<'a> {
 
     /// Removes block parameters whose values are never read (transitively
     /// through edge arguments), and the matching edge arguments.
+    #[allow(clippy::too_many_lines)] // one linear construction; splitting it hides the order
     fn prune_dead_params(&mut self) {
         use std::collections::{HashMap as Map, HashSet as Set};
         let param_of = |value: &ValueRef, params: &Set<EntityId>| match value {
@@ -2449,7 +2553,9 @@ impl<'a> FnB<'a> {
         let mut edges: Vec<(usize, Vec<Option<ValueRef>>)> = Vec::new();
         for block in &self.blocks {
             match block.terminator.as_ref().expect("terminated") {
-                Terminator::Return(r) => mark(param_of(&r.value, &self.block_params), &mut live, &mut work),
+                Terminator::Return(r) => {
+                    mark(param_of(&r.value, &self.block_params), &mut live, &mut work);
+                }
                 Terminator::Trap(trap) => {
                     if let Some(payload) = &trap.payload {
                         mark(param_of(payload, &self.block_params), &mut live, &mut work);
@@ -2460,7 +2566,11 @@ impl<'a> FnB<'a> {
                     b.edge.arguments.iter().copied().map(Some).collect(),
                 )),
                 Terminator::CondBranch(c) => {
-                    mark(param_of(&c.condition, &self.block_params), &mut live, &mut work);
+                    mark(
+                        param_of(&c.condition, &self.block_params),
+                        &mut live,
+                        &mut work,
+                    );
                     for edge in [&c.if_true, &c.if_false] {
                         edges.push((
                             block_index[&edge.target],
@@ -2469,7 +2579,11 @@ impl<'a> FnB<'a> {
                     }
                 }
                 Terminator::VariantSwitch(sw) => {
-                    mark(param_of(&sw.value, &self.block_params), &mut live, &mut work);
+                    mark(
+                        param_of(&sw.value, &self.block_params),
+                        &mut live,
+                        &mut work,
+                    );
                     for case in &sw.cases {
                         edges.push((
                             block_index[&case.edge.target],
@@ -2493,7 +2607,10 @@ impl<'a> FnB<'a> {
                 let Some(target_param) = self.blocks[*target].params.get(position) else {
                     continue;
                 };
-                if let Some(source) = argument.as_ref().and_then(|a| param_of(a, &self.block_params)) {
+                if let Some(source) = argument
+                    .as_ref()
+                    .and_then(|a| param_of(a, &self.block_params))
+                {
                     feeds.entry(*target_param).or_default().push(source);
                 }
             }
@@ -2522,10 +2639,18 @@ impl<'a> FnB<'a> {
         for index in 0..self.blocks.len() {
             let mut terminator = self.blocks[index].terminator.take().expect("terminated");
             match &mut terminator {
-                Terminator::Branch(b) => filter(&mut b.edge.arguments, &keep[block_index[&b.edge.target]]),
+                Terminator::Branch(b) => {
+                    filter(&mut b.edge.arguments, &keep[block_index[&b.edge.target]]);
+                }
                 Terminator::CondBranch(c) => {
-                    filter(&mut c.if_true.arguments, &keep[block_index[&c.if_true.target]]);
-                    filter(&mut c.if_false.arguments, &keep[block_index[&c.if_false.target]]);
+                    filter(
+                        &mut c.if_true.arguments,
+                        &keep[block_index[&c.if_true.target]],
+                    );
+                    filter(
+                        &mut c.if_false.arguments,
+                        &keep[block_index[&c.if_false.target]],
+                    );
                 }
                 Terminator::VariantSwitch(sw) => {
                     for case in &mut sw.cases {

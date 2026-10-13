@@ -62,6 +62,7 @@ fn hash32(domain: &str, seed: &str) -> [u8; 32] {
 ///
 /// Panics when `entry` is not a program function.
 #[must_use]
+#[allow(clippy::too_many_lines)] // one linear construction; splitting it hides the order
 pub fn prune_to_closure(program: &Program, entry: EntityId) -> Program {
     let functions: HashMap<EntityId, usize> = program
         .functions
@@ -69,7 +70,10 @@ pub fn prune_to_closure(program: &Program, entry: EntityId) -> Program {
         .enumerate()
         .map(|(i, f)| (f.entity_id, i))
         .collect();
-    assert!(functions.contains_key(&entry), "entry is a program function");
+    assert!(
+        functions.contains_key(&entry),
+        "entry is a program function"
+    );
     let block_owner: HashMap<EntityId, EntityId> = program
         .blocks
         .iter()
@@ -224,7 +228,11 @@ fn collect_named(ty: &TypeExpr, out: &mut BTreeSet<EntityId>) {
         TypeExpr::Vector(inner) | TypeExpr::Option(inner) | TypeExpr::LocalCell(inner) => {
             collect_named(inner, out);
         }
-        TypeExpr::OrderedMap { key, value } | TypeExpr::Result { ok: key, error: value } => {
+        TypeExpr::OrderedMap { key, value }
+        | TypeExpr::Result {
+            ok: key,
+            error: value,
+        } => {
             collect_named(key, out);
             collect_named(value, out);
         }
@@ -250,6 +258,7 @@ fn set(ids: impl IntoIterator<Item = EntityId>) -> EntityIdSet {
 ///
 /// Panics when an object or the root fails to build.
 #[must_use]
+#[allow(clippy::too_many_lines)] // one linear construction; splitting it hides the order
 pub fn build(program: &Program, entry_function: EntityId, seed: &str) -> CanonicalS {
     let epoch = epoch();
     let workspace_id = WorkspaceId::derive(GenesisNonce::from_bytes(hash32("genesis", seed)));

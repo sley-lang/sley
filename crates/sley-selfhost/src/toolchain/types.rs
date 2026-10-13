@@ -16,9 +16,16 @@
 use sley_ssmc::{BuiltinFailureKind, ConstData, ConstValue, IntegerWidth, TypeExpr};
 
 use super::rt::rcall;
-use crate::seed::*;
+use crate::seed::{
+    E, Module, Ty, b2v, bytesc, call, concat, push, slice, sub, t, tget, tup, u32c, u64c, unwrap,
+    v, vget, vlen, vnew,
+};
 
 /// Canonical SCB1 bytes of one `TypeExpr` (seed side).
+///
+/// # Panics
+///
+/// Panics if the type has no canonical encoding (a seed authoring error).
 #[must_use]
 pub fn scb_type_bytes(ty: &TypeExpr) -> Vec<u8> {
     let encoded = sley_mutate::encode_const_value(&ConstValue {
@@ -97,7 +104,10 @@ pub fn define(m: &mut Module) {
             f.let_("#r", unwrap(rcall("rt_rd_payload", vec![])));
             f.let_("s", tget(v("#r"), 0));
             f.set("p", tget(v("#r"), 1));
-            f.set("out", push(v("out"), slice(v("x"), v("s"), sub(v("p"), v("s")))));
+            f.set(
+                "out",
+                push(v("out"), slice(v("x"), v("s"), sub(v("p"), v("s")))),
+            );
         });
         f.ret(v("out"));
     });
@@ -115,7 +125,10 @@ pub fn define(m: &mut Module) {
             f.let_("#r", unwrap(rcall("rt_rd_payload", vec![])));
             f.let_("s", tget(v("#r"), 0));
             f.set("p", tget(v("#r"), 1));
-            f.set("out", push(v("out"), slice(v("x"), v("s"), sub(v("p"), v("s")))));
+            f.set(
+                "out",
+                push(v("out"), slice(v("x"), v("s"), sub(v("p"), v("s")))),
+            );
         });
         f.ret(v("out"));
     });
@@ -163,18 +176,29 @@ pub fn define(m: &mut Module) {
         },
     );
     // A List<TypeExpr> payload.
-    m.func("ty_list_bytes", &[("items", t::vec(t::bytes()))], t::bytes(), |f| {
-        f.var("parts", vnew(t::bytes(), vec![call("uvarb", vec![vlen(v("items"))])]));
-        f.for_u64("i", u64c(0), vlen(v("items")), |f| {
-            f.let_("item", vget(v("items"), v("i")));
-            f.set(
+    m.func(
+        "ty_list_bytes",
+        &[("items", t::vec(t::bytes()))],
+        t::bytes(),
+        |f| {
+            f.var(
                 "parts",
-                push(v("parts"), call("uvarb", vec![call("rt_blen", vec![v("item")])])),
+                vnew(t::bytes(), vec![call("uvarb", vec![vlen(v("items"))])]),
             );
-            f.set("parts", push(v("parts"), v("item")));
-        });
-        f.ret(concat(v("parts")));
-    });
+            f.for_u64("i", u64c(0), vlen(v("items")), |f| {
+                f.let_("item", vget(v("items"), v("i")));
+                f.set(
+                    "parts",
+                    push(
+                        v("parts"),
+                        call("uvarb", vec![call("rt_blen", vec![v("item")])]),
+                    ),
+                );
+                f.set("parts", push(v("parts"), v("item")));
+            });
+            f.ret(concat(v("parts")));
+        },
+    );
     m.func("ty_vec", &[("x", t::bytes())], t::bytes(), |f| {
         f.ret(call("ty_make", vec![u64c(11), v("x")]));
     });
@@ -206,12 +230,17 @@ pub fn define(m: &mut Module) {
             ));
         },
     );
-    m.func("ty_tuple", &[("items", t::vec(t::bytes()))], t::bytes(), |f| {
-        f.ret(call(
-            "ty_make",
-            vec![u64c(9), call("ty_list_bytes", vec![v("items")])],
-        ));
-    });
+    m.func(
+        "ty_tuple",
+        &[("items", t::vec(t::bytes()))],
+        t::bytes(),
+        |f| {
+            f.ret(call(
+                "ty_make",
+                vec![u64c(9), call("ty_list_bytes", vec![v("items")])],
+            ));
+        },
+    );
     // A non-generic Named instantiation of `def`.
     m.func("ty_named0", &[("def", t::bytes())], t::bytes(), |f| {
         f.ret(call(
@@ -220,7 +249,10 @@ pub fn define(m: &mut Module) {
                 u64c(10),
                 call(
                     "ty_rec2",
-                    vec![v("def"), call("ty_list_bytes", vec![vnew(t::bytes(), vec![])])],
+                    vec![
+                        v("def"),
+                        call("ty_list_bytes", vec![vnew(t::bytes(), vec![])]),
+                    ],
                 ),
             ],
         ));
@@ -230,21 +262,35 @@ pub fn define(m: &mut Module) {
         f.ret(call("ty_payload", vec![v("ty")]));
     });
     m.func("ty_first", &[("ty", t::bytes())], t::bytes(), |f| {
-        f.ret(vget(call("ty_fields", vec![call("ty_payload", vec![v("ty")])]), u64c(0)));
+        f.ret(vget(
+            call("ty_fields", vec![call("ty_payload", vec![v("ty")])]),
+            u64c(0),
+        ));
     });
     m.func("ty_second", &[("ty", t::bytes())], t::bytes(), |f| {
-        f.ret(vget(call("ty_fields", vec![call("ty_payload", vec![v("ty")])]), u64c(1)));
+        f.ret(vget(
+            call("ty_fields", vec![call("ty_payload", vec![v("ty")])]),
+            u64c(1),
+        ));
     });
-    m.func("ty_tuple_items", &[("ty", t::bytes())], t::vec(t::bytes()), |f| {
-        f.ret(call("ty_list", vec![call("ty_payload", vec![v("ty")])]));
-    });
+    m.func(
+        "ty_tuple_items",
+        &[("ty", t::bytes())],
+        t::vec(t::bytes()),
+        |f| {
+            f.ret(call("ty_list", vec![call("ty_payload", vec![v("ty")])]));
+        },
+    );
     // (definition id, arguments) of a Named type.
     m.func(
         "ty_named_parts",
         &[("ty", t::bytes())],
         t::tuple(vec![t::bytes(), t::vec(t::bytes())]),
         |f| {
-            f.let_("fs", call("ty_fields", vec![call("ty_payload", vec![v("ty")])]));
+            f.let_(
+                "fs",
+                call("ty_fields", vec![call("ty_payload", vec![v("ty")])]),
+            );
             f.ret(tup(vec![
                 vget(v("fs"), u64c(0)),
                 call("ty_list", vec![vget(v("fs"), u64c(1))]),
@@ -253,7 +299,10 @@ pub fn define(m: &mut Module) {
     );
     // Integer width of SInt/UInt.
     m.func("ty_width", &[("ty", t::bytes())], t::u64(), |f| {
-        f.ret(call("ty_uvar_payload", vec![call("ty_payload", vec![v("ty")])]));
+        f.ret(call(
+            "ty_uvar_payload",
+            vec![call("ty_payload", vec![v("ty")])],
+        ));
     });
 }
 

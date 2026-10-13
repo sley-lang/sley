@@ -22,6 +22,7 @@
 //! `DIR/C1.pkg`, `DIR/C1.digest` (the package identity, hex), and
 //! `DIR/manifest.json`. `S` is exactly the build request the pinned host
 //! stages for every later stage.
+#![allow(clippy::too_many_lines)]
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -72,7 +73,10 @@ fn stage(out: &Path) -> Result<(), String> {
     let c1 = native::c0_build(&s, native::toolchain_limits())?;
     let c0_done = std::time::Instant::now();
     write(&out.join("C1.pkg"), &c1.envelope)?;
-    write(&out.join("C1.digest"), hex(&c1.digests.package_digest).as_bytes())?;
+    write(
+        &out.join("C1.digest"),
+        hex(&c1.digests.package_digest).as_bytes(),
+    )?;
     let manifest = format!(
         "{{\n  \"schema\": \"sley2.sh2.stage.v1\",\n  \"state_root\": \"{}\",\n  \"epoch\": \"{}\",\n  \"objects\": {},\n  \"object_bytes\": {},\n  \"root_bytes\": {},\n  \"c1_package_digest\": \"{}\",\n  \"c1_envelope_sha256\": \"{}\",\n  \"c1_envelope_bytes\": {},\n  \"c1_image_bytes\": {},\n  \"seed_ms\": {},\n  \"c0_build_ms\": {}\n}}\n",
         hex(s.root.root.as_bytes()),
@@ -189,8 +193,8 @@ fn write_stage(dir: &Path, s: &canonical::CanonicalS) -> Result<(), String> {
 fn mutate_constant(stage: &Path, out: &Path, from: u32, to: u32) -> Result<(), String> {
     use sley_mutate::value::{ConstantBody, EntityBodyValue};
     use sley_mutate::{
-        BoundPrecondition, CandidateExpiry, CandidateRecord, ExactEntityVersion,
-        MutationOperation, MutationPayload, PreconditionPayload,
+        BoundPrecondition, CandidateExpiry, CandidateRecord, ExactEntityVersion, MutationOperation,
+        MutationPayload, PreconditionPayload,
     };
     use sley_ssmc::{ConstData, ConstValue, IntegerWidth, TypeExpr};
     let s = load_stage(stage)?;
@@ -206,7 +210,10 @@ fn mutate_constant(stage: &Path, out: &Path, from: u32, to: u32) -> Result<(), S
         })
         .collect();
     let [target] = matches.as_slice() else {
-        return Err(format!("expected exactly one UInt(32) {from} constant, found {}", matches.len()));
+        return Err(format!(
+            "expected exactly one UInt(32) {from} constant, found {}",
+            matches.len()
+        ));
     };
     let target_id = target.record().entity_id;
     let payload = MutationPayload::ReplaceEntityVersion(EntityBodyValue::Constant(ConstantBody {
@@ -273,7 +280,9 @@ fn mutate_constant(stage: &Path, out: &Path, from: u32, to: u32) -> Result<(), S
         builder = builder.entity_binding(object.record().entity_id, object.object_id());
     }
     let registry = sley_state_root::conformance_registry().map_err(|e| format!("{e:?}"))?;
-    let root = builder.build(&registry).map_err(|e| format!("root: {e:?}"))?;
+    let root = builder
+        .build(&registry)
+        .map_err(|e| format!("root: {e:?}"))?;
     let mutated = canonical::CanonicalS {
         epoch: s.epoch,
         objects: proposed.entities().to_vec(),
@@ -298,7 +307,10 @@ fn c0(stage: &Path, out: &Path) -> Result<(), String> {
     let s = load_stage(stage)?;
     let built = native::c0_build(&s, native::toolchain_limits())?;
     write(out, &built.envelope)?;
-    println!("{{\"package_digest\": \"{}\"}}", hex(&built.digests.package_digest));
+    println!(
+        "{{\"package_digest\": \"{}\"}}",
+        hex(&built.digests.package_digest)
+    );
     Ok(())
 }
 
@@ -326,7 +338,7 @@ fn omit(stage: &Path, out: &Path) -> Result<(), String> {
 /// input and returns the prior package bytes (embedded as constants below
 /// the 1 MiB constant bound). Writes its staged S and its C0 package.
 fn fake(prior: &Path, out: &Path) -> Result<(), String> {
-    use sley_selfhost::seed::*;
+    use sley_selfhost::seed::{Module, bytesc, concat, t, vnew};
     let bytes = std::fs::read(prior).map_err(|e| format!("{}: {e}", prior.display()))?;
     let mut m = Module::new("sley.sh2.fake-builder.v1");
     let chunks: Vec<Vec<u8>> = bytes.chunks(1 << 19).map(<[u8]>::to_vec).collect();
@@ -338,7 +350,14 @@ fn fake(prior: &Path, out: &Path) -> Result<(), String> {
             ("epoch", t::bytes()),
             (
                 "limits",
-                t::tuple(vec![t::u64(), t::u64(), t::u64(), t::u64(), t::bool(), t::u64()]),
+                t::tuple(vec![
+                    t::u64(),
+                    t::u64(),
+                    t::u64(),
+                    t::u64(),
+                    t::bool(),
+                    t::u64(),
+                ]),
             ),
         ],
         t::res(t::bytes(), t::u32()),
@@ -352,8 +371,14 @@ fn fake(prior: &Path, out: &Path) -> Result<(), String> {
     write_stage(&out.join("S"), &s)?;
     let built = native::c0_build(&s, native::toolchain_limits())?;
     write(&out.join("fake.pkg"), &built.envelope)?;
-    write(&out.join("fake.digest"), hex(&built.digests.package_digest).as_bytes())?;
-    println!("{{\"fake_package_digest\": \"{}\"}}", hex(&built.digests.package_digest));
+    write(
+        &out.join("fake.digest"),
+        hex(&built.digests.package_digest).as_bytes(),
+    )?;
+    println!(
+        "{{\"fake_package_digest\": \"{}\"}}",
+        hex(&built.digests.package_digest)
+    );
     Ok(())
 }
 

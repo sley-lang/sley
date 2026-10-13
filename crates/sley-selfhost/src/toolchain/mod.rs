@@ -62,37 +62,57 @@ pub fn module() -> Module {
 
 /// Test and driver entry points over the library functions.
 fn define_entries(m: &mut Module) {
-    use crate::seed::*;
+    use crate::seed::{b2v, call, field, t, tget, tri, tup, u64c, v, vget, vlen, vnew};
     // Builds two composite types from parts (ty_* constructor test).
-    m.func("t_ty_build", &[("def", t::bytes())], t::vec(t::bytes()), |f| {
-        f.let_("u64", types::ty_u64());
-        f.let_("idx", types::ty_failure(sley_ssmc::BuiltinFailureKind::Index));
-        f.let_("a", call("ty_res", vec![call("ty_vec", vec![v("u64")]), v("idx")]));
-        f.let_(
-            "b",
-            call(
-                "ty_tuple",
-                vec![vnew(t::bytes(), vec![types::ty_bool(), call("ty_named0", vec![v("def")])])],
-            ),
-        );
-        f.let_("c", call("ty_map", vec![v("u64"), call("ty_opt", vec![v("u64")])]));
-        // Round trips through the accessors.
-        f.let_("a_ok", call("ty_first", vec![v("a")]));
-        f.let_("b_items", call("ty_tuple_items", vec![v("b")]));
-        f.let_("named", call("ty_named_parts", vec![vget(v("b_items"), u64c(1))]));
-        f.ret(vnew(
-            t::bytes(),
-            vec![
-                v("a"),
-                v("b"),
-                v("c"),
-                v("a_ok"),
-                tget(v("named"), 0),
-                call("uvarb", vec![call("ty_width", vec![v("u64")])]),
-                call("uvarb", vec![call("ty_tag", vec![v("c")])]),
-            ],
-        ));
-    });
+    m.func(
+        "t_ty_build",
+        &[("def", t::bytes())],
+        t::vec(t::bytes()),
+        |f| {
+            f.let_("u64", types::ty_u64());
+            f.let_(
+                "idx",
+                types::ty_failure(sley_ssmc::BuiltinFailureKind::Index),
+            );
+            f.let_(
+                "a",
+                call("ty_res", vec![call("ty_vec", vec![v("u64")]), v("idx")]),
+            );
+            f.let_(
+                "b",
+                call(
+                    "ty_tuple",
+                    vec![vnew(
+                        t::bytes(),
+                        vec![types::ty_bool(), call("ty_named0", vec![v("def")])],
+                    )],
+                ),
+            );
+            f.let_(
+                "c",
+                call("ty_map", vec![v("u64"), call("ty_opt", vec![v("u64")])]),
+            );
+            // Round trips through the accessors.
+            f.let_("a_ok", call("ty_first", vec![v("a")]));
+            f.let_("b_items", call("ty_tuple_items", vec![v("b")]));
+            f.let_(
+                "named",
+                call("ty_named_parts", vec![vget(v("b_items"), u64c(1))]),
+            );
+            f.ret(vnew(
+                t::bytes(),
+                vec![
+                    v("a"),
+                    v("b"),
+                    v("c"),
+                    v("a_ok"),
+                    tget(v("named"), 0),
+                    call("uvarb", vec![call("ty_width", vec![v("u64")])]),
+                    call("uvarb", vec![call("ty_tag", vec![v("c")])]),
+                ],
+            ));
+        },
+    );
     // Decodes a stored root: (digest, binding count, entry count).
     m.func(
         "t_sr_root",

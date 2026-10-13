@@ -16,10 +16,19 @@ fn constructs_and_reads_canonical_types() {
     });
     assert_eq!(
         as_bytes(&items[0]),
-        scb_type_bytes(&t::res(t::vec(t::u64()), TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)))
+        scb_type_bytes(&t::res(
+            t::vec(t::u64()),
+            TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
+        ))
     );
-    assert_eq!(as_bytes(&items[1]), scb_type_bytes(&t::tuple(vec![TypeExpr::Bool, named])));
-    assert_eq!(as_bytes(&items[2]), scb_type_bytes(&t::map(t::u64(), t::opt(t::u64()))));
+    assert_eq!(
+        as_bytes(&items[1]),
+        scb_type_bytes(&t::tuple(vec![TypeExpr::Bool, named]))
+    );
+    assert_eq!(
+        as_bytes(&items[2]),
+        scb_type_bytes(&t::map(t::u64(), t::opt(t::u64())))
+    );
     assert_eq!(as_bytes(&items[3]), scb_type_bytes(&t::vec(t::u64())));
     assert_eq!(as_bytes(&items[4]), def.as_bytes().to_vec());
     assert_eq!(as_bytes(&items[5]), vec![64]);

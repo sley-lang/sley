@@ -1,23 +1,26 @@
 //! `fp_*`: Sley semantic fingerprints against the bootstrap gate.
+#![allow(clippy::similar_names)]
 mod common;
 use common::*;
 use sley_id::EntityId;
 use sley_selfhost::canonical::{self, CanonicalS};
 use sley_selfhost::native;
+use sley_selfhost::native::Runner;
 use sley_selfhost::seed::{Program, t};
 use sley_selfhost::toolchain::fingerprint::{
     FP_FUNCTION_MISSING, FP_INVENTORY_INVALID, FP_LOCAL_REFERENCE_INVALID,
 };
-use sley_ssmc::fingerprint::{FingerprintErrorCode, FunctionFingerprintInput, fingerprint_function};
+use sley_ssmc::fingerprint::{
+    FingerprintErrorCode, FunctionFingerprintInput, fingerprint_function,
+};
 use sley_ssmc::{ConstData, ConstValue, Parameter, ParameterRole, TypeExpr};
+use sley_vm::ExecutionTermination;
 use sley_vm::bootstrap::{
     BootstrapProfileInput, BootstrapProfileReport, BootstrapProfileVersion, judge_bootstrap_profile,
 };
-use std::time::Instant;
-use sley_selfhost::native::Runner;
-use sley_vm::ExecutionTermination;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 /// The modules `fp_*`/`pk_*` need (independent of unrelated modules under
 /// concurrent development); identities match the full toolchain module.
@@ -46,7 +49,10 @@ fn program() -> &'static (Program, HashMap<String, EntityId>) {
 fn run_counted(entry: &str, inputs: Vec<ConstValue>) -> (ConstValue, u64) {
     static RUNNERS: OnceLock<Mutex<HashMap<String, &'static Runner<'static>>>> = OnceLock::new();
     let runner = {
-        let mut guard = RUNNERS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap();
+        let mut guard = RUNNERS
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .unwrap();
         *guard.entry(entry.to_owned()).or_insert_with(|| {
             let (program, names) = program();
             Box::leak(Box::new(Runner::new(program, names[entry])))
@@ -88,7 +94,11 @@ fn gate_fixture(entry: &str) -> (Program, CanonicalS, BootstrapProfileReport) {
     let s = canonical::build(&pruned, entry, "fp-test");
     let lowered = native::lower(&pruned, entry).expect("lowers");
     let types = native::type_environment(&pruned);
-    let entry_fn = pruned.functions.iter().find(|f| f.entity_id == entry).unwrap();
+    let entry_fn = pruned
+        .functions
+        .iter()
+        .find(|f| f.entity_id == entry)
+        .unwrap();
     let report = judge_bootstrap_profile(&BootstrapProfileInput {
         types: &types,
         profile_version: BootstrapProfileVersion::V3,
@@ -108,7 +118,12 @@ fn gate_fixture(entry: &str) -> (Program, CanonicalS, BootstrapProfileReport) {
 
 /// The gate's narrowing plus the native fingerprint (error code on failure).
 fn native_fingerprint(program: &Program, s: &CanonicalS, fid: EntityId) -> Result<Vec<u8>, u32> {
-    let blocks: Vec<_> = program.blocks.iter().filter(|b| b.function == fid).cloned().collect();
+    let blocks: Vec<_> = program
+        .blocks
+        .iter()
+        .filter(|b| b.function == fid)
+        .cloned()
+        .collect();
     let operations: Vec<_> = program
         .operations
         .iter()
@@ -126,7 +141,11 @@ fn native_fingerprint(program: &Program, s: &CanonicalS, fid: EntityId) -> Resul
         })
         .cloned()
         .collect();
-    let function = program.functions.iter().find(|f| f.entity_id == fid).unwrap();
+    let function = program
+        .functions
+        .iter()
+        .find(|f| f.entity_id == fid)
+        .unwrap();
     fingerprint_function(
         s.epoch,
         FunctionFingerprintInput {
@@ -182,7 +201,11 @@ fn check_closure(entry: &str) {
              instructions total, {} beyond the drv_load+fp_owned baseline of {baseline}; {elapsed:?}",
             fids.len(),
             s.objects.len(),
-            if closure { "fp_closure" } else { "fp_function x n" },
+            if closure {
+                "fp_closure"
+            } else {
+                "fp_function x n"
+            },
             instructions - baseline,
         );
     }
@@ -267,12 +290,18 @@ fn refusals_match_native() {
         value_type: TypeExpr::Bool,
     });
     let s = canonical::build(&extra, entry, "fp-test");
-    assert_eq!(native_fingerprint(&extra, &s, target), Err(FP_INVENTORY_INVALID));
+    assert_eq!(
+        native_fingerprint(&extra, &s, target),
+        Err(FP_INVENTORY_INVALID)
+    );
     let (got, _) = sley_fps(&s, &[target], true);
     assert_eq!(got, Err(FP_INVENTORY_INVALID));
     // fp_function sees only listed entities: it fingerprints as before.
     let (got, _) = sley_fps(&s, &[target], false);
-    assert_eq!(got.unwrap()[0], native_fingerprint(&pruned, &s, target).unwrap());
+    assert_eq!(
+        got.unwrap()[0],
+        native_fingerprint(&pruned, &s, target).unwrap()
+    );
 
     // A block that claims its function but is not listed.
     let (index, target) = pruned
@@ -285,7 +314,10 @@ fn refusals_match_native() {
     let mut unlisted = pruned.clone();
     unlisted.functions[index].blocks.pop();
     let s = canonical::build(&unlisted, entry, "fp-test");
-    assert_eq!(native_fingerprint(&unlisted, &s, target), Err(FP_INVENTORY_INVALID));
+    assert_eq!(
+        native_fingerprint(&unlisted, &s, target),
+        Err(FP_INVENTORY_INVALID)
+    );
     let (got, _) = sley_fps(&s, &[target], true);
     assert_eq!(got, Err(FP_INVENTORY_INVALID));
 
@@ -299,7 +331,10 @@ fn refusals_match_native() {
         .unwrap();
     param.ordinal += 7;
     let s = canonical::build(&ordinal, entry, "fp-test");
-    assert_eq!(native_fingerprint(&ordinal, &s, target), Err(FP_INVENTORY_INVALID));
+    assert_eq!(
+        native_fingerprint(&ordinal, &s, target),
+        Err(FP_INVENTORY_INVALID)
+    );
     for closure in [true, false] {
         let (got, _) = sley_fps(&s, &[target], closure);
         assert_eq!(got, Err(FP_INVENTORY_INVALID));

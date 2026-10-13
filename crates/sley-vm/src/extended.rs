@@ -587,7 +587,7 @@ pub(crate) fn bridge_fuel_surcharge_borrowed(
             },
             _ => None,
         },
-        BridgeKind::VectorPush => match operands {
+        BridgeKind::VectorPush | BridgeKind::BytesLength => match operands {
             [_, _] => Some(1),
             _ => None,
         },
@@ -614,10 +614,6 @@ pub(crate) fn bridge_fuel_surcharge_borrowed(
                 }
                 _ => None,
             },
-            _ => None,
-        },
-        BridgeKind::BytesLength => match operands {
-            [_, _] => Some(1),
             _ => None,
         },
         BridgeKind::BytesSlice => match operands {
@@ -865,7 +861,10 @@ fn bridge_execute(
                 return Err(ExtendedFault);
             };
             let end = start.checked_add(*length);
-            match (usize::try_from(*start), end.and_then(|end| usize::try_from(end).ok())) {
+            match (
+                usize::try_from(*start),
+                end.and_then(|end| usize::try_from(end).ok()),
+            ) {
                 (Ok(start), Some(end)) if end <= bytes.len() => {
                     Ok(done(ConstData::Bytes(bytes[start..end].to_vec())))
                 }

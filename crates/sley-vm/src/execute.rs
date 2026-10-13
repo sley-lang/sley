@@ -513,7 +513,9 @@ impl RuntimeValue {
 
     /// The cached units of part `index`, when known.
     fn part_units(&self, index: usize) -> Option<u64> {
-        self.parts.as_ref().and_then(|parts| parts.get(index).copied())
+        self.parts
+            .as_ref()
+            .and_then(|parts| parts.get(index).copied())
     }
 
     fn value(&self) -> RuntimeResult<&ConstValue> {
@@ -1997,6 +1999,7 @@ fn adopt_frame(runtime: &mut Runtime, child: Runtime) {
 /// Prepares `call_direct` (contract E6): refuses a frame beyond the ceiling,
 /// charges one fuel, and opens a callee register file that shares the
 /// budgets and cells with the caller.
+#[allow(clippy::too_many_arguments)]
 fn prepare_call<'a>(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
@@ -2026,6 +2029,7 @@ fn prepare_call<'a>(
 
 /// Prepares `contract_assert` (slice E7a): resolves the contract's predicate
 /// and enters it as an ordinary frame whose return the caller wraps.
+#[allow(clippy::too_many_arguments)]
 fn prepare_contract_assert<'a>(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
@@ -2906,12 +2910,12 @@ fn dispatch_terminator(
                     matches!(argument, BytecodeSwitchArgument::Value(register) if register == value)
                 })
             });
-            let selected = if carried_as_argument || !live.dead_after_terminator(source_block, *value)
-            {
-                read_register(runtime, *value)?.clone()
-            } else {
-                take_register(runtime, *value)?
-            };
+            let selected =
+                if carried_as_argument || !live.dead_after_terminator(source_block, *value) {
+                    read_register(runtime, *value)?.clone()
+                } else {
+                    take_register(runtime, *value)?
+                };
             let (case_key, payload) = selected_case(selected)?;
             for case in cases {
                 if let Some(termination) = charge_action(runtime, limits, None) {
@@ -3013,7 +3017,11 @@ fn bind_switch_edge(
                 let more = edge.arguments[position + 1..]
                     .iter()
                     .any(|later| matches!(later, BytecodeSwitchArgument::CasePayload));
-                let value = if more { payload.clone() } else { payload.take() };
+                let value = if more {
+                    payload.clone()
+                } else {
+                    payload.take()
+                };
                 let Some(value) = value else {
                     return Ok(Some(ExecutionTermination::InternalInvariant));
                 };
@@ -3046,7 +3054,10 @@ fn bind_values(
 
 fn selected_case(value: RuntimeValue) -> RuntimeResult<(CaseKey, Option<RuntimeValue>)> {
     let (key, has_payload) = match &value.value()?.data {
-        ConstData::Variant(variant) => (CaseKey::Member(variant.member_id), variant.payload.is_some()),
+        ConstData::Variant(variant) => (
+            CaseKey::Member(variant.member_id),
+            variant.payload.is_some(),
+        ),
         ConstData::Option(None) => (CaseKey::Builtin(BuiltinCase::None), false),
         ConstData::Option(Some(_)) => (CaseKey::Builtin(BuiltinCase::Some), true),
         ConstData::Result(ResultConst::Ok(_)) => (CaseKey::Builtin(BuiltinCase::Ok), true),

@@ -1,5 +1,6 @@
-//! `lw_image` against the native `sley_vm::lower_function` (EXTENDED_V1):
+//! `lw_image` against the native `sley_vm::lower_function` (`EXTENDED_V1)`:
 //! byte-for-byte images and refusal codes.
+#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
 mod common;
 use common::*;
 use sley_id::EntityId;
@@ -55,25 +56,26 @@ fn compare(label: &str, program: &Program, s: &CanonicalS, entry: EntityId) -> u
         );
     }
     let (got, instructions, elapsed) = sley_image(s, entry);
-    match (&expected, &got) {
-        (Ok(e), Ok(g)) => {
-            if e != g {
-                let at = e.iter().zip(g).position(|(a, b)| a != b).unwrap_or(e.len().min(g.len()));
-                panic!(
-                    "{label}: image differs at byte {at} (native {} bytes, sley {} bytes)",
-                    e.len(),
-                    g.len()
-                );
-            }
-            eprintln!(
-                "{label}: {} bytes, {instructions} instructions, {elapsed:?}",
+    if let (Ok(e), Ok(g)) = (&expected, &got) {
+        if e != g {
+            let at = e
+                .iter()
+                .zip(g)
+                .position(|(a, b)| a != b)
+                .unwrap_or(e.len().min(g.len()));
+            panic!(
+                "{label}: image differs at byte {at} (native {} bytes, sley {} bytes)",
+                e.len(),
                 g.len()
             );
         }
-        _ => {
-            assert_eq!(got, expected, "{label}: outcome");
-            eprintln!("{label}: refusal {got:?}, {instructions} instructions");
-        }
+        eprintln!(
+            "{label}: {} bytes, {instructions} instructions, {elapsed:?}",
+            g.len()
+        );
+    } else {
+        assert_eq!(got, expected, "{label}: outcome");
+        eprintln!("{label}: refusal {got:?}, {instructions} instructions");
     }
     instructions
 }
@@ -83,7 +85,11 @@ fn compare(label: &str, program: &Program, s: &CanonicalS, entry: EntityId) -> u
 /// toolchain S costs ~190M VM instructions in `drv_load`).
 fn closure_s(entry: EntityId) -> CanonicalS {
     let (program, _) = program();
-    canonical::build(&canonical::prune_to_closure(program, entry), entry, "toolchain-test")
+    canonical::build(
+        &canonical::prune_to_closure(program, entry),
+        entry,
+        "toolchain-test",
+    )
 }
 
 #[test]
@@ -109,16 +115,30 @@ fn seed_program() -> (Program, std::collections::HashMap<String, EntityId>) {
     m.record("Pt", &[("x", t::u64()), ("y", t::u64())]);
     m.variant(
         "Shape",
-        &[("Dot", None), ("Line", Some(t::u64())), ("Box", Some(m.ty("Pt")))],
+        &[
+            ("Dot", None),
+            ("Line", Some(t::u64())),
+            ("Box", Some(m.ty("Pt"))),
+        ],
     );
-    m.func("inc", &[("x", t::u64())], t::u64(), |f| f.ret(add(v("x"), u64c(1))));
+    m.func("inc", &[("x", t::u64())], t::u64(), |f| {
+        f.ret(add(v("x"), u64c(1)));
+    });
     m.func("area", &[("s", m.ty("Shape"))], t::u64(), |f| {
         f.var("out", u64c(0));
         f.match_var(
             v("s"),
             vec![
-                ("Dot", "_", Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1)))),
-                ("Line", "len", Box::new(|f: &mut FnB<'_>| f.set("out", call("inc", vec![v("len")])))),
+                (
+                    "Dot",
+                    "_",
+                    Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1))),
+                ),
+                (
+                    "Line",
+                    "len",
+                    Box::new(|f: &mut FnB<'_>| f.set("out", call("inc", vec![v("len")]))),
+                ),
                 (
                     "Box",
                     "p",
@@ -136,29 +156,56 @@ fn seed_program() -> (Program, std::collections::HashMap<String, EntityId>) {
         t::res(t::tuple(vec![t::u64(), t::bytes()]), t::u32()),
         |f| {
             f.var("a", u64c(0));
-            f.match_opt(v("o"), "x", |f| f.set("a", v("x")), |f| f.trap());
+            f.match_opt(
+                v("o"),
+                "x",
+                |f| f.set("a", v("x")),
+                sley_selfhost::seed::FnB::trap,
+            );
             f.let_("b", tri(v("r")));
             f.var("m", mnew(t::bytes(), t::u64(), vec![]));
             f.set("m", mins(v("m"), v("b"), v("a")));
-            f.ret_ok(tup(vec![mget(v("m"), v("b")), concat(vnew(t::bytes(), vec![v("b"), v("b")]))]));
+            f.ret_ok(tup(vec![
+                mget(v("m"), v("b")),
+                concat(vnew(t::bytes(), vec![v("b"), v("b")])),
+            ]));
         },
     );
-    m.func("main", &[("b", t::bytes()), ("n", t::u64())], t::bytes(), |f| {
-        f.let_("src", b2v(v("b")));
-        f.var("out", vnew(t::u8(), vec![]));
-        f.var("i", u64c(0));
-        f.loop_(|f| {
-            f.if_(ge(v("i"), vlen(v("src"))), |f| f.break_());
-            f.let_("x", vget(v("src"), v("i")));
-            f.set("out", push(v("out"), add(v("x"), u8c(1))));
-            f.set("i", add(v("i"), u64c(1)));
-        });
-        f.let_("sh", var_new("Shape", "Box", Some(rec("Pt", vec![v("n"), u64c(7)]))));
-        f.let_("a", call("area", vec![v("sh")]));
-        f.if_else(is_case(v("sh"), "Shape", "Line"), |f| f.trap(), |_| {});
-        f.let_("r", call("opt_res", vec![some(v("a")), ok(v2b(v("out")), t::u32())]));
-        f.ret(select(is_ok(v("r")), tget(unwrap(v("r")), 1), blake3(v("b"))));
-    });
+    m.func(
+        "main",
+        &[("b", t::bytes()), ("n", t::u64())],
+        t::bytes(),
+        |f| {
+            f.let_("src", b2v(v("b")));
+            f.var("out", vnew(t::u8(), vec![]));
+            f.var("i", u64c(0));
+            f.loop_(|f| {
+                f.if_(ge(v("i"), vlen(v("src"))), sley_selfhost::seed::FnB::break_);
+                f.let_("x", vget(v("src"), v("i")));
+                f.set("out", push(v("out"), add(v("x"), u8c(1))));
+                f.set("i", add(v("i"), u64c(1)));
+            });
+            f.let_(
+                "sh",
+                var_new("Shape", "Box", Some(rec("Pt", vec![v("n"), u64c(7)]))),
+            );
+            f.let_("a", call("area", vec![v("sh")]));
+            f.if_else(
+                is_case(v("sh"), "Shape", "Line"),
+                sley_selfhost::seed::FnB::trap,
+                |_| {},
+            );
+            f.let_(
+                "r",
+                call("opt_res", vec![some(v("a")), ok(v2b(v("out")), t::u32())]),
+            );
+            f.ret(select(
+                is_ok(v("r")),
+                tget(unwrap(v("r")), 1),
+                blake3(v("b")),
+            ));
+        },
+    );
     // An infinite loop (trap-without-payload exit) and a dead path.
     m.func("spin", &[("n", t::u64())], t::u64(), |f| {
         f.var("k", v("n"));
@@ -167,14 +214,19 @@ fn seed_program() -> (Program, std::collections::HashMap<String, EntityId>) {
             f.set("k", sub(v("k"), u64c(1)));
         });
     });
-    m.func("pong", &[("n", t::u64())], t::u64(), |f| f.ret(call("inc", vec![v("n")])));
+    m.func("pong", &[("n", t::u64())], t::u64(), |f| {
+        f.ret(call("inc", vec![v("n")]));
+    });
     m.func("ping", &[("n", t::u64())], t::u64(), |f| {
         f.ret(add(call("pong", vec![v("n")]), u64c(1)));
     });
     m.func("top", &[("n", t::u64())], t::u64(), |f| {
         f.let_("s", call("spin", vec![v("n")]));
         f.let_("p", call("ping", vec![v("s")]));
-        f.ret(add(v("p"), call("area", vec![var_new("Shape", "Line", Some(v("n")))])));
+        f.ret(add(
+            v("p"),
+            call("area", vec![var_new("Shape", "Line", Some(v("n")))]),
+        ));
     });
     m.finish()
 }
@@ -359,7 +411,13 @@ fn every_type_kind_converts() {
             definition: id(3),
             arguments: vec![TypeExpr::Text, t::opt(TypeExpr::Unit)],
         }),
-        t::map(TypeExpr::Text, t::res(t::u64(), TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability))),
+        t::map(
+            TypeExpr::Text,
+            t::res(
+                t::u64(),
+                TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability),
+            ),
+        ),
         TypeExpr::LocalCell(Box::new(TypeExpr::Text)),
         TypeExpr::FunctionRef(FunctionType {
             parameters: vec![TypeExpr::Bool, t::vec(TypeExpr::Text)],
@@ -424,14 +482,27 @@ fn lw_lowering_only() {
     let (program, names) = program();
     let entry = std::env::var("LW_ENTRY").unwrap_or_else(|_| "t_lw_image".to_owned());
     let s = closure_s(names[entry.as_str()]);
-    let inv = result(run("drv_load", vec![objects_input(&s), bytes(s.epoch.as_bytes())])).unwrap();
+    let inv = result(run(
+        "drv_load",
+        vec![objects_input(&s), bytes(s.epoch.as_bytes())],
+    ))
+    .unwrap();
     eprintln!("loaded");
     let start = Instant::now();
-    let (value, instructions) = run_counted("lw_image", vec![inv, bytes(names[entry.as_str()].as_bytes())]);
+    let (value, instructions) = run_counted(
+        "lw_image",
+        vec![inv, bytes(names[entry.as_str()].as_bytes())],
+    );
     let elapsed = start.elapsed();
     let image = as_bytes(&result(value).unwrap());
-    assert_eq!(Ok(image.clone()), native_image(program, names[entry.as_str()]));
-    eprintln!("{entry}: lowering only: {} bytes, {instructions} instructions, {elapsed:?}", image.len());
+    assert_eq!(
+        Ok(image.clone()),
+        native_image(program, names[entry.as_str()])
+    );
+    eprintln!(
+        "{entry}: lowering only: {} bytes, {instructions} instructions, {elapsed:?}",
+        image.len()
+    );
 }
 
 /// No `lw_*` edge passes one vector/map register twice: two block
@@ -454,7 +525,9 @@ fn lw_edges_never_duplicate_large_values() {
             let mut edges: Vec<Vec<u32>> = vec![];
             match &b.terminator {
                 BytecodeTerminator::Branch(e) => edges.push(e.arguments.clone()),
-                BytecodeTerminator::CondBranch { if_true, if_false, .. } => {
+                BytecodeTerminator::CondBranch {
+                    if_true, if_false, ..
+                } => {
                     edges.push(if_true.arguments.clone());
                     edges.push(if_false.arguments.clone());
                 }
@@ -487,5 +560,8 @@ fn lw_edges_never_duplicate_large_values() {
             }
         }
     }
-    assert!(found.is_empty(), "duplicated large edge arguments: {found:?}");
+    assert!(
+        found.is_empty(),
+        "duplicated large edge arguments: {found:?}"
+    );
 }

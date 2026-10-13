@@ -1,14 +1,14 @@
 //! `pk_*`: the Sley `EXEC_PACKAGE_V3` envelope against the native encoder.
 mod common;
 use common::*;
+use sley_id::EntityId;
 use sley_selfhost::canonical;
 use sley_selfhost::native;
-use sley_selfhost::seed::t;
-use sley_ssmc::{ConstData, ConstValue, TypeExpr};
-use sley_id::EntityId;
 use sley_selfhost::native::Runner;
 use sley_selfhost::seed::Program;
+use sley_selfhost::seed::t;
 use sley_selfhost::toolchain::package::PK_MALFORMED;
+use sley_ssmc::{ConstData, ConstValue, TypeExpr};
 use sley_vm::{ExecutionLimits, ExecutionTermination};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -41,7 +41,10 @@ fn program() -> &'static (Program, HashMap<String, EntityId>) {
 fn run_counted(entry: &str, inputs: Vec<ConstValue>) -> (ConstValue, u64) {
     static RUNNERS: OnceLock<Mutex<HashMap<String, &'static Runner<'static>>>> = OnceLock::new();
     let runner = {
-        let mut guard = RUNNERS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap();
+        let mut guard = RUNNERS
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .unwrap();
         *guard.entry(entry.to_owned()).or_insert_with(|| {
             let (program, names) = program();
             Box::leak(Box::new(Runner::new(program, names[entry])))
@@ -53,7 +56,6 @@ fn run_counted(entry: &str, inputs: Vec<ConstValue>) -> (ConstValue, u64) {
         other => panic!("{entry}: {other:?}"),
     }
 }
-
 
 fn vec_of(element: TypeExpr, items: Vec<ConstValue>) -> ConstValue {
     ConstValue {
@@ -104,7 +106,9 @@ fn check_envelope(entry_name: &str, limits: ExecutionLimits, sized: bool, case: 
         package.image_bytes = large;
     }
     let expected = &sley_vm::encode_package_envelope_v3(&package).expect("native envelope");
-    let digest = sley_vm::package_digests_v3(&package).expect("digests").package_digest;
+    let digest = sley_vm::package_digests_v3(&package)
+        .expect("digests")
+        .package_digest;
     if let Case::Exact = case {
         assert_eq!(*expected, reference.envelope);
     }
@@ -139,7 +143,10 @@ fn check_envelope(entry_name: &str, limits: ExecutionLimits, sized: bool, case: 
             boolv(limits.cancel_at_fuel.is_some()),
             u64v(gate_ops),
             u64v(u64::from(package.gate_bridge_uses)),
-            vec_of(TypeExpr::Bytes, fps.iter().map(|fp| bytes(fp.as_bytes())).collect()),
+            vec_of(
+                TypeExpr::Bytes,
+                fps.iter().map(|fp| bytes(fp.as_bytes())).collect(),
+            ),
         ],
     );
     let elapsed = start.elapsed();
@@ -157,7 +164,11 @@ fn check_envelope(entry_name: &str, limits: ExecutionLimits, sized: bool, case: 
             expected.len()
         );
     }
-    assert_eq!(as_bytes(&items[1]), digest.to_vec(), "{entry_name}: package digest");
+    assert_eq!(
+        as_bytes(&items[1]),
+        digest.to_vec(),
+        "{entry_name}: package digest"
+    );
     eprintln!(
         "{entry_name}: envelope {} bytes (image {}, {} constants, {} layouts, {} imports, {} \
          fingerprints); {instructions} instructions (drv_load included), {elapsed:?}",

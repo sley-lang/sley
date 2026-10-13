@@ -1,5 +1,12 @@
 //! `jg_*`: extended operation judgment and the bootstrap-profile gate
 //! against the native `sley-vm` judgments.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::items_after_statements,
+    clippy::same_functions_in_if_condition,
+    clippy::too_many_lines,
+    clippy::type_complexity
+)]
 mod common;
 use common::*;
 
@@ -47,7 +54,11 @@ fn byte_list(value: &ConstValue) -> Vec<Vec<u8>> {
 
 /// Native `judge_function_operations` for one function of `program`.
 fn native_judge(program: &Program, types: &TypeEnvironment, fid: EntityId) -> Result<(), u32> {
-    let function = program.functions.iter().find(|f| f.entity_id == fid).expect("function");
+    let function = program
+        .functions
+        .iter()
+        .find(|f| f.entity_id == fid)
+        .expect("function");
     sley_vm::judge_function_operations(LoweringInput {
         types,
         function,
@@ -73,14 +84,13 @@ type GateClaims = (Vec<Vec<u8>>, u64, u64, Vec<Vec<u8>>);
 fn native_gate(program: &Program, entry: EntityId) -> Result<GateClaims, u32> {
     let types = TypeEnvironment::new(program.type_definitions.clone()).expect("types");
     let dummy;
-    let entry_fn = match program.functions.iter().find(|f| f.entity_id == entry) {
-        Some(found) => found,
-        None => {
-            let mut graph = program.functions[0].clone();
-            graph.entity_id = entry;
-            dummy = graph;
-            &dummy
-        }
+    let entry_fn = if let Some(found) = program.functions.iter().find(|f| f.entity_id == entry) {
+        found
+    } else {
+        let mut graph = program.functions[0].clone();
+        graph.entity_id = entry;
+        dummy = graph;
+        &dummy
     };
     judge_bootstrap_profile(&BootstrapProfileInput {
         types: &types,
@@ -97,10 +107,18 @@ fn native_gate(program: &Program, entry: EntityId) -> Result<GateClaims, u32> {
     })
     .map(|report| {
         (
-            report.functions().iter().map(|id| id.as_bytes().to_vec()).collect(),
+            report
+                .functions()
+                .iter()
+                .map(|id| id.as_bytes().to_vec())
+                .collect(),
             u64::from(report.operation_count()),
             u64::from(report.bridge_uses()),
-            report.imports().iter().map(|id| id.as_bytes().to_vec()).collect(),
+            report
+                .imports()
+                .iter()
+                .map(|id| id.as_bytes().to_vec())
+                .collect(),
         )
     })
     .map_err(|e| lowering_code(&e))
@@ -113,7 +131,12 @@ fn sley_gate(s: &CanonicalS, entry: EntityId, image: &[u8]) -> (Result<GateClaim
     let (value, count) = run_counted("t_jg_gate", inputs);
     let claims = result(value).map(|v| {
         let items = tuple_items(&v);
-        (byte_list(&items[0]), as_u64(&items[1]), as_u64(&items[2]), byte_list(&items[3]))
+        (
+            byte_list(&items[0]),
+            as_u64(&items[1]),
+            as_u64(&items[2]),
+            byte_list(&items[3]),
+        )
     });
     (claims, count)
 }
@@ -140,7 +163,12 @@ fn every_toolchain_function_is_judged_like_native() {
     let codes = result_list(value);
     assert_eq!(codes.len(), decoded.functions.len());
     for (function, code) in decoded.functions.iter().zip(&codes) {
-        assert_eq!(*code, Ok(()), "jg_function refuses {:?}", function.entity_id);
+        assert_eq!(
+            *code,
+            Ok(()),
+            "jg_function refuses {:?}",
+            function.entity_id
+        );
     }
     eprintln!(
         "jg_function over all {} functions / {} operations: {count} instructions including \
@@ -231,11 +259,11 @@ fn gate_matches_native_judge_closure() {
 use sley_check::cfg::validate_function_graph;
 use sley_selfhost::seed::{bridge_id, t};
 use sley_ssmc::{
-    AdapterImport, Block, BuiltinFailureKind, FieldConst, FunctionGraph, FunctionRefValue,
-    FunctionType, Immediate, IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode, Operation,
-    Parameter, ParameterRole, Reachability, RecordConst, RecordField, ReturnTerminator, Terminator,
-    TypeDefForm, TypeDefinition, TypeParameterDef, ValueRef, VariantCase, VariantImmediate,
-    Visibility, ConstantDefinition,
+    AdapterImport, Block, BuiltinFailureKind, ConstantDefinition, FieldConst, FunctionGraph,
+    FunctionRefValue, FunctionType, Immediate, IntegerWidth, MapEntryConst, MemberId, NamedType,
+    Opcode, Operation, Parameter, ParameterRole, Reachability, RecordConst, RecordField,
+    ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeParameterDef, ValueRef,
+    VariantCase, VariantImmediate, Visibility,
 };
 use std::collections::BTreeSet;
 
@@ -343,7 +371,10 @@ fn simple_function(
             block,
             ordinal: 0,
             opcode,
-            operands: params[1..].iter().map(|p| ValueRef::Parameter(*p)).collect(),
+            operands: params[1..]
+                .iter()
+                .map(|p| ValueRef::Parameter(*p))
+                .collect(),
             result_types: declared,
             immediate,
         });
@@ -450,8 +481,16 @@ fn corpus_fixed(program: &mut Program, seq: &mut u64, good_rows: bool) -> Fixed 
     let gen_ = eid(0x70, 3);
     let flt = eid(0x70, 4);
     let hold = eid(0x70, 5);
-    let (pt_x, pt_y, sh_dot, sh_line, sh_box, flt_f, gen_v, hold_c) =
-        (mid(1), mid(2), mid(3), mid(4), mid(5), mid(6), mid(7), mid(8));
+    let (pt_x, pt_y, sh_dot, sh_line, sh_box, flt_f, gen_v, hold_c) = (
+        mid(1),
+        mid(2),
+        mid(3),
+        mid(4),
+        mid(5),
+        mid(6),
+        mid(7),
+        mid(8),
+    );
     let field = |member_id, value_type| RecordField {
         member_id,
         value_type,
@@ -465,14 +504,27 @@ fn corpus_fixed(program: &mut Program, seq: &mut u64, good_rows: bool) -> Fixed 
         visibility: Visibility::Private,
     };
     program.type_definitions = vec![
-        def(pt, vec![], TypeDefForm::Record(vec![field(pt_x, t::u64()), field(pt_y, t::u64())])),
+        def(
+            pt,
+            vec![],
+            TypeDefForm::Record(vec![field(pt_x, t::u64()), field(pt_y, t::u64())]),
+        ),
         def(
             sh,
             vec![],
             TypeDefForm::Variant(vec![
-                VariantCase { member_id: sh_dot, payload_type: None },
-                VariantCase { member_id: sh_line, payload_type: Some(t::u64()) },
-                VariantCase { member_id: sh_box, payload_type: Some(named(pt, vec![])) },
+                VariantCase {
+                    member_id: sh_dot,
+                    payload_type: None,
+                },
+                VariantCase {
+                    member_id: sh_line,
+                    payload_type: Some(t::u64()),
+                },
+                VariantCase {
+                    member_id: sh_box,
+                    payload_type: Some(named(pt, vec![])),
+                },
             ]),
         ),
         def(
@@ -480,17 +532,35 @@ fn corpus_fixed(program: &mut Program, seq: &mut u64, good_rows: bool) -> Fixed 
             vec![TypeParameterDef { ordinal: 0 }],
             TypeDefForm::Record(vec![field(gen_v, TypeExpr::TypeParameter(0))]),
         ),
-        def(flt, vec![], TypeDefForm::Record(vec![field(flt_f, TypeExpr::F64)])),
-        def(hold, vec![], TypeDefForm::Record(vec![field(hold_c, cell(t::u64()))])),
+        def(
+            flt,
+            vec![],
+            TypeDefForm::Record(vec![field(flt_f, TypeExpr::F64)]),
+        ),
+        def(
+            hold,
+            vec![],
+            TypeDefForm::Record(vec![field(hold_c, cell(t::u64()))]),
+        ),
     ];
     let mut consts = Vec::new();
     let mut add_const = |program: &mut Program, n: u64, value: ConstValue| {
         let id = eid(0xC0, n);
-        program.constants.push(ConstantDefinition { entity_id: id, value });
+        program.constants.push(ConstantDefinition {
+            entity_id: id,
+            value,
+        });
         consts.push(id);
     };
     add_const(program, 1, uconst(t::u64(), 7));
-    add_const(program, 2, ConstValue { value_type: t::bytes(), data: ConstData::Bytes(vec![1, 2, 3]) });
+    add_const(
+        program,
+        2,
+        ConstValue {
+            value_type: t::bytes(),
+            data: ConstData::Bytes(vec![1, 2, 3]),
+        },
+    );
     add_const(
         program,
         3,
@@ -498,7 +568,10 @@ fn corpus_fixed(program: &mut Program, seq: &mut u64, good_rows: bool) -> Fixed 
             value_type: t::map(t::u64(), t::bytes()),
             data: ConstData::Map(vec![MapEntryConst {
                 key: uconst(t::u64(), 1),
-                value: ConstValue { value_type: t::bytes(), data: ConstData::Bytes(vec![9]) },
+                value: ConstValue {
+                    value_type: t::bytes(),
+                    data: ConstData::Bytes(vec![9]),
+                },
             }]),
         },
     );
@@ -510,25 +583,57 @@ fn corpus_fixed(program: &mut Program, seq: &mut u64, good_rows: bool) -> Fixed 
             data: ConstData::Record(RecordConst {
                 definition: pt,
                 fields: vec![
-                    FieldConst { member_id: pt_x, value: uconst(t::u64(), 1) },
-                    FieldConst { member_id: pt_y, value: uconst(t::u64(), 2) },
+                    FieldConst {
+                        member_id: pt_x,
+                        value: uconst(t::u64(), 1),
+                    },
+                    FieldConst {
+                        member_id: pt_y,
+                        value: uconst(t::u64(), 2),
+                    },
                 ],
             }),
         },
     );
-    add_const(program, 5, ConstValue { value_type: TypeExpr::F64, data: ConstData::F64Bits(0x3ff0_0000_0000_0000) });
+    add_const(
+        program,
+        5,
+        ConstValue {
+            value_type: TypeExpr::F64,
+            data: ConstData::F64Bits(0x3ff0_0000_0000_0000),
+        },
+    );
     // Callees: plain, generic, with effects, with a missing parameter.
     let callee = eid(0xF0, 1);
-    simple_function(program, callee, seq, &[t::u64(), t::bytes()], t::u64(), None);
+    simple_function(
+        program,
+        callee,
+        seq,
+        &[t::u64(), t::bytes()],
+        t::u64(),
+        None,
+    );
     let callee_gen = eid(0xF0, 2);
     simple_function(program, callee_gen, seq, &[t::u64()], t::u64(), None);
     program.functions.last_mut().unwrap().type_parameters = vec![TypeParameterDef { ordinal: 0 }];
     let callee_eff = eid(0xF0, 3);
-    simple_function(program, callee_eff, seq, &[t::u64(), t::bytes()], t::u64(), None);
+    simple_function(
+        program,
+        callee_eff,
+        seq,
+        &[t::u64(), t::bytes()],
+        t::u64(),
+        None,
+    );
     program.functions.last_mut().unwrap().effects = vec![eid(0xEF, 3), eid(0xEF, 4)];
     let callee_hole = eid(0xF0, 4);
     simple_function(program, callee_hole, seq, &[t::u64()], t::u64(), None);
-    program.functions.last_mut().unwrap().parameters.push(eid(0xEE, 1));
+    program
+        .functions
+        .last_mut()
+        .unwrap()
+        .parameters
+        .push(eid(0xEE, 1));
     let callees = vec![callee, callee_gen, callee_eff, callee_hole, eid(0xF0, 99)];
     program.imports = corpus_imports(good_rows);
     let imports = program.imports.iter().map(|i| i.entity_id).collect();
@@ -594,54 +699,142 @@ fn type_pool(fx: &Fixed) -> Vec<TypeExpr> {
 }
 
 const ALL_OPCODES: &[Opcode] = &[
-    Opcode::ConstantRef, Opcode::TupleNew, Opcode::TupleGet, Opcode::RecordNew, Opcode::RecordGet,
-    Opcode::VariantNew, Opcode::VariantGet, Opcode::VectorNew, Opcode::VectorLen,
-    Opcode::VectorGet, Opcode::VectorSet, Opcode::MapNew, Opcode::MapGet, Opcode::MapContains,
-    Opcode::MapInsert, Opcode::MapRemove, Opcode::IntAddChecked, Opcode::IntSubChecked,
-    Opcode::IntMulChecked, Opcode::IntDivChecked, Opcode::IntRemChecked, Opcode::IntNegChecked,
-    Opcode::IntShlChecked, Opcode::IntShrChecked, Opcode::FloatAdd, Opcode::FloatSub,
-    Opcode::FloatMul, Opcode::FloatDiv, Opcode::FloatNeg, Opcode::FloatFma, Opcode::Equal,
-    Opcode::NotEqual, Opcode::LessThan, Opcode::LessEqual, Opcode::GreaterThan,
-    Opcode::GreaterEqual, Opcode::BoolNot, Opcode::BoolAnd, Opcode::BoolOr, Opcode::CallDirect,
-    Opcode::OptionSome, Opcode::OptionNone, Opcode::ResultOk, Opcode::ResultErr,
-    Opcode::ContractAssert, Opcode::TestObserve, Opcode::EffectRequest, Opcode::AdapterInvoke,
-    Opcode::CapabilityNarrow, Opcode::CellNew, Opcode::CellGet, Opcode::CellSet,
-    Opcode::ValueHash, Opcode::GlobalGet, Opcode::FunctionRef,
+    Opcode::ConstantRef,
+    Opcode::TupleNew,
+    Opcode::TupleGet,
+    Opcode::RecordNew,
+    Opcode::RecordGet,
+    Opcode::VariantNew,
+    Opcode::VariantGet,
+    Opcode::VectorNew,
+    Opcode::VectorLen,
+    Opcode::VectorGet,
+    Opcode::VectorSet,
+    Opcode::MapNew,
+    Opcode::MapGet,
+    Opcode::MapContains,
+    Opcode::MapInsert,
+    Opcode::MapRemove,
+    Opcode::IntAddChecked,
+    Opcode::IntSubChecked,
+    Opcode::IntMulChecked,
+    Opcode::IntDivChecked,
+    Opcode::IntRemChecked,
+    Opcode::IntNegChecked,
+    Opcode::IntShlChecked,
+    Opcode::IntShrChecked,
+    Opcode::FloatAdd,
+    Opcode::FloatSub,
+    Opcode::FloatMul,
+    Opcode::FloatDiv,
+    Opcode::FloatNeg,
+    Opcode::FloatFma,
+    Opcode::Equal,
+    Opcode::NotEqual,
+    Opcode::LessThan,
+    Opcode::LessEqual,
+    Opcode::GreaterThan,
+    Opcode::GreaterEqual,
+    Opcode::BoolNot,
+    Opcode::BoolAnd,
+    Opcode::BoolOr,
+    Opcode::CallDirect,
+    Opcode::OptionSome,
+    Opcode::OptionNone,
+    Opcode::ResultOk,
+    Opcode::ResultErr,
+    Opcode::ContractAssert,
+    Opcode::TestObserve,
+    Opcode::EffectRequest,
+    Opcode::AdapterInvoke,
+    Opcode::CapabilityNarrow,
+    Opcode::CellNew,
+    Opcode::CellGet,
+    Opcode::CellSet,
+    Opcode::ValueHash,
+    Opcode::GlobalGet,
+    Opcode::FunctionRef,
 ];
 
 fn fref(function: EntityId, type_arguments: Vec<TypeExpr>) -> Immediate {
-    Immediate::Function(FunctionRefValue { function, type_arguments })
+    Immediate::Function(FunctionRefValue {
+        function,
+        type_arguments,
+    })
 }
 
 /// Opcode-aware operand types and immediate (with random perturbation).
 #[allow(clippy::too_many_lines)]
-fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (Vec<TypeExpr>, Immediate) {
+fn case_shape(
+    rng: &mut Rng,
+    fx: &Fixed,
+    pool: &[TypeExpr],
+    opcode: Opcode,
+) -> (Vec<TypeExpr>, Immediate) {
     use Opcode as O;
     let any = |rng: &mut Rng| rng.pick(pool);
-    let ints = [t::u64(), t::u32(), t::u8(), t::i64(), TypeExpr::SInt(IntegerWidth::from_bits(8))];
+    let ints = [
+        t::u64(),
+        t::u32(),
+        t::u8(),
+        t::i64(),
+        TypeExpr::SInt(IntegerWidth::from_bits(8)),
+    ];
     let floats = [TypeExpr::F64, TypeExpr::F32];
     let pt = named(fx.pt, vec![]);
     let sh = named(fx.sh, vec![]);
     let defs = [fx.pt, fx.sh, fx.gen_, fx.flt, fx.hold, eid(0x70, 99)];
-    let members = [fx.pt_x, fx.pt_y, fx.sh_dot, fx.sh_line, fx.sh_box, fx.flt_f, mid(99)];
+    let members = [
+        fx.pt_x,
+        fx.pt_y,
+        fx.sh_dot,
+        fx.sh_line,
+        fx.sh_box,
+        fx.flt_f,
+        mid(99),
+    ];
     let mut imm = Immediate::None;
     let operands: Vec<TypeExpr> = match opcode {
         O::ConstantRef => {
-            imm = Immediate::Entity(if rng.chance(85) { rng.pick(&fx.consts) } else { eid(0xC0, 77) });
-            if rng.chance(90) { vec![] } else { vec![t::u64()] }
+            imm = Immediate::Entity(if rng.chance(85) {
+                rng.pick(&fx.consts)
+            } else {
+                eid(0xC0, 77)
+            });
+            if rng.chance(90) {
+                vec![]
+            } else {
+                vec![t::u64()]
+            }
         }
         O::TupleNew => (0..rng.below(4)).map(|_| any(rng)).collect(),
         O::TupleGet => {
             imm = Immediate::Index(u32::try_from(rng.below(3)).unwrap());
-            vec![rng.pick(&[t::tuple(vec![t::u64(), t::bytes()]), t::tuple(vec![]), t::u64()])]
+            vec![rng.pick(&[
+                t::tuple(vec![t::u64(), t::bytes()]),
+                t::tuple(vec![]),
+                t::u64(),
+            ])]
         }
         O::RecordNew => {
             imm = Immediate::Entity(rng.pick(&defs));
-            rng.pick(&[vec![t::u64(), t::u64()], vec![t::u64()], vec![TypeExpr::F64], vec![cell(t::u64())], vec![t::u64(), t::u32()]])
+            rng.pick(&[
+                vec![t::u64(), t::u64()],
+                vec![t::u64()],
+                vec![TypeExpr::F64],
+                vec![cell(t::u64())],
+                vec![t::u64(), t::u32()],
+            ])
         }
         O::RecordGet => {
             imm = Immediate::Field(rng.pick(&members));
-            vec![rng.pick(&[pt.clone(), sh.clone(), named(fx.flt, vec![]), named(fx.gen_, vec![t::u64()]), t::u64()])]
+            vec![rng.pick(&[
+                pt.clone(),
+                sh.clone(),
+                named(fx.flt, vec![]),
+                named(fx.gen_, vec![t::u64()]),
+                t::u64(),
+            ])]
         }
         O::VariantNew | O::VariantGet => {
             imm = Immediate::Variant(VariantImmediate {
@@ -657,14 +850,27 @@ fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (
         O::VectorNew => {
             let a = any(rng);
             let b = any(rng);
-            rng.pick(&[vec![], vec![a.clone()], vec![a.clone(), a.clone()], vec![a, b]])
+            rng.pick(&[
+                vec![],
+                vec![a.clone()],
+                vec![a.clone(), a.clone()],
+                vec![a, b],
+            ])
         }
         O::VectorLen => vec![rng.pick(&[t::vec(t::u8()), t::vec(t::u64()), t::u64()])],
         O::VectorGet => vec![
-            rng.pick(&[t::vec(t::u64()), t::vec(t::u8()), t::map(t::u64(), t::bytes())]),
+            rng.pick(&[
+                t::vec(t::u64()),
+                t::vec(t::u8()),
+                t::map(t::u64(), t::bytes()),
+            ]),
             rng.pick(&[t::u64(), t::u64(), t::u32()]),
         ],
-        O::VectorSet => vec![t::vec(t::u64()), rng.pick(&[t::u64(), t::u8()]), rng.pick(&[t::u64(), t::u8()])],
+        O::VectorSet => vec![
+            t::vec(t::u64()),
+            rng.pick(&[t::u64(), t::u8()]),
+            rng.pick(&[t::u64(), t::u8()]),
+        ],
         O::MapNew => rng.pick(&[
             vec![],
             vec![t::u64(), t::bytes()],
@@ -681,7 +887,11 @@ fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (
             vec![t::u64()],
         ]),
         O::MapGet | O::MapContains | O::MapRemove => vec![
-            rng.pick(&[t::map(t::u64(), t::bytes()), t::map(t::bytes(), t::u64()), t::vec(t::u64())]),
+            rng.pick(&[
+                t::map(t::u64(), t::bytes()),
+                t::map(t::bytes(), t::u64()),
+                t::vec(t::u64()),
+            ]),
             rng.pick(&[t::u64(), t::bytes()]),
         ],
         O::MapInsert => vec![
@@ -689,37 +899,75 @@ fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (
             rng.pick(&[t::u64(), t::bytes()]),
             rng.pick(&[t::u64(), t::bytes()]),
         ],
-        O::IntAddChecked | O::IntSubChecked | O::IntMulChecked | O::IntDivChecked | O::IntRemChecked => {
+        O::IntAddChecked
+        | O::IntSubChecked
+        | O::IntMulChecked
+        | O::IntDivChecked
+        | O::IntRemChecked => {
             let a = rng.pick(&ints);
-            let b = if rng.chance(75) { a.clone() } else { rng.pick(&[t::u32(), TypeExpr::F64, t::bytes()]) };
+            let b = if rng.chance(75) {
+                a.clone()
+            } else {
+                rng.pick(&[t::u32(), TypeExpr::F64, t::bytes()])
+            };
             vec![a, b]
         }
         O::IntNegChecked => vec![rng.pick(&[t::i64(), t::u64(), TypeExpr::F64, t::u8()])],
         O::IntShlChecked | O::IntShrChecked => {
-            vec![rng.pick(&[t::u64(), t::i64(), t::bytes()]), rng.pick(&[t::u32(), t::u32(), t::u64()])]
+            vec![
+                rng.pick(&[t::u64(), t::i64(), t::bytes()]),
+                rng.pick(&[t::u32(), t::u32(), t::u64()]),
+            ]
         }
         O::FloatAdd | O::FloatSub | O::FloatMul | O::FloatDiv => {
             let a = rng.pick(&floats);
-            vec![a.clone(), if rng.chance(70) { a } else { rng.pick(&[t::u64(), TypeExpr::F32]) }]
+            vec![
+                a.clone(),
+                if rng.chance(70) {
+                    a
+                } else {
+                    rng.pick(&[t::u64(), TypeExpr::F32])
+                },
+            ]
         }
         O::FloatNeg => vec![rng.pick(&[TypeExpr::F64, TypeExpr::F32, t::u64()])],
         O::FloatFma => {
             let a = rng.pick(&floats);
-            vec![a.clone(), a.clone(), if rng.chance(70) { a } else { t::u64() }]
+            vec![
+                a.clone(),
+                a.clone(),
+                if rng.chance(70) { a } else { t::u64() },
+            ]
         }
         O::Equal | O::NotEqual | O::LessThan | O::LessEqual | O::GreaterThan | O::GreaterEqual => {
             let a = any(rng);
             vec![a.clone(), if rng.chance(85) { a } else { any(rng) }]
         }
         O::BoolNot => vec![rng.pick(&[TypeExpr::Bool, TypeExpr::Bool, t::u64()])],
-        O::BoolAnd | O::BoolOr => vec![TypeExpr::Bool, rng.pick(&[TypeExpr::Bool, TypeExpr::Bool, t::u64()])],
+        O::BoolAnd | O::BoolOr => vec![
+            TypeExpr::Bool,
+            rng.pick(&[TypeExpr::Bool, TypeExpr::Bool, t::u64()]),
+        ],
         O::CallDirect | O::FunctionRef => {
-            let targs = if rng.chance(10) { vec![t::u64()] } else { vec![] };
+            let targs = if rng.chance(10) {
+                vec![t::u64()]
+            } else {
+                vec![]
+            };
             imm = fref(rng.pick(&fx.callees), targs);
             if opcode == O::FunctionRef {
-                if rng.chance(90) { vec![] } else { vec![t::u64()] }
+                if rng.chance(90) {
+                    vec![]
+                } else {
+                    vec![t::u64()]
+                }
             } else {
-                rng.pick(&[vec![t::u64(), t::bytes()], vec![t::u64(), t::bytes()], vec![t::u64()], vec![t::bytes(), t::u64()]])
+                rng.pick(&[
+                    vec![t::u64(), t::bytes()],
+                    vec![t::u64(), t::bytes()],
+                    vec![t::u64()],
+                    vec![t::bytes(), t::u64()],
+                ])
             }
         }
         O::OptionSome | O::ResultOk | O::ResultErr | O::CellNew | O::ValueHash => vec![any(rng)],
@@ -727,15 +975,30 @@ fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (
             if opcode != O::OptionNone {
                 imm = Immediate::Entity(rng.pick(&[eid(0xC0, 1), eid(0x99, 1)]));
             }
-            if rng.chance(90) { vec![] } else { vec![t::u64()] }
+            if rng.chance(90) {
+                vec![]
+            } else {
+                vec![t::u64()]
+            }
         }
-        O::CellGet => vec![if rng.chance(80) { cell(any(rng)) } else { any(rng) }],
+        O::CellGet => vec![if rng.chance(80) {
+            cell(any(rng))
+        } else {
+            any(rng)
+        }],
         O::CellSet => {
             let inner = any(rng);
-            vec![cell(inner.clone()), if rng.chance(75) { inner } else { any(rng) }]
+            vec![
+                cell(inner.clone()),
+                if rng.chance(75) { inner } else { any(rng) },
+            ]
         }
         O::AdapterInvoke => {
-            let id = if rng.chance(90) { rng.pick(&fx.imports) } else { eid(0x99, 2) };
+            let id = if rng.chance(90) {
+                rng.pick(&fx.imports)
+            } else {
+                eid(0x99, 2)
+            };
             imm = Immediate::Entity(id);
             let kinds: Vec<(TypeExpr, TypeExpr)> = vec![
                 (TypeExpr::Unit, t::bytes()),
@@ -748,9 +1011,17 @@ fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (
                 (TypeExpr::Unit, t::u64()),
             ];
             let (scope, request) = rng.pick(&kinds);
-            if rng.chance(8) { vec![scope] } else if rng.chance(8) { vec![any(rng), any(rng)] } else { vec![scope, request] }
+            if rng.chance(8) {
+                vec![scope]
+            } else if rng.chance(8) {
+                vec![any(rng), any(rng)]
+            } else {
+                vec![scope, request]
+            }
         }
-        O::TestObserve | O::EffectRequest | O::CapabilityNarrow => (0..rng.below(3)).map(|_| any(rng)).collect(),
+        O::TestObserve | O::EffectRequest | O::CapabilityNarrow => {
+            (0..rng.below(3)).map(|_| any(rng)).collect()
+        }
     };
     if rng.chance(12) {
         imm = match rng.below(7) {
@@ -758,7 +1029,10 @@ fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (
             1 => Immediate::Entity(rng.pick(&fx.consts)),
             2 => Immediate::Index(1),
             3 => Immediate::Field(fx.pt_x),
-            4 => Immediate::Variant(VariantImmediate { definition: fx.sh, member_id: fx.sh_line }),
+            4 => Immediate::Variant(VariantImmediate {
+                definition: fx.sh,
+                member_id: fx.sh_line,
+            }),
             5 => Immediate::Observation([3; 32]),
             _ => fref(fx.callees[0], vec![]),
         };
@@ -767,13 +1041,24 @@ fn case_shape(rng: &mut Rng, fx: &Fixed, pool: &[TypeExpr], opcode: Opcode) -> (
 }
 
 /// The derived result candidates for one shape.
-fn candidates(fx: &Fixed, pool: &[TypeExpr], operands: &[TypeExpr], program: &Program) -> Vec<TypeExpr> {
+fn candidates(
+    fx: &Fixed,
+    pool: &[TypeExpr],
+    operands: &[TypeExpr],
+    program: &Program,
+) -> Vec<TypeExpr> {
     let mut out = Vec::new();
     let mut parts = operands.to_vec();
     for o in operands {
         match o {
-            TypeExpr::Vector(x) | TypeExpr::Option(x) | TypeExpr::LocalCell(x) => parts.push((**x).clone()),
-            TypeExpr::OrderedMap { key, value } | TypeExpr::Result { ok: key, error: value } => {
+            TypeExpr::Vector(x) | TypeExpr::Option(x) | TypeExpr::LocalCell(x) => {
+                parts.push((**x).clone());
+            }
+            TypeExpr::OrderedMap { key, value }
+            | TypeExpr::Result {
+                ok: key,
+                error: value,
+            } => {
                 parts.push((**key).clone());
                 parts.push((**value).clone());
             }
@@ -791,13 +1076,25 @@ fn candidates(fx: &Fixed, pool: &[TypeExpr], operands: &[TypeExpr], program: &Pr
         }
     }
     if operands.len() >= 2 {
-        out.push(t::res(t::map(operands[0].clone(), operands[1].clone()), bf(BuiltinFailureKind::DuplicateKey)));
+        out.push(t::res(
+            t::map(operands[0].clone(), operands[1].clone()),
+            bf(BuiltinFailureKind::DuplicateKey),
+        ));
     }
     out.push(t::tuple(operands.to_vec()));
     out.extend(pool.iter().cloned());
-    out.push(t::res(t::map(t::u64(), t::bytes()), bf(BuiltinFailureKind::DuplicateKey)));
-    out.push(t::res(t::map(TypeExpr::F64, t::bytes()), bf(BuiltinFailureKind::DuplicateKey)));
-    out.push(t::res(t::map(t::vec(t::u64()), t::bytes()), bf(BuiltinFailureKind::DuplicateKey)));
+    out.push(t::res(
+        t::map(t::u64(), t::bytes()),
+        bf(BuiltinFailureKind::DuplicateKey),
+    ));
+    out.push(t::res(
+        t::map(TypeExpr::F64, t::bytes()),
+        bf(BuiltinFailureKind::DuplicateKey),
+    ));
+    out.push(t::res(
+        t::map(t::vec(t::u64()), t::bytes()),
+        bf(BuiltinFailureKind::DuplicateKey),
+    ));
     out.push(t::res(t::bytes(), bf(BuiltinFailureKind::Index)));
     out.push(t::res(t::vec(t::u8()), bf(BuiltinFailureKind::Index)));
     out.push(t::res(t::u64(), bf(BuiltinFailureKind::Index)));
@@ -810,7 +1107,13 @@ fn candidates(fx: &Fixed, pool: &[TypeExpr], operands: &[TypeExpr], program: &Pr
             let params: Option<Vec<TypeExpr>> = g
                 .parameters
                 .iter()
-                .map(|p| program.parameters.iter().find(|q| q.entity_id == *p).map(|q| q.value_type.clone()))
+                .map(|p| {
+                    program
+                        .parameters
+                        .iter()
+                        .find(|q| q.entity_id == *p)
+                        .map(|q| q.value_type.clone())
+                })
                 .collect();
             if let Some(parameters) = params {
                 out.push(TypeExpr::FunctionRef(FunctionType {
@@ -856,16 +1159,18 @@ fn generate_cases(seed: u64, count: usize) -> Vec<CaseSpec> {
             function: dummy,
         };
         let refs: Vec<&TypeExpr> = operands.iter().collect();
-        let found = candidates(&fx, &pool, &operands, &program).into_iter().find(|candidate| {
-            sley_vm::extended::judge_extended_operation(
-                &context,
-                opcode,
-                &immediate,
-                &refs,
-                std::slice::from_ref(candidate),
-            )
-            .is_ok()
-        });
+        let found = candidates(&fx, &pool, &operands, &program)
+            .into_iter()
+            .find(|candidate| {
+                sley_vm::extended::judge_extended_operation(
+                    &context,
+                    opcode,
+                    &immediate,
+                    &refs,
+                    std::slice::from_ref(candidate),
+                )
+                .is_ok()
+            });
         let roll = rng.below(100);
         let declared = match (found, roll) {
             (Some(ok), 0..=64) => vec![ok],
@@ -875,11 +1180,23 @@ fn generate_cases(seed: u64, count: usize) -> Vec<CaseSpec> {
             _ => vec![rng.pick(&pool)],
         };
         let result = if rng.chance(4) {
-            rng.pick(&[cell(t::u64()), TypeExpr::AdapterHandle(eid(0xAD, 1)), t::vec(TypeExpr::CapabilityToken(eid(0xAD, 2))), named(fx.hold, vec![]), TypeExpr::F64])
+            rng.pick(&[
+                cell(t::u64()),
+                TypeExpr::AdapterHandle(eid(0xAD, 1)),
+                t::vec(TypeExpr::CapabilityToken(eid(0xAD, 2))),
+                named(fx.hold, vec![]),
+                TypeExpr::F64,
+            ])
         } else {
             TypeExpr::Unit
         };
-        cases.push(CaseSpec { operands, opcode, immediate, declared, result });
+        cases.push(CaseSpec {
+            operands,
+            opcode,
+            immediate,
+            declared,
+            result,
+        });
     }
     cases
 }
@@ -907,8 +1224,16 @@ fn corpus_program(cases: &[CaseSpec], good_rows: bool) -> (Program, Vec<EntityId
     (program, fids)
 }
 
-fn owned_inventory(program: &Program, fid: EntityId) -> (Vec<Parameter>, Vec<Block>, Vec<Operation>) {
-    let blocks: Vec<Block> = program.blocks.iter().filter(|b| b.function == fid).cloned().collect();
+fn owned_inventory(
+    program: &Program,
+    fid: EntityId,
+) -> (Vec<Parameter>, Vec<Block>, Vec<Operation>) {
+    let blocks: Vec<Block> = program
+        .blocks
+        .iter()
+        .filter(|b| b.function == fid)
+        .cloned()
+        .collect();
     let ids: BTreeSet<EntityId> = blocks.iter().map(|b| b.entity_id).collect();
     let parameters = program
         .parameters
@@ -916,13 +1241,21 @@ fn owned_inventory(program: &Program, fid: EntityId) -> (Vec<Parameter>, Vec<Blo
         .filter(|p| p.owner == fid || ids.contains(&p.owner))
         .cloned()
         .collect();
-    let operations = program.operations.iter().filter(|o| ids.contains(&o.block)).cloned().collect();
+    let operations = program
+        .operations
+        .iter()
+        .filter(|o| ids.contains(&o.block))
+        .cloned()
+        .collect();
     (parameters, blocks, operations)
 }
 
 /// Runs one corpus program through Sley and native; returns (compared,
 /// refused, skipped by graph validation, per-code counts).
-fn run_corpus(cases: &[CaseSpec], good_rows: bool) -> (usize, usize, usize, std::collections::BTreeMap<u32, usize>) {
+fn run_corpus(
+    cases: &[CaseSpec],
+    good_rows: bool,
+) -> (usize, usize, usize, std::collections::BTreeMap<u32, usize>) {
     let (program, fids) = corpus_program(cases, good_rows);
     let s = canonical::build(&program, fids[0], "jg-corpus");
     let decoded = decode_s(&s).expect("decodes").program;
@@ -937,7 +1270,11 @@ fn run_corpus(cases: &[CaseSpec], good_rows: bool) -> (usize, usize, usize, std:
     let mut by_code = std::collections::BTreeMap::new();
     let mut mismatches = Vec::new();
     for (i, fid) in fids.iter().enumerate() {
-        let function = decoded.functions.iter().find(|f| f.entity_id == *fid).unwrap();
+        let function = decoded
+            .functions
+            .iter()
+            .find(|f| f.entity_id == *fid)
+            .unwrap();
         let (parameters, blocks, operations) = owned_inventory(&decoded, *fid);
         if validate_function_graph(&types, function, &parameters, &blocks, &operations).is_err() {
             skipped += 1;
@@ -963,7 +1300,12 @@ fn run_corpus(cases: &[CaseSpec], good_rows: bool) -> (usize, usize, usize, std:
          skipped by graph validation; {count} instructions incl. load; codes {by_code:?}",
         cases.len()
     );
-    assert!(mismatches.is_empty(), "{} mismatches:\n{}", mismatches.len(), mismatches.join("\n"));
+    assert!(
+        mismatches.is_empty(),
+        "{} mismatches:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
     (compared, refused, skipped, by_code)
 }
 
@@ -971,7 +1313,10 @@ fn run_corpus(cases: &[CaseSpec], good_rows: bool) -> (usize, usize, usize, std:
 fn operation_judgment_mutation_corpus_matches_native() {
     let cases = generate_cases(0x5EED_1234_ABCD_0001, 1_650);
     let (compared, refused, _, codes) = run_corpus(&cases, true);
-    assert!(compared > 1_000 && refused > 300, "corpus covers enough cases");
+    assert!(
+        compared > 1_000 && refused > 300,
+        "corpus covers enough cases"
+    );
     for code in [0, 26_001, 26_002, 26_003] {
         assert!(codes.contains_key(&code), "corpus covers code {code}");
     }
@@ -981,18 +1326,33 @@ fn operation_judgment_mutation_corpus_matches_native() {
 
 #[test]
 fn big_bytes_constant_bound_matches_native() {
-    for (len, expected) in [(0_usize, false), (5, false), (1_048_576, false), (1_048_577, true), (3_000_000, true)] {
-        let value = ConstValue { value_type: TypeExpr::Bytes, data: ConstData::Bytes(vec![7; len]) };
+    for (len, expected) in [
+        (0_usize, false),
+        (5, false),
+        (1_048_576, false),
+        (1_048_577, true),
+        (3_000_000, true),
+    ] {
+        let value = ConstValue {
+            value_type: TypeExpr::Bytes,
+            data: ConstData::Bytes(vec![7; len]),
+        };
         let encoded = sley_mutate::encode_const_value(&value).expect("encodes");
         let ty = sley_selfhost::toolchain::types::scb_type_bytes(&TypeExpr::Bytes);
         let got = run("t_jg_big", vec![bytes(&encoded), bytes(&ty)]);
         assert_eq!(got.data, ConstData::Bool(expected), "length {len}");
     }
     // Non-Bytes constants never face the bound.
-    let value = ConstValue { value_type: t::vec(t::u8()), data: ConstData::Sequence(vec![]) };
+    let value = ConstValue {
+        value_type: t::vec(t::u8()),
+        data: ConstData::Sequence(vec![]),
+    };
     let encoded = sley_mutate::encode_const_value(&value).expect("encodes");
     let ty = sley_selfhost::toolchain::types::scb_type_bytes(&t::vec(t::u8()));
-    assert_eq!(run("t_jg_big", vec![bytes(&encoded), bytes(&ty)]).data, ConstData::Bool(false));
+    assert_eq!(
+        run("t_jg_big", vec![bytes(&encoded), bytes(&ty)]).data,
+        ConstData::Bool(false)
+    );
 }
 
 // ===================================================================
@@ -1004,7 +1364,9 @@ fn gate_base() -> (Program, EntityId) {
     use sley_selfhost::seed::{u64c, v};
     let mut m = sd::Module::new("jg-gate");
     m.record("Pt", &[("x", t::u64()), ("b", t::bytes())]);
-    m.func("leaf", &[("x", t::u64())], t::u64(), |f| f.ret(sd::add(v("x"), u64c(1))));
+    m.func("leaf", &[("x", t::u64())], t::u64(), |f| {
+        f.ret(sd::add(v("x"), u64c(1)));
+    });
     m.func("mid", &[("x", t::u64())], t::u64(), |f| {
         f.var("acc", u64c(0));
         f.for_u64("i", u64c(0), v("x"), |f| {
@@ -1033,7 +1395,10 @@ fn gate_base() -> (Program, EntityId) {
         |f| {
             f.var("xs", sd::vnew(t::u64(), vec![]));
             f.set("xs", sd::push(v("xs"), sd::call("mid", vec![v("x")])));
-            f.set("xs", sd::push(v("xs"), sd::call("leaf", vec![sd::blen(v("b"))])));
+            f.set(
+                "xs",
+                sd::push(v("xs"), sd::call("leaf", vec![sd::blen(v("b"))])),
+            );
             f.let_("p", sd::rec("Pt", vec![sd::vget(v("xs"), u64c(1)), v("b")]));
             f.ret(sd::tup(vec![
                 sd::vlen(v("xs")),
@@ -1047,17 +1412,18 @@ fn gate_base() -> (Program, EntityId) {
     (canonical::prune_to_closure(&program, entry), entry)
 }
 
-
 fn function_of(p: &Program, op: usize) -> EntityId {
     let block = p.operations[op].block;
-    p.blocks.iter().find(|b| b.entity_id == block).unwrap().function
+    p.blocks
+        .iter()
+        .find(|b| b.entity_id == block)
+        .unwrap()
+        .function
 }
 
 fn is_call(o: &Operation) -> bool {
     o.opcode == Opcode::CallDirect
 }
-
-
 
 /// Renames an import identity everywhere.
 fn rename_import(p: &mut Program, from: EntityId, to: EntityId, keep_adapter: bool) {
@@ -1081,195 +1447,397 @@ type Mutation = (String, Box<dyn Fn(&mut Program, &mut EntityId)>);
 #[allow(clippy::too_many_lines)]
 fn gate_mutations(base: &Program) -> Vec<Mutation> {
     let mut out: Vec<Mutation> = Vec::new();
-    let mut add = |name: &str, f: Box<dyn Fn(&mut Program, &mut EntityId)>| out.push((name.to_owned(), f));
+    let mut add =
+        |name: &str, f: Box<dyn Fn(&mut Program, &mut EntityId)>| out.push((name.to_owned(), f));
     add("base", Box::new(|_, _| {}));
     add("entry missing", Box::new(|_, e| *e = eid(0x99, 5)));
     // Call graph.
-    let calls: Vec<usize> = base.operations.iter().enumerate().filter(|(_, o)| is_call(o)).map(|(i, _)| i).collect();
+    let calls: Vec<usize> = base
+        .operations
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| is_call(o))
+        .map(|(i, _)| i)
+        .collect();
     for (k, &ci) in calls.iter().enumerate() {
-        add(&format!("self recursion {k}"), Box::new(move |p, _| {
-            let caller = function_of(p, ci);
-            if let Immediate::Function(r) = &mut p.operations[ci].immediate {
-                r.function = caller;
-            }
-        }));
-        add(&format!("call to entry {k}"), Box::new(move |p, e| {
-            let entry = *e;
-            if let Immediate::Function(r) = &mut p.operations[ci].immediate {
-                r.function = entry;
-            }
-        }));
-        add(&format!("missing callee {k}"), Box::new(move |p, _| {
-            if let Immediate::Function(r) = &mut p.operations[ci].immediate {
-                r.function = eid(0x99, 6);
-            }
-        }));
-        add(&format!("generic call {k}"), Box::new(move |p, _| {
-            if let Immediate::Function(r) = &mut p.operations[ci].immediate {
-                r.type_arguments = vec![t::u64()];
-            }
-        }));
-        add(&format!("call becomes non-function immediate {k}"), Box::new(move |p, _| {
-            p.operations[ci].immediate = Immediate::None;
-        }));
-    }
-    add("unreached function", Box::new(|p, _| {
-        let mut seq = 9_000;
-        simple_function(p, eid(0xFD, 1), &mut seq, &[TypeExpr::Unit], TypeExpr::Unit, None);
-    }));
-    add("unreached function calling entry", Box::new(|p, e| {
-        let mut seq = 9_000;
-        let entry = *e;
-        simple_function(
-            p,
-            eid(0xFD, 1),
-            &mut seq,
-            &[TypeExpr::Unit],
-            TypeExpr::Unit,
-            Some((Opcode::CallDirect, fref(entry, vec![]), vec![t::u64()])),
+        add(
+            &format!("self recursion {k}"),
+            Box::new(move |p, _| {
+                let caller = function_of(p, ci);
+                if let Immediate::Function(r) = &mut p.operations[ci].immediate {
+                    r.function = caller;
+                }
+            }),
         );
-    }));
+        add(
+            &format!("call to entry {k}"),
+            Box::new(move |p, e| {
+                let entry = *e;
+                if let Immediate::Function(r) = &mut p.operations[ci].immediate {
+                    r.function = entry;
+                }
+            }),
+        );
+        add(
+            &format!("missing callee {k}"),
+            Box::new(move |p, _| {
+                if let Immediate::Function(r) = &mut p.operations[ci].immediate {
+                    r.function = eid(0x99, 6);
+                }
+            }),
+        );
+        add(
+            &format!("generic call {k}"),
+            Box::new(move |p, _| {
+                if let Immediate::Function(r) = &mut p.operations[ci].immediate {
+                    r.type_arguments = vec![t::u64()];
+                }
+            }),
+        );
+        add(
+            &format!("call becomes non-function immediate {k}"),
+            Box::new(move |p, _| {
+                p.operations[ci].immediate = Immediate::None;
+            }),
+        );
+    }
+    add(
+        "unreached function",
+        Box::new(|p, _| {
+            let mut seq = 9_000;
+            simple_function(
+                p,
+                eid(0xFD, 1),
+                &mut seq,
+                &[TypeExpr::Unit],
+                TypeExpr::Unit,
+                None,
+            );
+        }),
+    );
+    add(
+        "unreached function calling entry",
+        Box::new(|p, e| {
+            let mut seq = 9_000;
+            let entry = *e;
+            simple_function(
+                p,
+                eid(0xFD, 1),
+                &mut seq,
+                &[TypeExpr::Unit],
+                TypeExpr::Unit,
+                Some((Opcode::CallDirect, fref(entry, vec![]), vec![t::u64()])),
+            );
+        }),
+    );
     for n in 0..base.functions.len() {
-        add(&format!("effects on function {n}"), Box::new(move |p, _| p.functions[n].effects = vec![eid(0xEF, 1)]));
-        add(&format!("contracts on function {n}"), Box::new(move |p, _| p.functions[n].contracts = vec![eid(0xEF, 2)]));
-        add(&format!("type parameters on function {n}"), Box::new(move |p, _| {
-            p.functions[n].type_parameters = vec![TypeParameterDef { ordinal: 0 }];
-        }));
-        add(&format!("float result on function {n}"), Box::new(move |p, _| p.functions[n].result_type = TypeExpr::F64));
-        add(&format!("function-ref result on function {n}"), Box::new(move |p, _| {
-            p.functions[n].result_type = TypeExpr::FunctionRef(FunctionType {
-                parameters: vec![],
-                result: Box::new(t::u64()),
-                effects: vec![],
-            });
-        }));
-        add(&format!("cell parameter on function {n}"), Box::new(move |p, _| {
-            let pid = p.functions[n].parameters[0];
-            let param = p.parameters.iter_mut().find(|q| q.entity_id == pid).unwrap();
-            param.value_type = cell(param.value_type.clone());
-        }));
-        add(&format!("unknown named result on function {n}"), Box::new(move |p, _| {
-            p.functions[n].result_type = named(eid(0x70, 77), vec![]);
-        }));
-        add(&format!("named float result on function {n}"), Box::new(move |p, _| {
-            let def = eid(0x70, 4);
-            p.type_definitions.push(TypeDefinition {
-                entity_id: def,
-                type_parameters: vec![],
-                form: TypeDefForm::Record(vec![RecordField { member_id: mid(6), value_type: t::vec(TypeExpr::F64), visibility: Visibility::Private }]),
-                invariants: vec![],
-                visibility: Visibility::Private,
-            });
-            p.functions[n].result_type = t::opt(named(def, vec![]));
-        }));
-        add(&format!("named cell-holder parameter on function {n}"), Box::new(move |p, _| {
-            let def = eid(0x70, 5);
-            let inner = eid(0x70, 6);
-            p.type_definitions.push(TypeDefinition {
-                entity_id: inner,
-                type_parameters: vec![],
-                form: TypeDefForm::Variant(vec![VariantCase { member_id: mid(9), payload_type: Some(cell(t::u64())) }]),
-                invariants: vec![],
-                visibility: Visibility::Private,
-            });
-            p.type_definitions.push(TypeDefinition {
-                entity_id: def,
-                type_parameters: vec![],
-                form: TypeDefForm::Record(vec![RecordField { member_id: mid(8), value_type: named(inner, vec![]), visibility: Visibility::Private }]),
-                invariants: vec![],
-                visibility: Visibility::Private,
-            });
-            let pid = p.functions[n].parameters[0];
-            p.parameters.iter_mut().find(|q| q.entity_id == pid).unwrap().value_type = named(def, vec![]);
-        }));
+        add(
+            &format!("effects on function {n}"),
+            Box::new(move |p, _| p.functions[n].effects = vec![eid(0xEF, 1)]),
+        );
+        add(
+            &format!("contracts on function {n}"),
+            Box::new(move |p, _| p.functions[n].contracts = vec![eid(0xEF, 2)]),
+        );
+        add(
+            &format!("type parameters on function {n}"),
+            Box::new(move |p, _| {
+                p.functions[n].type_parameters = vec![TypeParameterDef { ordinal: 0 }];
+            }),
+        );
+        add(
+            &format!("float result on function {n}"),
+            Box::new(move |p, _| p.functions[n].result_type = TypeExpr::F64),
+        );
+        add(
+            &format!("function-ref result on function {n}"),
+            Box::new(move |p, _| {
+                p.functions[n].result_type = TypeExpr::FunctionRef(FunctionType {
+                    parameters: vec![],
+                    result: Box::new(t::u64()),
+                    effects: vec![],
+                });
+            }),
+        );
+        add(
+            &format!("cell parameter on function {n}"),
+            Box::new(move |p, _| {
+                let pid = p.functions[n].parameters[0];
+                let param = p
+                    .parameters
+                    .iter_mut()
+                    .find(|q| q.entity_id == pid)
+                    .unwrap();
+                param.value_type = cell(param.value_type.clone());
+            }),
+        );
+        add(
+            &format!("unknown named result on function {n}"),
+            Box::new(move |p, _| {
+                p.functions[n].result_type = named(eid(0x70, 77), vec![]);
+            }),
+        );
+        add(
+            &format!("named float result on function {n}"),
+            Box::new(move |p, _| {
+                let def = eid(0x70, 4);
+                p.type_definitions.push(TypeDefinition {
+                    entity_id: def,
+                    type_parameters: vec![],
+                    form: TypeDefForm::Record(vec![RecordField {
+                        member_id: mid(6),
+                        value_type: t::vec(TypeExpr::F64),
+                        visibility: Visibility::Private,
+                    }]),
+                    invariants: vec![],
+                    visibility: Visibility::Private,
+                });
+                p.functions[n].result_type = t::opt(named(def, vec![]));
+            }),
+        );
+        add(
+            &format!("named cell-holder parameter on function {n}"),
+            Box::new(move |p, _| {
+                let def = eid(0x70, 5);
+                let inner = eid(0x70, 6);
+                p.type_definitions.push(TypeDefinition {
+                    entity_id: inner,
+                    type_parameters: vec![],
+                    form: TypeDefForm::Variant(vec![VariantCase {
+                        member_id: mid(9),
+                        payload_type: Some(cell(t::u64())),
+                    }]),
+                    invariants: vec![],
+                    visibility: Visibility::Private,
+                });
+                p.type_definitions.push(TypeDefinition {
+                    entity_id: def,
+                    type_parameters: vec![],
+                    form: TypeDefForm::Record(vec![RecordField {
+                        member_id: mid(8),
+                        value_type: named(inner, vec![]),
+                        visibility: Visibility::Private,
+                    }]),
+                    invariants: vec![],
+                    visibility: Visibility::Private,
+                });
+                let pid = p.functions[n].parameters[0];
+                p.parameters
+                    .iter_mut()
+                    .find(|q| q.entity_id == pid)
+                    .unwrap()
+                    .value_type = named(def, vec![]);
+            }),
+        );
     }
     // Block parameters: cells admitted, floats refused.
-    if let Some(bp) = base.parameters.iter().position(|q| q.role == ParameterRole::Block) {
-        add("cell block parameter", Box::new(move |p, _| {
-            p.parameters[bp].value_type = cell(p.parameters[bp].value_type.clone());
-        }));
-        add("float block parameter", Box::new(move |p, _| p.parameters[bp].value_type = TypeExpr::F32));
-        add("token block parameter", Box::new(move |p, _| {
-            p.parameters[bp].value_type = TypeExpr::CapabilityToken(eid(0xAD, 3));
-        }));
+    if let Some(bp) = base
+        .parameters
+        .iter()
+        .position(|q| q.role == ParameterRole::Block)
+    {
+        add(
+            "cell block parameter",
+            Box::new(move |p, _| {
+                p.parameters[bp].value_type = cell(p.parameters[bp].value_type.clone());
+            }),
+        );
+        add(
+            "float block parameter",
+            Box::new(move |p, _| p.parameters[bp].value_type = TypeExpr::F32),
+        );
+        add(
+            "token block parameter",
+            Box::new(move |p, _| {
+                p.parameters[bp].value_type = TypeExpr::CapabilityToken(eid(0xAD, 3));
+            }),
+        );
     }
     // Operations.
-    for (k, oi) in [0_usize, base.operations.len() / 2, base.operations.len() - 1].into_iter().enumerate() {
-        for opcode in [Opcode::FloatAdd, Opcode::ContractAssert, Opcode::TestObserve, Opcode::EffectRequest, Opcode::CapabilityNarrow, Opcode::GlobalGet, Opcode::FunctionRef, Opcode::AdapterInvoke] {
-            add(&format!("op {k} becomes {opcode:?}"), Box::new(move |p, _| p.operations[oi].opcode = opcode));
+    for (k, oi) in [
+        0_usize,
+        base.operations.len() / 2,
+        base.operations.len() - 1,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        for opcode in [
+            Opcode::FloatAdd,
+            Opcode::ContractAssert,
+            Opcode::TestObserve,
+            Opcode::EffectRequest,
+            Opcode::CapabilityNarrow,
+            Opcode::GlobalGet,
+            Opcode::FunctionRef,
+            Opcode::AdapterInvoke,
+        ] {
+            add(
+                &format!("op {k} becomes {opcode:?}"),
+                Box::new(move |p, _| p.operations[oi].opcode = opcode),
+            );
         }
-        add(&format!("op {k} float result"), Box::new(move |p, _| p.operations[oi].result_types = vec![TypeExpr::F64]));
-        add(&format!("op {k} cell result"), Box::new(move |p, _| p.operations[oi].result_types = vec![cell(t::u64())]));
-        add(&format!("op {k} handle result"), Box::new(move |p, _| {
-            p.operations[oi].result_types = vec![t::u64(), TypeExpr::AdapterHandle(eid(0xAD, 4))];
-        }));
+        add(
+            &format!("op {k} float result"),
+            Box::new(move |p, _| p.operations[oi].result_types = vec![TypeExpr::F64]),
+        );
+        add(
+            &format!("op {k} cell result"),
+            Box::new(move |p, _| p.operations[oi].result_types = vec![cell(t::u64())]),
+        );
+        add(
+            &format!("op {k} handle result"),
+            Box::new(move |p, _| {
+                p.operations[oi].result_types =
+                    vec![t::u64(), TypeExpr::AdapterHandle(eid(0xAD, 4))];
+            }),
+        );
     }
     // Bridges.
-    let bridges: Vec<usize> = base.operations.iter().enumerate().filter(|(_, o)| o.opcode == Opcode::AdapterInvoke).map(|(i, _)| i).collect();
+    let bridges: Vec<usize> = base
+        .operations
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| o.opcode == Opcode::AdapterInvoke)
+        .map(|(i, _)| i)
+        .collect();
     for (k, &bi) in bridges.iter().enumerate() {
-        add(&format!("bridge {k} non-entity immediate"), Box::new(move |p, _| p.operations[bi].immediate = Immediate::Index(0)));
-        add(&format!("bridge {k} unknown import"), Box::new(move |p, _| p.operations[bi].immediate = Immediate::Entity(eid(0x99, 7))));
+        add(
+            &format!("bridge {k} non-entity immediate"),
+            Box::new(move |p, _| p.operations[bi].immediate = Immediate::Index(0)),
+        );
+        add(
+            &format!("bridge {k} unknown import"),
+            Box::new(move |p, _| p.operations[bi].immediate = Immediate::Entity(eid(0x99, 7))),
+        );
     }
     for (k, imp) in base.imports.iter().enumerate() {
         let id = imp.entity_id;
         fn at_id(p: &mut Program, id: EntityId) -> &mut AdapterImport {
             p.imports.iter_mut().find(|i| i.entity_id == id).unwrap()
         }
-        add(&format!("import {k} abi"), Box::new(move |p, _| at_id(p, id).abi_version = 2));
-        add(&format!("import {k} adapter"), Box::new(move |p, _| at_id(p, id).adapter_id = [5; 32]));
-        add(&format!("import {k} failure"), Box::new(move |p, _| at_id(p, id).failure_type = bf(BuiltinFailureKind::Arithmetic)));
-        add(&format!("import {k} effects"), Box::new(move |p, _| at_id(p, id).effects = vec![eid(0xEF, 9)]));
-        add(&format!("import {k} request"), Box::new(move |p, _| at_id(p, id).request_type = t::text()));
-        add(&format!("import {k} response"), Box::new(move |p, _| at_id(p, id).response_type = t::vec(t::text())));
-        add(&format!("import {k} float schemas"), Box::new(move |p, _| {
-            let r = at_id(p, id);
-            if r.response_type == t::vec(r.request_type.clone()) {
-                r.request_type = TypeExpr::F64;
-                r.response_type = t::vec(TypeExpr::F64);
-            } else {
-                r.request_type = TypeExpr::F64;
-            }
-        }));
-        add(&format!("import {k} renamed to discriminator 0"), Box::new(move |p, _| {
-            let code: [u8; 4] = id.as_bytes()[12..16].try_into().unwrap();
-            rename_import(p, id, bridge_id(code, 0), false);
-        }));
-        add(&format!("import {k} renamed with trailing bytes"), Box::new(move |p, _| {
-            let mut bytes = *id.as_bytes();
-            bytes[31] = 1;
-            rename_import(p, id, EntityId::from_bytes(bytes), false);
-        }));
-        add(&format!("import {k} renamed unknown code"), Box::new(move |p, _| {
-            rename_import(p, id, bridge_id(*b"ZZZ9", 0), false);
-        }));
+        add(
+            &format!("import {k} abi"),
+            Box::new(move |p, _| at_id(p, id).abi_version = 2),
+        );
+        add(
+            &format!("import {k} adapter"),
+            Box::new(move |p, _| at_id(p, id).adapter_id = [5; 32]),
+        );
+        add(
+            &format!("import {k} failure"),
+            Box::new(move |p, _| at_id(p, id).failure_type = bf(BuiltinFailureKind::Arithmetic)),
+        );
+        add(
+            &format!("import {k} effects"),
+            Box::new(move |p, _| at_id(p, id).effects = vec![eid(0xEF, 9)]),
+        );
+        add(
+            &format!("import {k} request"),
+            Box::new(move |p, _| at_id(p, id).request_type = t::text()),
+        );
+        add(
+            &format!("import {k} response"),
+            Box::new(move |p, _| at_id(p, id).response_type = t::vec(t::text())),
+        );
+        add(
+            &format!("import {k} float schemas"),
+            Box::new(move |p, _| {
+                let r = at_id(p, id);
+                if r.response_type == t::vec(r.request_type.clone()) {
+                    r.request_type = TypeExpr::F64;
+                    r.response_type = t::vec(TypeExpr::F64);
+                } else {
+                    r.request_type = TypeExpr::F64;
+                }
+            }),
+        );
+        add(
+            &format!("import {k} renamed to discriminator 0"),
+            Box::new(move |p, _| {
+                let code: [u8; 4] = id.as_bytes()[12..16].try_into().unwrap();
+                rename_import(p, id, bridge_id(code, 0), false);
+            }),
+        );
+        add(
+            &format!("import {k} renamed with trailing bytes"),
+            Box::new(move |p, _| {
+                let mut bytes = *id.as_bytes();
+                bytes[31] = 1;
+                rename_import(p, id, EntityId::from_bytes(bytes), false);
+            }),
+        );
+        add(
+            &format!("import {k} renamed unknown code"),
+            Box::new(move |p, _| {
+                rename_import(p, id, bridge_id(*b"ZZZ9", 0), false);
+            }),
+        );
     }
-    add("unreferenced push row", Box::new(|p, _| p.imports.push(row(bridge_id(*b"PSH1", 77), t::u64(), t::vec(t::u64())))));
-    add("unreferenced raw-hash row", Box::new(|p, _| {
-        if !p.imports.iter().any(|i| i.entity_id == bridge_id(*b"RHW1", 0)) {
-            p.imports.push(row(bridge_id(*b"RHW1", 0), t::bytes(), t::bytes()));
-        } else {
-            p.imports.push(row(bridge_id(*b"BLN9", 0), t::bytes(), t::u64()));
-        }
-    }));
+    add(
+        "unreferenced push row",
+        Box::new(|p, _| {
+            p.imports
+                .push(row(bridge_id(*b"PSH1", 77), t::u64(), t::vec(t::u64())));
+        }),
+    );
+    add(
+        "unreferenced raw-hash row",
+        Box::new(|p, _| {
+            if p.imports
+                .iter()
+                .any(|i| i.entity_id == bridge_id(*b"RHW1", 0))
+            {
+                p.imports
+                    .push(row(bridge_id(*b"BLN9", 0), t::bytes(), t::u64()));
+            } else {
+                p.imports
+                    .push(row(bridge_id(*b"RHW1", 0), t::bytes(), t::bytes()));
+            }
+        }),
+    );
     // Constants.
-    add("float constant", Box::new(|p, _| p.constants.push(ConstantDefinition {
-        entity_id: eid(0xC0, 50),
-        value: ConstValue { value_type: TypeExpr::F64, data: ConstData::F64Bits(0) },
-    })));
-    add("unused u64 constant", Box::new(|p, _| p.constants.push(ConstantDefinition {
-        entity_id: eid(0xC0, 51),
-        value: uconst(t::u64(), 3),
-    })));
-    add("function-ref constant", Box::new(|p, e| {
-        let entry = *e;
-        p.constants.push(ConstantDefinition {
-            entity_id: eid(0xC0, 52),
-            value: ConstValue {
-                value_type: TypeExpr::FunctionRef(FunctionType { parameters: vec![], result: Box::new(t::u64()), effects: vec![] }),
-                data: ConstData::FunctionRef(FunctionRefValue { function: entry, type_arguments: vec![] }),
-            },
-        });
-    }));
+    add(
+        "float constant",
+        Box::new(|p, _| {
+            p.constants.push(ConstantDefinition {
+                entity_id: eid(0xC0, 50),
+                value: ConstValue {
+                    value_type: TypeExpr::F64,
+                    data: ConstData::F64Bits(0),
+                },
+            });
+        }),
+    );
+    add(
+        "unused u64 constant",
+        Box::new(|p, _| {
+            p.constants.push(ConstantDefinition {
+                entity_id: eid(0xC0, 51),
+                value: uconst(t::u64(), 3),
+            });
+        }),
+    );
+    add(
+        "function-ref constant",
+        Box::new(|p, e| {
+            let entry = *e;
+            p.constants.push(ConstantDefinition {
+                entity_id: eid(0xC0, 52),
+                value: ConstValue {
+                    value_type: TypeExpr::FunctionRef(FunctionType {
+                        parameters: vec![],
+                        result: Box::new(t::u64()),
+                        effects: vec![],
+                    }),
+                    data: ConstData::FunctionRef(FunctionRefValue {
+                        function: entry,
+                        type_arguments: vec![],
+                    }),
+                },
+            });
+        }),
+    );
     out
 }
 
@@ -1289,7 +1857,9 @@ fn gate_mutation_corpus_matches_native() {
         let expected = native_gate(&decoded, entry);
         let (got, count) = sley_gate(&s, entry, &[]);
         instructions += count;
-        *by_code.entry(expected.as_ref().err().copied().unwrap_or(0)).or_insert(0) += 1;
+        *by_code
+            .entry(expected.as_ref().err().copied().unwrap_or(0))
+            .or_insert(0) += 1;
         if got != expected {
             mismatches.push(format!("{name}: sley {got:?} native {expected:?}"));
         }
@@ -1298,7 +1868,12 @@ fn gate_mutation_corpus_matches_native() {
         "gate corpus: {} mutants, codes {by_code:?}, {instructions} instructions total",
         mutations.len()
     );
-    assert!(mismatches.is_empty(), "{} mismatches:\n{}", mismatches.len(), mismatches.join("\n"));
+    assert!(
+        mismatches.is_empty(),
+        "{} mismatches:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
     for code in [0, 26_000, 26_001, 26_002, 26_003] {
         assert!(by_code.contains_key(&code), "gate corpus covers {code}");
     }
@@ -1324,4 +1899,3 @@ fn jg_full_cost() {
         count - load_count
     );
 }
-

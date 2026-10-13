@@ -1,4 +1,5 @@
 //! Differential tests: the Sley SCB walker against the native codec.
+#![allow(clippy::too_many_lines)]
 
 use sley_selfhost::native::{big_limits, execute};
 use sley_selfhost::seed::{Program, t};
@@ -23,8 +24,8 @@ fn sley_check(bytes: &[u8]) -> Result<(), u32> {
         value_type: TypeExpr::Bytes,
         data: ConstData::Bytes(bytes.to_vec()),
     };
-    let outcome = execute(program, names["scb_const_exact"], vec![input], big_limits())
-        .expect("executes");
+    let outcome =
+        execute(program, names["scb_const_exact"], vec![input], big_limits()).expect("executes");
     match outcome.termination {
         ExecutionTermination::Success(value) => match value.data {
             ConstData::Result(ResultConst::Ok(_)) => Ok(()),
@@ -185,7 +186,11 @@ fn walker_accepts_and_refuses_like_native() {
         // Truncations.
         for cut in 0..bytes.len() {
             let mutated = &bytes[..cut];
-            assert_eq!(sley_check(mutated), native_check(mutated), "cut {cut} of {value:?}");
+            assert_eq!(
+                sley_check(mutated),
+                native_check(mutated),
+                "cut {cut} of {value:?}"
+            );
             checked += 1;
         }
         // Single-byte mutations.
@@ -195,9 +200,15 @@ fn walker_accepts_and_refuses_like_native() {
                 mutated[position] = replacement;
                 let native = native_check(&mutated);
                 let sley = sley_check(&mutated);
-                assert_eq!(sley.is_ok(), native.is_ok(), "pos {position} -> {replacement:02x} of {value:?}: sley {sley:?} native {native:?}");
+                assert_eq!(
+                    sley.is_ok(),
+                    native.is_ok(),
+                    "pos {position} -> {replacement:02x} of {value:?}: sley {sley:?} native {native:?}"
+                );
                 if sley != native {
-                    eprintln!("code deviation: pos {position} -> {replacement:02x}: sley {sley:?} native {native:?}");
+                    eprintln!(
+                        "code deviation: pos {position} -> {replacement:02x}: sley {sley:?} native {native:?}"
+                    );
                 }
                 checked += 1;
             }

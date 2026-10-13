@@ -26,9 +26,13 @@
 //! encoding (with no enclosing function), so `pk_*` reuses `fp_ty`.
 
 use super::inv::{INV, KIND_BLOCK, KIND_FUNCTION, KIND_OPERATION, KIND_PARAMETER};
-use super::model::*;
+use super::model::{BLK, FUN, OP, PRM, VREF};
 use super::rt::{code, r};
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, blake3, blake3_large, boolc, bytesc, call, concat, div, eq, field, ge,
+    gt, is_some, lt, mget, mget_opt, mhas, mins, mnew, mul, ne, not, or, push, rem, sub, t, tget,
+    tri, tup, u8c, u64c, unitc, unwrap, v, v2b, vget, vlen, vnew, vset,
+};
 
 /// `FINGERPRINT_INVENTORY_INVALID` (frozen numeric value).
 pub const FP_INVENTORY_INVALID: u32 = 25_001;
@@ -322,7 +326,10 @@ pub fn define(m: &mut Module) {
         ent_ty(),
         |f| {
             let item = t::tuple(vec![t::u64(), t::bytes(), t::u64()]);
-            f.var("stack", vnew(item, vec![tup(vec![u64c(0), v("ty"), u64c(0)])]));
+            f.var(
+                "stack",
+                vnew(item, vec![tup(vec![u64c(0), v("ty"), u64c(0)])]),
+            );
             f.var("sp", u64c(1));
             f.var("out", vnew(t::bytes(), vec![]));
             f.var("n", u64c(0));
@@ -377,10 +384,7 @@ pub fn define(m: &mut Module) {
                             |f| {
                                 put(
                                     f,
-                                    call(
-                                        "fp_be16",
-                                        vec![call("ty_uvar_payload", vec![v("pl")])],
-                                    ),
+                                    call("fp_be16", vec![call("ty_uvar_payload", vec![v("pl")])]),
                                     u64c(2),
                                 );
                             },
@@ -473,7 +477,10 @@ pub fn define(m: &mut Module) {
         t::tuple(vec![memo_ty(), t::bytes(), t::u64()]),
         |f| {
             f.var("memo", v("memo"));
-            f.var("ent", tup(vec![bytesc(&[]), u64c(0), vnew(t::bytes(), vec![])]));
+            f.var(
+                "ent",
+                tup(vec![bytesc(&[]), u64c(0), vnew(t::bytes(), vec![])]),
+            );
             f.match_opt(
                 mget_opt(v("memo"), v("ty")),
                 "hit",
@@ -498,7 +505,10 @@ pub fn define(m: &mut Module) {
         "fp_vref",
         &[
             ("pmap", t::map(t::bytes(), t::bytes())),
-            ("omap", t::map(t::bytes(), t::tuple(vec![t::bytes(), t::u64()]))),
+            (
+                "omap",
+                t::map(t::bytes(), t::tuple(vec![t::bytes(), t::u64()])),
+            ),
             ("x", vref_ty),
         ],
         r(t::bytes()),
@@ -511,7 +521,11 @@ pub fn define(m: &mut Module) {
             f.let_("o", mget_opt(v("omap"), field(v("x"), "id")));
             fail(f, not(is_some(v("o"))), FP_LOCAL_REFERENCE_INVALID);
             f.let_("s", unwrap(v("o")));
-            fail(f, ge(field(v("x"), "idx"), tget(v("s"), 1)), FP_LOCAL_REFERENCE_INVALID);
+            fail(
+                f,
+                ge(field(v("x"), "idx"), tget(v("s"), 1)),
+                FP_LOCAL_REFERENCE_INVALID,
+            );
             f.ret_ok(concat(vnew(
                 t::bytes(),
                 vec![tget(v("s"), 0), call("fp_be32", vec![field(v("x"), "idx")])],
@@ -583,7 +597,14 @@ pub fn define(m: &mut Module) {
         r(core_ty),
         |f| {
             f.var("memo", v("memo"));
-            need(f, "fun", "all_fns", KIND_FUNCTION, v("fid"), FP_FUNCTION_MISSING);
+            need(
+                f,
+                "fun",
+                "all_fns",
+                KIND_FUNCTION,
+                v("fid"),
+                FP_FUNCTION_MISSING,
+            );
             // Pass 1: slot maps over the listed entities.
             f.var("pmap", mnew(t::bytes(), t::bytes(), vec![]));
             f.var(
@@ -598,7 +619,14 @@ pub fn define(m: &mut Module) {
             f.let_("fps", field(v("fun"), "params"));
             f.for_u64("i", u64c(0), vlen(v("fps")), |f| {
                 f.let_("pid", vget(v("fps"), v("i")));
-                need(f, "prm", "all_prms", KIND_PARAMETER, v("pid"), FP_INVENTORY_INVALID);
+                need(
+                    f,
+                    "prm",
+                    "all_prms",
+                    KIND_PARAMETER,
+                    v("pid"),
+                    FP_INVENTORY_INVALID,
+                );
                 fail(
                     f,
                     or(
@@ -626,17 +654,34 @@ pub fn define(m: &mut Module) {
             f.let_("fbs", field(v("fun"), "blocks"));
             f.for_u64("bi", u64c(0), vlen(v("fbs")), |f| {
                 f.let_("bid", vget(v("fbs"), v("bi")));
-                need(f, "blk", "all_blks", KIND_BLOCK, v("bid"), FP_INVENTORY_INVALID);
+                need(
+                    f,
+                    "blk",
+                    "all_blks",
+                    KIND_BLOCK,
+                    v("bid"),
+                    FP_INVENTORY_INVALID,
+                );
                 fail(
                     f,
-                    or(ne(field(v("blk"), "function"), v("fid")), mhas(v("bslot"), v("bid"))),
+                    or(
+                        ne(field(v("blk"), "function"), v("fid")),
+                        mhas(v("bslot"), v("bid")),
+                    ),
                     FP_INVENTORY_INVALID,
                 );
                 f.set("bslot", mins(v("bslot"), v("bid"), v("bi")));
                 f.let_("bps", field(v("blk"), "params"));
                 f.for_u64("pi", u64c(0), vlen(v("bps")), |f| {
                     f.let_("pid", vget(v("bps"), v("pi")));
-                    need(f, "prm", "all_prms", KIND_PARAMETER, v("pid"), FP_INVENTORY_INVALID);
+                    need(
+                        f,
+                        "prm",
+                        "all_prms",
+                        KIND_PARAMETER,
+                        v("pid"),
+                        FP_INVENTORY_INVALID,
+                    );
                     fail(
                         f,
                         or(
@@ -669,7 +714,14 @@ pub fn define(m: &mut Module) {
                 f.let_("bos", field(v("blk"), "ops"));
                 f.for_u64("oi", u64c(0), vlen(v("bos")), |f| {
                     f.let_("oid", vget(v("bos"), v("oi")));
-                    need(f, "op", "all_ops", KIND_OPERATION, v("oid"), FP_INVENTORY_INVALID);
+                    need(
+                        f,
+                        "op",
+                        "all_ops",
+                        KIND_OPERATION,
+                        v("oid"),
+                        FP_INVENTORY_INVALID,
+                    );
                     fail(
                         f,
                         or(
@@ -728,7 +780,10 @@ pub fn define(m: &mut Module) {
             );
             fail(
                 f,
-                or(gt(v("nops"), u64c(MAX_OPS)), gt(v("work"), u64c(MAX_ENTITIES))),
+                or(
+                    gt(v("nops"), u64c(MAX_OPS)),
+                    gt(v("work"), u64c(MAX_ENTITIES)),
+                ),
                 FP_RESOURCE_LIMIT,
             );
 
@@ -838,7 +893,11 @@ pub fn define(m: &mut Module) {
     // The semantic fingerprint of one function (listed-entity checks).
     m.func(
         "fp_function",
-        &[("inv", inv_ty.clone()), ("fid", t::bytes()), ("epoch", t::bytes())],
+        &[
+            ("inv", inv_ty.clone()),
+            ("fid", t::bytes()),
+            ("epoch", t::bytes()),
+        ],
         r(t::bytes()),
         |f| {
             f.let_(
@@ -861,7 +920,12 @@ pub fn define(m: &mut Module) {
             keep(f, &["inv"]);
             f.ret(call(
                 "fp_hash",
-                vec![v("epoch"), tget(v("c"), 0), tget(v("c"), 1), tget(v("c"), 2)],
+                vec![
+                    v("epoch"),
+                    tget(v("c"), 0),
+                    tget(v("c"), 1),
+                    tget(v("c"), 2),
+                ],
             ));
         },
     );
@@ -869,7 +933,11 @@ pub fn define(m: &mut Module) {
     // unlisted claimant) and one type memo shared by all functions.
     m.func(
         "fp_closure",
-        &[("inv", inv_ty), ("fids", t::vec(t::bytes())), ("epoch", t::bytes())],
+        &[
+            ("inv", inv_ty),
+            ("fids", t::vec(t::bytes())),
+            ("epoch", t::bytes()),
+        ],
         r(t::vec(t::bytes())),
         |f| {
             f.let_("own", call("fp_owned", vec![v("inv")]));
@@ -906,13 +974,21 @@ pub fn define(m: &mut Module) {
                         v("fps"),
                         tri(call(
                             "fp_hash",
-                            vec![v("epoch"), tget(v("c"), 0), tget(v("c"), 1), tget(v("c"), 2)],
+                            vec![
+                                v("epoch"),
+                                tget(v("c"), 0),
+                                tget(v("c"), 1),
+                                tget(v("c"), 2),
+                            ],
                         )),
                     ),
                 );
                 f.set("memo", tget(v("c"), 3));
             });
-            keep(f, &["inv", "own", "all_fns", "all_prms", "all_blks", "all_ops"]);
+            keep(
+                f,
+                &["inv", "own", "all_fns", "all_prms", "all_blks", "all_ops"],
+            );
             f.ret_ok(v("fps"));
         },
     );

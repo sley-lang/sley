@@ -10,8 +10,13 @@
 
 use sley_ssmc::{ConstData, ConstValue, MapEntryConst};
 
-use super::codes::{SCB_INTEGER_OVERFLOW, SCB_LENGTH_OVERFLOW, SCB_RESOURCE_LIMIT, SCB_VARINT_NON_MINIMAL};
-use crate::seed::*;
+use super::codes::{
+    SCB_INTEGER_OVERFLOW, SCB_LENGTH_OVERFLOW, SCB_RESOURCE_LIMIT, SCB_VARINT_NON_MINIMAL,
+};
+use crate::seed::{
+    E, FnB, Module, Ty, add, and, b2v, blen, call, div, eq, ge, gt, lt, mget, ne, push, rem, shl,
+    shr, sub, t, tget, tri, try_add, tup, u32c, u64c, v, v2b, vget, vlen, vnew,
+};
 
 /// SCB1 standalone byte ceiling.
 pub const MAX_STANDALONE: u64 = 67_108_864;
@@ -72,7 +77,9 @@ pub fn u8_u64_table() -> E {
     sorted_map(
         t::u8(),
         t::u64(),
-        (0..=255_u128).map(|i| (uint(i, t::u8()), uint(i, t::u64()))).collect(),
+        (0..=255_u128)
+            .map(|i| (uint(i, t::u8()), uint(i, t::u64())))
+            .collect(),
     )
 }
 
@@ -82,7 +89,9 @@ pub fn u64_u8_table() -> E {
     sorted_map(
         t::u64(),
         t::u8(),
-        (0..=255_u128).map(|i| (uint(i, t::u64()), uint(i, t::u8()))).collect(),
+        (0..=255_u128)
+            .map(|i| (uint(i, t::u64()), uint(i, t::u8())))
+            .collect(),
     )
 }
 
@@ -165,10 +174,9 @@ pub fn define(m: &mut Module) {
                         |f| f.ret_err(code(SCB_VARINT_NON_MINIMAL)),
                     );
                     f.if_(lt(v("width"), u32c(64)), |f| {
-                        f.if_(
-                            ge(v("value"), shl(u64c(1), v("width"))),
-                            |f| f.ret_err(code(SCB_INTEGER_OVERFLOW)),
-                        );
+                        f.if_(ge(v("value"), shl(u64c(1), v("width"))), |f| {
+                            f.ret_err(code(SCB_INTEGER_OVERFLOW));
+                        });
                     });
                     f.ret_ok(tup(vec![v("value"), v("p")]));
                 });
@@ -192,7 +200,9 @@ pub fn define(m: &mut Module) {
         |f| {
             f.var("p", v("p"));
             rd(f, "len", "p", rcall("rt_rd_uvar", vec![u32c(64)]));
-            f.if_(gt(v("len"), v("max")), |f| f.ret_err(code(SCB_RESOURCE_LIMIT)));
+            f.if_(gt(v("len"), v("max")), |f| {
+                f.ret_err(code(SCB_RESOURCE_LIMIT));
+            });
             f.ret_ok(tup(vec![v("len"), v("p")]));
         },
     );
@@ -213,7 +223,9 @@ pub fn define(m: &mut Module) {
                 try_add(v("p"), v("len")),
                 "end",
                 |f| {
-                    f.if_(gt(v("end"), v("e")), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
+                    f.if_(gt(v("end"), v("e")), |f| {
+                        f.ret_err(code(SCB_LENGTH_OVERFLOW));
+                    });
                     // Returned as (start, end): the caller's position is end.
                     f.ret_ok(tup(vec![v("p"), v("end")]));
                 },
@@ -268,10 +280,7 @@ pub fn define(m: &mut Module) {
             f.var("k", v("n"));
             f.while_(gt(v("k"), u64c(0)), |f| {
                 f.set("k", sub(v("k"), u64c(1)));
-                f.let_(
-                    "shift",
-                    call("rt_shift8", vec![v("k")]),
-                );
+                f.let_("shift", call("rt_shift8", vec![v("k")]));
                 f.set(
                     "o",
                     push(

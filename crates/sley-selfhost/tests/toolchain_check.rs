@@ -5,6 +5,7 @@
 //! inventory, types, check) so it does not depend on modules other agents
 //! edit concurrently; `toolchain_passes_types_and_every_function` runs the
 //! complete toolchain.
+#![allow(clippy::format_collect, clippy::items_after_statements)]
 mod common;
 
 use common::{as_u64, bytes, objects_input, result};
@@ -13,14 +14,12 @@ use sley_check::cfg::{CfgValidationError, validate_function_graph};
 use sley_id::EntityId;
 use sley_selfhost::canonical;
 use sley_selfhost::native::{big_limits, execute};
-use sley_selfhost::seed::{
-    FnB, Module, Program, add, field, gt, mul, some, t, tri, u32c, u64c, v,
-};
 use sley_selfhost::seed;
+use sley_selfhost::seed::{FnB, Module, Program, add, field, gt, mul, some, t, tri, u32c, u64c, v};
 use sley_selfhost::toolchain;
 use sley_ssmc::{
-    Block, BranchTerminator, BuiltinCase, CaseKey, ConstData, ConstValue,
-    FunctionGraph, FunctionType, Immediate, IntegerWidth, MemberId, NamedType, Opcode, Operation,
+    Block, BranchTerminator, BuiltinCase, CaseKey, ConstData, ConstValue, FunctionGraph,
+    FunctionType, Immediate, IntegerWidth, MemberId, NamedType, Opcode, Operation,
     OperationResultRef, Parameter, ParameterRole, Reachability, RecordField, ReturnTerminator,
     SwitchArgument, SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode, TrapTerminator,
     TypeDefForm, TypeDefinition, TypeExpr, TypeParameterDef, ValueRef, VariantCase,
@@ -64,8 +63,12 @@ fn run_in(
 
 /// The native owned inventory of `fid` (the `sley-vm` lowering narrowing).
 fn owned(program: &Program, fid: EntityId) -> (Vec<Parameter>, Vec<Block>, Vec<Operation>) {
-    let blocks: Vec<Block> =
-        program.blocks.iter().filter(|b| b.function == fid).cloned().collect();
+    let blocks: Vec<Block> = program
+        .blocks
+        .iter()
+        .filter(|b| b.function == fid)
+        .cloned()
+        .collect();
     let ids: BTreeSet<EntityId> = blocks.iter().map(|b| b.entity_id).collect();
     let parameters = program
         .parameters
@@ -73,8 +76,12 @@ fn owned(program: &Program, fid: EntityId) -> (Vec<Parameter>, Vec<Block>, Vec<O
         .filter(|p| p.owner == fid || ids.contains(&p.owner))
         .cloned()
         .collect();
-    let operations =
-        program.operations.iter().filter(|o| ids.contains(&o.block)).cloned().collect();
+    let operations = program
+        .operations
+        .iter()
+        .filter(|o| ids.contains(&o.block))
+        .cloned()
+        .collect();
     (parameters, blocks, operations)
 }
 
@@ -83,7 +90,11 @@ fn native_types(program: &Program) -> Result<TypeEnvironment, u32> {
 }
 
 fn native_fn(types: &TypeEnvironment, program: &Program, fid: EntityId) -> Result<(), u32> {
-    let function = program.functions.iter().find(|f| f.entity_id == fid).expect("function");
+    let function = program
+        .functions
+        .iter()
+        .find(|f| f.entity_id == fid)
+        .expect("function");
     let (parameters, blocks, operations) = owned(program, fid);
     validate_function_graph(types, function, &parameters, &blocks, &operations)
         .map(|_| ())
@@ -180,7 +191,8 @@ impl Corpus {
             *self.codes.entry(code).or_default() += 1;
         }
         if native != sley {
-            self.mismatches.push(format!("{name}: native {native:?} sley {sley:?}"));
+            self.mismatches
+                .push(format!("{name}: native {native:?} sley {sley:?}"));
         }
     }
 
@@ -190,7 +202,11 @@ impl Corpus {
         let native = native_types(program);
         let fids: Vec<EntityId> = program.functions.iter().map(|f| f.entity_id).collect();
         let (sley, codes) = sley_both(tool, program, &fids);
-        self.record(&format!("{name}/types"), native.as_ref().map(|_| ()).map_err(|c| *c), sley);
+        self.record(
+            &format!("{name}/types"),
+            native.as_ref().map(|_| ()).map_err(|c| *c),
+            sley,
+        );
         let Ok(types) = native else { return };
         assert_eq!(codes.len(), fids.len(), "{name}: function codes");
         for (fid, sley) in fids.iter().zip(codes) {
@@ -204,13 +220,17 @@ impl Corpus {
         let before = self.codes.get(&code).copied().unwrap_or(0);
         self.check(name, program);
         if self.codes.get(&code).copied().unwrap_or(0) == before {
-            self.mismatches.push(format!("{name}: native did not produce {code}"));
+            self.mismatches
+                .push(format!("{name}: native did not produce {code}"));
         }
     }
 }
 
 fn short(id: EntityId) -> String {
-    id.as_bytes()[..4].iter().map(|b| format!("{b:02x}")).collect()
+    id.as_bytes()[..4]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn fresh(n: u32) -> EntityId {
@@ -221,7 +241,10 @@ fn fresh(n: u32) -> EntityId {
 }
 
 fn named(definition: EntityId, arguments: Vec<TypeExpr>) -> TypeExpr {
-    TypeExpr::Named(NamedType { definition, arguments })
+    TypeExpr::Named(NamedType {
+        definition,
+        arguments,
+    })
 }
 
 fn width(bits: u16) -> TypeExpr {
@@ -286,7 +309,10 @@ fn subset_passes_with_instruction_counts() {
     );
     eprintln!("  load: {load_count} instructions");
     eprintln!("  ck_types: {} instructions", types_count - load_count);
-    eprintln!("  ck_all (types + every function): {} instructions", all_count - load_count);
+    eprintln!(
+        "  ck_all (types + every function): {} instructions",
+        all_count - load_count
+    );
     eprintln!(
         "  ck_fn on the largest function ({} blocks, {operations} operations): {} instructions (incl. index)",
         largest.0,
@@ -297,19 +323,34 @@ fn subset_passes_with_instruction_counts() {
 // ----- mutation corpus -----
 
 fn fun_mut(p: &mut Program, fid: EntityId) -> &mut FunctionGraph {
-    p.functions.iter_mut().find(|f| f.entity_id == fid).expect("function")
+    p.functions
+        .iter_mut()
+        .find(|f| f.entity_id == fid)
+        .expect("function")
 }
 fn blk_mut(p: &mut Program, id: EntityId) -> &mut Block {
-    p.blocks.iter_mut().find(|b| b.entity_id == id).expect("block")
+    p.blocks
+        .iter_mut()
+        .find(|b| b.entity_id == id)
+        .expect("block")
 }
 fn op_mut(p: &mut Program, id: EntityId) -> &mut Operation {
-    p.operations.iter_mut().find(|o| o.entity_id == id).expect("operation")
+    p.operations
+        .iter_mut()
+        .find(|o| o.entity_id == id)
+        .expect("operation")
 }
 fn prm_mut(p: &mut Program, id: EntityId) -> &mut Parameter {
-    p.parameters.iter_mut().find(|x| x.entity_id == id).expect("parameter")
+    p.parameters
+        .iter_mut()
+        .find(|x| x.entity_id == id)
+        .expect("parameter")
 }
 fn fun(p: &Program, fid: EntityId) -> &FunctionGraph {
-    p.functions.iter().find(|f| f.entity_id == fid).expect("function")
+    p.functions
+        .iter()
+        .find(|f| f.entity_id == fid)
+        .expect("function")
 }
 fn blk(p: &Program, id: EntityId) -> &Block {
     p.blocks.iter().find(|b| b.entity_id == id).expect("block")
@@ -330,23 +371,38 @@ fn pv(id: EntityId) -> ValueRef {
     ValueRef::Parameter(id)
 }
 fn ov(op: EntityId, index: u32) -> ValueRef {
-    ValueRef::OperationResult(OperationResultRef { operation: op, result_index: index })
+    ValueRef::OperationResult(OperationResultRef {
+        operation: op,
+        result_index: index,
+    })
 }
 fn br(target: EntityId, arguments: Vec<ValueRef>) -> Terminator {
-    Terminator::Branch(BranchTerminator { edge: TargetEdge { target, arguments } })
+    Terminator::Branch(BranchTerminator {
+        edge: TargetEdge { target, arguments },
+    })
 }
 fn ret(value: ValueRef) -> Terminator {
     Terminator::Return(ReturnTerminator { value })
 }
 fn trap0() -> Terminator {
-    Terminator::Trap(TrapTerminator { code: TrapCode::Unreachable, payload: None })
+    Terminator::Trap(TrapTerminator {
+        code: TrapCode::Unreachable,
+        payload: None,
+    })
 }
 
 /// The seed-built mutation base.
 fn base() -> (Program, HashMap<String, EntityId>) {
     let mut m = Module::new("ck-mut");
     m.record("Pt", &[("x", t::u64()), ("y", t::u64())]);
-    m.variant("Shape", &[("Dot", None), ("Line", Some(t::u64())), ("Box", Some(m.ty("Pt")))]);
+    m.variant(
+        "Shape",
+        &[
+            ("Dot", None),
+            ("Line", Some(t::u64())),
+            ("Box", Some(m.ty("Pt"))),
+        ],
+    );
     m.func(
         "area",
         &[("s", m.ty("Shape")), ("n", t::u64())],
@@ -356,8 +412,16 @@ fn base() -> (Program, HashMap<String, EntityId>) {
             f.match_var(
                 v("s"),
                 vec![
-                    ("Dot", "_", Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1)))),
-                    ("Line", "len", Box::new(|f: &mut FnB<'_>| f.set("out", v("len")))),
+                    (
+                        "Dot",
+                        "_",
+                        Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1))),
+                    ),
+                    (
+                        "Line",
+                        "len",
+                        Box::new(|f: &mut FnB<'_>| f.set("out", v("len"))),
+                    ),
                     (
                         "Box",
                         "p",
@@ -371,7 +435,12 @@ fn base() -> (Program, HashMap<String, EntityId>) {
                 f.if_(gt(v("i"), u64c(10)), |f| f.ret_err(u32c(7)));
                 f.set("out", add(v("out"), v("i")));
             });
-            f.match_opt(some(v("out")), "o", |f| f.set("out", add(v("o"), u64c(1))), |_| {});
+            f.match_opt(
+                some(v("out")),
+                "o",
+                |f| f.set("out", add(v("o"), u64c(1))),
+                |_| {},
+            );
             f.ret_ok(v("out"));
         },
     );
@@ -408,10 +477,18 @@ fn function_mutations() -> Vec<(&'static str, Option<u32>, Mutation)> {
     };
     let trap_payload_op = move |p: &Program, n: &HashMap<String, EntityId>| {
         let b = find_block(p, area(n), |b| {
-            matches!(b.terminator, Terminator::Trap(TrapTerminator { payload: Some(_), .. }))
+            matches!(
+                b.terminator,
+                Terminator::Trap(TrapTerminator {
+                    payload: Some(_),
+                    ..
+                })
+            )
         });
-        let Terminator::Trap(TrapTerminator { payload: Some(ValueRef::OperationResult(r)), .. }) =
-            blk(p, b).terminator
+        let Terminator::Trap(TrapTerminator {
+            payload: Some(ValueRef::OperationResult(r)),
+            ..
+        }) = blk(p, b).terminator
         else {
             panic!("trap payload")
         };
@@ -430,134 +507,258 @@ fn function_mutations() -> Vec<(&'static str, Option<u32>, Mutation)> {
         effects: vec![],
     });
     vec![
-        ("baseline", None, Box::new(|_: &mut Program, _: &HashMap<String, EntityId>| {}) as Mutation),
-        ("blocks-dup", Some(22_000), Box::new(move |p, n| {
-            let f = fun_mut(p, area(n));
-            let b = f.blocks[1];
-            f.blocks.push(b);
-        })),
-        ("blocks-missing", Some(22_001), Box::new(move |p, n| {
-            fun_mut(p, area(n)).blocks.pop();
-        })),
-        ("block-extra", Some(22_001), Box::new(move |p, n| {
-            p.blocks.push(Block {
-                entity_id: fresh(1),
-                function: area(n),
-                parameters: vec![],
-                operations: vec![],
-                terminator: trap0(),
-                reachability: Reachability::ExplicitlyUnreachable,
-            });
-        })),
-        ("entry-foreign", Some(22_005), Box::new(move |p, n| {
-            let e = entry(p, spin(n));
-            fun_mut(p, area(n)).entry_block = e;
-        })),
-        ("entry-unreachable", Some(22_005), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            blk_mut(p, e).reachability = Reachability::ExplicitlyUnreachable;
-        })),
-        ("fparam-ordinal", Some(22_003), Box::new(move |p, n| {
-            let id = fun(p, area(n)).parameters[1];
-            prm_mut(p, id).ordinal = 0;
-        })),
-        ("fparam-foreign", Some(22_004), Box::new(move |p, n| {
-            let id = fun(p, area(n)).parameters[0];
-            prm_mut(p, id).owner = spin(n);
-        })),
-        ("fparam-role", Some(22_002), Box::new(move |p, n| {
-            let id = fun(p, area(n)).parameters[0];
-            prm_mut(p, id).role = ParameterRole::Block;
-        })),
-        ("fparam-missing", Some(22_004), Box::new(move |p, n| {
-            fun_mut(p, area(n)).parameters.push(fresh(2));
-        })),
-        ("fparam-dup", Some(22_000), Box::new(move |p, n| {
-            let f = fun_mut(p, area(n));
-            let id = f.parameters[0];
-            f.parameters.push(id);
-        })),
-        ("fparam-extra", Some(22_001), Box::new(move |p, n| {
-            p.parameters.push(Parameter {
-                entity_id: fresh(3),
-                owner: area(n),
-                role: ParameterRole::Function,
-                ordinal: 2,
-                value_type: t::u64(),
-            });
-        })),
-        ("fparam-two-failures-min-id", None, Box::new(move |p, n| {
-            // Both parameters fail differently: the smaller identity wins.
-            let ids = fun(p, area(n)).parameters.clone();
-            prm_mut(p, ids[0]).ordinal = 7;
-            prm_mut(p, ids[1]).value_type = width(7);
-        })),
-        ("bparam-ordinal", Some(22_003), Box::new(move |p, n| {
-            let b = some_param_block(p, n);
-            let id = blk(p, b).parameters[0];
-            prm_mut(p, id).ordinal = 9;
-        })),
-        ("bparam-moved", Some(22_002), Box::new(move |p, n| {
-            let b = some_param_block(p, n);
-            let id = blk(p, b).parameters[0];
-            let e = entry(p, area(n));
-            blk_mut(p, e).parameters.push(id);
-        })),
-        ("bparam-role", Some(22_002), Box::new(move |p, n| {
-            let b = some_param_block(p, n);
-            let id = blk(p, b).parameters[0];
-            prm_mut(p, id).role = ParameterRole::Function;
-        })),
-        ("bparam-dup", Some(22_000), Box::new(move |p, n| {
-            let b = some_param_block(p, n);
-            let id = blk(p, b).parameters[0];
-            blk_mut(p, b).parameters.push(id);
-        })),
-        ("op-ordinal", Some(22_003), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            op_mut(p, id).ordinal = 5;
-        })),
-        ("op-block", Some(22_002), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            let other = find_block(p, area(n), |x| x.entity_id != b);
-            op_mut(p, id).block = other;
-        })),
-        ("op-undeclared", Some(22_001), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            blk_mut(p, b).operations.pop();
-        })),
-        ("op-missing", Some(22_004), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            blk_mut(p, b).operations.push(fresh(4));
-        })),
-        ("op-dup", Some(22_000), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            blk_mut(p, b).operations.push(id);
-        })),
-        ("op-foreign", Some(22_004), Box::new(move |p, n| {
-            let sb = find_block(p, spin(n), |b| !b.operations.is_empty());
-            let id = blk(p, sb).operations[0];
-            let b = first_op_block(p, n);
-            blk_mut(p, b).operations.push(id);
-        })),
-        ("op-result-width", Some(21_001), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            op_mut(p, id).result_types[0] = width(12);
-        })),
-        ("tparam-ordinal", Some(22_003), Box::new(move |p, n| {
-            fun_mut(p, area(n)).type_parameters = vec![TypeParameterDef { ordinal: 1 }];
-        })),
+        (
+            "baseline",
+            None,
+            Box::new(|_: &mut Program, _: &HashMap<String, EntityId>| {}) as Mutation,
+        ),
+        (
+            "blocks-dup",
+            Some(22_000),
+            Box::new(move |p, n| {
+                let f = fun_mut(p, area(n));
+                let b = f.blocks[1];
+                f.blocks.push(b);
+            }),
+        ),
+        (
+            "blocks-missing",
+            Some(22_001),
+            Box::new(move |p, n| {
+                fun_mut(p, area(n)).blocks.pop();
+            }),
+        ),
+        (
+            "block-extra",
+            Some(22_001),
+            Box::new(move |p, n| {
+                p.blocks.push(Block {
+                    entity_id: fresh(1),
+                    function: area(n),
+                    parameters: vec![],
+                    operations: vec![],
+                    terminator: trap0(),
+                    reachability: Reachability::ExplicitlyUnreachable,
+                });
+            }),
+        ),
+        (
+            "entry-foreign",
+            Some(22_005),
+            Box::new(move |p, n| {
+                let e = entry(p, spin(n));
+                fun_mut(p, area(n)).entry_block = e;
+            }),
+        ),
+        (
+            "entry-unreachable",
+            Some(22_005),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                blk_mut(p, e).reachability = Reachability::ExplicitlyUnreachable;
+            }),
+        ),
+        (
+            "fparam-ordinal",
+            Some(22_003),
+            Box::new(move |p, n| {
+                let id = fun(p, area(n)).parameters[1];
+                prm_mut(p, id).ordinal = 0;
+            }),
+        ),
+        (
+            "fparam-foreign",
+            Some(22_004),
+            Box::new(move |p, n| {
+                let id = fun(p, area(n)).parameters[0];
+                prm_mut(p, id).owner = spin(n);
+            }),
+        ),
+        (
+            "fparam-role",
+            Some(22_002),
+            Box::new(move |p, n| {
+                let id = fun(p, area(n)).parameters[0];
+                prm_mut(p, id).role = ParameterRole::Block;
+            }),
+        ),
+        (
+            "fparam-missing",
+            Some(22_004),
+            Box::new(move |p, n| {
+                fun_mut(p, area(n)).parameters.push(fresh(2));
+            }),
+        ),
+        (
+            "fparam-dup",
+            Some(22_000),
+            Box::new(move |p, n| {
+                let f = fun_mut(p, area(n));
+                let id = f.parameters[0];
+                f.parameters.push(id);
+            }),
+        ),
+        (
+            "fparam-extra",
+            Some(22_001),
+            Box::new(move |p, n| {
+                p.parameters.push(Parameter {
+                    entity_id: fresh(3),
+                    owner: area(n),
+                    role: ParameterRole::Function,
+                    ordinal: 2,
+                    value_type: t::u64(),
+                });
+            }),
+        ),
+        (
+            "fparam-two-failures-min-id",
+            None,
+            Box::new(move |p, n| {
+                // Both parameters fail differently: the smaller identity wins.
+                let ids = fun(p, area(n)).parameters.clone();
+                prm_mut(p, ids[0]).ordinal = 7;
+                prm_mut(p, ids[1]).value_type = width(7);
+            }),
+        ),
+        (
+            "bparam-ordinal",
+            Some(22_003),
+            Box::new(move |p, n| {
+                let b = some_param_block(p, n);
+                let id = blk(p, b).parameters[0];
+                prm_mut(p, id).ordinal = 9;
+            }),
+        ),
+        (
+            "bparam-moved",
+            Some(22_002),
+            Box::new(move |p, n| {
+                let b = some_param_block(p, n);
+                let id = blk(p, b).parameters[0];
+                let e = entry(p, area(n));
+                blk_mut(p, e).parameters.push(id);
+            }),
+        ),
+        (
+            "bparam-role",
+            Some(22_002),
+            Box::new(move |p, n| {
+                let b = some_param_block(p, n);
+                let id = blk(p, b).parameters[0];
+                prm_mut(p, id).role = ParameterRole::Function;
+            }),
+        ),
+        (
+            "bparam-dup",
+            Some(22_000),
+            Box::new(move |p, n| {
+                let b = some_param_block(p, n);
+                let id = blk(p, b).parameters[0];
+                blk_mut(p, b).parameters.push(id);
+            }),
+        ),
+        (
+            "op-ordinal",
+            Some(22_003),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                op_mut(p, id).ordinal = 5;
+            }),
+        ),
+        (
+            "op-block",
+            Some(22_002),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                let other = find_block(p, area(n), |x| x.entity_id != b);
+                op_mut(p, id).block = other;
+            }),
+        ),
+        (
+            "op-undeclared",
+            Some(22_001),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                blk_mut(p, b).operations.pop();
+            }),
+        ),
+        (
+            "op-missing",
+            Some(22_004),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                blk_mut(p, b).operations.push(fresh(4));
+            }),
+        ),
+        (
+            "op-dup",
+            Some(22_000),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                blk_mut(p, b).operations.push(id);
+            }),
+        ),
+        (
+            "op-foreign",
+            Some(22_004),
+            Box::new(move |p, n| {
+                let sb = find_block(p, spin(n), |b| !b.operations.is_empty());
+                let id = blk(p, sb).operations[0];
+                let b = first_op_block(p, n);
+                blk_mut(p, b).operations.push(id);
+            }),
+        ),
+        (
+            "op-result-width",
+            Some(21_001),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                op_mut(p, id).result_types[0] = width(12);
+            }),
+        ),
+        (
+            "tparam-ordinal",
+            Some(22_003),
+            Box::new(move |p, n| {
+                fun_mut(p, area(n)).type_parameters = vec![TypeParameterDef { ordinal: 1 }];
+            }),
+        ),
         ("ptype-width", Some(21_001), set_param_type(width(7))),
-        ("ptype-unknown", Some(21_005), set_param_type(named(fresh(5), vec![]))),
-        ("ptype-tparam", Some(21_002), set_param_type(TypeExpr::TypeParameter(0))),
-        ("ptype-map-vector-key", Some(21_011), set_param_type(t::map(t::vec(t::u64()), t::u64()))),
-        ("ptype-map-f64-key", Some(21_011), set_param_type(t::map(TypeExpr::F64, t::u64()))),
-        ("ptype-map-fnref-key", Some(21_011), set_param_type(t::map(fnref.clone(), t::u64()))),
-        ("ptype-map-cell-key", Some(21_011), set_param_type(t::map(TypeExpr::LocalCell(Box::new(t::u64())), t::u64()))),
+        (
+            "ptype-unknown",
+            Some(21_005),
+            set_param_type(named(fresh(5), vec![])),
+        ),
+        (
+            "ptype-tparam",
+            Some(21_002),
+            set_param_type(TypeExpr::TypeParameter(0)),
+        ),
+        (
+            "ptype-map-vector-key",
+            Some(21_011),
+            set_param_type(t::map(t::vec(t::u64()), t::u64())),
+        ),
+        (
+            "ptype-map-f64-key",
+            Some(21_011),
+            set_param_type(t::map(TypeExpr::F64, t::u64())),
+        ),
+        (
+            "ptype-map-fnref-key",
+            Some(21_011),
+            set_param_type(t::map(fnref.clone(), t::u64())),
+        ),
+        (
+            "ptype-map-cell-key",
+            Some(21_011),
+            set_param_type(t::map(TypeExpr::LocalCell(Box::new(t::u64())), t::u64())),
+        ),
         ("ptype-map-tparam-key", Some(21_011), {
             let ty = t::map(TypeExpr::TypeParameter(0), t::u64());
             Box::new(move |p, n| {
@@ -566,173 +767,343 @@ fn function_mutations() -> Vec<(&'static str, Option<u32>, Mutation)> {
                 prm_mut(p, id).value_type = ty.clone();
             })
         }),
-        ("ptype-map-record-key-ok", None, set_param_type(t::map(pt.clone(), t::u64()))),
-        ("ptype-map-nested-bad", Some(21_011), set_param_type(t::vec(t::opt(t::map(t::tuple(vec![t::u64(), TypeExpr::F32]), t::u64()))))),
-        ("ptype-arity", Some(21_004), set_param_type(named(seed::type_id("ck-mut", "Pt"), vec![t::u64()]))),
-        ("ptype-argument-limit", Some(21_003), set_param_type(named(seed::type_id("ck-mut", "Pt"), vec![t::u64(); 1025]))),
-        ("result-type", Some(22_008), Box::new(move |p, n| {
-            fun_mut(p, area(n)).result_type = t::u64();
-        })),
-        ("result-type-bad", Some(21_005), Box::new(move |p, n| {
-            fun_mut(p, area(n)).result_type = named(fresh(6), vec![]);
-        })),
-        ("cond-non-bool", Some(22_009), Box::new(move |p, n| {
-            let b = find_block(p, area(n), |b| matches!(b.terminator, Terminator::CondBranch(_)));
-            let np = fun(p, area(n)).parameters[1];
-            if let Terminator::CondBranch(c) = &mut blk_mut(p, b).terminator {
-                c.condition = pv(np);
-            }
-        })),
-        ("branch-arg-count", Some(22_007), Box::new(move |p, n| {
-            let b = find_block(p, area(n), |b| {
-                matches!(&b.terminator, Terminator::Branch(x) if !x.edge.arguments.is_empty())
-            });
-            if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
-                x.edge.arguments.pop();
-            }
-        })),
-        ("branch-arg-type", Some(22_007), Box::new(move |p, n| {
-            let b = find_block(p, area(n), |b| {
-                matches!(&b.terminator, Terminator::Branch(x) if !x.edge.arguments.is_empty())
-            });
-            let s = fun(p, area(n)).parameters[0];
-            if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
-                x.edge.arguments[0] = pv(s);
-            }
-        })),
-        ("branch-target-invalid", Some(22_006), Box::new(move |p, n| {
-            let b = find_block(p, area(n), |b| matches!(b.terminator, Terminator::Branch(_)));
-            if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
-                x.edge.target = fresh(7);
-            }
-        })),
-        ("branch-target-foreign", Some(22_006), Box::new(move |p, n| {
-            let e = entry(p, spin(n));
-            let b = find_block(p, area(n), |b| matches!(b.terminator, Terminator::Branch(_)));
-            if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
-                x.edge.target = e;
-            }
-        })),
-        ("self-use", Some(22_015), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            op_mut(p, id).operands.push(ov(id, 0));
-        })),
-        ("dominance-op", Some(22_016), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            let e_op = blk(p, e).operations[0];
-            let other = find_block(p, area(n), |b| b.entity_id != e && !b.operations.is_empty() && b.reachability == Reachability::Required);
-            let o = blk(p, other).operations[0];
-            op_mut(p, e_op).operands.push(ov(o, 0));
-        })),
-        ("dominance-block-param", Some(22_016), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            let e_op = blk(p, e).operations[0];
-            let b = some_param_block(p, n);
-            let bp = blk(p, b).parameters[0];
-            op_mut(p, e_op).operands.push(pv(bp));
-        })),
-        ("value-unresolved-param", Some(22_013), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            op_mut(p, id).operands.push(pv(fresh(8)));
-        })),
-        ("value-unresolved-op", Some(22_013), Box::new(move |p, n| {
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            op_mut(p, id).operands.push(ov(fresh(9), 0));
-        })),
-        ("value-foreign-param", Some(22_013), Box::new(move |p, n| {
-            let sp = fun(p, spin(n)).parameters[0];
-            let b = first_op_block(p, n);
-            let id = blk(p, b).operations[0];
-            op_mut(p, id).operands.push(pv(sp));
-        })),
-        ("result-index", Some(22_014), Box::new(move |p, n| {
-            let b = find_block(p, area(n), |b| matches!(b.terminator, Terminator::Return(_)) && !b.operations.is_empty());
-            let o = blk(p, b).operations[0];
-            blk_mut(p, b).terminator = ret(ov(o, 3));
-        })),
-        ("unreachable-value", Some(22_018), Box::new(move |p, n| {
-            let dead = find_block(p, spin(n), |b| b.reachability == Reachability::ExplicitlyUnreachable);
-            let live = find_block(p, spin(n), |b| b.reachability == Reachability::Required && !b.operations.is_empty());
-            let o = blk(p, live).operations[0];
-            blk_mut(p, dead).terminator = Terminator::Trap(TrapTerminator { code: TrapCode::Unreachable, payload: Some(ov(o, 0)) });
-        })),
-        ("unreachable-block-param-use", Some(22_018), Box::new(move |p, n| {
-            let dead = find_block(p, spin(n), |b| b.reachability == Reachability::ExplicitlyUnreachable);
-            let live = find_block(p, spin(n), |b| !b.parameters.is_empty());
-            let bp = blk(p, live).parameters[0];
-            blk_mut(p, dead).terminator = Terminator::Trap(TrapTerminator { code: TrapCode::Unreachable, payload: Some(pv(bp)) });
-        })),
-        ("unreachable-function-param-ok", None, Box::new(move |p, n| {
-            let dead = find_block(p, spin(n), |b| b.reachability == Reachability::ExplicitlyUnreachable);
-            let x = fun(p, spin(n)).parameters[0];
-            blk_mut(p, dead).terminator = Terminator::Trap(TrapTerminator { code: TrapCode::Unreachable, payload: Some(pv(x)) });
-        })),
-        ("reachable-marked-unreachable", Some(22_017), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            let b = find_block(p, area(n), |b| b.entity_id != e);
-            blk_mut(p, b).reachability = Reachability::ExplicitlyUnreachable;
-        })),
-        ("unreachable-marked-required", Some(22_017), Box::new(move |p, n| {
-            let dead = find_block(p, spin(n), |b| b.reachability == Reachability::ExplicitlyUnreachable);
-            blk_mut(p, dead).reachability = Reachability::Required;
-        })),
-        ("switch-drop-case-unreachable-target", Some(22_017), Box::new(move |p, n| {
-            // The dropped case's target becomes unreachable (still Required).
-            let e = entry(p, area(n));
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                s.cases.pop();
-            }
-        })),
-        ("switch-duplicate-key", Some(22_011), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                s.cases[2].case_key = s.cases[1].case_key;
-            }
-        })),
-        ("switch-extra-case", Some(22_011), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                let mut extra = s.cases[0].clone();
-                extra.case_key = CaseKey::Member(MemberId::from_bytes([0xff; 32]));
-                s.cases.push(extra);
-            }
-        })),
-        ("switch-swap-cases", Some(22_011), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                s.cases.swap(0, 1);
-            }
-        })),
-        ("switch-builtin-key", Some(22_011), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                s.cases[0].case_key = CaseKey::Builtin(BuiltinCase::None);
-            }
-        })),
-        ("switch-payload-on-none", Some(22_012), Box::new(move |p, n| {
-            let b = find_block(p, area(n), |b| match &b.terminator {
-                Terminator::VariantSwitch(s) => s.cases.iter().any(|c| {
-                    c.case_key == CaseKey::Builtin(BuiltinCase::None)
-                        && c.edge.arguments.iter().any(|a| matches!(a, SwitchArgument::Value(_)))
-                }),
-                _ => false,
-            });
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, b).terminator {
-                let c = s.cases.iter_mut().find(|c| c.case_key == CaseKey::Builtin(BuiltinCase::None)).unwrap();
-                let k = c.edge.arguments.iter().position(|a| matches!(a, SwitchArgument::Value(_))).unwrap();
-                c.edge.arguments[k] = SwitchArgument::CasePayload;
-            }
-        })),
-        ("switch-on-u64", Some(22_010), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            let np = fun(p, area(n)).parameters[1];
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                s.value = pv(np);
-            }
-        })),
+        (
+            "ptype-map-record-key-ok",
+            None,
+            set_param_type(t::map(pt.clone(), t::u64())),
+        ),
+        (
+            "ptype-map-nested-bad",
+            Some(21_011),
+            set_param_type(t::vec(t::opt(t::map(
+                t::tuple(vec![t::u64(), TypeExpr::F32]),
+                t::u64(),
+            )))),
+        ),
+        (
+            "ptype-arity",
+            Some(21_004),
+            set_param_type(named(seed::type_id("ck-mut", "Pt"), vec![t::u64()])),
+        ),
+        (
+            "ptype-argument-limit",
+            Some(21_003),
+            set_param_type(named(seed::type_id("ck-mut", "Pt"), vec![t::u64(); 1025])),
+        ),
+        (
+            "result-type",
+            Some(22_008),
+            Box::new(move |p, n| {
+                fun_mut(p, area(n)).result_type = t::u64();
+            }),
+        ),
+        (
+            "result-type-bad",
+            Some(21_005),
+            Box::new(move |p, n| {
+                fun_mut(p, area(n)).result_type = named(fresh(6), vec![]);
+            }),
+        ),
+        (
+            "cond-non-bool",
+            Some(22_009),
+            Box::new(move |p, n| {
+                let b = find_block(p, area(n), |b| {
+                    matches!(b.terminator, Terminator::CondBranch(_))
+                });
+                let np = fun(p, area(n)).parameters[1];
+                if let Terminator::CondBranch(c) = &mut blk_mut(p, b).terminator {
+                    c.condition = pv(np);
+                }
+            }),
+        ),
+        (
+            "branch-arg-count",
+            Some(22_007),
+            Box::new(move |p, n| {
+                let b = find_block(
+                    p,
+                    area(n),
+                    |b| matches!(&b.terminator, Terminator::Branch(x) if !x.edge.arguments.is_empty()),
+                );
+                if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
+                    x.edge.arguments.pop();
+                }
+            }),
+        ),
+        (
+            "branch-arg-type",
+            Some(22_007),
+            Box::new(move |p, n| {
+                let b = find_block(
+                    p,
+                    area(n),
+                    |b| matches!(&b.terminator, Terminator::Branch(x) if !x.edge.arguments.is_empty()),
+                );
+                let s = fun(p, area(n)).parameters[0];
+                if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
+                    x.edge.arguments[0] = pv(s);
+                }
+            }),
+        ),
+        (
+            "branch-target-invalid",
+            Some(22_006),
+            Box::new(move |p, n| {
+                let b = find_block(p, area(n), |b| {
+                    matches!(b.terminator, Terminator::Branch(_))
+                });
+                if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
+                    x.edge.target = fresh(7);
+                }
+            }),
+        ),
+        (
+            "branch-target-foreign",
+            Some(22_006),
+            Box::new(move |p, n| {
+                let e = entry(p, spin(n));
+                let b = find_block(p, area(n), |b| {
+                    matches!(b.terminator, Terminator::Branch(_))
+                });
+                if let Terminator::Branch(x) = &mut blk_mut(p, b).terminator {
+                    x.edge.target = e;
+                }
+            }),
+        ),
+        (
+            "self-use",
+            Some(22_015),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                op_mut(p, id).operands.push(ov(id, 0));
+            }),
+        ),
+        (
+            "dominance-op",
+            Some(22_016),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                let e_op = blk(p, e).operations[0];
+                let other = find_block(p, area(n), |b| {
+                    b.entity_id != e
+                        && !b.operations.is_empty()
+                        && b.reachability == Reachability::Required
+                });
+                let o = blk(p, other).operations[0];
+                op_mut(p, e_op).operands.push(ov(o, 0));
+            }),
+        ),
+        (
+            "dominance-block-param",
+            Some(22_016),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                let e_op = blk(p, e).operations[0];
+                let b = some_param_block(p, n);
+                let bp = blk(p, b).parameters[0];
+                op_mut(p, e_op).operands.push(pv(bp));
+            }),
+        ),
+        (
+            "value-unresolved-param",
+            Some(22_013),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                op_mut(p, id).operands.push(pv(fresh(8)));
+            }),
+        ),
+        (
+            "value-unresolved-op",
+            Some(22_013),
+            Box::new(move |p, n| {
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                op_mut(p, id).operands.push(ov(fresh(9), 0));
+            }),
+        ),
+        (
+            "value-foreign-param",
+            Some(22_013),
+            Box::new(move |p, n| {
+                let sp = fun(p, spin(n)).parameters[0];
+                let b = first_op_block(p, n);
+                let id = blk(p, b).operations[0];
+                op_mut(p, id).operands.push(pv(sp));
+            }),
+        ),
+        (
+            "result-index",
+            Some(22_014),
+            Box::new(move |p, n| {
+                let b = find_block(p, area(n), |b| {
+                    matches!(b.terminator, Terminator::Return(_)) && !b.operations.is_empty()
+                });
+                let o = blk(p, b).operations[0];
+                blk_mut(p, b).terminator = ret(ov(o, 3));
+            }),
+        ),
+        (
+            "unreachable-value",
+            Some(22_018),
+            Box::new(move |p, n| {
+                let dead = find_block(p, spin(n), |b| {
+                    b.reachability == Reachability::ExplicitlyUnreachable
+                });
+                let live = find_block(p, spin(n), |b| {
+                    b.reachability == Reachability::Required && !b.operations.is_empty()
+                });
+                let o = blk(p, live).operations[0];
+                blk_mut(p, dead).terminator = Terminator::Trap(TrapTerminator {
+                    code: TrapCode::Unreachable,
+                    payload: Some(ov(o, 0)),
+                });
+            }),
+        ),
+        (
+            "unreachable-block-param-use",
+            Some(22_018),
+            Box::new(move |p, n| {
+                let dead = find_block(p, spin(n), |b| {
+                    b.reachability == Reachability::ExplicitlyUnreachable
+                });
+                let live = find_block(p, spin(n), |b| !b.parameters.is_empty());
+                let bp = blk(p, live).parameters[0];
+                blk_mut(p, dead).terminator = Terminator::Trap(TrapTerminator {
+                    code: TrapCode::Unreachable,
+                    payload: Some(pv(bp)),
+                });
+            }),
+        ),
+        (
+            "unreachable-function-param-ok",
+            None,
+            Box::new(move |p, n| {
+                let dead = find_block(p, spin(n), |b| {
+                    b.reachability == Reachability::ExplicitlyUnreachable
+                });
+                let x = fun(p, spin(n)).parameters[0];
+                blk_mut(p, dead).terminator = Terminator::Trap(TrapTerminator {
+                    code: TrapCode::Unreachable,
+                    payload: Some(pv(x)),
+                });
+            }),
+        ),
+        (
+            "reachable-marked-unreachable",
+            Some(22_017),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                let b = find_block(p, area(n), |b| b.entity_id != e);
+                blk_mut(p, b).reachability = Reachability::ExplicitlyUnreachable;
+            }),
+        ),
+        (
+            "unreachable-marked-required",
+            Some(22_017),
+            Box::new(move |p, n| {
+                let dead = find_block(p, spin(n), |b| {
+                    b.reachability == Reachability::ExplicitlyUnreachable
+                });
+                blk_mut(p, dead).reachability = Reachability::Required;
+            }),
+        ),
+        (
+            "switch-drop-case-unreachable-target",
+            Some(22_017),
+            Box::new(move |p, n| {
+                // The dropped case's target becomes unreachable (still Required).
+                let e = entry(p, area(n));
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    s.cases.pop();
+                }
+            }),
+        ),
+        (
+            "switch-duplicate-key",
+            Some(22_011),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    s.cases[2].case_key = s.cases[1].case_key;
+                }
+            }),
+        ),
+        (
+            "switch-extra-case",
+            Some(22_011),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    let mut extra = s.cases[0].clone();
+                    extra.case_key = CaseKey::Member(MemberId::from_bytes([0xff; 32]));
+                    s.cases.push(extra);
+                }
+            }),
+        ),
+        (
+            "switch-swap-cases",
+            Some(22_011),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    s.cases.swap(0, 1);
+                }
+            }),
+        ),
+        (
+            "switch-builtin-key",
+            Some(22_011),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    s.cases[0].case_key = CaseKey::Builtin(BuiltinCase::None);
+                }
+            }),
+        ),
+        (
+            "switch-payload-on-none",
+            Some(22_012),
+            Box::new(move |p, n| {
+                let b = find_block(p, area(n), |b| match &b.terminator {
+                    Terminator::VariantSwitch(s) => s.cases.iter().any(|c| {
+                        c.case_key == CaseKey::Builtin(BuiltinCase::None)
+                            && c.edge
+                                .arguments
+                                .iter()
+                                .any(|a| matches!(a, SwitchArgument::Value(_)))
+                    }),
+                    _ => false,
+                });
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, b).terminator {
+                    let c = s
+                        .cases
+                        .iter_mut()
+                        .find(|c| c.case_key == CaseKey::Builtin(BuiltinCase::None))
+                        .unwrap();
+                    let k = c
+                        .edge
+                        .arguments
+                        .iter()
+                        .position(|a| matches!(a, SwitchArgument::Value(_)))
+                        .unwrap();
+                    c.edge.arguments[k] = SwitchArgument::CasePayload;
+                }
+            }),
+        ),
+        (
+            "switch-on-u64",
+            Some(22_010),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                let np = fun(p, area(n)).parameters[1];
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    s.value = pv(np);
+                }
+            }),
+        ),
         ("switch-on-record", Some(22_010), {
             let pt = pt.clone();
             Box::new(move |p, n| {
@@ -744,47 +1115,85 @@ fn function_mutations() -> Vec<(&'static str, Option<u32>, Mutation)> {
                 }
             })
         }),
-        ("switch-payload-type", Some(22_007), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            let Terminator::VariantSwitch(s) = &blk(p, e).terminator else { panic!() };
-            let c = s.cases.iter().find(|c| c.edge.arguments.first() == Some(&SwitchArgument::CasePayload)).unwrap();
-            let target = c.edge.target;
-            let bp = blk(p, target).parameters[0];
-            prm_mut(p, bp).value_type = t::u32();
-        })),
-        ("switch-arg-count", Some(22_007), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                s.cases[0].edge.arguments.push(SwitchArgument::CasePayload);
-            }
-        })),
-        ("switch-target-invalid", Some(22_006), Box::new(move |p, n| {
-            let e = entry(p, area(n));
-            if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
-                s.cases[1].edge.target = fresh(10);
-            }
-        })),
-        ("trap-payload-cell", Some(22_019), Box::new(move |p, n| {
-            let o = trap_payload_op(p, n);
-            op_mut(p, o).result_types = vec![TypeExpr::LocalCell(Box::new(t::u64()))];
-        })),
-        ("trap-payload-adapter", Some(22_019), Box::new(move |p, n| {
-            let o = trap_payload_op(p, n);
-            op_mut(p, o).result_types = vec![TypeExpr::AdapterHandle(fresh(11))];
-        })),
-        ("trap-payload-tparam", Some(22_019), Box::new(move |p, n| {
-            fun_mut(p, area(n)).type_parameters = vec![TypeParameterDef { ordinal: 0 }];
-            let o = trap_payload_op(p, n);
-            op_mut(p, o).result_types = vec![TypeExpr::TypeParameter(0)];
-        })),
-        ("trap-payload-map-ok", None, Box::new(move |p, n| {
-            let o = trap_payload_op(p, n);
-            op_mut(p, o).result_types = vec![t::map(t::bytes(), t::vec(t::u64()))];
-        })),
-        ("declared-order-shuffle", None, Box::new(move |p, n| {
-            let f = fun_mut(p, area(n));
-            f.blocks.reverse();
-        })),
+        (
+            "switch-payload-type",
+            Some(22_007),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                let Terminator::VariantSwitch(s) = &blk(p, e).terminator else {
+                    panic!()
+                };
+                let c = s
+                    .cases
+                    .iter()
+                    .find(|c| c.edge.arguments.first() == Some(&SwitchArgument::CasePayload))
+                    .unwrap();
+                let target = c.edge.target;
+                let bp = blk(p, target).parameters[0];
+                prm_mut(p, bp).value_type = t::u32();
+            }),
+        ),
+        (
+            "switch-arg-count",
+            Some(22_007),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    s.cases[0].edge.arguments.push(SwitchArgument::CasePayload);
+                }
+            }),
+        ),
+        (
+            "switch-target-invalid",
+            Some(22_006),
+            Box::new(move |p, n| {
+                let e = entry(p, area(n));
+                if let Terminator::VariantSwitch(s) = &mut blk_mut(p, e).terminator {
+                    s.cases[1].edge.target = fresh(10);
+                }
+            }),
+        ),
+        (
+            "trap-payload-cell",
+            Some(22_019),
+            Box::new(move |p, n| {
+                let o = trap_payload_op(p, n);
+                op_mut(p, o).result_types = vec![TypeExpr::LocalCell(Box::new(t::u64()))];
+            }),
+        ),
+        (
+            "trap-payload-adapter",
+            Some(22_019),
+            Box::new(move |p, n| {
+                let o = trap_payload_op(p, n);
+                op_mut(p, o).result_types = vec![TypeExpr::AdapterHandle(fresh(11))];
+            }),
+        ),
+        (
+            "trap-payload-tparam",
+            Some(22_019),
+            Box::new(move |p, n| {
+                fun_mut(p, area(n)).type_parameters = vec![TypeParameterDef { ordinal: 0 }];
+                let o = trap_payload_op(p, n);
+                op_mut(p, o).result_types = vec![TypeExpr::TypeParameter(0)];
+            }),
+        ),
+        (
+            "trap-payload-map-ok",
+            None,
+            Box::new(move |p, n| {
+                let o = trap_payload_op(p, n);
+                op_mut(p, o).result_types = vec![t::map(t::bytes(), t::vec(t::u64()))];
+            }),
+        ),
+        (
+            "declared-order-shuffle",
+            None,
+            Box::new(move |p, n| {
+                let f = fun_mut(p, area(n));
+                f.blocks.reverse();
+            }),
+        ),
     ]
 }
 
@@ -800,7 +1209,10 @@ fn function_mutations_match_native() {
             None => corpus.check(name, &p),
         }
     }
-    eprintln!("function mutations: {} comparisons, native codes {:?}", corpus.cases, corpus.codes);
+    eprintln!(
+        "function mutations: {} comparisons, native codes {:?}",
+        corpus.cases, corpus.codes
+    );
     assert!(corpus.mismatches.is_empty(), "{:#?}", corpus.mismatches);
 }
 
@@ -847,7 +1259,12 @@ impl Raw {
         });
         (fid, ids)
     }
-    fn block(&mut self, fid: EntityId, params: &[TypeExpr], reach: Reachability) -> (EntityId, Vec<EntityId>) {
+    fn block(
+        &mut self,
+        fid: EntityId,
+        params: &[TypeExpr],
+        reach: Reachability,
+    ) -> (EntityId, Vec<EntityId>) {
         let bid = self.id();
         let mut ids = Vec::new();
         for (ordinal, ty) in params.iter().enumerate() {
@@ -899,7 +1316,9 @@ impl Raw {
         let id = self.id();
         self.p.type_definitions.push(TypeDefinition {
             entity_id: id,
-            type_parameters: (0..tparams).map(|ordinal| TypeParameterDef { ordinal }).collect(),
+            type_parameters: (0..tparams)
+                .map(|ordinal| TypeParameterDef { ordinal })
+                .collect(),
             form,
             invariants: vec![],
             visibility: Visibility::Private,
@@ -935,7 +1354,10 @@ fn variant(cases: Vec<(MemberId, Option<TypeExpr>)>) -> TypeDefForm {
     TypeDefForm::Variant(
         cases
             .into_iter()
-            .map(|(member_id, payload_type)| VariantCase { member_id, payload_type })
+            .map(|(member_id, payload_type)| VariantCase {
+                member_id,
+                payload_type,
+            })
             .collect(),
     )
 }
@@ -946,7 +1368,9 @@ fn chain(n: usize, pad: usize) -> Program {
     let mut r = Raw::new(tiny());
     let (fid, ps) = r.func(&[TypeExpr::Unit], TypeExpr::Unit);
     let (entry, _) = r.block(fid, &[], Reachability::Required);
-    let xs: Vec<EntityId> = (0..n).map(|_| r.block(fid, &[], Reachability::Required).0).collect();
+    let xs: Vec<EntityId> = (0..n)
+        .map(|_| r.block(fid, &[], Reachability::Required).0)
+        .collect();
     r.term(entry, br(xs[n - 1], vec![]));
     for k in (1..n).rev() {
         r.term(xs[k], br(xs[k - 1], vec![]));
@@ -969,7 +1393,10 @@ fn dominator_budget_matches_native() {
     corpus.expect("chain-2000", &chain(2000, 0), 22_020);
     // Too many blocks.
     corpus.expect("blocks-4097", &chain(1, 4096), 22_020);
-    eprintln!("budget: {} comparisons, native codes {:?}", corpus.cases, corpus.codes);
+    eprintln!(
+        "budget: {} comparisons, native codes {:?}",
+        corpus.cases, corpus.codes
+    );
     assert!(corpus.mismatches.is_empty(), "{:#?}", corpus.mismatches);
 }
 
@@ -981,8 +1408,9 @@ fn edge_budget_matches_native() {
         let cases: Vec<MemberId> = (0..10).map(|_| r.member()).collect();
         let v10 = r.typedef(0, variant(cases.iter().map(|c| (*c, None)).collect()));
         let (fid, ps) = r.func(&[named(v10, vec![])], t::u64());
-        let bs: Vec<EntityId> =
-            (0..=blocks).map(|_| r.block(fid, &[], Reachability::Required).0).collect();
+        let bs: Vec<EntityId> = (0..=blocks)
+            .map(|_| r.block(fid, &[], Reachability::Required).0)
+            .collect();
         let mut sorted = cases.clone();
         sorted.sort();
         for k in 0..blocks {
@@ -994,7 +1422,10 @@ fn edge_budget_matches_native() {
                         .iter()
                         .map(|c| SwitchCase {
                             case_key: CaseKey::Member(*c),
-                            edge: SwitchEdge { target: bs[k + 1], arguments: vec![] },
+                            edge: SwitchEdge {
+                                target: bs[k + 1],
+                                arguments: vec![],
+                            },
                         })
                         .collect(),
                 }),
@@ -1009,7 +1440,10 @@ fn edge_budget_matches_native() {
             None => corpus.check(&name, &r.p),
         }
     }
-    eprintln!("edges: {} comparisons, native codes {:?}", corpus.cases, corpus.codes);
+    eprintln!(
+        "edges: {} comparisons, native codes {:?}",
+        corpus.cases, corpus.codes
+    );
     assert!(corpus.mismatches.is_empty(), "{:#?}", corpus.mismatches);
 }
 
@@ -1031,33 +1465,63 @@ fn generic_switches_match_native() {
         let boxed = r.typedef(1, record(vec![(field, TypeExpr::TypeParameter(0))]));
         let no = r.member();
         let yes = r.member();
-        let maybe = r.typedef(1, variant(vec![(no, None), (yes, Some(TypeExpr::TypeParameter(0)))]));
-        G { r, boxed, maybe, no, yes }
+        let maybe = r.typedef(
+            1,
+            variant(vec![(no, None), (yes, Some(TypeExpr::TypeParameter(0)))]),
+        );
+        G {
+            r,
+            boxed,
+            maybe,
+            no,
+            yes,
+        }
     };
     // switch x: Maybe<arg> { No -> return d, Yes(p: payload) -> return conv }
-    let build = |g: &mut G, arg: TypeExpr, payload_param: TypeExpr, tparams: u32, result: TypeExpr| {
-        let (fid, ps) = g.r.func(&[named(g.maybe, vec![arg]), result.clone()], result);
-        fun_mut(&mut g.r.p, fid).type_parameters =
-            (0..tparams).map(|ordinal| TypeParameterDef { ordinal }).collect();
-        let (e, _) = g.r.block(fid, &[], Reachability::Required);
-        let (b_no, _) = g.r.block(fid, &[], Reachability::Required);
-        let (b_yes, yp) = g.r.block(fid, &[payload_param], Reachability::Required);
-        let mut cases = vec![
-            SwitchCase {
-                case_key: CaseKey::Member(g.no),
-                edge: SwitchEdge { target: b_no, arguments: vec![] },
-            },
-            SwitchCase {
-                case_key: CaseKey::Member(g.yes),
-                edge: SwitchEdge { target: b_yes, arguments: vec![SwitchArgument::CasePayload] },
-            },
-        ];
-        cases.sort_by_key(|c| c.case_key);
-        g.r.term(e, Terminator::VariantSwitch(VariantSwitchTerminator { value: pv(ps[0]), cases }));
-        g.r.term(b_no, ret(pv(ps[1])));
-        g.r.term(b_yes, Terminator::Trap(TrapTerminator { code: TrapCode::Unreachable, payload: Some(pv(yp[0])) }));
-        fid
-    };
+    let build =
+        |g: &mut G, arg: TypeExpr, payload_param: TypeExpr, tparams: u32, result: TypeExpr| {
+            let (fid, ps) =
+                g.r.func(&[named(g.maybe, vec![arg]), result.clone()], result);
+            fun_mut(&mut g.r.p, fid).type_parameters = (0..tparams)
+                .map(|ordinal| TypeParameterDef { ordinal })
+                .collect();
+            let (e, _) = g.r.block(fid, &[], Reachability::Required);
+            let (b_no, _) = g.r.block(fid, &[], Reachability::Required);
+            let (b_yes, yp) = g.r.block(fid, &[payload_param], Reachability::Required);
+            let mut cases = vec![
+                SwitchCase {
+                    case_key: CaseKey::Member(g.no),
+                    edge: SwitchEdge {
+                        target: b_no,
+                        arguments: vec![],
+                    },
+                },
+                SwitchCase {
+                    case_key: CaseKey::Member(g.yes),
+                    edge: SwitchEdge {
+                        target: b_yes,
+                        arguments: vec![SwitchArgument::CasePayload],
+                    },
+                },
+            ];
+            cases.sort_by_key(|c| c.case_key);
+            g.r.term(
+                e,
+                Terminator::VariantSwitch(VariantSwitchTerminator {
+                    value: pv(ps[0]),
+                    cases,
+                }),
+            );
+            g.r.term(b_no, ret(pv(ps[1])));
+            g.r.term(
+                b_yes,
+                Terminator::Trap(TrapTerminator {
+                    code: TrapCode::Unreachable,
+                    payload: Some(pv(yp[0])),
+                }),
+            );
+            fid
+        };
     {
         let mut g = setup();
         build(&mut g, t::u64(), t::u64(), 0, t::u64());
@@ -1088,7 +1552,13 @@ fn generic_switches_match_native() {
     }
     {
         let mut g = setup();
-        build(&mut g, TypeExpr::TypeParameter(0), TypeExpr::TypeParameter(0), 1, t::u64());
+        build(
+            &mut g,
+            TypeExpr::TypeParameter(0),
+            TypeExpr::TypeParameter(0),
+            1,
+            t::u64(),
+        );
         // The trap payload contains a type parameter.
         corpus.expect("maybe-generic-trap", &g.r.p, 22_019);
     }
@@ -1110,11 +1580,23 @@ fn generic_switches_match_native() {
         // A generic record whose instantiated field is a non-orderable key.
         let mut g = setup();
         let m2 = g.r.member();
-        let keyed = g.r.typedef(1, record(vec![(m2, t::map(TypeExpr::TypeParameter(0), t::u64()))]));
-        build(&mut g, named(keyed, vec![t::vec(t::u64())]), t::u64(), 0, t::u64());
+        let keyed = g.r.typedef(
+            1,
+            record(vec![(m2, t::map(TypeExpr::TypeParameter(0), t::u64()))]),
+        );
+        build(
+            &mut g,
+            named(keyed, vec![t::vec(t::u64())]),
+            t::u64(),
+            0,
+            t::u64(),
+        );
         corpus.expect("keyed-vector-key", &g.r.p, 21_011);
     }
-    eprintln!("generics: {} comparisons, native codes {:?}", corpus.cases, corpus.codes);
+    eprintln!(
+        "generics: {} comparisons, native codes {:?}",
+        corpus.cases, corpus.codes
+    );
     assert!(corpus.mismatches.is_empty(), "{:#?}", corpus.mismatches);
 }
 
@@ -1128,57 +1610,94 @@ fn type_environment_mutations_match_native() {
         r.p
     };
     corpus.check("tiny", &tiny());
-    corpus.expect("member-duplicate", &with(&|r| {
-        let m = r.member();
-        r.typedef(0, record(vec![(m, t::u64()), (m, t::u32())]));
-    }), 21_008);
-    corpus.expect("tparam-ordinal", &with(&|r| {
-        let m = r.member();
-        let id = r.typedef(2, record(vec![(m, t::u64())]));
-        r.p.type_definitions.iter_mut().find(|d| d.entity_id == id).unwrap().type_parameters[1].ordinal = 5;
-    }), 21_002);
-    corpus.expect("member-tparam-scope", &with(&|r| {
-        let m = r.member();
-        r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(1))]));
-    }), 21_002);
-    corpus.expect("member-unknown", &with(&|r| {
-        let m = r.member();
-        r.typedef(0, variant(vec![(m, Some(named(fresh(77), vec![])))]));
-    }), 21_005);
-    corpus.expect("member-arity", &with(&|r| {
-        let m = r.member();
-        let a = r.typedef(0, record(vec![(m, t::u64())]));
-        let m2 = r.member();
-        r.typedef(0, record(vec![(m2, named(a, vec![t::u64()]))]));
-    }), 21_004);
-    corpus.expect("member-width", &with(&|r| {
-        let m = r.member();
-        r.typedef(0, record(vec![(m, width(24))]));
-    }), 21_001);
-    corpus.expect("self-cycle", &with(&|r| {
-        let m = r.member();
-        let id = r.id();
-        r.p.type_definitions.push(TypeDefinition {
-            entity_id: id,
-            type_parameters: vec![],
-            form: record(vec![(m, t::opt(named(id, vec![])))]),
-            invariants: vec![],
-            visibility: Visibility::Private,
-        });
-    }), 21_007);
-    corpus.expect("mutual-cycle", &with(&|r| {
-        let (a, b) = (r.id(), r.id());
-        let (ma, mb) = (r.member(), r.member());
-        for (id, m, other) in [(a, ma, b), (b, mb, a)] {
+    corpus.expect(
+        "member-duplicate",
+        &with(&|r| {
+            let m = r.member();
+            r.typedef(0, record(vec![(m, t::u64()), (m, t::u32())]));
+        }),
+        21_008,
+    );
+    corpus.expect(
+        "tparam-ordinal",
+        &with(&|r| {
+            let m = r.member();
+            let id = r.typedef(2, record(vec![(m, t::u64())]));
+            r.p.type_definitions
+                .iter_mut()
+                .find(|d| d.entity_id == id)
+                .unwrap()
+                .type_parameters[1]
+                .ordinal = 5;
+        }),
+        21_002,
+    );
+    corpus.expect(
+        "member-tparam-scope",
+        &with(&|r| {
+            let m = r.member();
+            r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(1))]));
+        }),
+        21_002,
+    );
+    corpus.expect(
+        "member-unknown",
+        &with(&|r| {
+            let m = r.member();
+            r.typedef(0, variant(vec![(m, Some(named(fresh(77), vec![])))]));
+        }),
+        21_005,
+    );
+    corpus.expect(
+        "member-arity",
+        &with(&|r| {
+            let m = r.member();
+            let a = r.typedef(0, record(vec![(m, t::u64())]));
+            let m2 = r.member();
+            r.typedef(0, record(vec![(m2, named(a, vec![t::u64()]))]));
+        }),
+        21_004,
+    );
+    corpus.expect(
+        "member-width",
+        &with(&|r| {
+            let m = r.member();
+            r.typedef(0, record(vec![(m, width(24))]));
+        }),
+        21_001,
+    );
+    corpus.expect(
+        "self-cycle",
+        &with(&|r| {
+            let m = r.member();
+            let id = r.id();
             r.p.type_definitions.push(TypeDefinition {
                 entity_id: id,
                 type_parameters: vec![],
-                form: variant(vec![(m, Some(t::vec(named(other, vec![]))))]),
+                form: record(vec![(m, t::opt(named(id, vec![])))]),
                 invariants: vec![],
                 visibility: Visibility::Private,
             });
-        }
-    }), 21_007);
+        }),
+        21_007,
+    );
+    corpus.expect(
+        "mutual-cycle",
+        &with(&|r| {
+            let (a, b) = (r.id(), r.id());
+            let (ma, mb) = (r.member(), r.member());
+            for (id, m, other) in [(a, ma, b), (b, mb, a)] {
+                r.p.type_definitions.push(TypeDefinition {
+                    entity_id: id,
+                    type_parameters: vec![],
+                    form: variant(vec![(m, Some(t::vec(named(other, vec![]))))]),
+                    invariants: vec![],
+                    visibility: Visibility::Private,
+                });
+            }
+        }),
+        21_007,
+    );
     // Chains of nested definitions: deep ones exceed the walk depth.
     for (len, code) in [(40, None), (63, None), (64, None), (70, Some(21_000))] {
         let p = with(&|r| {
@@ -1194,41 +1713,81 @@ fn type_environment_mutations_match_native() {
             None => corpus.check(&format!("chain-{len}"), &p),
         }
     }
-    corpus.expect("member-map-vector-key", &with(&|r| {
-        let m = r.member();
-        r.typedef(0, record(vec![(m, t::map(t::vec(t::u64()), t::u64()))]));
-    }), 21_011);
-    corpus.expect("member-map-generic-key", &with(&|r| {
-        let m = r.member();
-        let bx = r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(0))]));
-        let m2 = r.member();
-        r.typedef(0, record(vec![(m2, t::map(named(bx, vec![TypeExpr::F32]), t::u64()))]));
-    }), 21_011);
-    corpus.check("member-map-generic-key-ok", &with(&|r| {
-        let m = r.member();
-        let bx = r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(0))]));
-        let m2 = r.member();
-        r.typedef(0, record(vec![(m2, t::map(named(bx, vec![t::u64()]), t::u64()))]));
-    }));
-    corpus.check("member-map-parameter-key-skipped", &with(&|r| {
-        // A map keyed by a parameter inside a generic definition is judged
-        // only when instantiated; a Named argument containing a parameter
-        // is skipped by the map-key walk.
-        let m = r.member();
-        let bx = r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(0))]));
-        let m2 = r.member();
-        r.typedef(1, record(vec![(m2, named(bx, vec![t::map(TypeExpr::TypeParameter(0), t::u64())]))]));
-    }));
-    corpus.expect("member-map-direct-parameter-key", &with(&|r| {
-        let m = r.member();
-        r.typedef(1, record(vec![(m, t::map(TypeExpr::TypeParameter(0), t::u64()))]));
-    }), 21_011);
-    corpus.expect("argument-limit", &with(&|r| {
-        let m = r.member();
-        let a = r.typedef(0, record(vec![(m, t::u64())]));
-        let m2 = r.member();
-        r.typedef(0, record(vec![(m2, named(a, vec![t::u64(); 1025]))]));
-    }), 21_003);
-    eprintln!("types: {} comparisons, native codes {:?}", corpus.cases, corpus.codes);
+    corpus.expect(
+        "member-map-vector-key",
+        &with(&|r| {
+            let m = r.member();
+            r.typedef(0, record(vec![(m, t::map(t::vec(t::u64()), t::u64()))]));
+        }),
+        21_011,
+    );
+    corpus.expect(
+        "member-map-generic-key",
+        &with(&|r| {
+            let m = r.member();
+            let bx = r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(0))]));
+            let m2 = r.member();
+            r.typedef(
+                0,
+                record(vec![(m2, t::map(named(bx, vec![TypeExpr::F32]), t::u64()))]),
+            );
+        }),
+        21_011,
+    );
+    corpus.check(
+        "member-map-generic-key-ok",
+        &with(&|r| {
+            let m = r.member();
+            let bx = r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(0))]));
+            let m2 = r.member();
+            r.typedef(
+                0,
+                record(vec![(m2, t::map(named(bx, vec![t::u64()]), t::u64()))]),
+            );
+        }),
+    );
+    corpus.check(
+        "member-map-parameter-key-skipped",
+        &with(&|r| {
+            // A map keyed by a parameter inside a generic definition is judged
+            // only when instantiated; a Named argument containing a parameter
+            // is skipped by the map-key walk.
+            let m = r.member();
+            let bx = r.typedef(1, record(vec![(m, TypeExpr::TypeParameter(0))]));
+            let m2 = r.member();
+            r.typedef(
+                1,
+                record(vec![(
+                    m2,
+                    named(bx, vec![t::map(TypeExpr::TypeParameter(0), t::u64())]),
+                )]),
+            );
+        }),
+    );
+    corpus.expect(
+        "member-map-direct-parameter-key",
+        &with(&|r| {
+            let m = r.member();
+            r.typedef(
+                1,
+                record(vec![(m, t::map(TypeExpr::TypeParameter(0), t::u64()))]),
+            );
+        }),
+        21_011,
+    );
+    corpus.expect(
+        "argument-limit",
+        &with(&|r| {
+            let m = r.member();
+            let a = r.typedef(0, record(vec![(m, t::u64())]));
+            let m2 = r.member();
+            r.typedef(0, record(vec![(m2, named(a, vec![t::u64(); 1025]))]));
+        }),
+        21_003,
+    );
+    eprintln!(
+        "types: {} comparisons, native codes {:?}",
+        corpus.cases, corpus.codes
+    );
     assert!(corpus.mismatches.is_empty(), "{:#?}", corpus.mismatches);
 }

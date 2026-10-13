@@ -171,8 +171,7 @@ pub(crate) fn compute(blocks: &[BytecodeBlock]) -> FnLiveness {
                         .filter(|other| *other == register)
                         .count()
                         == 1;
-                    if unique && !later.contains(register) && !live_out[index].contains(register)
-                    {
+                    if unique && !later.contains(register) && !live_out[index].contains(register) {
                         mask |= 1 << k;
                     }
                 }

@@ -44,7 +44,8 @@ pub(super) fn constant_index(source: &ExecutionSource<'_>) -> ConstantIndex {
 /// Whether a register's value is the only owner of its root: moving out of
 /// a shared root would copy the whole root, so projections share instead.
 fn unique(runtime: &Runtime, register: u32) -> bool {
-    read_register(runtime, register).is_ok_and(|value| std::sync::Arc::strong_count(&value.root) == 1)
+    read_register(runtime, register)
+        .is_ok_and(|value| std::sync::Arc::strong_count(&value.root) == 1)
 }
 
 fn operand(runtime: &mut Runtime, register: u32, dead: bool) -> RuntimeResult<RuntimeValue> {
@@ -178,7 +179,8 @@ pub(super) fn execute(
             let mut parts = Vec::with_capacity(registers.len());
             for (k, (field, register)) in fields.iter().zip(registers).enumerate() {
                 let value = operand(runtime, *register, dead(k))?;
-                units = add(units, add(32, value.units).ok_or(RuntimeFault)?).ok_or(RuntimeFault)?;
+                units =
+                    add(units, add(32, value.units).ok_or(RuntimeFault)?).ok_or(RuntimeFault)?;
                 parts.push(value.units);
                 values.push(FieldConst {
                     member_id: field.member_id,
@@ -220,8 +222,8 @@ pub(super) fn execute(
         }
         (Opcode::OptionSome | Opcode::ResultOk | Opcode::ResultErr, [register]) => {
             let value = operand(runtime, *register, dead(0))?;
-            let units = whole(result_type, add(2, value.units).ok_or(RuntimeFault)?)
-                .ok_or(RuntimeFault)?;
+            let units =
+                whole(result_type, add(2, value.units).ok_or(RuntimeFault)?).ok_or(RuntimeFault)?;
             let inner = value.parts.clone();
             let payload = Box::new(value.into_value()?);
             let data = match opcode {
@@ -237,9 +239,8 @@ pub(super) fn execute(
             };
             let index = usize::try_from(*index).map_err(|_| RuntimeFault)?;
             let element = if dead(0) && unique(runtime, *register) {
-                let ConstData::Sequence(mut items) = take_register(runtime, *register)?
-                    .into_value()?
-                    .data
+                let ConstData::Sequence(mut items) =
+                    take_register(runtime, *register)?.into_value()?.data
                 else {
                     return Err(RuntimeFault);
                 };
@@ -342,38 +343,35 @@ pub(super) fn execute(
             let ConstData::Sequence(items) = &mut vector.data else {
                 return Err(RuntimeFault);
             };
-            match usize::try_from(index)
+            if let Some(position) = usize::try_from(index)
                 .ok()
                 .filter(|position| *position < items.len())
             {
-                Some(position) => {
-                    let replacement = operand(runtime, *replacement, dead(2))?;
-                    let old_units = value_units_const(&items[position]);
-                    let new_units = replacement.units;
-                    items[position] = replacement.into_value()?;
-                    let inner = vector_units
-                        .checked_sub(value_units_type(&vector.value_type))
-                        .and_then(|units| units.checked_add(value_units_type(ok)))
-                        .and_then(|units| units.checked_sub(old_units))
-                        .and_then(|units| units.checked_add(new_units));
-                    vector.value_type = ok.as_ref().clone();
-                    let value = typed(ConstData::Result(ResultConst::Ok(Box::new(vector))));
-                    let units = inner
-                        .and_then(|inner| whole(result_type, add(2, inner)?))
-                        .unwrap_or_else(|| value_units_const(&value));
-                    Some((value, units))
-                }
-                None => {
-                    let value = typed(ConstData::Result(ResultConst::Err(Box::new(ConstValue {
-                        value_type: error.as_ref().clone(),
-                        data: ConstData::BuiltinFailure(BuiltinFailureValue {
-                            kind: BuiltinFailureKind::Index,
-                            code: 1,
-                        }),
-                    }))));
-                    let units = value_units_const(&value);
-                    Some((value, units))
-                }
+                let replacement = operand(runtime, *replacement, dead(2))?;
+                let old_units = value_units_const(&items[position]);
+                let new_units = replacement.units;
+                items[position] = replacement.into_value()?;
+                let inner = vector_units
+                    .checked_sub(value_units_type(&vector.value_type))
+                    .and_then(|units| units.checked_add(value_units_type(ok)))
+                    .and_then(|units| units.checked_sub(old_units))
+                    .and_then(|units| units.checked_add(new_units));
+                vector.value_type = ok.as_ref().clone();
+                let value = typed(ConstData::Result(ResultConst::Ok(Box::new(vector))));
+                let units = inner
+                    .and_then(|inner| whole(result_type, add(2, inner)?))
+                    .unwrap_or_else(|| value_units_const(&value));
+                Some((value, units))
+            } else {
+                let value = typed(ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+                    value_type: error.as_ref().clone(),
+                    data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                        kind: BuiltinFailureKind::Index,
+                        code: 1,
+                    }),
+                }))));
+                let units = value_units_const(&value);
+                Some((value, units))
             }
         }
         (Opcode::MapGet | Opcode::MapContains, [map, key]) => {

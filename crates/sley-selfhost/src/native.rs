@@ -187,13 +187,16 @@ pub fn decode_s(s: &crate::canonical::CanonicalS) -> Result<Decoded, String> {
                 entity_id: id,
                 value: c.value,
             }),
-            B::TypeDef(d) => out.program.type_definitions.push(sley_ssmc::TypeDefinition {
-                entity_id: id,
-                type_parameters: d.type_parameters,
-                form: d.form,
-                invariants: d.invariants.as_slice().to_vec(),
-                visibility: d.visibility,
-            }),
+            B::TypeDef(d) => out
+                .program
+                .type_definitions
+                .push(sley_ssmc::TypeDefinition {
+                    entity_id: id,
+                    type_parameters: d.type_parameters,
+                    form: d.form,
+                    invariants: d.invariants.as_slice().to_vec(),
+                    visibility: d.visibility,
+                }),
             B::AdapterImport(i) => out.program.imports.push(sley_ssmc::AdapterImport {
                 entity_id: id,
                 adapter_id: i.adapter_id,

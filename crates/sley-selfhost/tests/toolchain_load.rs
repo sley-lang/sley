@@ -14,5 +14,8 @@ fn loads_the_toolchain_inventory() {
     assert_eq!(as_u64(&counts[0]), program.functions.len() as u64);
     assert_eq!(as_u64(&counts[1]), program.operations.len() as u64);
     assert_eq!(as_u64(&counts[2]), s.objects.len() as u64);
-    eprintln!("loaded {} objects in {instructions} instructions", s.objects.len());
+    eprintln!(
+        "loaded {} objects in {instructions} instructions",
+        s.objects.len()
+    );
 }

@@ -37,10 +37,14 @@
 use sley_ssmc::{ConstData, ConstValue, MapEntryConst};
 
 use super::inv::{INV, KIND_OPERATION, KIND_PARAMETER};
-use super::model::*;
+use super::model::{BLK, EDGE, SARG, SCASE, TDEF, TERM, VREF};
 use super::rt::{code, r};
 use super::types::ty_bool;
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, and, boolc, bytesc, call, concat, div, eq, field, ge, gt, is_some, le,
+    lt, mget, mget_opt, mhas, mins, mnew, mul, ne, not, or, push, rec, select, sub, t, tget, tri,
+    tup, u32c, u64c, unitc, unwrap, v, vget, vlen, vnew, vset,
+};
 
 /// `TYPE_DEPTH_LIMIT`.
 pub const TYPE_DEPTH_LIMIT: u32 = 21_000;
@@ -321,10 +325,16 @@ fn define_types(m: &mut Module) {
     for (name, elem) in [("ck_putb", t::bytes()), ("ck_putu", t::u64())] {
         m.func(
             name,
-            &[("xs", t::vec(elem.clone())), ("i", t::u64()), ("x", elem.clone())],
+            &[
+                ("xs", t::vec(elem.clone())),
+                ("i", t::u64()),
+                ("x", elem.clone()),
+            ],
             t::vec(elem),
             |f| {
-                f.if_(lt(v("i"), vlen(v("xs"))), |f| f.ret(vset(v("xs"), v("i"), v("x"))));
+                f.if_(lt(v("i"), vlen(v("xs"))), |f| {
+                    f.ret(vset(v("xs"), v("i"), v("x")));
+                });
                 f.ret(push(v("xs"), v("x")));
             },
         );
@@ -332,14 +342,21 @@ fn define_types(m: &mut Module) {
     // Writes `ys` at `xs[i..]` (appending past the end).
     m.func(
         "ck_putall",
-        &[("xs", t::vec(t::bytes())), ("i", t::u64()), ("ys", t::vec(t::bytes()))],
+        &[
+            ("xs", t::vec(t::bytes())),
+            ("i", t::u64()),
+            ("ys", t::vec(t::bytes())),
+        ],
         t::vec(t::bytes()),
         |f| {
             f.var("xs", v("xs"));
             f.for_u64("k", u64c(0), vlen(v("ys")), |f| {
                 f.set(
                     "xs",
-                    call("ck_putb", vec![v("xs"), add(v("i"), v("k")), at("ys", v("k"))]),
+                    call(
+                        "ck_putb",
+                        vec![v("xs"), add(v("i"), v("k")), at("ys", v("k"))],
+                    ),
                 );
             });
             f.ret(v("xs"));
@@ -348,12 +365,20 @@ fn define_types(m: &mut Module) {
     // Writes `n` copies of `x` at `xs[i..]`.
     m.func(
         "ck_putrep",
-        &[("xs", u()), ("i", t::u64()), ("n", t::u64()), ("x", t::u64())],
+        &[
+            ("xs", u()),
+            ("i", t::u64()),
+            ("n", t::u64()),
+            ("x", t::u64()),
+        ],
         u(),
         |f| {
             f.var("xs", v("xs"));
             f.for_u64("k", u64c(0), v("n"), |f| {
-                f.set("xs", call("ck_putu", vec![v("xs"), add(v("i"), v("k")), v("x")]));
+                f.set(
+                    "xs",
+                    call("ck_putu", vec![v("xs"), add(v("i"), v("k")), v("x")]),
+                );
             });
             f.ret(v("xs"));
         },
@@ -361,17 +386,27 @@ fn define_types(m: &mut Module) {
     // Grows `xs` with zeros to at least `n` entries.
     m.func("ck_grow", &[("xs", u()), ("n", t::u64())], u(), |f| {
         f.var("xs", v("xs"));
-        f.while_(lt(vlen(v("xs")), v("n")), |f| f.set("xs", push(v("xs"), u64c(0))));
+        f.while_(lt(vlen(v("xs")), v("n")), |f| {
+            f.set("xs", push(v("xs"), u64c(0)));
+        });
         f.ret(v("xs"));
     });
     // Reversed.
-    m.func("ck_rev", &[("xs", t::vec(t::bytes()))], t::vec(t::bytes()), |f| {
-        f.var("out", vnew(t::bytes(), vec![]));
-        f.for_u64("k", u64c(0), vlen(v("xs")), |f| {
-            f.set("out", push(v("out"), at("xs", sub(sub(vlen(v("xs")), v("k")), u64c(1)))));
-        });
-        f.ret(v("out"));
-    });
+    m.func(
+        "ck_rev",
+        &[("xs", t::vec(t::bytes()))],
+        t::vec(t::bytes()),
+        |f| {
+            f.var("out", vnew(t::bytes(), vec![]));
+            f.for_u64("k", u64c(0), vlen(v("xs")), |f| {
+                f.set(
+                    "out",
+                    push(v("out"), at("xs", sub(sub(vlen(v("xs")), v("k")), u64c(1)))),
+                );
+            });
+            f.ret(v("out"));
+        },
+    );
     // (tag, children, extra, number): children in the native recursion
     // order (Tuple items, Named arguments, Vector/Option/LocalCell element,
     // OrderedMap key/value, Result ok/error, FunctionRef parameters then
@@ -386,7 +421,12 @@ fn define_types(m: &mut Module) {
         };
         let none = || vnew(t::bytes(), vec![]);
         f.if_(any_tag("tag", &[3, 4, 19]), move |f| {
-            out(f, none(), bytesc(&[]), call("ty_uvar_payload", vec![v("pl")]));
+            out(
+                f,
+                none(),
+                bytesc(&[]),
+                call("ty_uvar_payload", vec![v("pl")]),
+            );
         });
         f.if_(eq(v("tag"), u64c(9)), move |f| {
             out(f, call("ty_list", vec![v("pl")]), bytesc(&[]), u64c(0));
@@ -399,12 +439,22 @@ fn define_types(m: &mut Module) {
         });
         f.if_(eq(v("tag"), u64c(10)), move |f| {
             f.let_("fs", call("ty_fields", vec![v("pl")]));
-            out(f, call("ty_list", vec![vget(v("fs"), u64c(1))]), vget(v("fs"), u64c(0)), u64c(0));
+            out(
+                f,
+                call("ty_list", vec![vget(v("fs"), u64c(1))]),
+                vget(v("fs"), u64c(0)),
+                u64c(0),
+            );
         });
         f.if_(eq(v("tag"), u64c(15)), move |f| {
             f.let_("fs", call("ty_fields", vec![v("pl")]));
             f.let_("l0", call("ty_list", vec![vget(v("fs"), u64c(0))]));
-            out(f, push(v("l0"), vget(v("fs"), u64c(1))), vget(v("fs"), u64c(2)), u64c(0));
+            out(
+                f,
+                push(v("l0"), vget(v("fs"), u64c(1))),
+                vget(v("fs"), u64c(2)),
+                u64c(0),
+            );
         });
         out(f, none(), bytesc(&[]), u64c(0));
     });
@@ -431,7 +481,10 @@ fn define_types(m: &mut Module) {
                 f.set("ts", call("ck_putall", vec![v("ts"), v("sp"), v("kids")]));
                 f.set(
                     "ds",
-                    call("ck_putrep", vec![v("ds"), v("sp"), vlen(v("kids")), add(v("d"), u64c(1))]),
+                    call(
+                        "ck_putrep",
+                        vec![v("ds"), v("sp"), vlen(v("kids")), add(v("d"), u64c(1))],
+                    ),
                 );
                 f.set("sp", add(v("sp"), vlen(v("kids"))));
             });
@@ -454,12 +507,23 @@ fn define_types(m: &mut Module) {
             let give = |f: &mut FnB<'_>, cond: E, c: u32| f.if_(cond, move |f| f.ret(code(c)));
             give(
                 f,
-                and(any_tag("tag", &[3, 4]), not(any_tag("num", &[8, 16, 32, 64, 128]))),
+                and(
+                    any_tag("tag", &[3, 4]),
+                    not(any_tag("num", &[8, 16, 32, 64, 128])),
+                ),
                 TYPE_WIDTH_INVALID,
             );
-            give(f, and(eq(v("tag"), u64c(9)), gt(v("nk"), u64c(MAX_MEMBERS))), TYPE_RESOURCE_LIMIT);
+            give(
+                f,
+                and(eq(v("tag"), u64c(9)), gt(v("nk"), u64c(MAX_MEMBERS))),
+                TYPE_RESOURCE_LIMIT,
+            );
             f.if_(eq(v("tag"), u64c(10)), move |f| {
-                give(f, gt(v("nk"), u64c(MAX_TYPE_ARGUMENTS)), TYPE_ARGUMENT_LIMIT);
+                give(
+                    f,
+                    gt(v("nk"), u64c(MAX_TYPE_ARGUMENTS)),
+                    TYPE_ARGUMENT_LIMIT,
+                );
                 f.match_opt(
                     mget_opt(v("ar"), tget(v("n"), 2)),
                     "arity",
@@ -502,10 +566,19 @@ fn define_types(m: &mut Module) {
                 f.if_(ne(v("c"), u32c(0)), |f| f.ret_err(v("c")));
                 // Children in reverse so the first child pops first.
                 f.let_("kids", tget(v("n"), 1));
-                f.set("ts", call("ck_putall", vec![v("ts"), v("sp"), call("ck_rev", vec![v("kids")])]));
+                f.set(
+                    "ts",
+                    call(
+                        "ck_putall",
+                        vec![v("ts"), v("sp"), call("ck_rev", vec![v("kids")])],
+                    ),
+                );
                 f.set(
                     "ds",
-                    call("ck_putrep", vec![v("ds"), v("sp"), vlen(v("kids")), add(v("d"), u64c(1))]),
+                    call(
+                        "ck_putrep",
+                        vec![v("ds"), v("sp"), vlen(v("kids")), add(v("d"), u64c(1))],
+                    ),
                 );
                 f.set("sp", add(v("sp"), vlen(v("kids"))));
             });
@@ -515,7 +588,11 @@ fn define_types(m: &mut Module) {
     // `items[base .. base + n]`.
     m.func(
         "ck_sub",
-        &[("items", t::vec(t::bytes())), ("base", t::u64()), ("n", t::u64())],
+        &[
+            ("items", t::vec(t::bytes())),
+            ("base", t::u64()),
+            ("n", t::u64()),
+        ],
         t::vec(t::bytes()),
         |f| {
             f.var("out", vnew(t::bytes(), vec![]));
@@ -543,12 +620,18 @@ fn define_types(m: &mut Module) {
     // Rebuilds a composite type from substituted children.
     m.func(
         "ck_rebuild",
-        &[("tag", t::u64()), ("x", t::bytes()), ("items", t::vec(t::bytes()))],
+        &[
+            ("tag", t::u64()),
+            ("x", t::bytes()),
+            ("items", t::vec(t::bytes())),
+        ],
         t::bytes(),
         |f| {
             f.let_("n", vlen(v("items")));
             let make = |payload: E| call("ty_make", vec![v("tag"), payload]);
-            f.if_(eq(v("tag"), u64c(9)), |f| f.ret(call("ty_tuple", vec![v("items")])));
+            f.if_(eq(v("tag"), u64c(9)), |f| {
+                f.ret(call("ty_tuple", vec![v("items")]));
+            });
             f.if_(eq(v("tag"), u64c(10)), move |f| {
                 f.ret(make(call(
                     "ty_rec2",
@@ -556,7 +639,10 @@ fn define_types(m: &mut Module) {
                 )));
             });
             f.if_(any_tag("tag", &[12, 14]), move |f| {
-                f.ret(make(call("ty_rec2", vec![at("items", u64c(0)), at("items", u64c(1))])));
+                f.ret(make(call(
+                    "ty_rec2",
+                    vec![at("items", u64c(0)), at("items", u64c(1))],
+                )));
             });
             f.if_(eq(v("tag"), u64c(15)), move |f| {
                 f.let_("np", sub(v("n"), u64c(1)));
@@ -580,7 +666,11 @@ fn define_types(m: &mut Module) {
     // native pre-order (the depth check, then the parameter index).
     m.func(
         "ck_subst",
-        &[("ty", t::bytes()), ("args", t::vec(t::bytes())), ("d", t::u64())],
+        &[
+            ("ty", t::bytes()),
+            ("args", t::vec(t::bytes())),
+            ("d", t::u64()),
+        ],
         r(t::bytes()),
         |f| {
             // No arguments: only the depth check can fail (every member type
@@ -598,7 +688,13 @@ fn define_types(m: &mut Module) {
             });
             // Frames, stride 6: depth, step, first child, child count, first
             // output, tag. Plus the type and the extra bytes per frame.
-            f.var("fr", vnew(t::u64(), vec![v("d"), u64c(0), u64c(0), u64c(0), u64c(0), u64c(0)]));
+            f.var(
+                "fr",
+                vnew(
+                    t::u64(),
+                    vec![v("d"), u64c(0), u64c(0), u64c(0), u64c(0), u64c(0)],
+                ),
+            );
             f.var("st", vnew(t::bytes(), vec![v("ty")]));
             f.var("sx", vnew(t::bytes(), vec![bytesc(&[])]));
             f.var("sp", u64c(1));
@@ -615,7 +711,11 @@ fn define_types(m: &mut Module) {
                 f.if_else(
                     eq(v("i"), u64c(0)),
                     |f| {
-                        fail_if(f, gt(at("fr", v("o")), u64c(MAX_TYPE_DEPTH)), TYPE_DEPTH_LIMIT);
+                        fail_if(
+                            f,
+                            gt(at("fr", v("o")), u64c(MAX_TYPE_DEPTH)),
+                            TYPE_DEPTH_LIMIT,
+                        );
                         f.let_("t", at("st", v("top")));
                         f.let_("n", call("ck_node", vec![v("t")]));
                         f.let_("tag", tget(v("n"), 0));
@@ -663,7 +763,12 @@ fn define_types(m: &mut Module) {
                                 f.set("fr", call("ck_grow", vec![v("fr"), add(v("o2"), u64c(6))]));
                                 upd(f, "fr", v("o2"), add(at("fr", v("o")), u64c(1)));
                                 upd(f, "fr", add(v("o2"), u64c(1)), u64c(0));
-                                putb(f, "st", v("sp"), at("kb", add(at2("fr", v("o"), 2), v("j"))));
+                                putb(
+                                    f,
+                                    "st",
+                                    v("sp"),
+                                    at("kb", add(at2("fr", v("o"), 2), v("j"))),
+                                );
                                 putb(f, "sx", v("sp"), bytesc(&[]));
                                 inc(f, "sp");
                             },
@@ -697,46 +802,77 @@ fn define_types(m: &mut Module) {
         },
     );
     // `a & b` over trait masks.
-    m.func("ck_tand", &[("a", t::u64()), ("b", t::u64())], t::u64(), |f| {
-        f.ret(mget(tand_table(), add(mul(v("a"), u64c(16)), v("b"))));
-    });
+    m.func(
+        "ck_tand",
+        &[("a", t::u64()), ("b", t::u64())],
+        t::u64(),
+        |f| {
+            f.ret(mget(tand_table(), add(mul(v("a"), u64c(16)), v("b"))));
+        },
+    );
     // `require_map_key_traits`.
     m.func("ck_req", &[("tr", t::u64())], r(t::unit()), |f| {
-        fail_if(f, eq(call("ck_tand", vec![v("tr"), u64c(2)]), u64c(0)), TYPE_NOT_ORDERABLE);
-        fail_if(f, eq(call("ck_tand", vec![v("tr"), u64c(1)]), u64c(0)), TYPE_NOT_ORDERABLE);
-        fail_if(f, eq(call("ck_tand", vec![v("tr"), u64c(4)]), u64c(0)), TYPE_NOT_HASHABLE);
-        fail_if(f, eq(call("ck_tand", vec![v("tr"), u64c(8)]), u64c(0)), TYPE_NOT_PERSISTABLE);
+        fail_if(
+            f,
+            eq(call("ck_tand", vec![v("tr"), u64c(2)]), u64c(0)),
+            TYPE_NOT_ORDERABLE,
+        );
+        fail_if(
+            f,
+            eq(call("ck_tand", vec![v("tr"), u64c(1)]), u64c(0)),
+            TYPE_NOT_ORDERABLE,
+        );
+        fail_if(
+            f,
+            eq(call("ck_tand", vec![v("tr"), u64c(4)]), u64c(0)),
+            TYPE_NOT_HASHABLE,
+        );
+        fail_if(
+            f,
+            eq(call("ck_tand", vec![v("tr"), u64c(8)]), u64c(0)),
+            TYPE_NOT_PERSISTABLE,
+        );
         f.ret_ok(unitc());
     });
     // The member types of a definition (record fields, payload cases).
-    m.func("ck_mtypes", &[("td", m.ty(TDEF))], t::vec(t::bytes()), |f| {
-        f.let_("ms", field(v("td"), "members"));
-        f.var("out", vnew(t::bytes(), vec![]));
-        f.for_u64("k", u64c(0), vlen(v("ms")), |f| {
-            f.let_("mem", at("ms", v("k")));
-            f.if_(field(v("mem"), "has_ty"), |f| {
-                f.set("out", push(v("out"), field(v("mem"), "ty")));
+    m.func(
+        "ck_mtypes",
+        &[("td", m.ty(TDEF))],
+        t::vec(t::bytes()),
+        |f| {
+            f.let_("ms", field(v("td"), "members"));
+            f.var("out", vnew(t::bytes(), vec![]));
+            f.for_u64("k", u64c(0), vlen(v("ms")), |f| {
+                f.let_("mem", at("ms", v("k")));
+                f.if_(field(v("mem"), "has_ty"), |f| {
+                    f.set("out", push(v("out"), field(v("mem"), "ty")));
+                });
             });
-        });
-        f.ret(v("out"));
-    });
+            f.ret(v("out"));
+        },
+    );
     // Every Named definition id reachable through the native recursion.
-    m.func("ck_named_ids", &[("ty", t::bytes())], t::vec(t::bytes()), |f| {
-        f.var("ts", vnew(t::bytes(), vec![v("ty")]));
-        f.var("sp", u64c(1));
-        f.var("out", vnew(t::bytes(), vec![]));
-        f.while_(gt(v("sp"), u64c(0)), |f| {
-            f.set("sp", sub(v("sp"), u64c(1)));
-            f.let_("n", call("ck_node", vec![at("ts", v("sp"))]));
-            f.if_(eq(tget(v("n"), 0), u64c(10)), |f| {
-                f.set("out", push(v("out"), tget(v("n"), 2)));
+    m.func(
+        "ck_named_ids",
+        &[("ty", t::bytes())],
+        t::vec(t::bytes()),
+        |f| {
+            f.var("ts", vnew(t::bytes(), vec![v("ty")]));
+            f.var("sp", u64c(1));
+            f.var("out", vnew(t::bytes(), vec![]));
+            f.while_(gt(v("sp"), u64c(0)), |f| {
+                f.set("sp", sub(v("sp"), u64c(1)));
+                f.let_("n", call("ck_node", vec![at("ts", v("sp"))]));
+                f.if_(eq(tget(v("n"), 0), u64c(10)), |f| {
+                    f.set("out", push(v("out"), tget(v("n"), 2)));
+                });
+                f.let_("kids", tget(v("n"), 1));
+                f.set("ts", call("ck_putall", vec![v("ts"), v("sp"), v("kids")]));
+                f.set("sp", add(v("sp"), vlen(v("kids"))));
             });
-            f.let_("kids", tget(v("n"), 1));
-            f.set("ts", call("ck_putall", vec![v("ts"), v("sp"), v("kids")]));
-            f.set("sp", add(v("sp"), vlen(v("kids"))));
-        });
-        f.ret(v("out"));
-    });
+            f.ret(v("out"));
+        },
+    );
     // Stable ascending order of byte strings (insertion sort; small lists).
     m.func("ck_order", &[("ids", t::vec(t::bytes()))], u(), |f| {
         f.var("ix", vnew(t::u64(), vec![]));
@@ -744,9 +880,12 @@ fn define_types(m: &mut Module) {
             f.set("ix", push(v("ix"), v("i")));
             f.var("j", v("i"));
             f.loop_(|f| {
-                f.if_(eq(v("j"), u64c(0)), |f| f.break_());
+                f.if_(eq(v("j"), u64c(0)), super::super::seed::FnB::break_);
                 f.let_("pj", at("ix", sub(v("j"), u64c(1))));
-                f.if_(le(at("ids", v("pj")), at("ids", v("i"))), |f| f.break_());
+                f.if_(
+                    le(at("ids", v("pj")), at("ids", v("i"))),
+                    super::super::seed::FnB::break_,
+                );
                 upd(f, "ix", v("j"), v("pj"));
                 f.set("j", sub(v("j"), u64c(1)));
             });
@@ -755,25 +894,41 @@ fn define_types(m: &mut Module) {
         f.ret(v("ix"));
     });
     // Sorted unique byte strings.
-    m.func("ck_sortu", &[("ids", t::vec(t::bytes()))], t::vec(t::bytes()), |f| {
-        f.let_("ix", call("ck_order", vec![v("ids")]));
-        f.var("out", vnew(t::bytes(), vec![]));
-        f.for_u64("k", u64c(0), vlen(v("ix")), |f| {
-            f.let_("x", at("ids", at("ix", v("k"))));
-            f.if_(
-                or(
-                    eq(v("k"), u64c(0)),
-                    ne(at("ids", at("ix", select(gt(v("k"), u64c(0)), sub(v("k"), u64c(1)), u64c(0)))), v("x")),
-                ),
-                |f| f.set("out", push(v("out"), v("x"))),
-            );
-        });
-        f.ret(v("out"));
-    });
+    m.func(
+        "ck_sortu",
+        &[("ids", t::vec(t::bytes()))],
+        t::vec(t::bytes()),
+        |f| {
+            f.let_("ix", call("ck_order", vec![v("ids")]));
+            f.var("out", vnew(t::bytes(), vec![]));
+            f.for_u64("k", u64c(0), vlen(v("ix")), |f| {
+                f.let_("x", at("ids", at("ix", v("k"))));
+                f.if_(
+                    or(
+                        eq(v("k"), u64c(0)),
+                        ne(
+                            at(
+                                "ids",
+                                at(
+                                    "ix",
+                                    select(gt(v("k"), u64c(0)), sub(v("k"), u64c(1)), u64c(0)),
+                                ),
+                            ),
+                            v("x"),
+                        ),
+                    ),
+                    |f| f.set("out", push(v("out"), v("x"))),
+                );
+            });
+            f.ret(v("out"));
+        },
+    );
     // `n` copies of `x`.
     m.func("ck_fill", &[("n", t::u64()), ("x", t::u64())], u(), |f| {
         f.var("out", vnew(t::u64(), vec![]));
-        f.for_u64("k", u64c(0), v("n"), |f| f.set("out", push(v("out"), v("x"))));
+        f.for_u64("k", u64c(0), v("n"), |f| {
+            f.set("out", push(v("out"), v("x")));
+        });
         f.ret(v("out"));
     });
 }
@@ -798,16 +953,34 @@ fn define_walk(m: &mut Module) {
             ("mo", t::u64()),
             ("dd", t::u64()),
         ],
-        r(t::tuple(vec![t::u64(), t::u64(), t::u64(), t::vec(t::bytes()), t::u64()])),
+        r(t::tuple(vec![
+            t::u64(),
+            t::u64(),
+            t::u64(),
+            t::vec(t::bytes()),
+            t::u64(),
+        ])),
         |f| {
             f.let_("n", call("ck_node", vec![v("t")]));
             f.let_("tag", tget(v("n"), 0));
             f.let_("kids", tget(v("n"), 1));
             let done = |f: &mut FnB<'_>, traits: E| {
-                f.ret_ok(tup(vec![u64c(1), traits, v("tag"), vnew(t::bytes(), vec![]), u64c(0)]));
+                f.ret_ok(tup(vec![
+                    u64c(1),
+                    traits,
+                    v("tag"),
+                    vnew(t::bytes(), vec![]),
+                    u64c(0),
+                ]));
             };
             let setup = |f: &mut FnB<'_>| {
-                f.ret_ok(tup(vec![u64c(2), u64c(0), v("tag"), v("kids"), vlen(v("kids"))]));
+                f.ret_ok(tup(vec![
+                    u64c(2),
+                    u64c(0),
+                    v("tag"),
+                    v("kids"),
+                    vlen(v("kids")),
+                ]));
             };
             let named = |f: &mut FnB<'_>| {
                 f.match_opt(
@@ -819,7 +992,13 @@ fn define_walk(m: &mut Module) {
                         f.for_u64("k", u64c(0), vlen(v("kids")), |f| {
                             f.set("mem", push(v("mem"), at("kids", v("k"))));
                         });
-                        f.ret_ok(tup(vec![u64c(2), u64c(0), v("tag"), v("mem"), vlen(v("mt"))]));
+                        f.ret_ok(tup(vec![
+                            u64c(2),
+                            u64c(0),
+                            v("tag"),
+                            v("mem"),
+                            vlen(v("mt")),
+                        ]));
                     },
                     |f| f.ret_err(code(TYPE_DEFINITION_UNKNOWN)),
                 );
@@ -827,18 +1006,27 @@ fn define_walk(m: &mut Module) {
             f.if_(eq(v("mo"), u64c(1)), move |f| {
                 f.if_(eq(v("tag"), u64c(10)), move |f| {
                     f.for_u64("k", u64c(0), vlen(v("kids")), move |f| {
-                        f.if_(tget(call("ck_info", vec![at("kids", v("k"))]), 1), move |f| {
-                            done(f, u64c(0));
-                        });
+                        f.if_(
+                            tget(call("ck_info", vec![at("kids", v("k"))]), 1),
+                            move |f| {
+                                done(f, u64c(0));
+                            },
+                        );
                     });
-                    f.if_(mhas(v("mkc"), walk_key(v("dd"), v("t"))), move |f| done(f, u64c(0)));
+                    f.if_(mhas(v("mkc"), walk_key(v("dd"), v("t"))), move |f| {
+                        done(f, u64c(0));
+                    });
                     named(f);
                 });
                 f.if_(any_tag("tag", &[9, 11, 12, 13, 14, 15, 18]), setup);
                 done(f, u64c(0));
             });
-            f.if_(any_tag("tag", &[1, 2, 3, 4, 7, 8, 20]), move |f| done(f, u64c(TR_ALL)));
-            f.if_(any_tag("tag", &[5, 6, 15]), move |f| done(f, u64c(TR_NO_ORDER)));
+            f.if_(any_tag("tag", &[1, 2, 3, 4, 7, 8, 20]), move |f| {
+                done(f, u64c(TR_ALL));
+            });
+            f.if_(any_tag("tag", &[5, 6, 15]), move |f| {
+                done(f, u64c(TR_NO_ORDER));
+            });
             f.if_(any_tag("tag", &[16, 17]), move |f| done(f, u64c(1)));
             fail_if(f, eq(v("tag"), u64c(19)), TYPE_PARAMETER_OUT_OF_SCOPE);
             f.if_(eq(v("tag"), u64c(10)), move |f| {
@@ -871,7 +1059,14 @@ fn define_walk(m: &mut Module) {
             ("dd", t::u64()),
             ("kb", t::vec(t::bytes())),
         ],
-        r(t::tuple(vec![t::u64(), t::u64(), t::u64(), t::bytes(), t::u64(), t::u64()])),
+        r(t::tuple(vec![
+            t::u64(),
+            t::u64(),
+            t::u64(),
+            t::bytes(),
+            t::u64(),
+            t::u64(),
+        ])),
         |f| {
             let pop = |f: &mut FnB<'_>, traits: E, acc: E, cache: E| {
                 f.ret_ok(tup(vec![u64c(1), traits, acc, bytesc(&[]), u64c(0), cache]));
@@ -883,7 +1078,14 @@ fn define_walk(m: &mut Module) {
             let member = |f: &mut FnB<'_>| {
                 f.let_("raw", at("kb", add(v("base"), v("j"))));
                 f.if_(ne(v("tag"), u64c(10)), |f| {
-                    f.ret_ok(tup(vec![u64c(2), v("ret"), v("a"), v("raw"), v("mo"), u64c(0)]));
+                    f.ret_ok(tup(vec![
+                        u64c(2),
+                        v("ret"),
+                        v("a"),
+                        v("raw"),
+                        v("mo"),
+                        u64c(0),
+                    ]));
                 });
                 f.let_(
                     "sub",
@@ -896,44 +1098,69 @@ fn define_walk(m: &mut Module) {
                         ],
                     )),
                 );
-                f.ret_ok(tup(vec![u64c(2), v("ret"), v("a"), v("sub"), v("mo"), u64c(0)]));
+                f.ret_ok(tup(vec![
+                    u64c(2),
+                    v("ret"),
+                    v("a"),
+                    v("sub"),
+                    v("mo"),
+                    u64c(0),
+                ]));
             };
             // `kb[base]` is read only by frames that have children.
-            f.if_(and(eq(v("mo"), u64c(1)), eq(v("tag"), u64c(12))), move |f| {
-                f.if_(lt(v("j"), u64c(2)), move |f| {
-                    child(f, at("kb", add(v("base"), v("j"))), u64c(1), v("acc"));
-                });
-                f.if_(eq(v("j"), u64c(2)), move |f| {
-                    fail_if(
-                        f,
-                        tget(call("ck_info", vec![at("kb", v("base"))]), 1),
-                        TYPE_NOT_ORDERABLE,
-                    );
-                    child(f, at("kb", v("base")), u64c(2), v("acc"));
-                });
-                f.expr(tri(call("ck_req", vec![v("ret")])));
-                pop(f, v("ret"), v("acc"), u64c(0));
-            });
-            f.if_(and(eq(v("mo"), u64c(2)), eq(v("tag"), u64c(11))), move |f| {
-                f.if_(eq(v("j"), u64c(0)), move |f| child(f, at("kb", v("base")), u64c(2), v("acc")));
-                pop(f, call("ck_tand", vec![v("ret"), u64c(TR_NO_ORDER)]), v("acc"), u64c(0));
-            });
-            f.if_(and(eq(v("mo"), u64c(2)), eq(v("tag"), u64c(12))), move |f| {
-                f.if_(eq(v("j"), u64c(0)), move |f| child(f, at("kb", v("base")), u64c(2), v("acc")));
-                f.if_(eq(v("j"), u64c(1)), move |f| {
+            f.if_(
+                and(eq(v("mo"), u64c(1)), eq(v("tag"), u64c(12))),
+                move |f| {
+                    f.if_(lt(v("j"), u64c(2)), move |f| {
+                        child(f, at("kb", add(v("base"), v("j"))), u64c(1), v("acc"));
+                    });
+                    f.if_(eq(v("j"), u64c(2)), move |f| {
+                        fail_if(
+                            f,
+                            tget(call("ck_info", vec![at("kb", v("base"))]), 1),
+                            TYPE_NOT_ORDERABLE,
+                        );
+                        child(f, at("kb", v("base")), u64c(2), v("acc"));
+                    });
                     f.expr(tri(call("ck_req", vec![v("ret")])));
-                    child(f, at("kb", add(v("base"), u64c(1))), u64c(2), v("ret"));
-                });
-                pop(
-                    f,
-                    call(
-                        "ck_tand",
-                        vec![call("ck_tand", vec![v("acc"), v("ret")]), u64c(TR_NO_ORDER)],
-                    ),
-                    v("acc"),
-                    u64c(0),
-                );
-            });
+                    pop(f, v("ret"), v("acc"), u64c(0));
+                },
+            );
+            f.if_(
+                and(eq(v("mo"), u64c(2)), eq(v("tag"), u64c(11))),
+                move |f| {
+                    f.if_(eq(v("j"), u64c(0)), move |f| {
+                        child(f, at("kb", v("base")), u64c(2), v("acc"));
+                    });
+                    pop(
+                        f,
+                        call("ck_tand", vec![v("ret"), u64c(TR_NO_ORDER)]),
+                        v("acc"),
+                        u64c(0),
+                    );
+                },
+            );
+            f.if_(
+                and(eq(v("mo"), u64c(2)), eq(v("tag"), u64c(12))),
+                move |f| {
+                    f.if_(eq(v("j"), u64c(0)), move |f| {
+                        child(f, at("kb", v("base")), u64c(2), v("acc"));
+                    });
+                    f.if_(eq(v("j"), u64c(1)), move |f| {
+                        f.expr(tri(call("ck_req", vec![v("ret")])));
+                        child(f, at("kb", add(v("base"), u64c(1))), u64c(2), v("ret"));
+                    });
+                    pop(
+                        f,
+                        call(
+                            "ck_tand",
+                            vec![call("ck_tand", vec![v("acc"), v("ret")]), u64c(TR_NO_ORDER)],
+                        ),
+                        v("acc"),
+                        u64c(0),
+                    );
+                },
+            );
             // Map-key walks ignore `a`; trait walks combine children.
             f.let_(
                 "a",
@@ -972,7 +1199,16 @@ fn define_walk(m: &mut Module) {
                 "fr",
                 vnew(
                     t::u64(),
-                    vec![v("mode"), v("d"), u64c(0), u64c(0), u64c(0), u64c(0), u64c(0), u64c(0)],
+                    vec![
+                        v("mode"),
+                        v("d"),
+                        u64c(0),
+                        u64c(0),
+                        u64c(0),
+                        u64c(0),
+                        u64c(0),
+                        u64c(0),
+                    ],
                 ),
             );
             f.var("ft", vnew(t::bytes(), vec![v("ty")]));
@@ -996,7 +1232,11 @@ fn define_walk(m: &mut Module) {
                     |f| {
                         fail_if(f, gt(v("dd"), u64c(MAX_TYPE_DEPTH)), TYPE_DEPTH_LIMIT);
                         inc(f, "visits");
-                        fail_if(f, gt(v("visits"), u64c(MAX_WALK_VISITS)), TYPE_RESOURCE_LIMIT);
+                        fail_if(
+                            f,
+                            gt(v("visits"), u64c(MAX_WALK_VISITS)),
+                            TYPE_RESOURCE_LIMIT,
+                        );
                         f.let_(
                             "e",
                             tri(call(
@@ -1141,7 +1381,13 @@ fn define_env(m: &mut Module) {
         ],
         t::tuple(vec![memo.clone(), t::u32()]),
         |f| {
-            f.let_("key", concat(vnew(t::bytes(), vec![call("uvarb", vec![v("pc")]), v("ty")])));
+            f.let_(
+                "key",
+                concat(vnew(
+                    t::bytes(),
+                    vec![call("uvarb", vec![v("pc")]), v("ty")],
+                )),
+            );
             f.match_opt(
                 mget_opt(field(v("m"), "ct"), v("key")),
                 "c",
@@ -1181,7 +1427,11 @@ fn define_env(m: &mut Module) {
     // `TypeEnvironment::traits(ty)`: (memo, code, mask).
     m.func(
         "ck_trait",
-        &[("inv", inv_ty.clone()), ("m", memo.clone()), ("ty", t::bytes())],
+        &[
+            ("inv", inv_ty.clone()),
+            ("m", memo.clone()),
+            ("ty", t::bytes()),
+        ],
         t::tuple(vec![memo.clone(), t::u32(), t::u64()]),
         move |f| {
             f.match_opt(
@@ -1190,12 +1440,18 @@ fn define_env(m: &mut Module) {
                 |f| f.ret(tup(vec![v("m"), tget(v("x"), 0), tget(v("x"), 1)])),
                 |_| {},
             );
-            f.let_("ctr", call("ck_ctype", vec![v("inv"), v("m"), v("ty"), u64c(0)]));
+            f.let_(
+                "ctr",
+                call("ck_ctype", vec![v("inv"), v("m"), v("ty"), u64c(0)]),
+            );
             f.let_("m1", tget(v("ctr"), 0));
             f.var("x", tup(vec![tget(v("ctr"), 1), u64c(0)]));
             f.if_(eq(tget(v("ctr"), 1), u32c(0)), move |f| {
                 f.match_res(
-                    call("ck_walk", vec![v("inv"), fresh_walk(), v("ty"), u64c(2), u64c(1)]),
+                    call(
+                        "ck_walk",
+                        vec![v("inv"), fresh_walk(), v("ty"), u64c(2), u64c(1)],
+                    ),
                     "w",
                     |f| f.set("x", tup(vec![u32c(0), tget(v("w"), 1)])),
                     "e",
@@ -1233,7 +1489,13 @@ fn define_env(m: &mut Module) {
             });
             f.var("m", v("m"));
             f.for_u64("k", u64c(0), vlen(v("args")), |f| {
-                f.let_("x", call("ck_ctype", vec![v("inv"), v("m"), at("args", v("k")), v("pc")]));
+                f.let_(
+                    "x",
+                    call(
+                        "ck_ctype",
+                        vec![v("inv"), v("m"), at("args", v("k")), v("pc")],
+                    ),
+                );
                 f.set("m", tget(v("x"), 0));
                 f.if_(ne(tget(v("x"), 1), u32c(0)), |f| {
                     f.ret(tup(vec![v("m"), tget(v("x"), 1), bytesc(&[])]));
@@ -1243,7 +1505,10 @@ fn define_env(m: &mut Module) {
                 call("ck_subst", vec![v("payload"), v("args"), u64c(1)]),
                 "sub",
                 |f| {
-                    f.let_("x", call("ck_ctype", vec![v("inv"), v("m"), v("sub"), v("pc")]));
+                    f.let_(
+                        "x",
+                        call("ck_ctype", vec![v("inv"), v("m"), v("sub"), v("pc")]),
+                    );
                     f.ret(tup(vec![tget(v("x"), 0), tget(v("x"), 1), v("sub")]));
                 },
                 "e",
@@ -1257,7 +1522,14 @@ fn define_env(m: &mut Module) {
         f.var("ar", mnew(t::bytes(), t::u64(), vec![]));
         f.for_u64("k", u64c(0), vlen(v("tds")), |f| {
             f.let_("td", at("tds", v("k")));
-            f.set("ar", mins(v("ar"), field(v("td"), "id"), vlen(field(v("td"), "tparams"))));
+            f.set(
+                "ar",
+                mins(
+                    v("ar"),
+                    field(v("td"), "id"),
+                    vlen(field(v("td"), "tparams")),
+                ),
+            );
         });
         f.ret(rec(
             CK_M,
@@ -1293,7 +1565,10 @@ fn define_env(m: &mut Module) {
         f.var("sp", u64c(0));
         let frame = |f: &mut FnB<'_>, id: E, d: E| {
             f.let_("#o", mul(v("sp"), u64c(4)));
-            f.set("sfr", call("ck_grow", vec![v("sfr"), add(v("#o"), u64c(4))]));
+            f.set(
+                "sfr",
+                call("ck_grow", vec![v("sfr"), add(v("#o"), u64c(4))]),
+            );
             upd(f, "sfr", v("#o"), d);
             upd(f, "sfr", add(v("#o"), u64c(1)), u64c(0));
             putb(f, "sid", v("sp"), id);
@@ -1320,7 +1595,10 @@ fn define_env(m: &mut Module) {
                                 f.set("visits", mins(v("visits"), v("id"), u64c(1)));
                                 f.let_(
                                     "deps",
-                                    call("ck_deps", vec![unwrap(call("inv_tdef", vec![v("inv"), v("id")]))]),
+                                    call(
+                                        "ck_deps",
+                                        vec![unwrap(call("inv_tdef", vec![v("inv"), v("id")]))],
+                                    ),
                                 );
                                 upd(f, "sfr", add(v("o"), u64c(1)), u64c(1));
                                 upd(f, "sfr", add(v("o"), u64c(2)), v("dp"));
@@ -1363,7 +1641,11 @@ fn define_env(m: &mut Module) {
         r(t::unit()),
         |f| {
             f.let_("tp", field(v("td"), "tparams"));
-            fail_if(f, gt(vlen(v("tp")), u64c(MAX_TYPE_ARGUMENTS)), TYPE_ARGUMENT_LIMIT);
+            fail_if(
+                f,
+                gt(vlen(v("tp")), u64c(MAX_TYPE_ARGUMENTS)),
+                TYPE_ARGUMENT_LIMIT,
+            );
             f.for_u64("q", u64c(0), vlen(v("tp")), |f| {
                 fail_if(f, ne(at("tp", v("q")), v("q")), TYPE_PARAMETER_OUT_OF_SCOPE);
             });
@@ -1372,8 +1654,15 @@ fn define_env(m: &mut Module) {
             f.var("seen", mnew(t::bytes(), t::bool(), vec![]));
             f.for_u64("q", u64c(0), vlen(v("ms")), |f| {
                 f.let_("mem", at("ms", v("q")));
-                fail_if(f, mhas(v("seen"), field(v("mem"), "member")), TYPE_MEMBER_DUPLICATE);
-                f.set("seen", mins(v("seen"), field(v("mem"), "member"), boolc(true)));
+                fail_if(
+                    f,
+                    mhas(v("seen"), field(v("mem"), "member")),
+                    TYPE_MEMBER_DUPLICATE,
+                );
+                f.set(
+                    "seen",
+                    mins(v("seen"), field(v("mem"), "member"), boolc(true)),
+                );
                 f.if_(field(v("mem"), "has_ty"), |f| {
                     f.expr(tri(call(
                         "ck_inner",
@@ -1387,7 +1676,11 @@ fn define_env(m: &mut Module) {
     // `TypeEnvironment::new(inv.tdefs)`.
     m.func("ck_types", &[("inv", inv_ty)], r(t::unit()), move |f| {
         f.let_("tds", field(v("inv"), "tdefs"));
-        fail_if(f, gt(vlen(v("tds")), u64c(MAX_DEFINITIONS)), TYPE_RESOURCE_LIMIT);
+        fail_if(
+            f,
+            gt(vlen(v("tds")), u64c(MAX_DEFINITIONS)),
+            TYPE_RESOURCE_LIMIT,
+        );
         f.for_u64("k", u64c(1), vlen(v("tds")), |f| {
             fail_if(
                 f,
@@ -1441,18 +1734,26 @@ fn define_index(m: &mut Module) {
             ));
         },
     );
-    m.func("ck_mget0", &[("map", agg()), ("key", t::bytes())], t::u64(), |f| {
-        f.match_opt(mget_opt(v("map"), v("key")), "x", |f| f.ret(v("x")), |_| {});
-        f.ret(u64c(0));
-    });
+    m.func(
+        "ck_mget0",
+        &[("map", agg()), ("key", t::bytes())],
+        t::u64(),
+        |f| {
+            f.match_opt(mget_opt(v("map"), v("key")), "x", |f| f.ret(v("x")), |_| {});
+            f.ret(u64c(0));
+        },
+    );
     // Terminator value uses (`terminator_use_count`).
     m.func("ck_tuses", &[("term", m.ty(TERM))], t::u64(), |f| {
         f.let_("kind", field(v("term"), "kind"));
         f.let_("es", field(v("term"), "edges"));
         f.var("n", select(any_tag("kind", &[1, 3, 4]), u64c(1), u64c(0)));
-        f.if_(and(eq(v("kind"), u64c(5)), field(v("term"), "has_val")), |f| {
-            f.set("n", u64c(1));
-        });
+        f.if_(
+            and(eq(v("kind"), u64c(5)), field(v("term"), "has_val")),
+            |f| {
+                f.set("n", u64c(1));
+            },
+        );
         f.for_u64("k", u64c(0), vlen(v("es")), |f| {
             f.set("n", add(v("n"), vlen(field(at("es", v("k")), "args"))));
         });
@@ -1476,12 +1777,21 @@ fn define_index(m: &mut Module) {
             f.let_("fn", field(v("b"), "function"));
             f.set("b2f", mins(v("b2f"), field(v("b"), "id"), v("fn")));
             madd(f, "nb", v("fn"), u64c(1));
-            madd(f, "nu", v("fn"), call("ck_tuses", vec![field(v("b"), "term")]));
+            madd(
+                f,
+                "nu",
+                v("fn"),
+                call("ck_tuses", vec![field(v("b"), "term")]),
+            );
             madd(
                 f,
                 "big",
                 v("fn"),
-                select(gt(vlen(field(v("b"), "params")), u64c(MAX_CFG_PARAMETERS)), u64c(1), u64c(0)),
+                select(
+                    gt(vlen(field(v("b"), "params")), u64c(MAX_CFG_PARAMETERS)),
+                    u64c(1),
+                    u64c(0),
+                ),
             );
         });
         f.let_("ps", field(v("inv"), "prms"));
@@ -1521,7 +1831,15 @@ fn define_index(m: &mut Module) {
         });
         f.ret(rec(
             CK_IX,
-            vec![v("b2f"), v("nb"), v("np"), v("no"), v("nv"), v("nu"), v("big")],
+            vec![
+                v("b2f"),
+                v("nb"),
+                v("np"),
+                v("no"),
+                v("nv"),
+                v("nu"),
+                v("big"),
+            ],
         ));
     });
 }
@@ -1557,7 +1875,11 @@ fn define_cfg(m: &mut Module) {
                 );
                 f.set("sb", push(v("sb"), vlen(v("sc"))));
                 f.set("sn", push(v("sn"), vlen(v("tg"))));
-                fail_if(f, gt(add(vlen(v("sc")), vlen(v("tg"))), u64c(MAX_CFG_EDGES)), CFG_RESOURCE_LIMIT);
+                fail_if(
+                    f,
+                    gt(add(vlen(v("sc")), vlen(v("tg"))), u64c(MAX_CFG_EDGES)),
+                    CFG_RESOURCE_LIMIT,
+                );
                 f.for_u64("k", u64c(0), vlen(v("tg")), |f| {
                     f.match_opt(
                         mget_opt(v("bix"), at("tg", v("k"))),
@@ -1570,20 +1892,30 @@ fn define_cfg(m: &mut Module) {
             f.ret_ok(tup(vec![v("sb"), v("sn"), v("sc")]));
         },
     );
-    m.func("ck_targets", &[("es", t::vec(m.ty(EDGE)))], t::vec(t::bytes()), |f| {
-        f.var("out", vnew(t::bytes(), vec![]));
-        f.for_u64("k", u64c(0), vlen(v("es")), |f| {
-            f.set("out", push(v("out"), field(at("es", v("k")), "target")));
-        });
-        f.ret(v("out"));
-    });
-    m.func("ck_ctargets", &[("cs", t::vec(m.ty(SCASE)))], t::vec(t::bytes()), |f| {
-        f.var("out", vnew(t::bytes(), vec![]));
-        f.for_u64("k", u64c(0), vlen(v("cs")), |f| {
-            f.set("out", push(v("out"), field(at("cs", v("k")), "target")));
-        });
-        f.ret(v("out"));
-    });
+    m.func(
+        "ck_targets",
+        &[("es", t::vec(m.ty(EDGE)))],
+        t::vec(t::bytes()),
+        |f| {
+            f.var("out", vnew(t::bytes(), vec![]));
+            f.for_u64("k", u64c(0), vlen(v("es")), |f| {
+                f.set("out", push(v("out"), field(at("es", v("k")), "target")));
+            });
+            f.ret(v("out"));
+        },
+    );
+    m.func(
+        "ck_ctargets",
+        &[("cs", t::vec(m.ty(SCASE)))],
+        t::vec(t::bytes()),
+        |f| {
+            f.var("out", vnew(t::bytes(), vec![]));
+            f.for_u64("k", u64c(0), vlen(v("cs")), |f| {
+                f.set("out", push(v("out"), field(at("cs", v("k")), "target")));
+            });
+            f.ret(v("out"));
+        },
+    );
     let sargs = || vec![("sb", u()), ("sn", u()), ("sc", u())];
     // Breadth-first reachability: (marks, discovery order).
     m.func(
@@ -1711,28 +2043,39 @@ fn define_cfg(m: &mut Module) {
             f.while_(v("changed"), |f| {
                 f.set("changed", boolc(false));
                 f.for_u64("ri", u64c(0), vlen(v("order")), |f| {
-                    f.let_("b", at("order", sub(sub(vlen(v("order")), v("ri")), u64c(1))));
+                    f.let_(
+                        "b",
+                        at("order", sub(sub(vlen(v("order")), v("ri")), u64c(1))),
+                    );
                     f.var("nw", v("nfb"));
-                    f.for_u64("k", u64c(0), select(eq(v("b"), v("ep")), u64c(0), at("rp", v("b"))), |f| {
-                        f.let_("p", at("pf", add(at("pb", v("b")), v("k"))));
-                        f.if_(ne(at("idom", v("p")), v("nfb")), |f| {
-                            f.var("a", v("p"));
-                            f.var("c", select(eq(v("nw"), v("nfb")), v("p"), v("nw")));
-                            f.while_(ne(v("a"), v("c")), |f| {
-                                f.while_(lt(at("po", v("a")), at("po", v("c"))), |f| {
-                                    f.set("a", at("idom", v("a")));
+                    f.for_u64(
+                        "k",
+                        u64c(0),
+                        select(eq(v("b"), v("ep")), u64c(0), at("rp", v("b"))),
+                        |f| {
+                            f.let_("p", at("pf", add(at("pb", v("b")), v("k"))));
+                            f.if_(ne(at("idom", v("p")), v("nfb")), |f| {
+                                f.var("a", v("p"));
+                                f.var("c", select(eq(v("nw"), v("nfb")), v("p"), v("nw")));
+                                f.while_(ne(v("a"), v("c")), |f| {
+                                    f.while_(lt(at("po", v("a")), at("po", v("c"))), |f| {
+                                        f.set("a", at("idom", v("a")));
+                                    });
+                                    f.while_(lt(at("po", v("c")), at("po", v("a"))), |f| {
+                                        f.set("c", at("idom", v("c")));
+                                    });
                                 });
-                                f.while_(lt(at("po", v("c")), at("po", v("a"))), |f| {
-                                    f.set("c", at("idom", v("c")));
-                                });
+                                f.set("nw", v("a"));
                             });
-                            f.set("nw", v("a"));
-                        });
-                    });
-                    f.if_(and(ne(v("b"), v("ep")), ne(at("idom", v("b")), v("nw"))), |f| {
-                        upd(f, "idom", v("b"), v("nw"));
-                        f.set("changed", boolc(true));
-                    });
+                        },
+                    );
+                    f.if_(
+                        and(ne(v("b"), v("ep")), ne(at("idom", v("b")), v("nw"))),
+                        |f| {
+                            upd(f, "idom", v("b"), v("nw"));
+                            f.set("changed", boolc(true));
+                        },
+                    );
                 });
             });
             f.ret(v("idom"));
@@ -1741,7 +2084,12 @@ fn define_cfg(m: &mut Module) {
     // Dominator-tree (pre, post) interval numbers.
     m.func(
         "ck_dtree",
-        &[("idom", u()), ("q", u()), ("ep", t::u64()), ("nfb", t::u64())],
+        &[
+            ("idom", u()),
+            ("q", u()),
+            ("ep", t::u64()),
+            ("nfb", t::u64()),
+        ],
         t::tuple(vec![u(), u()]),
         |f| {
             f.var("cc", call("ck_fill", vec![v("nfb"), u64c(0)]));
@@ -1820,7 +2168,14 @@ fn define_cfg(m: &mut Module) {
                     "dist",
                     call(
                         "ck_dist",
-                        vec![v("sb"), v("sn"), v("sc"), at("q", v("mi")), v("ep"), v("nfb")],
+                        vec![
+                            v("sb"),
+                            v("sn"),
+                            v("sc"),
+                            at("q", v("mi")),
+                            v("ep"),
+                            v("nfb"),
+                        ],
                     ),
                 );
                 f.for_u64("qi", u64c(1), vlen(v("q")), |f| {
@@ -1834,7 +2189,9 @@ fn define_cfg(m: &mut Module) {
                         ),
                     );
                 });
-                f.if_(gt(add(v("big_l"), u64c(1)), v("maxr")), |f| f.ret(v("big_l")));
+                f.if_(gt(add(v("big_l"), u64c(1)), v("maxr")), |f| {
+                    f.ret(v("big_l"));
+                });
             });
             f.ret(v("big_l"));
         },
@@ -1843,7 +2200,11 @@ fn define_cfg(m: &mut Module) {
     // cost 1; edges from the entry and forward edges cost 0).
     m.func(
         "ck_dist",
-        &[sargs(), vec![("mm", t::u64()), ("ep", t::u64()), ("nfb", t::u64())]].concat(),
+        &[
+            sargs(),
+            vec![("mm", t::u64()), ("ep", t::u64()), ("nfb", t::u64())],
+        ]
+        .concat(),
         u(),
         |f| {
             f.var("dist", call("ck_fill", vec![v("nfb"), u64c(INF)]));
@@ -1863,7 +2224,10 @@ fn define_cfg(m: &mut Module) {
                         f.for_u64("k", u64c(0), at("sn", v("x")), |f| {
                             f.let_("s", at("sc", add(v("b0"), v("k"))));
                             f.let_("zero", or(eq(v("x"), v("ep")), lt(v("x"), v("s"))));
-                            f.let_("nd", select(v("zero"), v("level"), add(v("level"), u64c(1))));
+                            f.let_(
+                                "nd",
+                                select(v("zero"), v("level"), add(v("level"), u64c(1))),
+                            );
                             f.if_(lt(v("nd"), at("dist", v("s"))), |f| {
                                 upd(f, "dist", v("s"), v("nd"));
                                 f.if_else(
@@ -1935,26 +2299,48 @@ fn define_cfg(m: &mut Module) {
                     );
                 });
             });
-            f.let_("work", mul(div(add(v("nfb"), u64c(63)), u64c(64)), v("wsum")));
+            f.let_(
+                "work",
+                mul(div(add(v("nfb"), u64c(63)), u64c(64)), v("wsum")),
+            );
             f.if_(eq(v("work"), u64c(0)), |f| f.ret_ok(unitc()));
             f.let_("byw", div(u64c(MAX_DOM_WORK), v("work")));
             f.let_(
                 "maxr",
-                select(lt(v("byw"), u64c(MAX_CFG_BLOCKS)), v("byw"), u64c(MAX_CFG_BLOCKS)),
+                select(
+                    lt(v("byw"), u64c(MAX_CFG_BLOCKS)),
+                    v("byw"),
+                    u64c(MAX_CFG_BLOCKS),
+                ),
             );
             f.let_("rr", add(vlen(v("q")), u64c(1)));
             f.let_("tb", add(v("nt"), u64c(2)));
-            f.if_(le(select(lt(v("tb"), v("rr")), v("tb"), v("rr")), v("maxr")), |f| {
-                f.ret_ok(unitc());
-            });
+            f.if_(
+                le(select(lt(v("tb"), v("rr")), v("tb"), v("rr")), v("maxr")),
+                |f| {
+                    f.ret_ok(unitc());
+                },
+            );
             f.let_(
                 "big_l",
                 call(
                     "ck_dom_l",
-                    vec![v("sb"), v("sn"), v("sc"), v("q"), v("ep"), v("nfb"), v("maxr")],
+                    vec![
+                        v("sb"),
+                        v("sn"),
+                        v("sc"),
+                        v("q"),
+                        v("ep"),
+                        v("nfb"),
+                        v("maxr"),
+                    ],
                 ),
             );
-            fail_if(f, gt(add(v("big_l"), u64c(1)), v("maxr")), CFG_RESOURCE_LIMIT);
+            fail_if(
+                f,
+                gt(add(v("big_l"), u64c(1)), v("maxr")),
+                CFG_RESOURCE_LIMIT,
+            );
             f.ret_ok(unitc());
         },
     );
@@ -1969,14 +2355,21 @@ fn define_cfg(m: &mut Module) {
         ],
         r(m.ty(CK_C)),
         |f| {
-            fail_if(f, ne(field(at("lb", v("ep")), "reach"), u64c(1)), CFG_ENTRY_INVALID);
+            fail_if(
+                f,
+                ne(field(at("lb", v("ep")), "reach"), u64c(1)),
+                CFG_ENTRY_INVALID,
+            );
             f.let_("nfb", vlen(v("lb")));
             f.let_("e", tri(call("ck_succ", vec![v("lb"), v("bix")])));
             f.let_("sb", tget(v("e"), 0));
             f.let_("sn", tget(v("e"), 1));
             f.let_("sc", tget(v("e"), 2));
             let s3 = || vec![v("sb"), v("sn"), v("sc")];
-            f.let_("rq", call("ck_bfs", [s3(), vec![v("ep"), v("nfb")]].concat()));
+            f.let_(
+                "rq",
+                call("ck_bfs", [s3(), vec![v("ep"), v("nfb")]].concat()),
+            );
             f.let_("reach", tget(v("rq"), 0));
             f.let_("q", tget(v("rq"), 1));
             f.for_u64("i", u64c(0), v("nfb"), |f| {
@@ -1990,8 +2383,14 @@ fn define_cfg(m: &mut Module) {
                 );
             });
             f.let_("rp", call("ck_rp", [s3(), vec![v("q"), v("nfb")]].concat()));
-            f.let_("po", call("ck_post", [s3(), vec![v("ep"), v("nfb")]].concat()));
-            f.let_("pp", call("ck_preds", [s3(), vec![v("rp"), v("q"), v("nfb")]].concat()));
+            f.let_(
+                "po",
+                call("ck_post", [s3(), vec![v("ep"), v("nfb")]].concat()),
+            );
+            f.let_(
+                "pp",
+                call("ck_preds", [s3(), vec![v("rp"), v("q"), v("nfb")]].concat()),
+            );
             f.let_(
                 "idom",
                 call(
@@ -2007,7 +2406,10 @@ fn define_cfg(m: &mut Module) {
                     ],
                 ),
             );
-            f.let_("dt", call("ck_dtree", vec![v("idom"), v("q"), v("ep"), v("nfb")]));
+            f.let_(
+                "dt",
+                call("ck_dtree", vec![v("idom"), v("q"), v("ep"), v("nfb")]),
+            );
             f.expr(tri(call(
                 "ck_budget",
                 [
@@ -2023,11 +2425,15 @@ fn define_cfg(m: &mut Module) {
                 ]
                 .concat(),
             )));
-            f.ret_ok(rec(CK_C, vec![v("reach"), tget(v("dt"), 0), tget(v("dt"), 1)]));
+            f.ret_ok(rec(
+                CK_C,
+                vec![v("reach"), tget(v("dt"), 0), tget(v("dt"), 1)],
+            ));
         },
     );
 }
 
+#[allow(clippy::needless_pass_by_value)] // expression builders take E by value
 fn any_tag_e(x: E, tags: &[u64]) -> E {
     let mut out = eq(x.clone(), u64c(tags[0]));
     for tag in &tags[1..] {
@@ -2069,11 +2475,17 @@ fn define_function(m: &mut Module) {
                 move |f| {
                     f.let_("p", vget(field(v("inv"), "prms"), v("pos")));
                     f.let_("ow", field(v("p"), "owner"));
-                    f.if_(not(or(eq(v("ow"), v("fid")), mhas(v("bix"), v("ow")))), move |f| {
-                        bad(f, GRAPH_UNRESOLVED_REFERENCE);
-                    });
                     f.if_(
-                        or(ne(v("ow"), v("owner")), ne(field(v("p"), "role"), v("role"))),
+                        not(or(eq(v("ow"), v("fid")), mhas(v("bix"), v("ow")))),
+                        move |f| {
+                            bad(f, GRAPH_UNRESOLVED_REFERENCE);
+                        },
+                    );
+                    f.if_(
+                        or(
+                            ne(v("ow"), v("owner")),
+                            ne(field(v("p"), "role"), v("role")),
+                        ),
                         move |f| bad(f, GRAPH_OWNER_MISMATCH),
                     );
                     f.if_(ne(field(v("p"), "ordinal"), v("ord")), move |f| {
@@ -2081,7 +2493,10 @@ fn define_function(m: &mut Module) {
                     });
                     f.let_(
                         "x",
-                        call("ck_ctype", vec![v("inv"), v("m"), field(v("p"), "ty"), v("pc")]),
+                        call(
+                            "ck_ctype",
+                            vec![v("inv"), v("m"), field(v("p"), "ty"), v("pc")],
+                        ),
                     );
                     f.ret(tup(vec![tget(v("x"), 0), tget(v("x"), 1), v("pos")]));
                 },
@@ -2124,7 +2539,13 @@ fn define_function(m: &mut Module) {
                     f.var("m", v("m"));
                     f.let_("rs", field(v("o"), "results"));
                     f.for_u64("k", u64c(0), vlen(v("rs")), |f| {
-                        f.let_("x", call("ck_ctype", vec![v("inv"), v("m"), at("rs", v("k")), v("pc")]));
+                        f.let_(
+                            "x",
+                            call(
+                                "ck_ctype",
+                                vec![v("inv"), v("m"), at("rs", v("k")), v("pc")],
+                            ),
+                        );
                         f.set("m", tget(v("x"), 0));
                         f.if_(ne(tget(v("x"), 1), u32c(0)), |f| {
                             f.ret(tup(vec![v("m"), tget(v("x"), 1), v("pos")]));
@@ -2137,15 +2558,20 @@ fn define_function(m: &mut Module) {
         },
     );
     // Duplicate check over a declared id list (`index_declared_ids`).
-    m.func("ck_dups", &[("ids", t::vec(t::bytes()))], r(t::unit()), |f| {
-        f.var("seen", mnew(t::bytes(), t::bool(), vec![]));
-        f.for_u64("k", u64c(0), vlen(v("ids")), |f| {
-            f.let_("id", at("ids", v("k")));
-            fail_if(f, mhas(v("seen"), v("id")), GRAPH_DUPLICATE_ENTITY);
-            f.set("seen", mins(v("seen"), v("id"), boolc(true)));
-        });
-        f.ret_ok(unitc());
-    });
+    m.func(
+        "ck_dups",
+        &[("ids", t::vec(t::bytes()))],
+        r(t::unit()),
+        |f| {
+            f.var("seen", mnew(t::bytes(), t::bool(), vec![]));
+            f.for_u64("k", u64c(0), vlen(v("ids")), |f| {
+                f.let_("id", at("ids", v("k")));
+                fail_if(f, mhas(v("seen"), v("id")), GRAPH_DUPLICATE_ENTITY);
+                f.set("seen", mins(v("seen"), v("id"), boolc(true)));
+            });
+            f.ret_ok(unitc());
+        },
+    );
     // The failing element with the smallest identity (native sorted
     // iteration): (best code, best id) after one more element.
     m.func(
@@ -2159,7 +2585,10 @@ fn define_function(m: &mut Module) {
         t::tuple(vec![t::u32(), t::bytes()]),
         |f| {
             f.if_(
-                and(ne(v("c"), u32c(0)), or(eq(v("bc"), u32c(0)), lt(v("id"), v("bid")))),
+                and(
+                    ne(v("c"), u32c(0)),
+                    or(eq(v("bc"), u32c(0)), lt(v("id"), v("bid"))),
+                ),
                 |f| f.ret(tup(vec![v("c"), v("id")])),
             );
             f.ret(tup(vec![v("bc"), v("bid")]));
@@ -2229,7 +2658,12 @@ fn define_function(m: &mut Module) {
                         "best",
                         call(
                             "ck_best",
-                            vec![tget(v("best"), 0), tget(v("best"), 1), tget(v("x"), 1), v("id")],
+                            vec![
+                                tget(v("best"), 0),
+                                tget(v("best"), 1),
+                                tget(v("x"), 1),
+                                v("id"),
+                            ],
                         ),
                     );
                     f.if_(eq(tget(v("x"), 1), u32c(0)), |f| {
@@ -2244,10 +2678,15 @@ fn define_function(m: &mut Module) {
                         f.set("pi", push(push(v("pi"), v("role")), v("own")));
                     });
                 });
-                f.if_(ne(tget(v("best"), 0), u32c(0)), |f| f.ret_err(tget(v("best"), 0)));
+                f.if_(ne(tget(v("best"), 0), u32c(0)), |f| {
+                    f.ret_err(tget(v("best"), 0));
+                });
             });
             fail_if(f, ne(vlen(v("pty")), v("np")), GRAPH_INVENTORY_MISMATCH);
-            f.ret_ok(tup(vec![v("m"), rec(CK_P, vec![v("pm"), v("pty"), v("pi"), v("bp")])]));
+            f.ret_ok(tup(vec![
+                v("m"),
+                rec(CK_P, vec![v("pm"), v("pty"), v("pi"), v("bp")]),
+            ]));
         },
     );
     // `validate_operation_inventory`.
@@ -2273,7 +2712,10 @@ fn define_function(m: &mut Module) {
                 f.let_("blk", at("lb", v("i")));
                 f.let_("ids", field(v("blk"), "ops"));
                 f.expr(tri(call("ck_dups", vec![v("ids")])));
-                f.set("ob", push(push(v("ob"), div(vlen(v("oi")), u64c(6))), vlen(v("ids"))));
+                f.set(
+                    "ob",
+                    push(push(v("ob"), div(vlen(v("oi")), u64c(6))), vlen(v("ids"))),
+                );
                 f.var("best", tup(vec![u32c(0), bytesc(&[])]));
                 f.for_u64("j", u64c(0), vlen(v("ids")), |f| {
                     f.let_("id", at("ids", v("j")));
@@ -2297,7 +2739,12 @@ fn define_function(m: &mut Module) {
                         "best",
                         call(
                             "ck_best",
-                            vec![tget(v("best"), 0), tget(v("best"), 1), tget(v("x"), 1), v("id")],
+                            vec![
+                                tget(v("best"), 0),
+                                tget(v("best"), 1),
+                                tget(v("x"), 1),
+                                v("id"),
+                            ],
                         ),
                     );
                     f.if_(eq(tget(v("x"), 1), u32c(0)), |f| {
@@ -2323,9 +2770,15 @@ fn define_function(m: &mut Module) {
                         });
                     });
                 });
-                f.if_(ne(tget(v("best"), 0), u32c(0)), |f| f.ret_err(tget(v("best"), 0)));
+                f.if_(ne(tget(v("best"), 0), u32c(0)), |f| {
+                    f.ret_err(tget(v("best"), 0));
+                });
             });
-            fail_if(f, ne(div(vlen(v("oi")), u64c(6)), v("no")), GRAPH_INVENTORY_MISMATCH);
+            fail_if(
+                f,
+                ne(div(vlen(v("oi")), u64c(6)), v("no")),
+                GRAPH_INVENTORY_MISMATCH,
+            );
             f.ret_ok(tup(vec![
                 v("m"),
                 rec(CK_O, vec![v("om"), v("oi"), v("ob"), v("rt"), v("od")]),
@@ -2380,8 +2833,13 @@ fn define_function(m: &mut Module) {
                     f.let_("oi", field(v("o"), "oi"));
                     f.let_("q6", mul(v("q"), u64c(6)));
                     f.let_("idx", field(v("vr"), "idx"));
-                    f.if_(ge(v("idx"), at2("oi", v("q6"), 3)), move |f| bad(f, CFG_RESULT_INDEX));
-                    f.let_("ty", vget(field(v("o"), "rt"), add(at2("oi", v("q6"), 2), v("idx"))));
+                    f.if_(ge(v("idx"), at2("oi", v("q6"), 3)), move |f| {
+                        bad(f, CFG_RESULT_INDEX);
+                    });
+                    f.let_(
+                        "ty",
+                        vget(field(v("o"), "rt"), add(at2("oi", v("q6"), 2), v("idx"))),
+                    );
                     f.let_("db", at("oi", v("q6")));
                     f.if_(eq(v("db"), v("use")), move |f| {
                         f.if_(
@@ -2447,7 +2905,13 @@ fn define_function(m: &mut Module) {
                             "x",
                             call(
                                 "ck_res",
-                                vec![v("g"), field(v("a"), "val"), v("src"), u64c(0), boolc(false)],
+                                vec![
+                                    v("g"),
+                                    field(v("a"), "val"),
+                                    v("src"),
+                                    u64c(0),
+                                    boolc(false),
+                                ],
                             ),
                         );
                         f.if_(ne(tget(v("x"), 0), u32c(0)), |f| f.ret_err(tget(v("x"), 0)));
@@ -2468,7 +2932,10 @@ fn define_function(m: &mut Module) {
         f.let_("args", field(v("e"), "args"));
         f.var("out", vnew(named(SARG), vec![]));
         f.for_u64("k", u64c(0), vlen(v("args")), |f| {
-            f.set("out", push(v("out"), rec(SARG, vec![boolc(false), at("args", v("k"))])));
+            f.set(
+                "out",
+                push(v("out"), rec(SARG, vec![boolc(false), at("args", v("k"))])),
+            );
         });
         f.ret(v("out"));
     });
@@ -2521,17 +2988,25 @@ fn define_function(m: &mut Module) {
                     vnew(t::bytes(), vec![t0, t1]),
                 ]));
             };
-            f.if_(eq(v("tag"), u64c(13)), move |f| pair(f, 1, 2, false, bytesc(&[]), v("pl")));
+            f.if_(eq(v("tag"), u64c(13)), move |f| {
+                pair(f, 1, 2, false, bytesc(&[]), v("pl"));
+            });
             f.if_(eq(v("tag"), u64c(14)), move |f| {
                 f.let_("fs", call("ty_fields", vec![v("pl")]));
                 pair(f, 3, 4, true, at("fs", u64c(0)), at("fs", u64c(1)));
             });
-            f.if_(ne(v("tag"), u64c(10)), move |f| fail(f, code(CFG_SWITCH_TYPE)));
+            f.if_(ne(v("tag"), u64c(10)), move |f| {
+                fail(f, code(CFG_SWITCH_TYPE));
+            });
             f.let_("np", call("ty_named_parts", vec![v("sel")]));
             f.let_("tdo", call("inv_tdef", vec![v("inv"), tget(v("np"), 0)]));
-            f.if_(not(is_some(v("tdo"))), move |f| fail(f, code(TYPE_DEFINITION_UNKNOWN)));
+            f.if_(not(is_some(v("tdo"))), move |f| {
+                fail(f, code(TYPE_DEFINITION_UNKNOWN));
+            });
             f.let_("td", unwrap(v("tdo")));
-            f.if_(field(v("td"), "is_rec"), move |f| fail(f, code(CFG_SWITCH_TYPE)));
+            f.if_(field(v("td"), "is_rec"), move |f| {
+                fail(f, code(CFG_SWITCH_TYPE));
+            });
             f.let_("ms", field(v("td"), "members"));
             f.var("m", v("m"));
             f.var("ids", vnew(t::bytes(), vec![]));
@@ -2547,11 +3022,19 @@ fn define_function(m: &mut Module) {
                         "y",
                         call(
                             "ck_inst",
-                            vec![v("inv"), v("m"), field(v("mem"), "ty"), tget(v("np"), 1), v("pc")],
+                            vec![
+                                v("inv"),
+                                v("m"),
+                                field(v("mem"), "ty"),
+                                tget(v("np"), 1),
+                                v("pc"),
+                            ],
                         ),
                     );
                     f.set("m", tget(v("y"), 0));
-                    f.if_(ne(tget(v("y"), 1), u32c(0)), move |f| fail(f, tget(v("y"), 1)));
+                    f.if_(ne(tget(v("y"), 1), u32c(0)), move |f| {
+                        fail(f, tget(v("y"), 1));
+                    });
                     f.set("ty", tget(v("y"), 2));
                 });
                 f.set("rty", push(v("rty"), v("ty")));
@@ -2564,7 +3047,10 @@ fn define_function(m: &mut Module) {
                 f.let_("o", at("ord", v("k")));
                 f.set(
                     "keys",
-                    push(v("keys"), concat(vnew(t::bytes(), vec![bytesc(&[1]), at("ids", v("o"))]))),
+                    push(
+                        v("keys"),
+                        concat(vnew(t::bytes(), vec![bytesc(&[1]), at("ids", v("o"))])),
+                    ),
                 );
                 f.set("has", push(v("has"), at("rh", v("o"))));
                 f.set("tys", push(v("tys"), at("rty", v("o"))));
@@ -2588,25 +3074,44 @@ fn define_function(m: &mut Module) {
         |f| {
             f.let_("kind", field(v("term"), "kind"));
             f.let_("es", field(v("term"), "edges"));
-            f.if_(and(eq(v("kind"), u64c(5)), not(field(v("term"), "has_val"))), |f| {
-                f.ret_ok(v("m"));
-            });
+            f.if_(
+                and(eq(v("kind"), u64c(5)), not(field(v("term"), "has_val"))),
+                |f| {
+                    f.ret_ok(v("m"));
+                },
+            );
             f.if_(ne(v("kind"), u64c(2)), |f| {
                 f.let_(
                     "x",
                     call(
                         "ck_res",
-                        vec![v("g"), field(v("term"), "val"), v("src"), u64c(0), boolc(false)],
+                        vec![
+                            v("g"),
+                            field(v("term"), "val"),
+                            v("src"),
+                            u64c(0),
+                            boolc(false),
+                        ],
                     ),
                 );
                 f.if_(ne(tget(v("x"), 0), u32c(0)), |f| f.ret_err(tget(v("x"), 0)));
                 f.let_("ty", tget(v("x"), 1));
-                fail_if(f, and(eq(v("kind"), u64c(1)), ne(v("ty"), v("result"))), CFG_RETURN_TYPE);
-                fail_if(f, and(eq(v("kind"), u64c(3)), ne(v("ty"), ty_bool())), CFG_BOOL_REQUIRED);
+                fail_if(
+                    f,
+                    and(eq(v("kind"), u64c(1)), ne(v("ty"), v("result"))),
+                    CFG_RETURN_TYPE,
+                );
+                fail_if(
+                    f,
+                    and(eq(v("kind"), u64c(3)), ne(v("ty"), ty_bool())),
+                    CFG_BOOL_REQUIRED,
+                );
                 f.if_(eq(v("kind"), u64c(5)), |f| {
                     fail_if(f, tget(call("ck_info", vec![v("ty")]), 1), CFG_TRAP_PAYLOAD);
                     f.let_("tr", call("ck_trait", vec![v("inv"), v("m"), v("ty")]));
-                    f.if_(ne(tget(v("tr"), 1), u32c(0)), |f| f.ret_err(tget(v("tr"), 1)));
+                    f.if_(ne(tget(v("tr"), 1), u32c(0)), |f| {
+                        f.ret_err(tget(v("tr"), 1));
+                    });
                     fail_if(
                         f,
                         eq(call("ck_tand", vec![tget(v("tr"), 2), u64c(8)]), u64c(0)),
@@ -2615,15 +3120,23 @@ fn define_function(m: &mut Module) {
                     f.ret_ok(tget(v("tr"), 0));
                 });
                 f.if_(eq(v("kind"), u64c(4)), |f| {
-                    f.let_("cx", call("ck_cases", vec![v("inv"), v("m"), v("ty"), v("pc")]));
-                    f.if_(ne(tget(v("cx"), 1), u32c(0)), |f| f.ret_err(tget(v("cx"), 1)));
+                    f.let_(
+                        "cx",
+                        call("ck_cases", vec![v("inv"), v("m"), v("ty"), v("pc")]),
+                    );
+                    f.if_(ne(tget(v("cx"), 1), u32c(0)), |f| {
+                        f.ret_err(tget(v("cx"), 1));
+                    });
                     f.let_("keys", tget(v("cx"), 2));
                     f.let_("cases", field(v("term"), "cases"));
                     fail_if(f, ne(vlen(v("cases")), vlen(v("keys"))), CFG_SWITCH_CASES);
                     f.for_u64("k", u64c(0), vlen(v("cases")), |f| {
                         fail_if(
                             f,
-                            ne(call("ck_ckey", vec![at("cases", v("k"))]), at("keys", v("k"))),
+                            ne(
+                                call("ck_ckey", vec![at("cases", v("k"))]),
+                                at("keys", v("k")),
+                            ),
                             CFG_SWITCH_CASES,
                         );
                     });
@@ -2764,15 +3277,24 @@ fn fn_body(f: &mut FnB<'_>) {
         f,
         or(
             or(
-                or(gt(v("nfb"), u64c(MAX_CFG_BLOCKS)), gt(v("nb"), u64c(MAX_CFG_BLOCKS))),
+                or(
+                    gt(v("nfb"), u64c(MAX_CFG_BLOCKS)),
+                    gt(v("nb"), u64c(MAX_CFG_BLOCKS)),
+                ),
                 or(
                     gt(vlen(v("fps")), u64c(MAX_CFG_PARAMETERS)),
                     gt(vlen(v("tps")), u64c(MAX_TYPE_ARGUMENTS)),
                 ),
             ),
             or(
-                or(gt(agg("no"), u64c(MAX_CFG_OPERATIONS)), gt(agg("big"), u64c(0))),
-                or(gt(agg("nv"), u64c(MAX_CFG_VALUES)), gt(agg("nu"), u64c(MAX_CFG_USES))),
+                or(
+                    gt(agg("no"), u64c(MAX_CFG_OPERATIONS)),
+                    gt(agg("big"), u64c(0)),
+                ),
+                or(
+                    gt(agg("nv"), u64c(MAX_CFG_VALUES)),
+                    gt(agg("nu"), u64c(MAX_CFG_USES)),
+                ),
             ),
         ),
         CFG_RESOURCE_LIMIT,
@@ -2784,7 +3306,10 @@ fn fn_body(f: &mut FnB<'_>) {
     f.let_("pc", vlen(v("tps")));
     f.let_(
         "bl",
-        tri(call("ck_fn_blocks", vec![v("inv"), v("fid"), v("fbl"), v("nb")])),
+        tri(call(
+            "ck_fn_blocks",
+            vec![v("inv"), v("fid"), v("fbl"), v("nb")],
+        )),
     );
     f.let_("bix", tget(v("bl"), 0));
     f.let_("lb", tget(v("bl"), 1));
@@ -2812,21 +3337,41 @@ fn fn_body(f: &mut FnB<'_>) {
         "orr",
         tri(call(
             "ck_fn_ops",
-            vec![v("inv"), tget(v("pr"), 0), v("bix"), v("lb"), v("pc"), agg("no")],
+            vec![
+                v("inv"),
+                tget(v("pr"), 0),
+                v("bix"),
+                v("lb"),
+                v("pc"),
+                agg("no"),
+            ],
         )),
     );
     f.let_(
         "rc",
         call(
             "ck_ctype",
-            vec![v("inv"), tget(v("orr"), 0), field(v("fun"), "result"), v("pc")],
+            vec![
+                v("inv"),
+                tget(v("orr"), 0),
+                field(v("fun"), "result"),
+                v("pc"),
+            ],
         ),
     );
-    f.if_(ne(tget(v("rc"), 1), u32c(0)), |f| f.ret_err(tget(v("rc"), 1)));
-    f.let_("cfg", tri(call("ck_fn_cfg", vec![v("lb"), v("bix"), v("ep")])));
+    f.if_(ne(tget(v("rc"), 1), u32c(0)), |f| {
+        f.ret_err(tget(v("rc"), 1));
+    });
+    f.let_(
+        "cfg",
+        tri(call("ck_fn_cfg", vec![v("lb"), v("bix"), v("ep")])),
+    );
     f.let_(
         "g",
-        rec(CK_G, vec![v("bix"), tget(v("pr"), 1), tget(v("orr"), 1), v("cfg")]),
+        rec(
+            CK_G,
+            vec![v("bix"), tget(v("pr"), 1), tget(v("orr"), 1), v("cfg")],
+        ),
     );
     f.expr(tri(call("ck_operands", vec![v("g"), v("nfb")])));
     f.var("m", tget(v("rc"), 0));
@@ -2852,6 +3397,7 @@ fn fn_body(f: &mut FnB<'_>) {
 }
 
 /// Operand resolution and the test entries.
+#[allow(clippy::too_many_lines)] // one linear construction; splitting it hides the order
 fn define_entries(m: &mut Module) {
     // Operation operands in block/ordinal order.
     m.func(

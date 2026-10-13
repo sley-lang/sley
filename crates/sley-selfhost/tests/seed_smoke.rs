@@ -1,4 +1,5 @@
 //! Seed assembler smoke tests through the native reference VM.
+#![allow(clippy::cast_precision_loss)]
 
 use sley_selfhost::native::{big_limits, execute};
 use sley_selfhost::seed::*;
@@ -44,15 +45,27 @@ fn records_variants_matches() {
     m.record("Pt", &[("x", t::u64()), ("y", t::u64())]);
     m.variant(
         "Shape",
-        &[("Dot", None), ("Line", Some(t::u64())), ("Box", Some(m.ty("Pt")))],
+        &[
+            ("Dot", None),
+            ("Line", Some(t::u64())),
+            ("Box", Some(m.ty("Pt"))),
+        ],
     );
     m.func("area", &[("s", m.ty("Shape"))], t::u64(), |f| {
         f.var("out", u64c(0));
         f.match_var(
             v("s"),
             vec![
-                ("Dot", "_", Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1)))),
-                ("Line", "len", Box::new(|f: &mut FnB<'_>| f.set("out", v("len")))),
+                (
+                    "Dot",
+                    "_",
+                    Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1))),
+                ),
+                (
+                    "Line",
+                    "len",
+                    Box::new(|f: &mut FnB<'_>| f.set("out", v("len"))),
+                ),
                 (
                     "Box",
                     "p",
@@ -65,7 +78,10 @@ fn records_variants_matches() {
         f.ret(v("out"));
     });
     m.func("main", &[], t::u64(), |f| {
-        f.let_("b", var_new("Shape", "Box", Some(rec("Pt", vec![u64c(6), u64c(7)]))));
+        f.let_(
+            "b",
+            var_new("Shape", "Box", Some(rec("Pt", vec![u64c(6), u64c(7)]))),
+        );
         f.let_("l", var_new("Shape", "Line", Some(u64c(5))));
         f.let_("d", var_new("Shape", "Dot", None));
         f.var("total", call("area", vec![v("b")]));
@@ -74,7 +90,7 @@ fn records_variants_matches() {
         f.if_else(
             is_case(v("l"), "Shape", "Line"),
             |f| f.set("total", add(v("total"), u64c(100))),
-            |f| f.trap(),
+            sley_selfhost::seed::FnB::trap,
         );
         f.ret(v("total"));
     });
@@ -90,13 +106,13 @@ fn vectors_push_bytes_and_break() {
         f.var("out", vnew(t::u8(), vec![]));
         f.var("i", u64c(0));
         f.loop_(|f| {
-            f.if_(ge(v("i"), vlen(v("src"))), |f| f.break_());
+            f.if_(ge(v("i"), vlen(v("src"))), sley_selfhost::seed::FnB::break_);
             f.let_("x", vget(v("src"), v("i")));
             f.match_opt(
                 some(v("x")),
                 "y",
                 |f| f.set("out", push(v("out"), add(v("y"), u8c(1)))),
-                |f| f.trap(),
+                sley_selfhost::seed::FnB::trap,
             );
             f.set("i", add(v("i"), u64c(1)));
         });
@@ -118,7 +134,10 @@ fn unwrap_failure_traps_with_site() {
     });
     let (program, names) = m.finish();
     let outcome = execute(&program, names["main"], vec![], big_limits()).expect("executes");
-    assert!(matches!(outcome.termination, ExecutionTermination::Trap { .. }));
+    assert!(matches!(
+        outcome.termination,
+        ExecutionTermination::Trap { .. }
+    ));
 }
 
 #[test]

@@ -7,7 +7,7 @@
 //! exactly. Nested `TypeExpr` and `ConstValue` regions are validated by the
 //! `scb_walk` walker at their native depth and kept as canonical bytes.
 //!
-//! Domain: Workspace, Package, Namespace, TypeDef, Function, Parameter,
+//! Domain: Workspace, Package, Namespace, `TypeDef`, Function, Parameter,
 //! Block, Operation, Constant, `AdapterImport`, and `EntryPoint` decode; the
 //! other seven kinds refuse with `TOOL_KIND_OUT_OF_DOMAIN`. Labels must be
 //! ASCII (always NFC); a non-ASCII label refuses with
@@ -19,10 +19,16 @@ use super::codes::{
     SCB_MAP_DUPLICATE, SCB_MAP_ORDER, SCB_RESOURCE_LIMIT, SCB_TRAILING_BYTES, SCB_UNION_INVALID,
     SCB_VERSION_UNSUPPORTED, TOOL_KIND_OUT_OF_DOMAIN, TOOL_LABEL_OUT_OF_DOMAIN,
 };
-use super::model::*;
+use super::model::{
+    BLK, CST, EDGE, ENT, EPT, FUN, IMM, IMP, MEM, OBJ, OP, PRM, SARG, SCASE, TDEF, TERM, VREF,
+};
 use super::rt::{MAX_STANDALONE, code, r, rcall, rd};
 use super::scb::{K_CONST, K_TYPE};
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, and, b2v, blake3_large, boolc, bytesc, call, concat, eq, fault, ge,
+    gt, lt, ne, not, or, push, rec, select, slice, sub, t, tget, tri, tup, u32c, u64c, unitc, v,
+    var_new, vget, vlen, vnew,
+};
 
 fn dparams() -> Vec<(&'static str, Ty)> {
     vec![
@@ -117,7 +123,9 @@ pub fn define(m: &mut Module) {
             if !fault("codec-set-order") {
                 f.if_(and(v("set"), gt(v("i"), u64c(0))), |f| {
                     f.let_("prev", vget(v("out"), sub(v("i"), u64c(1))));
-                    f.if_(eq(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
+                    f.if_(eq(v("prev"), v("id")), |f| {
+                        f.ret_err(code(SCB_MAP_DUPLICATE));
+                    });
                     f.if_(gt(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_ORDER)));
                 });
             }
@@ -159,7 +167,9 @@ pub fn define(m: &mut Module) {
     let mut p = dparams();
     p.push(("depth", t::u64()));
     m.func("cd_types", &p, r(ids.clone()), |f| {
-        f.if_(ge(v("depth"), u64c(64)), |f| f.ret_err(code(SCB_RESOURCE_LIMIT)));
+        f.if_(ge(v("depth"), u64c(64)), |f| {
+            f.ret_err(code(SCB_RESOURCE_LIMIT));
+        });
         f.var("p", v("p"));
         rd(f, "count", "p", rcall("rt_rd_count", vec![]));
         f.var("out", vnew(t::bytes(), vec![]));
@@ -184,7 +194,13 @@ pub fn define(m: &mut Module) {
         f.for_u64("i", u64c(0), v("count"), |f| {
             rd(f, "es", "p", rcall("rt_rd_payload", vec![]));
             f.let_("q", v("p"));
-            f.set("out", push(v("out"), tri(call("cd_tparam", vec![v("b"), v("bs"), v("es"), v("q")]))));
+            f.set(
+                "out",
+                push(
+                    v("out"),
+                    tri(call("cd_tparam", vec![v("b"), v("bs"), v("es"), v("q")])),
+                ),
+            );
         });
         finished(f);
         f.ret_ok(v("out"));
@@ -210,7 +226,10 @@ pub fn define(m: &mut Module) {
     });
     m.func("cd_opres", &dparams(), r(vref.clone()), |f| {
         fields(f, 2);
-        f.ret_ok(rec(VREF, vec![u64c(2), field(0, "cd_id"), field(1, "cd_u32")]));
+        f.ret_ok(rec(
+            VREF,
+            vec![u64c(2), field(0, "cd_id"), field(1, "cd_u32")],
+        ));
     });
     m.func("cd_vrefs", &dparams(), r(t::vec(vref.clone())), |f| {
         f.var("p", v("p"));
@@ -218,7 +237,10 @@ pub fn define(m: &mut Module) {
         f.var("out", vnew(m_vref(), vec![]));
         f.for_u64("i", u64c(0), v("count"), |f| {
             rd(f, "es", "p", rcall("rt_rd_payload", vec![]));
-            f.set("out", push(v("out"), tri(dcall("cd_vref", v("es"), v("p")))));
+            f.set(
+                "out",
+                push(v("out"), tri(dcall("cd_vref", v("es"), v("p")))),
+            );
         });
         finished(f);
         f.ret_ok(v("out"));
@@ -250,8 +272,18 @@ pub fn define(m: &mut Module) {
         let (ks, ke) = fs(0);
         f.var("p", ks);
         f.let_("ke", ke);
-        rd(f, "ktag", "p", call("rt_rd_uvar", vec![v("b"), v("p"), v("ke"), u32c(32)]));
-        rd(f, "kps", "p", call("rt_rd_payload", vec![v("b"), v("p"), v("ke")]));
+        rd(
+            f,
+            "ktag",
+            "p",
+            call("rt_rd_uvar", vec![v("b"), v("p"), v("ke"), u32c(32)]),
+        );
+        rd(
+            f,
+            "kps",
+            "p",
+            call("rt_rd_payload", vec![v("b"), v("p"), v("ke")]),
+        );
         f.if_(ne(v("p"), v("ke")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
         f.var("member", boolc(false));
         f.var("key", bytesc(&[]));
@@ -263,8 +295,13 @@ pub fn define(m: &mut Module) {
                 f.set("key", tri(dcall("cd_id", v("kps"), v("ke"))));
             },
             |f| {
-                f.if_(ne(v("ktag"), u64c(2)), |f| f.ret_err(code(SCB_UNION_INVALID)));
-                f.set("builtin", tri(dcall1("cd_enum", v("kps"), v("ke"), u64c(4))));
+                f.if_(ne(v("ktag"), u64c(2)), |f| {
+                    f.ret_err(code(SCB_UNION_INVALID));
+                });
+                f.set(
+                    "builtin",
+                    tri(dcall1("cd_enum", v("kps"), v("ke"), u64c(4))),
+                );
             },
         );
         // SwitchEdge record.
@@ -291,11 +328,24 @@ pub fn define(m: &mut Module) {
             f.let_("ls", s);
             f.let_("le", e);
             f.var("q", v("ls"));
-            rd(f, "count", "q", call("rt_rd_count", vec![v("b"), v("q"), v("le")]));
+            rd(
+                f,
+                "count",
+                "q",
+                call("rt_rd_count", vec![v("b"), v("q"), v("le")]),
+            );
             f.var("args", vnew(m_sarg(), vec![]));
             f.for_u64("i", u64c(0), v("count"), |f| {
-                rd(f, "es", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("le")]));
-                f.set("args", push(v("args"), tri(dcall("cd_sarg", v("es"), v("q")))));
+                rd(
+                    f,
+                    "es",
+                    "q",
+                    call("rt_rd_payload", vec![v("b"), v("q"), v("le")]),
+                );
+                f.set(
+                    "args",
+                    push(v("args"), tri(dcall("cd_sarg", v("es"), v("q")))),
+                );
             });
             f.if_(ne(v("q"), v("le")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
             f.ret_ok(tup(vec![field(0, "cd_id"), v("args")]));
@@ -339,10 +389,23 @@ pub fn define(m: &mut Module) {
             f.let_("ls", s);
             f.let_("le", e);
             f.var("q", v("ls"));
-            rd(f, "count", "q", call("rt_rd_count", vec![v("b"), v("q"), v("le")]));
+            rd(
+                f,
+                "count",
+                "q",
+                call("rt_rd_count", vec![v("b"), v("q"), v("le")]),
+            );
             f.for_u64("i", u64c(0), v("count"), |f| {
-                rd(f, "es", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("le")]));
-                f.set("cases", push(v("cases"), tri(dcall("cd_scase", v("es"), v("q")))));
+                rd(
+                    f,
+                    "es",
+                    "q",
+                    call("rt_rd_payload", vec![v("b"), v("q"), v("le")]),
+                );
+                f.set(
+                    "cases",
+                    push(v("cases"), tri(dcall("cd_scase", v("es"), v("q")))),
+                );
             });
             f.if_(ne(v("q"), v("le")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
         });
@@ -353,16 +416,30 @@ pub fn define(m: &mut Module) {
             f.let_("os", s);
             f.let_("oe", e);
             f.var("q", v("os"));
-            rd(f, "otag", "q", call("rt_rd_uvar", vec![v("b"), v("q"), v("oe"), u32c(32)]));
-            rd(f, "ops", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("oe")]));
+            rd(
+                f,
+                "otag",
+                "q",
+                call("rt_rd_uvar", vec![v("b"), v("q"), v("oe"), u32c(32)]),
+            );
+            rd(
+                f,
+                "ops",
+                "q",
+                call("rt_rd_payload", vec![v("b"), v("q"), v("oe")]),
+            );
             f.if_(ne(v("q"), v("oe")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
             f.if_else(
                 eq(v("otag"), u64c(0)),
                 |f| {
-                    f.if_(ne(v("ops"), v("oe")), |f| f.ret_err(code(SCB_UNION_INVALID)));
+                    f.if_(ne(v("ops"), v("oe")), |f| {
+                        f.ret_err(code(SCB_UNION_INVALID));
+                    });
                 },
                 |f| {
-                    f.if_(ne(v("otag"), u64c(1)), |f| f.ret_err(code(SCB_UNION_INVALID)));
+                    f.if_(ne(v("otag"), u64c(1)), |f| {
+                        f.ret_err(code(SCB_UNION_INVALID));
+                    });
                     f.set("val", tri(dcall("cd_vref", v("ops"), v("oe"))));
                     f.set("has_val", boolc(true));
                 },
@@ -403,7 +480,10 @@ pub fn define(m: &mut Module) {
             f.if_(ne(v("ps"), v("pe")), |f| f.ret_err(code(SCB_UNION_INVALID)));
         });
         f.if_(
-            or(or(eq(v("tag"), u64c(2)), eq(v("tag"), u64c(4))), eq(v("tag"), u64c(6))),
+            or(
+                or(eq(v("tag"), u64c(2)), eq(v("tag"), u64c(4))),
+                eq(v("tag"), u64c(6)),
+            ),
             |f| f.set("id", tri(dcall("cd_id", v("ps"), v("pe")))),
         );
         f.if_(eq(v("tag"), u64c(3)), |f| {
@@ -417,7 +497,12 @@ pub fn define(m: &mut Module) {
         f.if_(eq(v("tag"), u64c(7)), |f| {
             f.let_(
                 "fref",
-                tri(dcall1("cd_funref", v("ps"), v("pe"), add(v("depth"), u64c(1)))),
+                tri(dcall1(
+                    "cd_funref",
+                    v("ps"),
+                    v("pe"),
+                    add(v("depth"), u64c(1)),
+                )),
             );
             f.set("id", tget(v("fref"), 0));
             f.set("targs", tget(v("fref"), 1));
@@ -443,7 +528,9 @@ pub fn define(m: &mut Module) {
         &p,
         r(t::tuple(vec![t::bytes(), ids.clone()])),
         |f| {
-            f.if_(ge(v("depth"), u64c(64)), |f| f.ret_err(code(SCB_RESOURCE_LIMIT)));
+            f.if_(ge(v("depth"), u64c(64)), |f| {
+                f.ret_err(code(SCB_RESOURCE_LIMIT));
+            });
             fields(f, 2);
             f.ret_ok(tup(vec![
                 field(0, "cd_id"),
@@ -503,14 +590,30 @@ fn define_bodies(m: &mut Module) {
         f.let_("os", s);
         f.let_("oe", e);
         f.var("q", v("os"));
-        rd(f, "otag", "q", call("rt_rd_uvar", vec![v("b"), v("q"), v("oe"), u32c(32)]));
-        rd(f, "ops", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("oe")]));
+        rd(
+            f,
+            "otag",
+            "q",
+            call("rt_rd_uvar", vec![v("b"), v("q"), v("oe"), u32c(32)]),
+        );
+        rd(
+            f,
+            "ops",
+            "q",
+            call("rt_rd_payload", vec![v("b"), v("q"), v("oe")]),
+        );
         f.if_(ne(v("q"), v("oe")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
         f.if_else(
             eq(v("otag"), u64c(0)),
-            |f| f.if_(ne(v("ops"), v("oe")), |f| f.ret_err(code(SCB_UNION_INVALID))),
             |f| {
-                f.if_(ne(v("otag"), u64c(1)), |f| f.ret_err(code(SCB_UNION_INVALID)));
+                f.if_(ne(v("ops"), v("oe")), |f| {
+                    f.ret_err(code(SCB_UNION_INVALID));
+                });
+            },
+            |f| {
+                f.if_(ne(v("otag"), u64c(1)), |f| {
+                    f.ret_err(code(SCB_UNION_INVALID));
+                });
                 f.expr(tri(dcall("cd_id", v("ops"), v("oe"))));
             },
         );
@@ -526,19 +629,41 @@ fn define_bodies(m: &mut Module) {
         f.let_("fs0", s);
         f.let_("fe0", e);
         f.var("q", v("fs0"));
-        rd(f, "ftag", "q", call("rt_rd_uvar", vec![v("b"), v("q"), v("fe0"), u32c(32)]));
-        rd(f, "fps", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("fe0")]));
-        f.if_(ne(v("q"), v("fe0")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
+        rd(
+            f,
+            "ftag",
+            "q",
+            call("rt_rd_uvar", vec![v("b"), v("q"), v("fe0"), u32c(32)]),
+        );
+        rd(
+            f,
+            "fps",
+            "q",
+            call("rt_rd_payload", vec![v("b"), v("q"), v("fe0")]),
+        );
+        f.if_(ne(v("q"), v("fe0")), |f| {
+            f.ret_err(code(SCB_TRAILING_BYTES));
+        });
         f.if_(or(lt(v("ftag"), u64c(1)), gt(v("ftag"), u64c(2))), |f| {
             f.ret_err(code(SCB_UNION_INVALID));
         });
         f.let_("is_rec", eq(v("ftag"), u64c(1)));
         // The member list (form at depth 2, list at 3, members at 4).
         f.var("q", v("fps"));
-        rd(f, "count", "q", call("rt_rd_count", vec![v("b"), v("q"), v("fe0")]));
+        rd(
+            f,
+            "count",
+            "q",
+            call("rt_rd_count", vec![v("b"), v("q"), v("fe0")]),
+        );
         f.var("members", vnew(m_mem(), vec![]));
         f.for_u64("i", u64c(0), v("count"), |f| {
-            rd(f, "es", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("fe0")]));
+            rd(
+                f,
+                "es",
+                "q",
+                call("rt_rd_payload", vec![v("b"), v("q"), v("fe0")]),
+            );
             f.set(
                 "members",
                 push(
@@ -550,7 +675,9 @@ fn define_bodies(m: &mut Module) {
                 ),
             );
         });
-        f.if_(ne(v("q"), v("fe0")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
+        f.if_(ne(v("q"), v("fe0")), |f| {
+            f.ret_err(code(SCB_TRAILING_BYTES));
+        });
         f.let_("invariants", field1(2, "cd_ids", boolc(true)));
         f.let_("vis", field1(3, "cd_enum", u64c(4)));
         f.ret_ok(rec(
@@ -590,17 +717,31 @@ fn define_bodies(m: &mut Module) {
                 f.let_("os", s);
                 f.let_("oe", e);
                 f.var("q", v("os"));
-                rd(f, "otag", "q", call("rt_rd_uvar", vec![v("b"), v("q"), v("oe"), u32c(32)]));
-                rd(f, "ops", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("oe")]));
+                rd(
+                    f,
+                    "otag",
+                    "q",
+                    call("rt_rd_uvar", vec![v("b"), v("q"), v("oe"), u32c(32)]),
+                );
+                rd(
+                    f,
+                    "ops",
+                    "q",
+                    call("rt_rd_payload", vec![v("b"), v("q"), v("oe")]),
+                );
                 f.if_(ne(v("q"), v("oe")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
                 f.if_(eq(v("otag"), u64c(0)), |f| {
-                    f.if_(ne(v("ops"), v("oe")), |f| f.ret_err(code(SCB_UNION_INVALID)));
+                    f.if_(ne(v("ops"), v("oe")), |f| {
+                        f.ret_err(code(SCB_UNION_INVALID));
+                    });
                     f.ret_ok(rec(
                         MEM,
                         vec![v("member"), boolc(false), bytesc(&[]), u64c(0)],
                     ));
                 });
-                f.if_(ne(v("otag"), u64c(1)), |f| f.ret_err(code(SCB_UNION_INVALID)));
+                f.if_(ne(v("otag"), u64c(1)), |f| {
+                    f.ret_err(code(SCB_UNION_INVALID));
+                });
                 f.ret_ok(rec(
                     MEM,
                     vec![
@@ -688,9 +829,24 @@ fn define_bodies(m: &mut Module) {
         )));
         // Field 1 of the (validated) ConstValue record is its type.
         f.var("q", v("cs"));
-        rd(f, "n", "q", call("rt_rd_fields", vec![v("b"), v("q"), v("ce")]));
-        rd(f, "tag", "q", call("rt_rd_uvar", vec![v("b"), v("q"), v("ce"), u32c(32)]));
-        rd(f, "ts", "q", call("rt_rd_payload", vec![v("b"), v("q"), v("ce")]));
+        rd(
+            f,
+            "n",
+            "q",
+            call("rt_rd_fields", vec![v("b"), v("q"), v("ce")]),
+        );
+        rd(
+            f,
+            "tag",
+            "q",
+            call("rt_rd_uvar", vec![v("b"), v("q"), v("ce"), u32c(32)]),
+        );
+        rd(
+            f,
+            "ts",
+            "q",
+            call("rt_rd_payload", vec![v("b"), v("q"), v("ce")]),
+        );
         f.ret_ok(rec(
             CST,
             vec![
@@ -721,7 +877,11 @@ fn define_bodies(m: &mut Module) {
         fields(f, 2);
         f.ret_ok(rec(
             EPT,
-            vec![bytesc(&[]), field(0, "cd_id"), field1(1, "cd_enum", u64c(2))],
+            vec![
+                bytesc(&[]),
+                field(0, "cd_id"),
+                field1(1, "cd_enum", u64c(2)),
+            ],
         ));
     });
 }
@@ -730,20 +890,48 @@ fn define_bodies(m: &mut Module) {
 fn with_id(type_name: &str, case: &str, value: E) -> E {
     // The first field of every model record is `id`; rebuild it with the
     // object's entity id.
-    var_new(ENT, case, Some(call(&format!("cd_set_id_{type_name}"), vec![value, v("id")])))
+    var_new(
+        ENT,
+        case,
+        Some(call(
+            &format!("cd_set_id_{type_name}"),
+            vec![value, v("id")],
+        )),
+    )
 }
 
 #[allow(clippy::too_many_lines)]
 fn define_object(m: &mut Module) {
     // Per-type id setters (records are immutable; rebuild with the id).
     for (type_name, fields_list) in [
-        (TDEF, vec!["tparams", "is_rec", "members", "invariants", "vis"]),
-        (FUN, vec!["tparams", "params", "result", "effects", "entry", "blocks", "contracts", "vis"]),
+        (
+            TDEF,
+            vec!["tparams", "is_rec", "members", "invariants", "vis"],
+        ),
+        (
+            FUN,
+            vec![
+                "tparams",
+                "params",
+                "result",
+                "effects",
+                "entry",
+                "blocks",
+                "contracts",
+                "vis",
+            ],
+        ),
         (PRM, vec!["owner", "role", "ordinal", "ty"]),
         (BLK, vec!["function", "params", "ops", "term", "reach"]),
-        (OP, vec!["block", "ordinal", "opcode", "operands", "results", "imm"]),
+        (
+            OP,
+            vec!["block", "ordinal", "opcode", "operands", "results", "imm"],
+        ),
         (CST, vec!["value", "ty"]),
-        (IMP, vec!["adapter", "abi", "req", "resp", "fail", "effects"]),
+        (
+            IMP,
+            vec!["adapter", "abi", "req", "resp", "fail", "effects"],
+        ),
         (EPT, vec!["function", "exposure"]),
     ] {
         let ty = m.ty(type_name);
@@ -754,7 +942,11 @@ fn define_object(m: &mut Module) {
             ty,
             move |f| {
                 let mut values = vec![v("id")];
-                values.extend(fields_list.iter().map(|name| crate::seed::field(v("x"), name)));
+                values.extend(
+                    fields_list
+                        .iter()
+                        .map(|name| crate::seed::field(v("x"), name)),
+                );
                 f.ret(rec(&type_name_owned, values));
             },
         );
@@ -770,20 +962,31 @@ fn define_object(m: &mut Module) {
             f.if_(gt(v("n"), u64c(MAX_STANDALONE)), |f| {
                 f.ret_err(code(SCB_RESOURCE_LIMIT));
             });
-            f.if_(lt(v("n"), u64c(32)), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
+            f.if_(lt(v("n"), u64c(32)), |f| {
+                f.ret_err(code(SCB_LENGTH_OVERFLOW));
+            });
             f.let_("e", sub(v("n"), u64c(32)));
             f.var("p", u64c(0));
-            f.if_(lt(v("e"), u64c(8)), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
+            f.if_(lt(v("e"), u64c(8)), |f| {
+                f.ret_err(code(SCB_LENGTH_OVERFLOW));
+            });
             if !fault("codec-magic") {
-                f.if_(ne(slice(v("bs"), u64c(0), u64c(8)), bytesc(b"SLEYSCB1")), |f| {
-                    f.ret_err(code(SCB_MAGIC_INVALID));
-                });
+                f.if_(
+                    ne(slice(v("bs"), u64c(0), u64c(8)), bytesc(b"SLEYSCB1")),
+                    |f| {
+                        f.ret_err(code(SCB_MAGIC_INVALID));
+                    },
+                );
             }
             f.set("p", u64c(8));
             rd(f, "version", "p", rcall("rt_rd_uvar", vec![u32c(64)]));
-            f.if_(ne(v("version"), u64c(1)), |f| f.ret_err(code(SCB_VERSION_UNSUPPORTED)));
+            f.if_(ne(v("version"), u64c(1)), |f| {
+                f.ret_err(code(SCB_VERSION_UNSUPPORTED));
+            });
             rd(f, "contract", "p", rcall("rt_rd_uvar", vec![u32c(32)]));
-            f.if_(ne(v("contract"), u64c(200)), |f| f.ret_err(code(SCB_CONTRACT_UNKNOWN)));
+            f.if_(ne(v("contract"), u64c(200)), |f| {
+                f.ret_err(code(SCB_CONTRACT_UNKNOWN));
+            });
             f.if_(lt(sub(v("e"), v("p")), u64c(32)), |f| {
                 f.ret_err(code(SCB_LENGTH_OVERFLOW));
             });
@@ -808,8 +1011,12 @@ fn define_object(m: &mut Module) {
             f.set("p", v("ps"));
             f.let_("e", v("pe"));
             rd(f, "count", "p", rcall("rt_rd_fields", vec![]));
-            f.if_(lt(v("count"), u64c(2)), |f| f.ret_err(code(SCB_FIELD_MISSING)));
-            f.if_(gt(v("count"), u64c(4)), |f| f.ret_err(code(SCB_FIELD_UNKNOWN)));
+            f.if_(lt(v("count"), u64c(2)), |f| {
+                f.ret_err(code(SCB_FIELD_MISSING));
+            });
+            f.if_(gt(v("count"), u64c(4)), |f| {
+                f.ret_err(code(SCB_FIELD_UNKNOWN));
+            });
             f.var("prev", u64c(0));
             f.var("id", bytesc(&[]));
             f.var("has_id", boolc(false));
@@ -865,15 +1072,22 @@ fn define_object(m: &mut Module) {
         f.var("p", v("p"));
         rd(f, "len", "p", rcall("rt_rd_len", vec![u64c(16_777_216)]));
         f.let_("start", v("p"));
-        f.if_(gt(add(v("p"), v("len")), v("e")), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
+        f.if_(gt(add(v("p"), v("len")), v("e")), |f| {
+            f.ret_err(code(SCB_LENGTH_OVERFLOW));
+        });
         f.set("p", add(v("p"), v("len")));
         f.for_u64("i", v("start"), v("p"), |f| {
-            f.if_(ge(call("rt_b", vec![vget(v("b"), v("i"))]), u64c(128)), |f| {
-                f.ret_err(code(TOOL_LABEL_OUT_OF_DOMAIN));
-            });
+            f.if_(
+                ge(call("rt_b", vec![vget(v("b"), v("i"))]), u64c(128)),
+                |f| {
+                    f.ret_err(code(TOOL_LABEL_OUT_OF_DOMAIN));
+                },
+            );
         });
         finished(f);
-        f.if_(gt(v("len"), u64c(1024)), |f| f.ret_err(code(SCB_RESOURCE_LIMIT)));
+        f.if_(gt(v("len"), u64c(1024)), |f| {
+            f.ret_err(code(SCB_RESOURCE_LIMIT));
+        });
         f.ret_ok(unitc());
     });
     let mut p = dparams();

@@ -25,7 +25,10 @@
 use super::codes::TOOL_ROOT_BINDING_MISMATCH;
 use super::model::{FUN, GATE, LIM};
 use super::rt::{code, r};
-use crate::seed::*;
+use crate::seed::{
+    Module, Ty, add, boolc, bytesc, call, eq, fault, field, gt, lt, mhas, mins, mnew, ne, or, push,
+    rec, sub, t, tget, tri, u64c, unitc, unwrap, v, vget, vlen, vnew, vset,
+};
 
 /// `VM_LOWER_PROFILE_UNSUPPORTED`.
 pub const VM_LOWER_PROFILE_UNSUPPORTED: u32 = 26_000;
@@ -33,7 +36,14 @@ pub const VM_LOWER_PROFILE_UNSUPPORTED: u32 = 26_000;
 pub const ENTRY: &str = "drv_build";
 
 fn limits_ty() -> Ty {
-    t::tuple(vec![t::u64(), t::u64(), t::u64(), t::u64(), t::bool(), t::u64()])
+    t::tuple(vec![
+        t::u64(),
+        t::u64(),
+        t::u64(),
+        t::u64(),
+        t::bool(),
+        t::u64(),
+    ])
 }
 
 /// Defines the driver.
@@ -63,7 +73,10 @@ pub fn define(m: &mut Module) {
                     ],
                 ),
             );
-            f.let_("root", tri(call("sr_root", vec![v("root_bytes"), v("epoch")])));
+            f.let_(
+                "root",
+                tri(call("sr_root", vec![v("root_bytes"), v("epoch")])),
+            );
             f.let_("inv", tri(call("drv_load", vec![v("objects"), v("epoch")])));
             f.expr(tri(call("drv_bind", vec![v("root"), v("inv")])));
             f.let_("entries", field(v("root"), "entries"));
@@ -84,7 +97,10 @@ pub fn define(m: &mut Module) {
             f.expr(tri(call("ck_types", vec![v("inv")])));
             f.expr(tri(call("drv_check_closure", vec![v("inv"), v("fid")])));
             f.let_("image", tri(call("lw_image", vec![v("inv"), v("fid")])));
-            f.let_("gate0", tri(call("jg_gate", vec![v("inv"), v("fid"), v("image")])));
+            f.let_(
+                "gate0",
+                tri(call("jg_gate", vec![v("inv"), v("fid"), v("image")])),
+            );
             // Fingerprint every reached function, in gate order.
             f.let_("reached", field(v("gate0"), "functions"));
             f.let_(
@@ -121,7 +137,10 @@ pub fn define(m: &mut Module) {
     // The root binds exactly the decoded objects, in order.
     m.func(
         "drv_bind",
-        &[("root", m.ty(super::root::ROOT)), ("inv", m.ty(super::inv::INV))],
+        &[
+            ("root", m.ty(super::root::ROOT)),
+            ("inv", m.ty(super::inv::INV)),
+        ],
         r(t::unit()),
         |f| {
             if fault("driver-binding") {
@@ -163,7 +182,7 @@ pub fn define(m: &mut Module) {
                 f.let_("callee", vget(v("pending"), v("top")));
                 f.if_(
                     or(eq(v("callee"), v("fid")), mhas(v("done"), v("callee"))),
-                    |f| f.continue_(),
+                    super::super::seed::FnB::continue_,
                 );
                 f.expr(tri(call("drv_check_one", vec![v("inv"), v("callee")])));
                 f.set("done", mins(v("done"), v("callee"), boolc(true)));
@@ -171,7 +190,10 @@ pub fn define(m: &mut Module) {
                 f.for_u64("j", u64c(0), vlen(v("more")), |f| {
                     f.set(
                         "pending",
-                        call("drv_stack_push", vec![v("pending"), v("top"), vget(v("more"), v("j"))]),
+                        call(
+                            "drv_stack_push",
+                            vec![v("pending"), v("top"), vget(v("more"), v("j"))],
+                        ),
                     );
                     f.set("top", add(v("top"), u64c(1)));
                 });
@@ -182,10 +204,16 @@ pub fn define(m: &mut Module) {
     // Grows-or-overwrites push for an explicit stack.
     m.func(
         "drv_stack_push",
-        &[("xs", t::vec(t::bytes())), ("top", t::u64()), ("x", t::bytes())],
+        &[
+            ("xs", t::vec(t::bytes())),
+            ("top", t::u64()),
+            ("x", t::bytes()),
+        ],
         t::vec(t::bytes()),
         |f| {
-            f.if_(lt(v("top"), vlen(v("xs"))), |f| f.ret(vset(v("xs"), v("top"), v("x"))));
+            f.if_(lt(v("top"), vlen(v("xs"))), |f| {
+                f.ret(vset(v("xs"), v("top"), v("x")));
+            });
             f.ret(push(v("xs"), v("x")));
         },
     );
@@ -228,10 +256,16 @@ pub fn define(m: &mut Module) {
             f.let_("fun", unwrap(call("inv_fun", vec![v("inv"), v("fid")])));
             f.let_("blocks", field(v("fun"), "blocks"));
             f.for_u64("i", u64c(0), vlen(v("blocks")), |f| {
-                f.let_("blk", unwrap(call("inv_blk", vec![v("inv"), vget(v("blocks"), v("i"))])));
+                f.let_(
+                    "blk",
+                    unwrap(call("inv_blk", vec![v("inv"), vget(v("blocks"), v("i"))])),
+                );
                 f.let_("ops", field(v("blk"), "ops"));
                 f.for_u64("j", u64c(0), vlen(v("ops")), |f| {
-                    f.let_("op", unwrap(call("inv_op", vec![v("inv"), vget(v("ops"), v("j"))])));
+                    f.let_(
+                        "op",
+                        unwrap(call("inv_op", vec![v("inv"), vget(v("ops"), v("j"))])),
+                    );
                     f.if_(eq(field(v("op"), "opcode"), u64c(112)), |f| {
                         f.let_("imm", field(v("op"), "imm"));
                         f.if_(eq(field(v("imm"), "tag"), u64c(7)), |f| {

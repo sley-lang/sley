@@ -1,4 +1,5 @@
 //! Differential tests: Sley entity-object decoding against the native codec.
+#![allow(clippy::too_many_lines)]
 
 use sley_id::EntityId;
 use sley_mutate::value::EntityBodyValue;
@@ -110,7 +111,14 @@ fn types(values: &[TypeExpr]) -> ConstValue {
 
 fn vref(value: &ValueRef) -> ConstValue {
     match value {
-        ValueRef::Parameter(id) => record("VRef", vec![("kind", u64v(1)), ("id", bytes(id.as_bytes())), ("idx", u64v(0))]),
+        ValueRef::Parameter(id) => record(
+            "VRef",
+            vec![
+                ("kind", u64v(1)),
+                ("id", bytes(id.as_bytes())),
+                ("idx", u64v(0)),
+            ],
+        ),
         ValueRef::OperationResult(r) => record(
             "VRef",
             vec![
@@ -123,7 +131,10 @@ fn vref(value: &ValueRef) -> ConstValue {
 }
 
 fn empty_vref() -> ConstValue {
-    record("VRef", vec![("kind", u64v(0)), ("id", bytes(&[])), ("idx", u64v(0))])
+    record(
+        "VRef",
+        vec![("kind", u64v(0)), ("id", bytes(&[])), ("idx", u64v(0))],
+    )
 }
 
 fn edge(target: &EntityId, args: &[ValueRef]) -> ConstValue {
@@ -131,7 +142,10 @@ fn edge(target: &EntityId, args: &[ValueRef]) -> ConstValue {
         "Edge",
         vec![
             ("target", bytes(target.as_bytes())),
-            ("args", vec_of(named("VRef"), args.iter().map(vref).collect())),
+            (
+                "args",
+                vec_of(named("VRef"), args.iter().map(vref).collect()),
+            ),
         ],
     )
 }
@@ -139,7 +153,14 @@ fn edge(target: &EntityId, args: &[ValueRef]) -> ConstValue {
 fn term(value: &Terminator) -> ConstValue {
     let (kind, val, has_val, code, edges, cases) = match value {
         Terminator::Return(r) => (1, vref(&r.value), true, 0, vec![], vec![]),
-        Terminator::Branch(b) => (2, empty_vref(), false, 0, vec![edge(&b.edge.target, &b.edge.arguments)], vec![]),
+        Terminator::Branch(b) => (
+            2,
+            empty_vref(),
+            false,
+            0,
+            vec![edge(&b.edge.target, &b.edge.arguments)],
+            vec![],
+        ),
         Terminator::CondBranch(c) => (
             3,
             vref(&c.condition),
@@ -179,8 +200,14 @@ fn term(value: &Terminator) -> ConstValue {
                                         .arguments
                                         .iter()
                                         .map(|a| match a {
-                                            SwitchArgument::Value(v) => record("SArg", vec![("pay", boolv(false)), ("val", vref(v))]),
-                                            SwitchArgument::CasePayload => record("SArg", vec![("pay", boolv(true)), ("val", empty_vref())]),
+                                            SwitchArgument::Value(v) => record(
+                                                "SArg",
+                                                vec![("pay", boolv(false)), ("val", vref(v))],
+                                            ),
+                                            SwitchArgument::CasePayload => record(
+                                                "SArg",
+                                                vec![("pay", boolv(true)), ("val", empty_vref())],
+                                            ),
                                         })
                                         .collect(),
                                 ),
@@ -218,9 +245,21 @@ fn imm(value: &Immediate) -> ConstValue {
         Immediate::Entity(id) => (2, id.as_bytes().to_vec(), vec![], 0, vec![]),
         Immediate::Index(i) => (3, vec![], vec![], u64::from(*i), vec![]),
         Immediate::Field(m) => (4, m.as_bytes().to_vec(), vec![], 0, vec![]),
-        Immediate::Variant(v) => (5, v.definition.as_bytes().to_vec(), v.member_id.as_bytes().to_vec(), 0, vec![]),
+        Immediate::Variant(v) => (
+            5,
+            v.definition.as_bytes().to_vec(),
+            v.member_id.as_bytes().to_vec(),
+            0,
+            vec![],
+        ),
         Immediate::Observation(o) => (6, o.to_vec(), vec![], 0, vec![]),
-        Immediate::Function(f) => (7, f.function.as_bytes().to_vec(), vec![], 0, f.type_arguments.clone()),
+        Immediate::Function(f) => (
+            7,
+            f.function.as_bytes().to_vec(),
+            vec![],
+            0,
+            f.type_arguments.clone(),
+        ),
     };
     record(
         "Imm",
@@ -235,7 +274,10 @@ fn imm(value: &Immediate) -> ConstValue {
 }
 
 fn tparams(values: &[sley_ssmc::TypeParameterDef]) -> ConstValue {
-    vec_of(t::u64(), values.iter().map(|p| u64v(u64::from(p.ordinal))).collect())
+    vec_of(
+        t::u64(),
+        values.iter().map(|p| u64v(u64::from(p.ordinal))).collect(),
+    )
 }
 
 fn expected(object: &sley_mutate::EntityObject) -> ConstValue {
@@ -275,7 +317,15 @@ fn expected(object: &sley_mutate::EntityObject) -> ConstValue {
                                 vec![
                                     ("member", bytes(c.member_id.as_bytes())),
                                     ("has_ty", boolv(c.payload_type.is_some())),
-                                    ("ty", bytes(&c.payload_type.as_ref().map(type_bytes).unwrap_or_default())),
+                                    (
+                                        "ty",
+                                        bytes(
+                                            &c.payload_type
+                                                .as_ref()
+                                                .map(type_bytes)
+                                                .unwrap_or_default(),
+                                        ),
+                                    ),
                                     ("vis", u64v(0)),
                                 ],
                             )
@@ -370,7 +420,10 @@ fn expected(object: &sley_mutate::EntityObject) -> ConstValue {
                         ("block", bytes(o.block.as_bytes())),
                         ("ordinal", u64v(u64::from(o.ordinal))),
                         ("opcode", u64v(u64::from(o.opcode))),
-                        ("operands", vec_of(named("VRef"), o.operands.iter().map(vref).collect())),
+                        (
+                            "operands",
+                            vec_of(named("VRef"), o.operands.iter().map(vref).collect()),
+                        ),
                         ("results", types(&o.result_types)),
                         ("imm", imm(&o.immediate)),
                     ],
@@ -523,7 +576,11 @@ fn refuses_corrupted_objects_like_native() {
                 if native.is_ok() && sley == Err(toolchain::codes::TOOL_KIND_OUT_OF_DOMAIN) {
                     continue;
                 }
-                assert_eq!(sley.is_ok(), native.is_ok(), "pos {position} -> {replacement:02x}: sley {sley:?} native {native:?}");
+                assert_eq!(
+                    sley.is_ok(),
+                    native.is_ok(),
+                    "pos {position} -> {replacement:02x}: sley {sley:?} native {native:?}"
+                );
                 if sley != native {
                     deviations += 1;
                 }

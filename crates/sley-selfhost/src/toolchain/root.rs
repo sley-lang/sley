@@ -8,12 +8,15 @@
 
 use super::codes::{
     SCB_CONTRACT_UNKNOWN, SCB_DIGEST_MISMATCH, SCB_EPOCH_MISMATCH, SCB_FIELD_DUPLICATE,
-    SCB_FIELD_MISSING, SCB_FIELD_ORDER, SCB_FIELD_UNKNOWN, SCB_LENGTH_OVERFLOW,
-    SCB_MAGIC_INVALID, SCB_MAP_DUPLICATE, SCB_MAP_ORDER, SCB_RESOURCE_LIMIT, SCB_TRAILING_BYTES,
+    SCB_FIELD_MISSING, SCB_FIELD_ORDER, SCB_FIELD_UNKNOWN, SCB_LENGTH_OVERFLOW, SCB_MAGIC_INVALID,
+    SCB_MAP_DUPLICATE, SCB_MAP_ORDER, SCB_RESOURCE_LIMIT, SCB_TRAILING_BYTES,
     SCB_VERSION_UNSUPPORTED, TOOL_ROOT_BINDING_MISMATCH,
 };
 use super::rt::{MAX_STANDALONE, code, r};
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, and, b2v, blake3_large, bytesc, call, concat, eq, ge, gt, le, lt, ne,
+    or, push, rec, select, slice, sub, t, tget, tri, tup, u32c, u64c, v, vget, vlen, vnew,
+};
 
 /// Root facts record.
 pub const ROOT: &str = "Root";
@@ -30,7 +33,10 @@ fn win_ty() -> Ty {
 fn ensure(f: &mut FnB<'_>) {
     f.let_(
         "#w",
-        call("sr_ensure", vec![v("bs"), v("total"), v("win"), v("ws"), v("p")]),
+        call(
+            "sr_ensure",
+            vec![v("bs"), v("total"), v("win"), v("ws"), v("p")],
+        ),
     );
     f.set("win", tget(v("#w"), 0));
     f.set("ws", tget(v("#w"), 1));
@@ -74,17 +80,28 @@ pub fn define(m: &mut Module) {
             f.if_(
                 and(
                     ge(v("p"), v("ws")),
-                    ge(add(v("ws"), vlen(v("win"))), call("sr_min", vec![add(v("p"), u64c(NEED)), v("total")])),
+                    ge(
+                        add(v("ws"), vlen(v("win"))),
+                        call("sr_min", vec![add(v("p"), u64c(NEED)), v("total")]),
+                    ),
                 ),
                 |f| f.ret(tup(vec![v("win"), v("ws")])),
             );
-            f.let_("len", call("sr_min", vec![u64c(WINDOW), sub(v("total"), v("p"))]));
+            f.let_(
+                "len",
+                call("sr_min", vec![u64c(WINDOW), sub(v("total"), v("p"))]),
+            );
             f.ret(tup(vec![b2v(slice(v("bs"), v("p"), v("len"))), v("p")]));
         },
     );
-    m.func("sr_min", &[("a", t::u64()), ("b", t::u64())], t::u64(), |f| {
-        f.ret(select(lt(v("a"), v("b")), v("a"), v("b")));
-    });
+    m.func(
+        "sr_min",
+        &[("a", t::u64()), ("b", t::u64())],
+        t::u64(),
+        |f| {
+            f.ret(select(lt(v("a"), v("b")), v("a"), v("b")));
+        },
+    );
     // Fixed 32 bytes at [p, p + 32) of an exact 32-byte region.
     // Decodes a stored root under `epoch`.
     m.func(
@@ -100,15 +117,24 @@ pub fn define(m: &mut Module) {
             f.var("ws", u64c(0));
             f.var("p", u64c(0));
             f.var("e", v("total"));
-            f.if_(lt(v("total"), u64c(8)), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
-            f.if_(ne(slice(v("bs"), u64c(0), u64c(8)), bytesc(b"SLEYSCB1")), |f| {
-                f.ret_err(code(SCB_MAGIC_INVALID));
+            f.if_(lt(v("total"), u64c(8)), |f| {
+                f.ret_err(code(SCB_LENGTH_OVERFLOW));
             });
+            f.if_(
+                ne(slice(v("bs"), u64c(0), u64c(8)), bytesc(b"SLEYSCB1")),
+                |f| {
+                    f.ret_err(code(SCB_MAGIC_INVALID));
+                },
+            );
             f.set("p", u64c(8));
             wrd(f, "version", "rt_rd_uvar", vec![u32c(64)]);
-            f.if_(ne(v("version"), u64c(1)), |f| f.ret_err(code(SCB_VERSION_UNSUPPORTED)));
+            f.if_(ne(v("version"), u64c(1)), |f| {
+                f.ret_err(code(SCB_VERSION_UNSUPPORTED));
+            });
             wrd(f, "contract", "rt_rd_uvar", vec![u32c(32)]);
-            f.if_(ne(v("contract"), u64c(160)), |f| f.ret_err(code(SCB_CONTRACT_UNKNOWN)));
+            f.if_(ne(v("contract"), u64c(160)), |f| {
+                f.ret_err(code(SCB_CONTRACT_UNKNOWN));
+            });
             f.if_(lt(sub(v("total"), v("p")), u64c(32)), |f| {
                 f.ret_err(code(SCB_LENGTH_OVERFLOW));
             });
@@ -130,19 +156,28 @@ pub fn define(m: &mut Module) {
                 "digest",
                 blake3_large(concat(vnew(
                     t::bytes(),
-                    vec![bytesc(b"sley2.state-root.v1"), slice(v("bs"), u64c(0), v("pe"))],
+                    vec![
+                        bytesc(b"sley2.state-root.v1"),
+                        slice(v("bs"), u64c(0), v("pe")),
+                    ],
                 ))),
             );
             f.if_(ne(slice(v("bs"), v("pe"), u64c(32)), v("digest")), |f| {
                 f.ret_err(code(SCB_DIGEST_MISMATCH));
             });
-            f.if_(ne(v("env_epoch"), v("epoch")), |f| f.ret_err(code(SCB_EPOCH_MISMATCH)));
+            f.if_(ne(v("env_epoch"), v("epoch")), |f| {
+                f.ret_err(code(SCB_EPOCH_MISMATCH));
+            });
             // Payload: nine required fields.
             f.set("p", v("ps"));
             f.set("e", v("pe"));
             wrd(f, "count", "rt_rd_fields", vec![]);
-            f.if_(lt(v("count"), u64c(9)), |f| f.ret_err(code(SCB_FIELD_MISSING)));
-            f.if_(gt(v("count"), u64c(9)), |f| f.ret_err(code(SCB_FIELD_UNKNOWN)));
+            f.if_(lt(v("count"), u64c(9)), |f| {
+                f.ret_err(code(SCB_FIELD_MISSING));
+            });
+            f.if_(gt(v("count"), u64c(9)), |f| {
+                f.ret_err(code(SCB_FIELD_UNKNOWN));
+            });
             f.var("workspace", bytesc(&[]));
             f.var("keys", vnew(t::bytes(), vec![]));
             f.var("vals", vnew(t::bytes(), vec![]));
@@ -150,8 +185,12 @@ pub fn define(m: &mut Module) {
             f.var("prev", u64c(0));
             f.for_u64("i", u64c(1), u64c(10), |f| {
                 wrd(f, "tag", "rt_rd_uvar", vec![u32c(32)]);
-                f.if_(eq(v("tag"), v("prev")), |f| f.ret_err(code(SCB_FIELD_DUPLICATE)));
-                f.if_(lt(v("tag"), v("prev")), |f| f.ret_err(code(SCB_FIELD_ORDER)));
+                f.if_(eq(v("tag"), v("prev")), |f| {
+                    f.ret_err(code(SCB_FIELD_DUPLICATE));
+                });
+                f.if_(lt(v("tag"), v("prev")), |f| {
+                    f.ret_err(code(SCB_FIELD_ORDER));
+                });
                 f.set("prev", v("tag"));
                 f.if_(ne(v("tag"), v("i")), |f| {
                     f.if_(le(v("tag"), u64c(9)), |f| f.ret_err(code(SCB_FIELD_ORDER)));
@@ -170,12 +209,18 @@ pub fn define(m: &mut Module) {
                         and(ge(v("i"), u64c(6)), le(v("i"), u64c(8))),
                     ),
                     |f| {
-                        f.if_(lt(v("flen"), u64c(32)), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
-                        f.if_(gt(v("flen"), u64c(32)), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
+                        f.if_(lt(v("flen"), u64c(32)), |f| {
+                            f.ret_err(code(SCB_LENGTH_OVERFLOW));
+                        });
+                        f.if_(gt(v("flen"), u64c(32)), |f| {
+                            f.ret_err(code(SCB_TRAILING_BYTES));
+                        });
                         f.let_("x", slice(v("bs"), v("fs"), u64c(32)));
                         f.if_(eq(v("i"), u64c(1)), |f| f.set("workspace", v("x")));
                         f.if_(eq(v("i"), u64c(2)), |f| {
-                            f.if_(ne(v("x"), v("epoch")), |f| f.ret_err(code(SCB_EPOCH_MISMATCH)));
+                            f.if_(ne(v("x"), v("epoch")), |f| {
+                                f.ret_err(code(SCB_EPOCH_MISMATCH));
+                            });
                         });
                     },
                 );
@@ -213,7 +258,9 @@ pub fn define(m: &mut Module) {
                         f.set("p", add(v("p"), u64c(32)));
                         f.if_(gt(v("j"), u64c(0)), |f| {
                             f.let_("last", vget(v("keys"), sub(v("j"), u64c(1))));
-                            f.if_(eq(v("last"), v("key")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
+                            f.if_(eq(v("last"), v("key")), |f| {
+                                f.ret_err(code(SCB_MAP_DUPLICATE));
+                            });
                             f.if_(gt(v("last"), v("key")), |f| f.ret_err(code(SCB_MAP_ORDER)));
                         });
                         f.set("keys", push(v("keys"), v("key")));
@@ -244,7 +291,9 @@ pub fn define(m: &mut Module) {
                         f.set("p", add(v("p"), u64c(32)));
                         f.if_(gt(v("j"), u64c(0)), |f| {
                             f.let_("last", vget(v("set"), sub(v("j"), u64c(1))));
-                            f.if_(eq(v("last"), v("x")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
+                            f.if_(eq(v("last"), v("x")), |f| {
+                                f.ret_err(code(SCB_MAP_DUPLICATE));
+                            });
                             f.if_(gt(v("last"), v("x")), |f| f.ret_err(code(SCB_MAP_ORDER)));
                         });
                         f.set("set", push(v("set"), v("x")));
@@ -272,7 +321,13 @@ pub fn define(m: &mut Module) {
             f.if_(ne(v("p"), v("e")), |f| f.ret_err(code(SCB_TRAILING_BYTES)));
             f.ret_ok(rec(
                 ROOT,
-                vec![v("digest"), v("workspace"), v("keys"), v("vals"), v("entries")],
+                vec![
+                    v("digest"),
+                    v("workspace"),
+                    v("keys"),
+                    v("vals"),
+                    v("entries"),
+                ],
             ));
         },
     );

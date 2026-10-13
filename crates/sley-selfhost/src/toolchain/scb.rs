@@ -19,7 +19,11 @@ use super::codes::{
     SCB_VARINT_NON_MINIMAL,
 };
 use super::rt::{MAX_BYTE_PAYLOAD, code, r, rcall, rd, rd_ty};
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, and, boolc, bytesc, call, eq, ge, gt, le, lt, mget, ne, not, or, push,
+    rem, select, shl, slice, sub, t, tget, try_add, tup, u32c, u64c, u128c, unitc, v, vget, vlen,
+    vnew, vset,
+};
 
 /// `TypeExpr`.
 pub const K_TYPE: u64 = 1;
@@ -96,11 +100,7 @@ fn push_item(f: &mut FnB<'_>, kind: E, start: E, end: E, depth: E) {
         "stack",
         call(
             "scb_stack_push",
-            vec![
-                v("stack"),
-                v("top"),
-                tup(vec![kind, start, end, depth]),
-            ],
+            vec![v("stack"), v("top"), tup(vec![kind, start, end, depth])],
         ),
     );
     f.set("top", add(v("top"), u64c(1)));
@@ -130,11 +130,15 @@ fn finished(f: &mut FnB<'_>) {
 }
 
 fn container_depth(f: &mut FnB<'_>) {
-    f.if_(ge(v("d"), u64c(64)), |f| f.ret_err(code(SCB_RESOURCE_LIMIT)));
+    f.if_(ge(v("d"), u64c(64)), |f| {
+        f.ret_err(code(SCB_RESOURCE_LIMIT));
+    });
 }
 
 fn leaf_depth(f: &mut FnB<'_>) {
-    f.if_(gt(v("d"), u64c(64)), |f| f.ret_err(code(SCB_RESOURCE_LIMIT)));
+    f.if_(gt(v("d"), u64c(64)), |f| {
+        f.ret_err(code(SCB_RESOURCE_LIMIT));
+    });
 }
 
 /// Defines the `scb_*` functions.
@@ -165,22 +169,29 @@ pub fn define(m: &mut Module) {
         |f| {
             f.var("p", v("p"));
             rd(f, "count", "p", rcall("rt_rd_fields", vec![]));
-            f.if_(lt(v("count"), v("n")), |f| f.ret_err(code(SCB_FIELD_MISSING)));
-            f.if_(gt(v("count"), v("n")), |f| f.ret_err(code(SCB_FIELD_UNKNOWN)));
+            f.if_(lt(v("count"), v("n")), |f| {
+                f.ret_err(code(SCB_FIELD_MISSING));
+            });
+            f.if_(gt(v("count"), v("n")), |f| {
+                f.ret_err(code(SCB_FIELD_UNKNOWN));
+            });
             f.var("out", vnew(pair_ty(), vec![]));
             f.var("prev", u64c(0));
             f.for_u64("i", u64c(1), add(v("n"), u64c(1)), |f| {
                 rd(f, "tag", "p", rcall("rt_rd_uvar", vec![u32c(32)]));
                 f.if_(gt(v("prev"), u64c(0)), |f| {
-                    f.if_(eq(v("tag"), v("prev")), |f| f.ret_err(code(SCB_FIELD_DUPLICATE)));
-                    f.if_(lt(v("tag"), v("prev")), |f| f.ret_err(code(SCB_FIELD_ORDER)));
+                    f.if_(eq(v("tag"), v("prev")), |f| {
+                        f.ret_err(code(SCB_FIELD_DUPLICATE));
+                    });
+                    f.if_(lt(v("tag"), v("prev")), |f| {
+                        f.ret_err(code(SCB_FIELD_ORDER));
+                    });
                 });
                 f.set("prev", v("tag"));
                 f.if_(ne(v("tag"), v("i")), |f| {
-                    f.if_(
-                        and(ge(v("tag"), u64c(1)), le(v("tag"), v("n"))),
-                        |f| f.ret_err(code(SCB_FIELD_ORDER)),
-                    );
+                    f.if_(and(ge(v("tag"), u64c(1)), le(v("tag"), v("n"))), |f| {
+                        f.ret_err(code(SCB_FIELD_ORDER));
+                    });
                     f.ret_err(code(SCB_FIELD_UNKNOWN));
                 });
                 rd(f, "start", "p", rcall("rt_rd_payload", vec![]));
@@ -204,7 +215,10 @@ pub fn define(m: &mut Module) {
                 f.let_("byte", call("rt_b", vec![vget(v("b"), v("p"))]));
                 f.set("p", add(v("p"), u64c(1)));
                 f.set("count", add(v("count"), u64c(1)));
-                f.let_("payload", call("scb_u64_u128", vec![rem(v("byte"), u64c(128))]));
+                f.let_(
+                    "payload",
+                    call("scb_u64_u128", vec![rem(v("byte"), u64c(128))]),
+                );
                 f.if_(
                     and(ge(v("shift"), u32c(128)), ne(v("payload"), u128c(0))),
                     |f| f.ret_err(code(SCB_INTEGER_OVERFLOW)),
@@ -263,14 +277,11 @@ pub fn define(m: &mut Module) {
                                 f.if_(eq(v("c"), u64c(0xed)), |f| f.set("hi", u64c(0x9f)));
                             },
                             |f| {
-                                f.if_(
-                                    and(ge(v("c"), u64c(0xf0)), le(v("c"), u64c(0xf4))),
-                                    |f| {
-                                        f.set("need", u64c(3));
-                                        f.if_(eq(v("c"), u64c(0xf0)), |f| f.set("lo", u64c(0x90)));
-                                        f.if_(eq(v("c"), u64c(0xf4)), |f| f.set("hi", u64c(0x8f)));
-                                    },
-                                );
+                                f.if_(and(ge(v("c"), u64c(0xf0)), le(v("c"), u64c(0xf4))), |f| {
+                                    f.set("need", u64c(3));
+                                    f.if_(eq(v("c"), u64c(0xf0)), |f| f.set("lo", u64c(0x90)));
+                                    f.if_(eq(v("c"), u64c(0xf4)), |f| f.set("hi", u64c(0x8f)));
+                                });
                             },
                         );
                     },
@@ -311,16 +322,25 @@ pub fn define(m: &mut Module) {
             f.let_("b1", call("rt_b", vec![vget(v("b"), add(v("p"), u64c(1)))]));
             f.var("rest_zero", boolc(true));
             f.for_u64("i", u64c(2), v("width"), |f| {
-                f.if_(ne(call("rt_b", vec![vget(v("b"), add(v("p"), v("i")))]), u64c(0)), |f| {
-                    f.set("rest_zero", boolc(false));
-                });
+                f.if_(
+                    ne(
+                        call("rt_b", vec![vget(v("b"), add(v("p"), v("i")))]),
+                        u64c(0),
+                    ),
+                    |f| {
+                        f.set("rest_zero", boolc(false));
+                    },
+                );
             });
             f.let_("f32", eq(v("width"), u64c(4)));
             // Negative zero: 0x80 then all zero.
             f.let_("lowmask", select(v("f32"), u64c(0x80), u64c(0xf0)));
             f.let_(
                 "negzero",
-                and(and(eq(v("b0"), u64c(0x80)), eq(v("b1"), u64c(0))), v("rest_zero")),
+                and(
+                    and(eq(v("b0"), u64c(0x80)), eq(v("b1"), u64c(0))),
+                    v("rest_zero"),
+                ),
             );
             f.let_(
                 "exp_ones",
@@ -330,7 +350,10 @@ pub fn define(m: &mut Module) {
                 ),
             );
             // Mantissa bits within b1: below the exponent bits.
-            f.let_("b1_mant", rem(v("b1"), select(v("f32"), u64c(0x80), u64c(0x10))));
+            f.let_(
+                "b1_mant",
+                rem(v("b1"), select(v("f32"), u64c(0x80), u64c(0x10))),
+            );
             f.let_("mant_zero", and(eq(v("b1_mant"), u64c(0)), v("rest_zero")));
             // The single canonical NaN: 7fc0... (F32) or 7ff8... (F64).
             f.let_(
@@ -367,11 +390,7 @@ pub fn define(m: &mut Module) {
                 f.var("p", tget(v("item"), 1));
                 f.let_("e", tget(v("item"), 2));
                 f.let_("d", tget(v("item"), 3));
-                f.if_else(
-                    lt(v("k"), u64c(K_CONST)),
-                    walk_type_kinds,
-                    walk_const_kinds,
-                );
+                f.if_else(lt(v("k"), u64c(K_CONST)), walk_type_kinds, walk_const_kinds);
             });
             f.ret_ok(unitc());
         },
@@ -521,7 +540,9 @@ fn walk_type_kinds(f: &mut FnB<'_>) {
             });
             f.let_("id", slice(v("bs"), v("es"), u64c(32)));
             f.if_(gt(v("i"), u64c(0)), |f| {
-                f.if_(eq(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
+                f.if_(eq(v("prev"), v("id")), |f| {
+                    f.ret_err(code(SCB_MAP_DUPLICATE));
+                });
                 f.if_(gt(v("prev"), v("id")), |f| f.ret_err(code(SCB_MAP_ORDER)));
             });
             f.set("prev", v("id"));
@@ -617,12 +638,15 @@ fn walk_const_kinds(f: &mut FnB<'_>) {
         f.continue_();
     });
     // 128-bit integers.
-    f.if_(or(eq(v("k"), u64c(K_SINT)), eq(v("k"), u64c(K_UINT))), |f| {
-        leaf_depth(f);
-        rd(f, "x", "p", rcall("scb_rd_uvar128", vec![]));
-        finished(f);
-        f.continue_();
-    });
+    f.if_(
+        or(eq(v("k"), u64c(K_SINT)), eq(v("k"), u64c(K_UINT))),
+        |f| {
+            leaf_depth(f);
+            rd(f, "x", "p", rcall("scb_rd_uvar128", vec![]));
+            finished(f);
+            f.continue_();
+        },
+    );
     // Floats (validated directly, like the native nested cursor).
     for (kind, width) in [(K_F32, 4_u64), (K_F64, 8)] {
         f.if_(eq(v("k"), u64c(kind)), move |f| {
@@ -640,29 +664,39 @@ fn walk_const_kinds(f: &mut FnB<'_>) {
         });
     }
     // Bytes and Text.
-    f.if_(or(eq(v("k"), u64c(K_BYTES)), eq(v("k"), u64c(K_TEXT))), |f| {
-        leaf_depth(f);
-        rd(f, "len", "p", rcall("rt_rd_len", vec![u64c(MAX_BYTE_PAYLOAD)]));
-        f.let_("start", v("p"));
-        f.match_res(
-            try_add(v("p"), v("len")),
-            "end",
-            |f| {
-                f.if_(gt(v("end"), v("e")), |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)));
-                f.set("p", v("end"));
-            },
-            "_",
-            |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)),
-        );
-        f.if_(eq(v("k"), u64c(K_TEXT)), |f| {
-            f.if_(
-                not(call("scb_utf8_ok", vec![v("b"), v("start"), v("p")])),
-                |f| f.ret_err(code(SCB_UTF8_INVALID)),
+    f.if_(
+        or(eq(v("k"), u64c(K_BYTES)), eq(v("k"), u64c(K_TEXT))),
+        |f| {
+            leaf_depth(f);
+            rd(
+                f,
+                "len",
+                "p",
+                rcall("rt_rd_len", vec![u64c(MAX_BYTE_PAYLOAD)]),
             );
-        });
-        finished(f);
-        f.continue_();
-    });
+            f.let_("start", v("p"));
+            f.match_res(
+                try_add(v("p"), v("len")),
+                "end",
+                |f| {
+                    f.if_(gt(v("end"), v("e")), |f| {
+                        f.ret_err(code(SCB_LENGTH_OVERFLOW));
+                    });
+                    f.set("p", v("end"));
+                },
+                "_",
+                |f| f.ret_err(code(SCB_LENGTH_OVERFLOW)),
+            );
+            f.if_(eq(v("k"), u64c(K_TEXT)), |f| {
+                f.if_(
+                    not(call("scb_utf8_ok", vec![v("b"), v("start"), v("p")])),
+                    |f| f.ret_err(code(SCB_UTF8_INVALID)),
+                );
+            });
+            finished(f);
+            f.continue_();
+        },
+    );
     // Lists.
     f.if_(eq(v("k"), u64c(K_CONSTLIST)), |f| {
         container_depth(f);
@@ -724,7 +758,9 @@ fn walk_const_kinds(f: &mut FnB<'_>) {
                         ),
                     );
                     f.if_(gt(v("i"), u64c(0)), |f| {
-                        f.if_(eq(v("prev"), v("kb")), |f| f.ret_err(code(SCB_MAP_DUPLICATE)));
+                        f.if_(eq(v("prev"), v("kb")), |f| {
+                            f.ret_err(code(SCB_MAP_DUPLICATE));
+                        });
                         f.if_(gt(v("prev"), v("kb")), |f| f.ret_err(code(SCB_MAP_ORDER)));
                     });
                     f.set("prev", v("kb"));
@@ -761,7 +797,9 @@ pub fn define_entry_key(m: &mut Module) {
             f.var("p", v("p"));
             rd(f, "count", "p", rcall("rt_rd_fields", vec![]));
             rd(f, "tag", "p", rcall("rt_rd_uvar", vec![u32c(32)]));
-            f.if_(ne(v("tag"), u64c(1)), |f| f.ret_err(code(SCB_FIELD_UNKNOWN)));
+            f.if_(ne(v("tag"), u64c(1)), |f| {
+                f.ret_err(code(SCB_FIELD_UNKNOWN));
+            });
             rd(f, "start", "p", rcall("rt_rd_payload", vec![]));
             f.ret_ok(tup(vec![v("start"), v("p")]));
         },

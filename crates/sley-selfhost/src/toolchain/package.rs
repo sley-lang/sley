@@ -29,7 +29,11 @@ use super::fingerprint::{keep, lit32, memo_ty, put, tyc};
 use super::inv::INV;
 use super::model::{GATE, LIM};
 use super::rt::{code, r};
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, b2v, blake3_large, bytesc, call, concat, field, gt, lt, mnew, ne, or,
+    push, rec, rem, sha256, shl, slice, sub, t, tget, tri, tup, u32c, u64c, v, vget, vlen, vnew,
+    vset,
+};
 
 /// A section, the envelope, or the image exceeds its ceiling
 /// (`PackageError::Oversized`).
@@ -148,36 +152,50 @@ pub fn define(m: &mut Module) {
             f.loop_(|f| {
                 f.let_(
                     "byte",
-                    call("rt_b", vec![vget(b2v(slice(v("val"), v("p"), u64c(1))), u64c(0))]),
+                    call(
+                        "rt_b",
+                        vec![vget(b2v(slice(v("val"), v("p"), u64c(1))), u64c(0))],
+                    ),
                 );
                 f.set("p", add(v("p"), u64c(1)));
-                f.set("ld", add(v("ld"), shl(rem(v("byte"), u64c(128)), v("shift"))));
-                f.if_(lt(v("byte"), u64c(128)), |f| f.break_());
+                f.set(
+                    "ld",
+                    add(v("ld"), shl(rem(v("byte"), u64c(128)), v("shift"))),
+                );
+                f.if_(lt(v("byte"), u64c(128)), super::super::seed::FnB::break_);
                 f.set("shift", add(v("shift"), u32c(7)));
             });
             f.ret(add(v("p"), v("ld")));
         },
     );
     // Constants section.
-    m.func("pk_constants", &[("inv", inv_ty.clone())], r(sec.clone()), |f| {
-        f.let_("cs", field(v("inv"), "csts"));
-        fail(f, gt(vlen(v("cs")), u64c(MAX_ROWS)), PK_OVERSIZED);
-        section_vars(f);
-        put_len(f, v("cs"));
-        f.for_u64("i", u64c(0), vlen(v("cs")), |f| {
-            f.let_("c", vget(v("cs"), v("i")));
-            f.let_(
-                "vl",
-                call("pk_cst_len", vec![field(v("c"), "value"), field(v("c"), "ty")]),
-            );
-            put(f, field(v("c"), "id"), u64c(32));
-            put(f, call("fp_be64", vec![v("vl")]), u64c(8));
-            put(f, field(v("c"), "value"), v("vl"));
-        });
-        keep(f, &["inv"]);
-        fail(f, gt(v("n"), u64c(MAX_CONSTANTS_BYTES)), PK_OVERSIZED);
-        f.ret_ok(tup(vec![concat(v("out")), v("n")]));
-    });
+    m.func(
+        "pk_constants",
+        &[("inv", inv_ty.clone())],
+        r(sec.clone()),
+        |f| {
+            f.let_("cs", field(v("inv"), "csts"));
+            fail(f, gt(vlen(v("cs")), u64c(MAX_ROWS)), PK_OVERSIZED);
+            section_vars(f);
+            put_len(f, v("cs"));
+            f.for_u64("i", u64c(0), vlen(v("cs")), |f| {
+                f.let_("c", vget(v("cs"), v("i")));
+                f.let_(
+                    "vl",
+                    call(
+                        "pk_cst_len",
+                        vec![field(v("c"), "value"), field(v("c"), "ty")],
+                    ),
+                );
+                put(f, field(v("c"), "id"), u64c(32));
+                put(f, call("fp_be64", vec![v("vl")]), u64c(8));
+                put(f, field(v("c"), "value"), v("vl"));
+            });
+            keep(f, &["inv"]);
+            fail(f, gt(v("n"), u64c(MAX_CONSTANTS_BYTES)), PK_OVERSIZED);
+            f.ret_ok(tup(vec![concat(v("out")), v("n")]));
+        },
+    );
     // Layouts section (one row per type definition).
     m.func(
         "pk_layouts",
@@ -304,7 +322,11 @@ pub fn define(m: &mut Module) {
             put_len(f, v("fps"));
             f.for_u64("k", u64c(0), vlen(v("fps")), |f| {
                 f.let_("fp", vget(v("fps"), v("k")));
-                fail(f, ne(call("rt_blen", vec![v("fp")]), u64c(32)), PK_MALFORMED);
+                fail(
+                    f,
+                    ne(call("rt_blen", vec![v("fp")]), u64c(32)),
+                    PK_MALFORMED,
+                );
                 put(f, v("fp"), u64c(32));
             });
             for name in ["instructions", "fuel", "units", "output"] {
@@ -350,17 +372,27 @@ pub fn define(m: &mut Module) {
         r(secs),
         |f| {
             for name in ["entry", "epoch", "root"] {
-                fail(f, ne(call("rt_blen", vec![v(name)]), u64c(32)), PK_MALFORMED);
+                fail(
+                    f,
+                    ne(call("rt_blen", vec![v(name)]), u64c(32)),
+                    PK_MALFORMED,
+                );
             }
             f.let_("c", tri(call("pk_constants", vec![v("inv")])));
             f.let_(
                 "l",
                 tri(call(
                     "pk_layouts",
-                    vec![v("inv"), mnew(t::bytes(), super::fingerprint::ent_ty(), vec![])],
+                    vec![
+                        v("inv"),
+                        mnew(t::bytes(), super::fingerprint::ent_ty(), vec![]),
+                    ],
                 )),
             );
-            f.let_("i", tri(call("pk_imports", vec![v("inv"), tget(v("l"), 2)])));
+            f.let_(
+                "i",
+                tri(call("pk_imports", vec![v("inv"), tget(v("l"), 2)])),
+            );
             f.let_(
                 "d",
                 tri(call(
@@ -469,31 +501,41 @@ pub fn define(m: &mut Module) {
         )
     };
     // The package digest: SHA-256 of the header (`ilen` = image length).
-    m.func("pk_package_digest", &pk_args(true), r(t::bytes()), move |f| {
-        f.let_("s", sections_call());
-        f.ret_ok(sha256(header_call()));
-    });
+    m.func(
+        "pk_package_digest",
+        &pk_args(true),
+        r(t::bytes()),
+        move |f| {
+            f.let_("s", sections_call());
+            f.ret_ok(sha256(header_call()));
+        },
+    );
     // The complete envelope (`ilen` = image length).
-    m.func("pk_envelope_sized", &pk_args(true), r(t::bytes()), move |f| {
-        f.let_("s", sections_call());
-        f.let_("h", header_call());
-        f.ret_ok(concat(vnew(
-            t::bytes(),
-            vec![
-                v("h"),
-                call("fp_be64", vec![v("ilen")]),
-                v("image"),
-                call("fp_be64", vec![tget(v("s"), 1)]),
-                tget(v("s"), 0),
-                call("fp_be64", vec![tget(v("s"), 3)]),
-                tget(v("s"), 2),
-                call("fp_be64", vec![tget(v("s"), 5)]),
-                tget(v("s"), 4),
-                call("fp_be64", vec![tget(v("s"), 7)]),
-                tget(v("s"), 6),
-            ],
-        )));
-    });
+    m.func(
+        "pk_envelope_sized",
+        &pk_args(true),
+        r(t::bytes()),
+        move |f| {
+            f.let_("s", sections_call());
+            f.let_("h", header_call());
+            f.ret_ok(concat(vnew(
+                t::bytes(),
+                vec![
+                    v("h"),
+                    call("fp_be64", vec![v("ilen")]),
+                    v("image"),
+                    call("fp_be64", vec![tget(v("s"), 1)]),
+                    tget(v("s"), 0),
+                    call("fp_be64", vec![tget(v("s"), 3)]),
+                    tget(v("s"), 2),
+                    call("fp_be64", vec![tget(v("s"), 5)]),
+                    tget(v("s"), 4),
+                    call("fp_be64", vec![tget(v("s"), 7)]),
+                    tget(v("s"), 6),
+                ],
+            )));
+        },
+    );
     // The complete envelope, measuring the image (at most 1 MiB).
     m.func("pk_envelope", &pk_args(false), r(t::bytes()), |f| {
         f.ret(call(

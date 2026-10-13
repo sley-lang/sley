@@ -22,15 +22,18 @@
 //! callee signatures, and bridge resolutions are memoized by key within one
 //! call.
 
-use sley_ssmc::{
-    BuiltinFailureKind, ConstData, ConstValue, IntegerWidth, MapEntryConst, TypeExpr,
-};
+use sley_ssmc::{BuiltinFailureKind, ConstData, ConstValue, IntegerWidth, MapEntryConst, TypeExpr};
 
 use super::inv::{INV, KIND_FUNCTION, KIND_IMPORT};
-use super::model::*;
+use super::model::{FUN, GATE, IMP, MEM, OP, TDEF};
 use super::rt::{code, r};
 use super::types::ty_lit;
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, and, blen, boolc, bridge_id, bytesc, call, concat, div, eq, field, ge,
+    gt, is_some, le, lt, mget, mget_opt, mhas, mins, mnew, mul, ne, none, not, or, push, rec, rem,
+    select, slice, some, sub, t, tget, tri, tup, u64c, unitc, unwrap, v, vget, vget_opt, vlen,
+    vnew, vset,
+};
 
 /// `VM_LOWER_PROFILE_UNSUPPORTED`.
 pub const VM_LOWER_PROFILE_UNSUPPORTED: u32 = 26_000;
@@ -128,7 +131,9 @@ fn pow2_table() -> E {
     lit_map(
         t::u64(),
         t::u64(),
-        (0..64_u32).map(|k| (u64_const(k.into()), u64_const(1_u64 << k))).collect(),
+        (0..64_u32)
+            .map(|k| (u64_const(k.into()), u64_const(1_u64 << k)))
+            .collect(),
     )
 }
 
@@ -196,8 +201,8 @@ fn bf(kind: BuiltinFailureKind) -> E {
 }
 
 /// The frozen identity of a bridge entry (discriminator 0).
-fn bridge(code4: &[u8; 4]) -> E {
-    bytesc(bridge_id(*code4, 0).as_bytes())
+fn bridge(code4: [u8; 4]) -> E {
+    bytesc(bridge_id(code4, 0).as_bytes())
 }
 
 /// Whether type bytes `e` carry tag `tag` (tags are single bytes).
@@ -220,7 +225,12 @@ fn ot(i: u64) -> E {
 }
 
 fn sig_ty() -> Ty {
-    t::tuple(vec![t::u64(), t::vec(t::bytes()), t::bytes(), t::vec(t::bytes())])
+    t::tuple(vec![
+        t::u64(),
+        t::vec(t::bytes()),
+        t::bytes(),
+        t::vec(t::bytes()),
+    ])
 }
 
 fn br_ty() -> Ty {
@@ -267,9 +277,14 @@ pub fn define(m: &mut Module) {
 #[allow(clippy::too_many_lines)]
 fn define_types(m: &mut Module) {
     // One byte of `bs` as UInt(64).
-    m.func("jg_byte", &[("bs", t::bytes()), ("p", t::u64())], t::u64(), |f| {
-        f.ret(mget(byte_table(), slice(v("bs"), v("p"), u64c(1))));
-    });
+    m.func(
+        "jg_byte",
+        &[("bs", t::bytes()), ("p", t::u64())],
+        t::u64(),
+        |f| {
+            f.ret(mget(byte_table(), slice(v("bs"), v("p"), u64c(1))));
+        },
+    );
     // A canonical LE7 varint at `p`: (value, new position).
     m.func(
         "jg_rdv",
@@ -285,7 +300,10 @@ fn define_types(m: &mut Module) {
                 f.if_(lt(v("b"), u64c(128)), |f| {
                     f.ret(tup(vec![add(v("value"), mul(v("b"), v("mult"))), v("p")]));
                 });
-                f.set("value", add(v("value"), mul(sub(v("b"), u64c(128)), v("mult"))));
+                f.set(
+                    "value",
+                    add(v("value"), mul(sub(v("b"), u64c(128)), v("mult"))),
+                );
                 f.set("mult", mul(v("mult"), u64c(128)));
             });
         },
@@ -310,33 +328,47 @@ fn define_types(m: &mut Module) {
                 ),
             ),
         );
-        f.ret(slice(v("ty"), add(v("k"), u64c(1)), sub(sub(v("n"), u64c(1)), v("k"))));
+        f.ret(slice(
+            v("ty"),
+            add(v("k"), u64c(1)),
+            sub(sub(v("n"), u64c(1)), v("k")),
+        ));
     });
     // A type from a tag and payload.
-    m.func("jg_mk", &[("tag", t::u64()), ("p", t::bytes())], t::bytes(), |f| {
-        f.ret(concat(vnew(
-            t::bytes(),
-            vec![
-                call("jg_uv", vec![v("tag")]),
-                call("jg_uv", vec![blen(v("p"))]),
-                v("p"),
-            ],
-        )));
-    });
+    m.func(
+        "jg_mk",
+        &[("tag", t::u64()), ("p", t::bytes())],
+        t::bytes(),
+        |f| {
+            f.ret(concat(vnew(
+                t::bytes(),
+                vec![
+                    call("jg_uv", vec![v("tag")]),
+                    call("jg_uv", vec![blen(v("p"))]),
+                    v("p"),
+                ],
+            )));
+        },
+    );
     // A two-field record payload `{1: a, 2: b}`.
-    m.func("jg_rec2", &[("a", t::bytes()), ("b", t::bytes())], t::bytes(), |f| {
-        f.ret(concat(vnew(
-            t::bytes(),
-            vec![
-                bytesc(&[2, 1]),
-                call("jg_uv", vec![blen(v("a"))]),
-                v("a"),
-                bytesc(&[2]),
-                call("jg_uv", vec![blen(v("b"))]),
-                v("b"),
-            ],
-        )));
-    });
+    m.func(
+        "jg_rec2",
+        &[("a", t::bytes()), ("b", t::bytes())],
+        t::bytes(),
+        |f| {
+            f.ret(concat(vnew(
+                t::bytes(),
+                vec![
+                    bytesc(&[2, 1]),
+                    call("jg_uv", vec![blen(v("a"))]),
+                    v("a"),
+                    bytesc(&[2]),
+                    call("jg_uv", vec![blen(v("b"))]),
+                    v("b"),
+                ],
+            )));
+        },
+    );
     // The two members of a Result / OrderedMap type.
     m.func(
         "jg_pair",
@@ -347,7 +379,10 @@ fn define_types(m: &mut Module) {
             f.let_("r1", call("jg_rdv", vec![v("p"), u64c(2)]));
             f.let_("s", tget(v("r1"), 1));
             f.let_("la", tget(v("r1"), 0));
-            f.let_("r2", call("jg_rdv", vec![v("p"), add(add(v("s"), v("la")), u64c(1))]));
+            f.let_(
+                "r2",
+                call("jg_rdv", vec![v("p"), add(add(v("s"), v("la")), u64c(1))]),
+            );
             f.ret(tup(vec![
                 slice(v("p"), v("s"), v("la")),
                 slice(v("p"), tget(v("r2"), 1), tget(v("r2"), 0)),
@@ -361,21 +396,35 @@ fn define_types(m: &mut Module) {
         f.var("out", vnew(t::bytes(), vec![]));
         f.for_u64("i", u64c(0), tget(v("r"), 0), |f| {
             f.let_("r2", call("jg_rdv", vec![v("lb"), v("p")]));
-            f.set("out", push(v("out"), slice(v("lb"), tget(v("r2"), 1), tget(v("r2"), 0))));
+            f.set(
+                "out",
+                push(v("out"), slice(v("lb"), tget(v("r2"), 1), tget(v("r2"), 0))),
+            );
             f.set("p", add(tget(v("r2"), 1), tget(v("r2"), 0)));
         });
         f.ret(v("out"));
     });
     // A `List<TypeExpr>` encoding.
-    m.func("jg_listb", &[("items", t::vec(t::bytes()))], t::bytes(), |f| {
-        f.var("parts", vnew(t::bytes(), vec![call("jg_uv", vec![vlen(v("items"))])]));
-        f.for_u64("i", u64c(0), vlen(v("items")), |f| {
-            f.let_("item", vget(v("items"), v("i")));
-            f.set("parts", push(v("parts"), call("jg_uv", vec![blen(v("item"))])));
-            f.set("parts", push(v("parts"), v("item")));
-        });
-        f.ret(concat(v("parts")));
-    });
+    m.func(
+        "jg_listb",
+        &[("items", t::vec(t::bytes()))],
+        t::bytes(),
+        |f| {
+            f.var(
+                "parts",
+                vnew(t::bytes(), vec![call("jg_uv", vec![vlen(v("items"))])]),
+            );
+            f.for_u64("i", u64c(0), vlen(v("items")), |f| {
+                f.let_("item", vget(v("items"), v("i")));
+                f.set(
+                    "parts",
+                    push(v("parts"), call("jg_uv", vec![blen(v("item"))])),
+                );
+                f.set("parts", push(v("parts"), v("item")));
+            });
+            f.ret(concat(v("parts")));
+        },
+    );
     // (definition, arguments) of a Named type.
     m.func(
         "jg_named",
@@ -386,7 +435,10 @@ fn define_types(m: &mut Module) {
             f.let_("r", call("jg_rdv", vec![v("p"), u64c(36)]));
             f.ret(tup(vec![
                 slice(v("p"), u64c(3), u64c(32)),
-                call("jg_listp", vec![slice(v("p"), tget(v("r"), 1), tget(v("r"), 0))]),
+                call(
+                    "jg_listp",
+                    vec![slice(v("p"), tget(v("r"), 1), tget(v("r"), 0))],
+                ),
             ]));
         },
     );
@@ -414,7 +466,10 @@ fn define_types(m: &mut Module) {
             f.let_("r1", call("jg_rdv", vec![v("p"), u64c(2)]));
             f.let_("ls", tget(v("r1"), 1));
             f.let_("ll", tget(v("r1"), 0));
-            f.let_("r2", call("jg_rdv", vec![v("p"), add(add(v("ls"), v("ll")), u64c(1))]));
+            f.let_(
+                "r2",
+                call("jg_rdv", vec![v("p"), add(add(v("ls"), v("ll")), u64c(1))]),
+            );
             f.ret(tup(vec![
                 call("jg_listp", vec![slice(v("p"), v("ls"), v("ll"))]),
                 slice(v("p"), tget(v("r2"), 1), tget(v("r2"), 0)),
@@ -432,7 +487,10 @@ fn define_types(m: &mut Module) {
         t::bytes(),
         |f| {
             f.let_("lb", call("jg_listb", vec![v("params")]));
-            f.var("sp", vnew(t::bytes(), vec![call("jg_uv", vec![vlen(v("effects"))])]));
+            f.var(
+                "sp",
+                vnew(t::bytes(), vec![call("jg_uv", vec![vlen(v("effects"))])]),
+            );
             f.for_u64("i", u64c(0), vlen(v("effects")), |f| {
                 f.set("sp", push(v("sp"), bytesc(&[32])));
                 f.set("sp", push(v("sp"), vget(v("effects"), v("i"))));
@@ -471,7 +529,10 @@ fn define_types(m: &mut Module) {
             f.ret(tget(call("jg_named", vec![v("ty")]), 1));
         });
         f.if_(
-            or(or(eq(v("tag"), u64c(11)), eq(v("tag"), u64c(13))), eq(v("tag"), u64c(18))),
+            or(
+                or(eq(v("tag"), u64c(11)), eq(v("tag"), u64c(13))),
+                eq(v("tag"), u64c(18)),
+            ),
             |f| f.ret(vnew(t::bytes(), vec![call("jg_pl", vec![v("ty")])])),
         );
         f.if_(or(eq(v("tag"), u64c(12)), eq(v("tag"), u64c(14))), |f| {
@@ -487,10 +548,16 @@ fn define_types(m: &mut Module) {
     // Explicit-stack push that overwrites past `top`.
     m.func(
         "jg_spush",
-        &[("xs", t::vec(t::bytes())), ("top", t::u64()), ("x", t::bytes())],
+        &[
+            ("xs", t::vec(t::bytes())),
+            ("top", t::u64()),
+            ("x", t::bytes()),
+        ],
         t::vec(t::bytes()),
         |f| {
-            f.if_(lt(v("top"), vlen(v("xs"))), |f| f.ret(vset(v("xs"), v("top"), v("x"))));
+            f.if_(lt(v("top"), vlen(v("xs"))), |f| {
+                f.ret(vset(v("xs"), v("top"), v("x")));
+            });
             f.ret(push(v("xs"), v("x")));
         },
     );
@@ -499,7 +566,9 @@ fn define_types(m: &mut Module) {
         &[("xs", t::vec(t::u64())), ("top", t::u64()), ("x", t::u64())],
         t::vec(t::u64()),
         |f| {
-            f.if_(lt(v("top"), vlen(v("xs"))), |f| f.ret(vset(v("xs"), v("top"), v("x"))));
+            f.if_(lt(v("top"), vlen(v("xs"))), |f| {
+                f.ret(vset(v("xs"), v("top"), v("x")));
+            });
             f.ret(push(v("xs"), v("x")));
         },
     );
@@ -540,114 +609,141 @@ fn define_traits(m: &mut Module) {
     // reads as all-false, which every judgment use treats identically).
     // Named types expand through their definitions with explicit argument
     // environments (`substitute`).
-    m.func("jg_traits", &[("inv", m.ty(INV)), ("ty", t::bytes())], t::u64(), |f| {
-        f.var("st", vnew(t::bytes(), vec![v("ty")]));
-        f.var("se", vnew(t::u64(), vec![u64c(0)]));
-        f.var("top", u64c(1));
-        // Environment 0 is empty; others are (arguments, parent).
-        f.var("eargs", vnew(t::vec(t::bytes()), vec![vnew(t::bytes(), vec![])]));
-        f.var("epar", vnew(t::u64(), vec![u64c(0)]));
-        f.var("seen", mnew(t::bytes(), t::bool(), vec![]));
-        f.var("eq_", boolc(true));
-        f.var("to", boolc(true));
-        f.var("hs", boolc(true));
-        f.var("ps", boolc(true));
-        f.while_(gt(v("top"), u64c(0)), |f| {
-            f.set("top", sub(v("top"), u64c(1)));
-            f.let_("x", vget(v("st"), v("top")));
-            f.let_("env", vget(v("se"), v("top")));
-            f.let_("tag", call("jg_byte", vec![v("x"), u64c(0)]));
-            let pushk = |f: &mut FnB<'_>, ty: E, env: E| {
-                f.set("st", call("jg_spush", vec![v("st"), v("top"), ty]));
-                f.set("se", call("jg_upush", vec![v("se"), v("top"), env]));
-                f.set("top", add(v("top"), u64c(1)));
-            };
-            f.if_(or(eq(v("tag"), u64c(5)), eq(v("tag"), u64c(6))), |f| {
-                f.set("to", boolc(false));
-            });
-            f.if_(eq(v("tag"), u64c(9)), |f| {
-                f.let_("items", call("jg_listp", vec![call("jg_pl", vec![v("x")])]));
-                f.for_u64("i", u64c(0), vlen(v("items")), |f| {
-                    pushk(f, vget(v("items"), v("i")), v("env"));
+    m.func(
+        "jg_traits",
+        &[("inv", m.ty(INV)), ("ty", t::bytes())],
+        t::u64(),
+        |f| {
+            f.var("st", vnew(t::bytes(), vec![v("ty")]));
+            f.var("se", vnew(t::u64(), vec![u64c(0)]));
+            f.var("top", u64c(1));
+            // Environment 0 is empty; others are (arguments, parent).
+            f.var(
+                "eargs",
+                vnew(t::vec(t::bytes()), vec![vnew(t::bytes(), vec![])]),
+            );
+            f.var("epar", vnew(t::u64(), vec![u64c(0)]));
+            f.var("seen", mnew(t::bytes(), t::bool(), vec![]));
+            f.var("eq_", boolc(true));
+            f.var("to", boolc(true));
+            f.var("hs", boolc(true));
+            f.var("ps", boolc(true));
+            f.while_(gt(v("top"), u64c(0)), |f| {
+                f.set("top", sub(v("top"), u64c(1)));
+                f.let_("x", vget(v("st"), v("top")));
+                f.let_("env", vget(v("se"), v("top")));
+                f.let_("tag", call("jg_byte", vec![v("x"), u64c(0)]));
+                let pushk = |f: &mut FnB<'_>, ty: E, env: E| {
+                    f.set("st", call("jg_spush", vec![v("st"), v("top"), ty]));
+                    f.set("se", call("jg_upush", vec![v("se"), v("top"), env]));
+                    f.set("top", add(v("top"), u64c(1)));
+                };
+                f.if_(or(eq(v("tag"), u64c(5)), eq(v("tag"), u64c(6))), |f| {
+                    f.set("to", boolc(false));
                 });
-            });
-            f.if_(eq(v("tag"), u64c(10)), |f| {
-                f.let_("nm", call("jg_named", vec![v("x")]));
-                f.let_("def", tget(v("nm"), 0));
-                f.let_("args", tget(v("nm"), 1));
-                f.var("ne", u64c(0));
-                f.var("walk", boolc(true));
-                f.if_else(
-                    eq(vlen(v("args")), u64c(0)),
-                    |f| {
-                        f.if_else(
-                            mhas(v("seen"), v("def")),
-                            |f| f.set("walk", boolc(false)),
-                            |f| f.set("seen", mins(v("seen"), v("def"), boolc(true))),
-                        );
-                    },
-                    |f| {
-                        f.set("ne", vlen(v("eargs")));
-                        f.set("eargs", push(v("eargs"), v("args")));
-                        f.set("epar", push(v("epar"), v("env")));
-                    },
-                );
-                f.if_(v("walk"), |f| {
-                    f.match_opt(
-                        call("inv_tdef", vec![v("inv"), v("def")]),
-                        "td",
+                f.if_(eq(v("tag"), u64c(9)), |f| {
+                    f.let_("items", call("jg_listp", vec![call("jg_pl", vec![v("x")])]));
+                    f.for_u64("i", u64c(0), vlen(v("items")), |f| {
+                        pushk(f, vget(v("items"), v("i")), v("env"));
+                    });
+                });
+                f.if_(eq(v("tag"), u64c(10)), |f| {
+                    f.let_("nm", call("jg_named", vec![v("x")]));
+                    f.let_("def", tget(v("nm"), 0));
+                    f.let_("args", tget(v("nm"), 1));
+                    f.var("ne", u64c(0));
+                    f.var("walk", boolc(true));
+                    f.if_else(
+                        eq(vlen(v("args")), u64c(0)),
                         |f| {
-                            f.let_("ms", field(v("td"), "members"));
-                            f.for_u64("i", u64c(0), vlen(v("ms")), |f| {
-                                f.let_("mm", vget(v("ms"), v("i")));
-                                f.if_(field(v("mm"), "has_ty"), |f| {
-                                    pushk(f, field(v("mm"), "ty"), v("ne"));
-                                });
-                            });
+                            f.if_else(
+                                mhas(v("seen"), v("def")),
+                                |f| f.set("walk", boolc(false)),
+                                |f| f.set("seen", mins(v("seen"), v("def"), boolc(true))),
+                            );
                         },
-                        |f| f.ret(u64c(0)),
+                        |f| {
+                            f.set("ne", vlen(v("eargs")));
+                            f.set("eargs", push(v("eargs"), v("args")));
+                            f.set("epar", push(v("epar"), v("env")));
+                        },
+                    );
+                    f.if_(v("walk"), |f| {
+                        f.match_opt(
+                            call("inv_tdef", vec![v("inv"), v("def")]),
+                            "td",
+                            |f| {
+                                f.let_("ms", field(v("td"), "members"));
+                                f.for_u64("i", u64c(0), vlen(v("ms")), |f| {
+                                    f.let_("mm", vget(v("ms"), v("i")));
+                                    f.if_(field(v("mm"), "has_ty"), |f| {
+                                        pushk(f, field(v("mm"), "ty"), v("ne"));
+                                    });
+                                });
+                            },
+                            |f| f.ret(u64c(0)),
+                        );
+                    });
+                });
+                f.if_(or(eq(v("tag"), u64c(11)), eq(v("tag"), u64c(12))), |f| {
+                    f.set("to", boolc(false));
+                });
+                f.if_(or(eq(v("tag"), u64c(11)), eq(v("tag"), u64c(13))), |f| {
+                    pushk(f, call("jg_pl", vec![v("x")]), v("env"));
+                });
+                f.if_(or(eq(v("tag"), u64c(12)), eq(v("tag"), u64c(14))), |f| {
+                    f.let_("pr", call("jg_pair", vec![v("x")]));
+                    pushk(f, tget(v("pr"), 0), v("env"));
+                    pushk(f, tget(v("pr"), 1), v("env"));
+                });
+                f.if_(eq(v("tag"), u64c(15)), |f| f.set("to", boolc(false)));
+                f.if_(or(eq(v("tag"), u64c(16)), eq(v("tag"), u64c(17))), |f| {
+                    f.set("to", boolc(false));
+                    f.set("hs", boolc(false));
+                    f.set("ps", boolc(false));
+                });
+                f.if_(eq(v("tag"), u64c(18)), |f| f.ret(u64c(0)));
+                f.if_(eq(v("tag"), u64c(19)), |f| {
+                    f.if_(eq(v("env"), u64c(0)), |f| f.ret(u64c(0)));
+                    f.let_(
+                        "pi",
+                        call("jg_rdv", vec![call("jg_pl", vec![v("x")]), u64c(0)]),
+                    );
+                    f.let_("ea", vget(v("eargs"), v("env")));
+                    f.if_(ge(tget(v("pi"), 0), vlen(v("ea"))), |f| f.ret(u64c(0)));
+                    pushk(
+                        f,
+                        vget(v("ea"), tget(v("pi"), 0)),
+                        vget(v("epar"), v("env")),
                     );
                 });
             });
-            f.if_(or(eq(v("tag"), u64c(11)), eq(v("tag"), u64c(12))), |f| {
-                f.set("to", boolc(false));
-            });
-            f.if_(or(eq(v("tag"), u64c(11)), eq(v("tag"), u64c(13))), |f| {
-                pushk(f, call("jg_pl", vec![v("x")]), v("env"));
-            });
-            f.if_(or(eq(v("tag"), u64c(12)), eq(v("tag"), u64c(14))), |f| {
-                f.let_("pr", call("jg_pair", vec![v("x")]));
-                pushk(f, tget(v("pr"), 0), v("env"));
-                pushk(f, tget(v("pr"), 1), v("env"));
-            });
-            f.if_(eq(v("tag"), u64c(15)), |f| f.set("to", boolc(false)));
-            f.if_(or(eq(v("tag"), u64c(16)), eq(v("tag"), u64c(17))), |f| {
-                f.set("to", boolc(false));
-                f.set("hs", boolc(false));
-                f.set("ps", boolc(false));
-            });
-            f.if_(eq(v("tag"), u64c(18)), |f| f.ret(u64c(0)));
-            f.if_(eq(v("tag"), u64c(19)), |f| {
-                f.if_(eq(v("env"), u64c(0)), |f| f.ret(u64c(0)));
-                f.let_("pi", call("jg_rdv", vec![call("jg_pl", vec![v("x")]), u64c(0)]));
-                f.let_("ea", vget(v("eargs"), v("env")));
-                f.if_(ge(tget(v("pi"), 0), vlen(v("ea"))), |f| f.ret(u64c(0)));
-                pushk(f, vget(v("ea"), tget(v("pi"), 0)), vget(v("epar"), v("env")));
-            });
-        });
-        let b = |name: &str, weight: u64| select(v(name), u64c(weight), u64c(0));
-        f.ret(add(add(add(b("eq_", 1), b("to", 2)), b("hs", 4)), b("ps", 8)));
-    });
+            let b = |name: &str, weight: u64| select(v(name), u64c(weight), u64c(0));
+            f.ret(add(
+                add(add(b("eq_", 1), b("to", 2)), b("hs", 4)),
+                b("ps", 8),
+            ));
+        },
+    );
     // Traits plus the contains-float bit (16) of one type.
-    m.func("jg_tinfo", &[("inv", m.ty(INV)), ("ty", t::bytes())], t::u64(), |f| {
-        f.let_("mask", call("jg_mask", vec![v("ty")]));
-        f.let_(
-            "fl",
-            select(or(has(v("mask"), 1 << 5), has(v("mask"), 1 << 6)), u64c(TR_FL), u64c(0)),
-        );
-        f.if_(has(v("mask"), 1 << 19), |f| f.ret(v("fl")));
-        f.ret(add(call("jg_traits", vec![v("inv"), v("ty")]), v("fl")));
-    });
+    m.func(
+        "jg_tinfo",
+        &[("inv", m.ty(INV)), ("ty", t::bytes())],
+        t::u64(),
+        |f| {
+            f.let_("mask", call("jg_mask", vec![v("ty")]));
+            f.let_(
+                "fl",
+                select(
+                    or(has(v("mask"), 1 << 5), has(v("mask"), 1 << 6)),
+                    u64c(TR_FL),
+                    u64c(0),
+                ),
+            );
+            f.if_(has(v("mask"), 1 << 19), |f| f.ret(v("fl")));
+            f.ret(add(call("jg_traits", vec![v("inv"), v("ty")]), v("fl")));
+        },
+    );
 }
 
 // ----- operation judgment -----
@@ -750,7 +846,9 @@ fn define_ops(m: &mut Module) {
             f.let_("ms", field(v("td"), "members"));
             f.for_u64("i", u64c(0), vlen(v("ms")), |f| {
                 f.let_("mm", vget(v("ms"), v("i")));
-                f.if_(eq(field(v("mm"), "member"), v("mid")), |f| f.ret(some(v("mm"))));
+                f.if_(eq(field(v("mm"), "member"), v("mid")), |f| {
+                    f.ret(some(v("mm")));
+                });
             });
             f.ret(none(m_ty(MEM)));
         },
@@ -900,10 +998,7 @@ fn define_ops(m: &mut Module) {
     // Maps (`tr`: the key's traits).
     family(m, "jg_f4", |f| {
         imm_none(f);
-        f.let_(
-            "adm",
-            and(has(v("tr"), TR_TO), not(has(v("tr"), TR_FL))),
-        );
+        f.let_("adm", and(has(v("tr"), TR_TO), not(has(v("tr"), TR_FL))));
         f.if_(eq(v("opc"), u64c(36)), |f| {
             fail_if(f, ne(rem(v("n"), u64c(2)), u64c(0)), SM);
             f.if_(eq(v("n"), u64c(0)), |f| {
@@ -912,7 +1007,11 @@ fn define_ops(m: &mut Module) {
                 fail_if(f, not(tag_is(v("d0"), 14)), SM);
                 f.let_("pr", call("jg_pair", vec![v("d0")]));
                 fail_if(f, not(tag_is(tget(v("pr"), 0), 12)), SM);
-                fail_if(f, ne(tget(v("pr"), 1), bf(BuiltinFailureKind::DuplicateKey)), SM);
+                fail_if(
+                    f,
+                    ne(tget(v("pr"), 1), bf(BuiltinFailureKind::DuplicateKey)),
+                    SM,
+                );
                 fail_if(f, not(v("adm")), SM);
                 done(f, v("d0"));
             });
@@ -928,7 +1027,10 @@ fn define_ops(m: &mut Module) {
                 f,
                 mk(
                     14,
-                    rec2(mk(12, rec2(ot(0), ot(1))), bf(BuiltinFailureKind::DuplicateKey)),
+                    rec2(
+                        mk(12, rec2(ot(0), ot(1))),
+                        bf(BuiltinFailureKind::DuplicateKey),
+                    ),
                 ),
             );
         });
@@ -936,7 +1038,9 @@ fn define_ops(m: &mut Module) {
         fail_if(f, not(tag_is(ot(0), 12)), SM);
         f.let_("pr", call("jg_pair", vec![ot(0)]));
         fail_if(f, ne(ot(1), tget(v("pr"), 0)), SM);
-        f.if_(eq(v("opc"), u64c(37)), |f| done(f, mk(13, tget(v("pr"), 1))));
+        f.if_(eq(v("opc"), u64c(37)), |f| {
+            done(f, mk(13, tget(v("pr"), 1)));
+        });
         f.if_(eq(v("opc"), u64c(38)), |f| done(f, bool_ty()));
         f.if_(eq(v("opc"), u64c(39)), |f| {
             fail_if(f, ne(ot(2), tget(v("pr"), 1)), SM);
@@ -1080,7 +1184,10 @@ fn define_ops(m: &mut Module) {
                     fail_if(f, or(ne(ot(1), v("req")), ne(ot(0), v("resp"))), SM);
                 },
                 |f| {
-                    f.let_("scope", select(eq(v("kind"), u64c(8)), bytes_ty(), unit_ty()));
+                    f.let_(
+                        "scope",
+                        select(eq(v("kind"), u64c(8)), bytes_ty(), unit_ty()),
+                    );
                     fail_if(f, or(ne(ot(0), v("scope")), ne(ot(1), v("req"))), SM);
                 },
             );
@@ -1125,7 +1232,10 @@ fn define_ops(m: &mut Module) {
         |f| {
             f.let_("opc", field(v("op"), "opcode"));
             f.if_(
-                and(v("cell"), and(ne(v("opc"), u64c(177)), ne(v("opc"), u64c(178)))),
+                and(
+                    v("cell"),
+                    and(ne(v("opc"), u64c(177)), ne(v("opc"), u64c(178))),
+                ),
                 |f| f.ret(u64c(SM)),
             );
             f.var("fam", u64c(0));
@@ -1148,7 +1258,9 @@ fn define_ops(m: &mut Module) {
             f.let_("dec", field(v("op"), "results"));
             f.if_(ne(vlen(v("dec")), u64c(1)), |f| f.ret(u64c(SM)));
             if !crate::seed::fault("judge-declared") {
-                f.if_(ne(vget(v("dec"), u64c(0)), tget(v("res"), 1)), |f| f.ret(u64c(SM)));
+                f.if_(ne(vget(v("dec"), u64c(0)), tget(v("res"), 1)), |f| {
+                    f.ret(u64c(SM));
+                });
             }
             f.ret(u64c(0));
         },
@@ -1170,40 +1282,47 @@ fn define_ops(m: &mut Module) {
     );
     // A callee signature (`function_signature`): (status, parameters,
     // result, effects).
-    m.func("jg_sig", &[("inv", m.ty(INV)), ("id", t::bytes())], sig_ty(), |f| {
-        let bad = || {
-            tup(vec![
-                u64c(IM),
-                vnew(t::bytes(), vec![]),
-                bytesc(&[]),
-                vnew(t::bytes(), vec![]),
-            ])
-        };
-        f.match_opt(
-            call("inv_fun", vec![v("inv"), v("id")]),
-            "g",
-            |f| {
-                f.if_(ne(vlen(field(v("g"), "tparams")), u64c(0)), move |f| f.ret(bad()));
-                f.let_("ps", field(v("g"), "params"));
-                f.var("tys", vnew(t::bytes(), vec![]));
-                f.for_u64("i", u64c(0), vlen(v("ps")), |f| {
-                    f.match_opt(
-                        call("inv_prm", vec![v("inv"), vget(v("ps"), v("i"))]),
-                        "p",
-                        |f| f.set("tys", push(v("tys"), field(v("p"), "ty"))),
-                        move |f| f.ret(bad()),
-                    );
-                });
-                f.ret(tup(vec![
-                    u64c(0),
-                    v("tys"),
-                    field(v("g"), "result"),
-                    field(v("g"), "effects"),
-                ]));
-            },
-            move |f| f.ret(bad()),
-        );
-    });
+    m.func(
+        "jg_sig",
+        &[("inv", m.ty(INV)), ("id", t::bytes())],
+        sig_ty(),
+        |f| {
+            let bad = || {
+                tup(vec![
+                    u64c(IM),
+                    vnew(t::bytes(), vec![]),
+                    bytesc(&[]),
+                    vnew(t::bytes(), vec![]),
+                ])
+            };
+            f.match_opt(
+                call("inv_fun", vec![v("inv"), v("id")]),
+                "g",
+                |f| {
+                    f.if_(ne(vlen(field(v("g"), "tparams")), u64c(0)), move |f| {
+                        f.ret(bad());
+                    });
+                    f.let_("ps", field(v("g"), "params"));
+                    f.var("tys", vnew(t::bytes(), vec![]));
+                    f.for_u64("i", u64c(0), vlen(v("ps")), |f| {
+                        f.match_opt(
+                            call("inv_prm", vec![v("inv"), vget(v("ps"), v("i"))]),
+                            "p",
+                            |f| f.set("tys", push(v("tys"), field(v("p"), "ty"))),
+                            move |f| f.ret(bad()),
+                        );
+                    });
+                    f.ret(tup(vec![
+                        u64c(0),
+                        v("tys"),
+                        field(v("g"), "result"),
+                        field(v("g"), "effects"),
+                    ]));
+                },
+                move |f| f.ret(bad()),
+            );
+        },
+    );
     // Whether an import row is a frozen-field push row (`is_push_row`).
     m.func("jg_push_row", &[("imp", m.ty(IMP))], t::bool(), |f| {
         f.let_("id", field(v("imp"), "id"));
@@ -1218,7 +1337,10 @@ fn define_ops(m: &mut Module) {
     // `is_push_identity`.
     m.func("jg_push_id", &[("id", t::bytes())], t::bool(), |f| {
         f.ret(and(
-            eq(slice(v("id"), u64c(0), u64c(16)), bytesc(b"SLY1/BRIDGE/PSH1")),
+            eq(
+                slice(v("id"), u64c(0), u64c(16)),
+                bytesc(b"SLY1/BRIDGE/PSH1"),
+            ),
             eq(slice(v("id"), u64c(20), u64c(12)), bytesc(&[0; 12])),
         ));
     });
@@ -1256,7 +1378,7 @@ fn define_ops(m: &mut Module) {
             (9, b"BLN1", t::bytes(), t::u64()),
         ];
         for (kind, code4, request, response) in rows {
-            f.if_(eq(v("id"), bridge(code4)), move |f| {
+            f.if_(eq(v("id"), bridge(*code4)), move |f| {
                 f.set("kind", u64c(kind));
                 f.set("req", tyb(&request));
                 f.set("resp", tyb(&response));
@@ -1265,62 +1387,70 @@ fn define_ops(m: &mut Module) {
         f.if_(eq(v("kind"), u64c(0)), |f| f.ret(u64c(0)));
         f.if_(not(call("jg_frozen", vec![v("imp")])), |f| f.ret(u64c(0)));
         f.if_(
-            or(ne(field(v("imp"), "req"), v("req")), ne(field(v("imp"), "resp"), v("resp"))),
+            or(
+                ne(field(v("imp"), "req"), v("req")),
+                ne(field(v("imp"), "resp"), v("resp")),
+            ),
             |f| f.ret(u64c(0)),
         );
         f.ret(v("kind"));
     });
     // Bridge resolution for one `adapter_invoke` immediate: (kind, push
     // row conforming, request, response); kind 0 refuses, 3 is push.
-    m.func("jg_bridge", &[("inv", m.ty(INV)), ("id", t::bytes())], br_ty(), |f| {
-        f.let_("row", call("inv_imp", vec![v("inv"), v("id")]));
-        f.if_(call("jg_push_id", vec![v("id")]), |f| {
-            f.var("rowok", boolc(false));
-            f.var("req", bytesc(&[]));
-            f.var("resp", bytesc(&[]));
+    m.func(
+        "jg_bridge",
+        &[("inv", m.ty(INV)), ("id", t::bytes())],
+        br_ty(),
+        |f| {
+            f.let_("row", call("inv_imp", vec![v("inv"), v("id")]));
+            f.if_(call("jg_push_id", vec![v("id")]), |f| {
+                f.var("rowok", boolc(false));
+                f.var("req", bytesc(&[]));
+                f.var("resp", bytesc(&[]));
+                f.match_opt(
+                    v("row"),
+                    "imp",
+                    |f| {
+                        f.set("rowok", call("jg_push_row", vec![v("imp")]));
+                        f.set("req", field(v("imp"), "req"));
+                        f.set("resp", field(v("imp"), "resp"));
+                    },
+                    |_| {},
+                );
+                f.var("ok_", v("rowok"));
+                f.if_(eq(v("id"), bridge(*b"PSH1")), |f| {
+                    // The frozen identity is approved by any carried push row.
+                    f.set("ok_", boolc(false));
+                    f.let_("imps", field(v("inv"), "imps"));
+                    f.for_u64("i", u64c(0), vlen(v("imps")), |f| {
+                        f.if_(call("jg_push_row", vec![vget(v("imps"), v("i"))]), |f| {
+                            f.set("ok_", boolc(true));
+                        });
+                    });
+                });
+                f.ret(tup(vec![
+                    select(v("ok_"), u64c(3), u64c(0)),
+                    v("rowok"),
+                    v("req"),
+                    v("resp"),
+                ]));
+            });
             f.match_opt(
                 v("row"),
                 "imp",
                 |f| {
-                    f.set("rowok", call("jg_push_row", vec![v("imp")]));
-                    f.set("req", field(v("imp"), "req"));
-                    f.set("resp", field(v("imp"), "resp"));
+                    f.ret(tup(vec![
+                        call("jg_row_kind", vec![v("imp")]),
+                        boolc(true),
+                        field(v("imp"), "req"),
+                        field(v("imp"), "resp"),
+                    ]));
                 },
                 |_| {},
             );
-            f.var("ok_", v("rowok"));
-            f.if_(eq(v("id"), bridge(b"PSH1")), |f| {
-                // The frozen identity is approved by any carried push row.
-                f.set("ok_", boolc(false));
-                f.let_("imps", field(v("inv"), "imps"));
-                f.for_u64("i", u64c(0), vlen(v("imps")), |f| {
-                    f.if_(call("jg_push_row", vec![vget(v("imps"), v("i"))]), |f| {
-                        f.set("ok_", boolc(true));
-                    });
-                });
-            });
-            f.ret(tup(vec![
-                select(v("ok_"), u64c(3), u64c(0)),
-                v("rowok"),
-                v("req"),
-                v("resp"),
-            ]));
-        });
-        f.match_opt(
-            v("row"),
-            "imp",
-            |f| {
-                f.ret(tup(vec![
-                    call("jg_row_kind", vec![v("imp")]),
-                    boolc(true),
-                    field(v("imp"), "req"),
-                    field(v("imp"), "resp"),
-                ]));
-            },
-            |_| {},
-        );
-        f.ret(tup(vec![u64c(0), boolc(false), bytesc(&[]), bytesc(&[])]));
-    });
+            f.ret(tup(vec![u64c(0), boolc(false), bytesc(&[]), bytesc(&[])]));
+        },
+    );
 }
 
 /// A model type by name.
@@ -1342,223 +1472,256 @@ fn define_function(m: &mut Module) {
             f.ret(mins(v("mm"), v("ty"), call("jg_mask", vec![v("ty")])));
         },
     );
-    m.func("jg_function", &[("inv", m.ty(INV)), ("fid", t::bytes())], r(t::unit()), |f| {
-        f.var("fun_", none(m_ty(FUN)));
-        f.match_opt(
-            call("inv_fun", vec![v("inv"), v("fid")]),
-            "g",
-            |f| f.set("fun_", some(v("g"))),
-            |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
-        );
-        f.let_("fun", unwrap(v("fun_")));
-        f.let_("blocks", field(v("fun"), "blocks"));
-        // Register types (`Maps::build`), with tag masks.
-        f.var("pty", mnew(t::bytes(), t::bytes(), vec![]));
-        f.var("oty", mnew(t::bytes(), t::vec(t::bytes()), vec![]));
-        f.var("mm", mnew(t::bytes(), t::u64(), vec![]));
-        f.var("ops", vnew(m_ty(OP), vec![]));
-        f.var("regs", u64c(0));
-        f.var("big", boolc(false));
-        let param = |f: &mut FnB<'_>, id: E| {
-            f.let_("pid", id);
+    m.func(
+        "jg_function",
+        &[("inv", m.ty(INV)), ("fid", t::bytes())],
+        r(t::unit()),
+        |f| {
+            f.var("fun_", none(m_ty(FUN)));
             f.match_opt(
-                call("inv_prm", vec![v("inv"), v("pid")]),
-                "p",
-                |f| {
-                    f.set("pty", mins(v("pty"), v("pid"), field(v("p"), "ty")));
-                    f.set("mm", call("jg_mmemo", vec![v("mm"), field(v("p"), "ty")]));
-                    f.set("regs", add(v("regs"), u64c(1)));
-                },
+                call("inv_fun", vec![v("inv"), v("fid")]),
+                "g",
+                |f| f.set("fun_", some(v("g"))),
                 |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
             );
-        };
-        f.let_("fps", field(v("fun"), "params"));
-        f.for_u64("i", u64c(0), vlen(v("fps")), move |f| param(f, vget(v("fps"), v("i"))));
-        f.for_u64("bi", u64c(0), vlen(v("blocks")), move |f| {
-            f.match_opt(
-                call("inv_blk", vec![v("inv"), vget(v("blocks"), v("bi"))]),
-                "blk",
-                move |f| {
-                    f.let_("bps", field(v("blk"), "params"));
-                    f.for_u64("i", u64c(0), vlen(v("bps")), move |f| {
-                        param(f, vget(v("bps"), v("i")));
-                    });
-                    f.let_("bops", field(v("blk"), "ops"));
-                    f.for_u64("j", u64c(0), vlen(v("bops")), |f| {
-                        f.let_("oid", vget(v("bops"), v("j")));
-                        f.match_opt(
-                            call("inv_op", vec![v("inv"), v("oid")]),
-                            "op",
-                            |f| {
-                                f.let_("res", field(v("op"), "results"));
-                                f.if_(
-                                    or(
-                                        gt(vlen(v("res")), u64c(65_535)),
-                                        gt(vlen(field(v("op"), "operands")), u64c(65_535)),
-                                    ),
-                                    |f| f.set("big", boolc(true)),
-                                );
-                                f.set("oty", mins(v("oty"), v("oid"), v("res")));
-                                f.for_u64("k", u64c(0), vlen(v("res")), |f| {
-                                    f.set(
-                                        "mm",
-                                        call("jg_mmemo", vec![v("mm"), vget(v("res"), v("k"))]),
+            f.let_("fun", unwrap(v("fun_")));
+            f.let_("blocks", field(v("fun"), "blocks"));
+            // Register types (`Maps::build`), with tag masks.
+            f.var("pty", mnew(t::bytes(), t::bytes(), vec![]));
+            f.var("oty", mnew(t::bytes(), t::vec(t::bytes()), vec![]));
+            f.var("mm", mnew(t::bytes(), t::u64(), vec![]));
+            f.var("ops", vnew(m_ty(OP), vec![]));
+            f.var("regs", u64c(0));
+            f.var("big", boolc(false));
+            let param = |f: &mut FnB<'_>, id: E| {
+                f.let_("pid", id);
+                f.match_opt(
+                    call("inv_prm", vec![v("inv"), v("pid")]),
+                    "p",
+                    |f| {
+                        f.set("pty", mins(v("pty"), v("pid"), field(v("p"), "ty")));
+                        f.set("mm", call("jg_mmemo", vec![v("mm"), field(v("p"), "ty")]));
+                        f.set("regs", add(v("regs"), u64c(1)));
+                    },
+                    |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                );
+            };
+            f.let_("fps", field(v("fun"), "params"));
+            f.for_u64("i", u64c(0), vlen(v("fps")), move |f| {
+                param(f, vget(v("fps"), v("i")));
+            });
+            f.for_u64("bi", u64c(0), vlen(v("blocks")), move |f| {
+                f.match_opt(
+                    call("inv_blk", vec![v("inv"), vget(v("blocks"), v("bi"))]),
+                    "blk",
+                    move |f| {
+                        f.let_("bps", field(v("blk"), "params"));
+                        f.for_u64("i", u64c(0), vlen(v("bps")), move |f| {
+                            param(f, vget(v("bps"), v("i")));
+                        });
+                        f.let_("bops", field(v("blk"), "ops"));
+                        f.for_u64("j", u64c(0), vlen(v("bops")), |f| {
+                            f.let_("oid", vget(v("bops"), v("j")));
+                            f.match_opt(
+                                call("inv_op", vec![v("inv"), v("oid")]),
+                                "op",
+                                |f| {
+                                    f.let_("res", field(v("op"), "results"));
+                                    f.if_(
+                                        or(
+                                            gt(vlen(v("res")), u64c(65_535)),
+                                            gt(vlen(field(v("op"), "operands")), u64c(65_535)),
+                                        ),
+                                        |f| f.set("big", boolc(true)),
                                     );
-                                });
-                                f.set("regs", add(v("regs"), vlen(v("res"))));
-                                f.set("ops", push(v("ops"), v("op")));
-                            },
-                            |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
-                        );
-                    });
-                },
-                |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                                    f.set("oty", mins(v("oty"), v("oid"), v("res")));
+                                    f.for_u64("k", u64c(0), vlen(v("res")), |f| {
+                                        f.set(
+                                            "mm",
+                                            call("jg_mmemo", vec![v("mm"), vget(v("res"), v("k"))]),
+                                        );
+                                    });
+                                    f.set("regs", add(v("regs"), vlen(v("res"))));
+                                    f.set("ops", push(v("ops"), v("op")));
+                                },
+                                |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                            );
+                        });
+                    },
+                    |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                );
+            });
+            // Resource preflight (`preflight_resources`).
+            f.if_(
+                or(
+                    or(
+                        gt(vlen(v("blocks")), u64c(4_096)),
+                        gt(vlen(v("ops")), u64c(1_000_000)),
+                    ),
+                    or(v("big"), gt(v("regs"), u64c(1_000_000))),
+                ),
+                |f| f.ret_err(code(VM_LOWER_RESOURCE_LIMIT)),
             );
-        });
-        // Resource preflight (`preflight_resources`).
-        f.if_(
-            or(
-                or(gt(vlen(v("blocks")), u64c(4_096)), gt(vlen(v("ops")), u64c(1_000_000))),
-                or(v("big"), gt(v("regs"), u64c(1_000_000))),
-            ),
-            |f| f.ret_err(code(VM_LOWER_RESOURCE_LIMIT)),
-        );
-        // `check_result_type`: no cell, handle, or token in the result.
-        f.let_("rmask", call("jg_mask", vec![field(v("fun"), "result")]));
-        f.if_(
-            or(
-                or(has(v("rmask"), 1 << 16), has(v("rmask"), 1 << 17)),
-                has(v("rmask"), 1 << 18),
-            ),
-            |f| f.ret_err(code(VM_LOWER_SIGNATURE_MISMATCH)),
-        );
-        f.var("trm", mnew(t::bytes(), t::u64(), vec![]));
-        f.var("sgm", mnew(t::bytes(), sig_ty(), vec![]));
-        f.var("brm", mnew(t::bytes(), br_ty(), vec![]));
-        f.for_u64("i", u64c(0), vlen(v("ops")), |f| {
-            f.let_("op", vget(v("ops"), v("i")));
-            f.let_("vrs", field(v("op"), "operands"));
-            f.var("ot", vnew(t::bytes(), vec![]));
-            f.var("cell", boolc(false));
-            f.for_u64("j", u64c(0), vlen(v("vrs")), |f| {
-                f.let_("vr", vget(v("vrs"), v("j")));
-                f.var("ty", bytesc(&[]));
-                f.if_else(
-                    eq(field(v("vr"), "kind"), u64c(1)),
+            // `check_result_type`: no cell, handle, or token in the result.
+            f.let_("rmask", call("jg_mask", vec![field(v("fun"), "result")]));
+            f.if_(
+                or(
+                    or(has(v("rmask"), 1 << 16), has(v("rmask"), 1 << 17)),
+                    has(v("rmask"), 1 << 18),
+                ),
+                |f| f.ret_err(code(VM_LOWER_SIGNATURE_MISMATCH)),
+            );
+            f.var("trm", mnew(t::bytes(), t::u64(), vec![]));
+            f.var("sgm", mnew(t::bytes(), sig_ty(), vec![]));
+            f.var("brm", mnew(t::bytes(), br_ty(), vec![]));
+            f.for_u64("i", u64c(0), vlen(v("ops")), |f| {
+                f.let_("op", vget(v("ops"), v("i")));
+                f.let_("vrs", field(v("op"), "operands"));
+                f.var("ot", vnew(t::bytes(), vec![]));
+                f.var("cell", boolc(false));
+                f.for_u64("j", u64c(0), vlen(v("vrs")), |f| {
+                    f.let_("vr", vget(v("vrs"), v("j")));
+                    f.var("ty", bytesc(&[]));
+                    f.if_else(
+                        eq(field(v("vr"), "kind"), u64c(1)),
+                        |f| {
+                            f.match_opt(
+                                mget_opt(v("pty"), field(v("vr"), "id")),
+                                "x",
+                                |f| f.set("ty", v("x")),
+                                |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                            );
+                        },
+                        |f| {
+                            f.match_opt(
+                                mget_opt(v("oty"), field(v("vr"), "id")),
+                                "rs",
+                                |f| {
+                                    f.match_opt(
+                                        vget_opt(v("rs"), field(v("vr"), "idx")),
+                                        "x",
+                                        |f| f.set("ty", v("x")),
+                                        |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                                    );
+                                },
+                                |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                            );
+                        },
+                    );
+                    f.if_(has(mget(v("mm"), v("ty")), 1 << 18), |f| {
+                        f.set("cell", boolc(true));
+                    });
+                    f.set("ot", push(v("ot"), v("ty")));
+                });
+                f.let_("opc", field(v("op"), "opcode"));
+                f.let_("imm", field(v("op"), "imm"));
+                // Traits of the judged operand (or the map key).
+                f.var("key", none(t::bytes()));
+                f.if_(
+                    and(
+                        gt(vlen(v("ot")), u64c(0)),
+                        or(
+                            or(eq(v("opc"), u64c(96)), eq(v("opc"), u64c(97))),
+                            or(eq(v("opc"), u64c(176)), eq(v("opc"), u64c(192))),
+                        ),
+                    ),
+                    |f| f.set("key", some(vget(v("ot"), u64c(0)))),
+                );
+                f.if_(eq(v("opc"), u64c(36)), |f| {
+                    f.set(
+                        "key",
+                        call("jg_mkey", vec![v("ot"), field(v("op"), "results")]),
+                    );
+                });
+                f.var("tr", u64c(0));
+                f.match_opt(
+                    v("key"),
+                    "kt",
                     |f| {
                         f.match_opt(
-                            mget_opt(v("pty"), field(v("vr"), "id")),
+                            mget_opt(v("trm"), v("kt")),
                             "x",
-                            |f| f.set("ty", v("x")),
-                            |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
+                            |f| f.set("tr", v("x")),
+                            |f| {
+                                f.set("tr", call("jg_tinfo", vec![v("inv"), v("kt")]));
+                                f.set("trm", mins(v("trm"), v("kt"), v("tr")));
+                            },
                         );
                     },
+                    |_| {},
+                );
+                f.var(
+                    "sig",
+                    tup(vec![
+                        u64c(0),
+                        vnew(t::bytes(), vec![]),
+                        bytesc(&[]),
+                        vnew(t::bytes(), vec![]),
+                    ]),
+                );
+                f.if_(
+                    and(
+                        or(eq(v("opc"), u64c(112)), eq(v("opc"), u64c(194))),
+                        eq(field(v("imm"), "tag"), u64c(7)),
+                    ),
                     |f| {
+                        f.let_("cid", field(v("imm"), "id"));
                         f.match_opt(
-                            mget_opt(v("oty"), field(v("vr"), "id")),
-                            "rs",
+                            mget_opt(v("sgm"), v("cid")),
+                            "x",
+                            |f| f.set("sig", v("x")),
                             |f| {
-                                f.match_opt(
-                                    vget_opt(v("rs"), field(v("vr"), "idx")),
-                                    "x",
-                                    |f| f.set("ty", v("x")),
-                                    |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
-                                );
+                                f.set("sig", call("jg_sig", vec![v("inv"), v("cid")]));
+                                f.set("sgm", mins(v("sgm"), v("cid"), v("sig")));
                             },
-                            |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
                         );
                     },
                 );
-                f.if_(has(mget(v("mm"), v("ty")), 1 << 18), |f| f.set("cell", boolc(true)));
-                f.set("ot", push(v("ot"), v("ty")));
-            });
-            f.let_("opc", field(v("op"), "opcode"));
-            f.let_("imm", field(v("op"), "imm"));
-            // Traits of the judged operand (or the map key).
-            f.var("key", none(t::bytes()));
-            f.if_(
-                and(
-                    gt(vlen(v("ot")), u64c(0)),
-                    or(
-                        or(eq(v("opc"), u64c(96)), eq(v("opc"), u64c(97))),
-                        or(eq(v("opc"), u64c(176)), eq(v("opc"), u64c(192))),
+                f.var(
+                    "br",
+                    tup(vec![u64c(0), boolc(false), bytesc(&[]), bytesc(&[])]),
+                );
+                f.if_(
+                    and(eq(v("opc"), u64c(161)), eq(field(v("imm"), "tag"), u64c(2))),
+                    |f| {
+                        f.let_("bid", field(v("imm"), "id"));
+                        f.match_opt(
+                            mget_opt(v("brm"), v("bid")),
+                            "x",
+                            |f| f.set("br", v("x")),
+                            |f| {
+                                f.set("br", call("jg_bridge", vec![v("inv"), v("bid")]));
+                                f.set("brm", mins(v("brm"), v("bid"), v("br")));
+                            },
+                        );
+                    },
+                );
+                f.let_(
+                    "c",
+                    call(
+                        "jg_op",
+                        vec![
+                            v("inv"),
+                            v("op"),
+                            v("ot"),
+                            v("cell"),
+                            v("tr"),
+                            v("sig"),
+                            v("br"),
+                        ],
                     ),
-                ),
-                |f| f.set("key", some(vget(v("ot"), u64c(0)))),
-            );
-            f.if_(eq(v("opc"), u64c(36)), |f| {
-                f.set("key", call("jg_mkey", vec![v("ot"), field(v("op"), "results")]));
+                );
+                f.if_(ne(v("c"), u64c(0)), |f| {
+                    f.ret_err(call("jg_code", vec![v("c")]));
+                });
             });
-            f.var("tr", u64c(0));
-            f.match_opt(
-                v("key"),
-                "kt",
-                |f| {
-                    f.match_opt(
-                        mget_opt(v("trm"), v("kt")),
-                        "x",
-                        |f| f.set("tr", v("x")),
-                        |f| {
-                            f.set("tr", call("jg_tinfo", vec![v("inv"), v("kt")]));
-                            f.set("trm", mins(v("trm"), v("kt"), v("tr")));
-                        },
-                    );
-                },
-                |_| {},
-            );
-            f.var(
-                "sig",
-                tup(vec![u64c(0), vnew(t::bytes(), vec![]), bytesc(&[]), vnew(t::bytes(), vec![])]),
-            );
-            f.if_(
-                and(
-                    or(eq(v("opc"), u64c(112)), eq(v("opc"), u64c(194))),
-                    eq(field(v("imm"), "tag"), u64c(7)),
-                ),
-                |f| {
-                    f.let_("cid", field(v("imm"), "id"));
-                    f.match_opt(
-                        mget_opt(v("sgm"), v("cid")),
-                        "x",
-                        |f| f.set("sig", v("x")),
-                        |f| {
-                            f.set("sig", call("jg_sig", vec![v("inv"), v("cid")]));
-                            f.set("sgm", mins(v("sgm"), v("cid"), v("sig")));
-                        },
-                    );
-                },
-            );
-            f.var("br", tup(vec![u64c(0), boolc(false), bytesc(&[]), bytesc(&[])]));
-            f.if_(
-                and(eq(v("opc"), u64c(161)), eq(field(v("imm"), "tag"), u64c(2))),
-                |f| {
-                    f.let_("bid", field(v("imm"), "id"));
-                    f.match_opt(
-                        mget_opt(v("brm"), v("bid")),
-                        "x",
-                        |f| f.set("br", v("x")),
-                        |f| {
-                            f.set("br", call("jg_bridge", vec![v("inv"), v("bid")]));
-                            f.set("brm", mins(v("brm"), v("bid"), v("br")));
-                        },
-                    );
-                },
-            );
-            f.let_(
-                "c",
-                call(
-                    "jg_op",
-                    vec![v("inv"), v("op"), v("ot"), v("cell"), v("tr"), v("sig"), v("br")],
-                ),
-            );
-            f.if_(ne(v("c"), u64c(0)), |f| f.ret_err(call("jg_code", vec![v("c")])));
-        });
-        // `require_canonical_referenced_constants`: every constant a
-        // `constant_ref` names resolved above, and a decoded canonical
-        // constant always re-encodes (the loader admitted exactly its
-        // canonical bytes), so nothing further can refuse here.
-        f.ret_ok(unitc());
-    });
+            // `require_canonical_referenced_constants`: every constant a
+            // `constant_ref` names resolved above, and a decoded canonical
+            // constant always re-encodes (the loader admitted exactly its
+            // canonical bytes), so nothing further can refuse here.
+            f.ret_ok(unitc());
+        },
+    );
 }
 
 // ----- jg_gate -----
@@ -1596,10 +1759,19 @@ fn define_gate(m: &mut Module) {
                 );
                 f.if_(eq(v("tag"), u64c(18)), |f| f.set("bb", boolc(true)));
                 f.if_(
-                    and(gt(v("tag"), u64c(8)), and(ne(v("tag"), u64c(15)), ne(v("tag"), u64c(19)))),
+                    and(
+                        gt(v("tag"), u64c(8)),
+                        and(ne(v("tag"), u64c(15)), ne(v("tag"), u64c(19))),
+                    ),
                     |f| {
                         f.if_(eq(v("tag"), u64c(10)), |f| {
-                            f.set("deps", push(v("deps"), slice(call("jg_pl", vec![v("x")]), u64c(3), u64c(32))));
+                            f.set(
+                                "deps",
+                                push(
+                                    v("deps"),
+                                    slice(call("jg_pl", vec![v("x")]), u64c(3), u64c(32)),
+                                ),
+                            );
                         });
                         f.let_("kids", call("jg_kids", vec![v("x")]));
                         f.for_u64("i", u64c(0), vlen(v("kids")), |f| {
@@ -1622,7 +1794,10 @@ fn define_gate(m: &mut Module) {
     m.func(
         "jg_bt_defs",
         &[("inv", m.ty(INV))],
-        t::tuple(vec![t::map(t::bytes(), t::bool()), t::map(t::bytes(), t::bool())]),
+        t::tuple(vec![
+            t::map(t::bytes(), t::bool()),
+            t::map(t::bytes(), t::bool()),
+        ]),
         |f| {
             f.let_("tds", field(v("inv"), "tdefs"));
             f.let_("nd", vlen(v("tds")));
@@ -1658,21 +1833,30 @@ fn define_gate(m: &mut Module) {
                     f.let_("ds", vget(v("deps"), v("i")));
                     f.for_u64("k", u64c(0), vlen(v("ds")), |f| {
                         f.match_opt(
-                            call("inv_find", vec![
-                                field(v("inv"), "index"),
-                                vget(v("ds"), v("k")),
-                                u64c(super::inv::KIND_TYPEDEF),
-                            ]),
+                            call(
+                                "inv_find",
+                                vec![
+                                    field(v("inv"), "index"),
+                                    vget(v("ds"), v("k")),
+                                    u64c(super::inv::KIND_TYPEDEF),
+                                ],
+                            ),
                             "q",
                             |f| {
-                                f.if_(and(vget(v("db"), v("q")), not(vget(v("db"), v("i")))), |f| {
-                                    f.set("db", vset(v("db"), v("i"), boolc(true)));
-                                    f.set("changed", boolc(true));
-                                });
-                                f.if_(and(vget(v("dn"), v("q")), not(vget(v("dn"), v("i")))), |f| {
-                                    f.set("dn", vset(v("dn"), v("i"), boolc(true)));
-                                    f.set("changed", boolc(true));
-                                });
+                                f.if_(
+                                    and(vget(v("db"), v("q")), not(vget(v("db"), v("i")))),
+                                    |f| {
+                                        f.set("db", vset(v("db"), v("i"), boolc(true)));
+                                        f.set("changed", boolc(true));
+                                    },
+                                );
+                                f.if_(
+                                    and(vget(v("dn"), v("q")), not(vget(v("dn"), v("i")))),
+                                    |f| {
+                                        f.set("dn", vset(v("dn"), v("i"), boolc(true)));
+                                        f.set("changed", boolc(true));
+                                    },
+                                );
                             },
                             |f| {
                                 // An unresolvable definition fails closed.
@@ -1703,13 +1887,20 @@ fn define_gate(m: &mut Module) {
     // for the same boundary mode).
     m.func(
         "jg_bt_ok",
-        &[("ty", t::bytes()), ("boundary", t::bool()), ("bad", t::map(t::bytes(), t::bool()))],
+        &[
+            ("ty", t::bytes()),
+            ("boundary", t::bool()),
+            ("bad", t::map(t::bytes(), t::bool())),
+        ],
         t::bool(),
         |f| {
             f.let_("sc", call("jg_bt_scan", vec![v("ty")]));
-            f.if_(select(v("boundary"), tget(v("sc"), 0), tget(v("sc"), 1)), |f| {
-                f.ret(boolc(false));
-            });
+            f.if_(
+                select(v("boundary"), tget(v("sc"), 0), tget(v("sc"), 1)),
+                |f| {
+                    f.ret(boolc(false));
+                },
+            );
             f.let_("ds", tget(v("sc"), 2));
             f.for_u64("i", u64c(0), vlen(v("ds")), |f| {
                 f.match_opt(
@@ -1737,29 +1928,47 @@ fn define_gate(m: &mut Module) {
             );
             f.if_(not(v("ok_")), |f| f.ret(boolc(false)));
             f.ret(and(
-                call("jg_bt_ok", vec![field(v("imp"), "req"), boolc(true), v("bb")]),
-                call("jg_bt_ok", vec![field(v("imp"), "resp"), boolc(true), v("bb")]),
+                call(
+                    "jg_bt_ok",
+                    vec![field(v("imp"), "req"), boolc(true), v("bb")],
+                ),
+                call(
+                    "jg_bt_ok",
+                    vec![field(v("imp"), "resp"), boolc(true), v("bb")],
+                ),
             ));
         },
     );
     // A carried `Bytes` constant longer than the raw-hash ceiling.
-    m.func("jg_big_bytes", &[("value", t::bytes()), ("ty", t::bytes())], t::bool(), |f| {
-        f.if_(ne(v("ty"), bytes_ty()), |f| f.ret(boolc(false)));
-        // ConstValue {1: Bytes type [7, 0], 2: ConstData}: the data starts
-        // at offset 6 after `uvar(2) uvar(1) uvar(2) 7 0 uvar(2)`.
-        f.let_("r1", call("jg_rdv", vec![v("value"), u64c(6)]));
-        f.let_("p", tget(v("r1"), 1));
-        f.if_(ne(call("jg_byte", vec![v("value"), v("p")]), u64c(7)), |f| {
-            f.ret(boolc(false));
-        });
-        f.let_("r2", call("jg_rdv", vec![v("value"), add(v("p"), u64c(1))]));
-        f.let_("r3", call("jg_rdv", vec![v("value"), tget(v("r2"), 1)]));
-        f.ret(gt(tget(v("r3"), 0), u64c(RAW_HASH_MAX_BYTES)));
-    });
+    m.func(
+        "jg_big_bytes",
+        &[("value", t::bytes()), ("ty", t::bytes())],
+        t::bool(),
+        |f| {
+            f.if_(ne(v("ty"), bytes_ty()), |f| f.ret(boolc(false)));
+            // ConstValue {1: Bytes type [7, 0], 2: ConstData}: the data starts
+            // at offset 6 after `uvar(2) uvar(1) uvar(2) 7 0 uvar(2)`.
+            f.let_("r1", call("jg_rdv", vec![v("value"), u64c(6)]));
+            f.let_("p", tget(v("r1"), 1));
+            f.if_(
+                ne(call("jg_byte", vec![v("value"), v("p")]), u64c(7)),
+                |f| {
+                    f.ret(boolc(false));
+                },
+            );
+            f.let_("r2", call("jg_rdv", vec![v("value"), add(v("p"), u64c(1))]));
+            f.let_("r3", call("jg_rdv", vec![v("value"), tget(v("r2"), 1)]));
+            f.ret(gt(tget(v("r3"), 0), u64c(RAW_HASH_MAX_BYTES)));
+        },
+    );
     // The gate.
     m.func(
         "jg_gate",
-        &[("inv", m.ty(INV)), ("entry", t::bytes()), ("image", t::bytes())],
+        &[
+            ("inv", m.ty(INV)),
+            ("entry", t::bytes()),
+            ("image", t::bytes()),
+        ],
         r(m.ty(GATE)),
         |f| {
             f.let_("index", field(v("inv"), "index"));
@@ -1805,7 +2014,10 @@ fn define_gate(m: &mut Module) {
                                             mins(
                                                 v("okn"),
                                                 v("ty"),
-                                                call("jg_bt_ok", vec![v("ty"), boolc(false), v("badn")]),
+                                                call(
+                                                    "jg_bt_ok",
+                                                    vec![v("ty"), boolc(false), v("badn")],
+                                                ),
                                             ),
                                         );
                                     });
@@ -1897,7 +2109,10 @@ fn define_gate(m: &mut Module) {
                                         mins(
                                             v("okn"),
                                             v("ty"),
-                                            call("jg_bt_ok", vec![v("ty"), boolc(false), v("badn")]),
+                                            call(
+                                                "jg_bt_ok",
+                                                vec![v("ty"), boolc(false), v("badn")],
+                                            ),
                                         ),
                                     );
                                 });
@@ -1980,12 +2195,15 @@ fn define_gate(m: &mut Module) {
                         |f| f.ret_err(code(VM_LOWER_IMMEDIATE_MISMATCH)),
                     );
                 });
-                f.if_(eq(v("top"), u64c(0)), |f| f.break_());
+                f.if_(eq(v("top"), u64c(0)), super::super::seed::FnB::break_);
                 f.let_("t1", sub(v("top"), u64c(1)));
                 f.let_("cf", vget(v("sf"), v("t1")));
                 f.let_("ci", vget(v("si"), v("t1")));
                 f.if_else(
-                    lt(v("ci"), add(vget(v("starts"), v("cf")), vget(v("ecount"), v("cf")))),
+                    lt(
+                        v("ci"),
+                        add(vget(v("starts"), v("cf")), vget(v("ecount"), v("cf"))),
+                    ),
                     |f| {
                         f.set("si", vset(v("si"), v("t1"), add(v("ci"), u64c(1))));
                         f.set("pend", vget(v("eord"), v("ci")));
@@ -2022,22 +2240,36 @@ fn define_gate(m: &mut Module) {
                 f.if_(not(mhas(v("okb"), v("ty"))), |f| {
                     f.set(
                         "okb",
-                        mins(v("okb"), v("ty"), call("jg_bt_ok", vec![v("ty"), boolc(true), v("badb")])),
+                        mins(
+                            v("okb"),
+                            v("ty"),
+                            call("jg_bt_ok", vec![v("ty"), boolc(true), v("badb")]),
+                        ),
                     );
                 });
                 f.if_(not(mget(v("okb"), v("ty"))), |f| {
                     f.ret_err(code(VM_LOWER_SIGNATURE_MISMATCH));
                 });
-                f.if_(call("jg_big_bytes", vec![field(v("c"), "value"), v("ty")]), |f| {
-                    f.ret_err(code(VM_LOWER_RESOURCE_LIMIT));
-                });
+                f.if_(
+                    call("jg_big_bytes", vec![field(v("c"), "value"), v("ty")]),
+                    |f| {
+                        f.ret_err(code(VM_LOWER_RESOURCE_LIMIT));
+                    },
+                );
             });
             // Reached functions in order.
             f.for_u64("i", u64c(0), vlen(v("reached")), |f| {
-                f.let_("fp", unwrap(find(vget(v("reached"), v("i")), KIND_FUNCTION)));
-                f.if_(vget(v("bpbad"), v("fp")), |f| f.ret_err(code(VM_LOWER_SIGNATURE_MISMATCH)));
+                f.let_(
+                    "fp",
+                    unwrap(find(vget(v("reached"), v("i")), KIND_FUNCTION)),
+                );
+                f.if_(vget(v("bpbad"), v("fp")), |f| {
+                    f.ret_err(code(VM_LOWER_SIGNATURE_MISMATCH));
+                });
                 f.let_("c", vget(v("first"), v("fp")));
-                f.if_(ne(v("c"), u64c(0)), |f| f.ret_err(call("jg_code", vec![v("c")])));
+                f.if_(ne(v("c"), u64c(0)), |f| {
+                    f.ret_err(call("jg_code", vec![v("c")]));
+                });
                 f.let_("g", vget(v("fns"), v("fp")));
                 f.let_("ps", field(v("g"), "params"));
                 f.for_u64("j", u64c(0), vlen(v("ps")), |f| {
@@ -2046,7 +2278,10 @@ fn define_gate(m: &mut Module) {
                         "p",
                         |f| {
                             f.if_(
-                                not(call("jg_bt_ok", vec![field(v("p"), "ty"), boolc(true), v("badb")])),
+                                not(call(
+                                    "jg_bt_ok",
+                                    vec![field(v("p"), "ty"), boolc(true), v("badb")],
+                                )),
                                 |f| f.ret_err(code(VM_LOWER_SIGNATURE_MISMATCH)),
                             );
                         },
@@ -2054,7 +2289,10 @@ fn define_gate(m: &mut Module) {
                     );
                 });
                 f.if_(
-                    not(call("jg_bt_ok", vec![field(v("g"), "result"), boolc(true), v("badb")])),
+                    not(call(
+                        "jg_bt_ok",
+                        vec![field(v("g"), "result"), boolc(true), v("badb")],
+                    )),
                     |f| f.ret_err(code(VM_LOWER_SIGNATURE_MISMATCH)),
                 );
             });
@@ -2093,7 +2331,10 @@ fn define_tests(m: &mut Module) {
             f.for_u64("i", u64c(0), vlen(v("fids")), |f| {
                 f.set(
                     "out",
-                    push(v("out"), call("jg_function", vec![v("inv"), vget(v("fids"), v("i"))])),
+                    push(
+                        v("out"),
+                        call("jg_function", vec![v("inv"), vget(v("fids"), v("i"))]),
+                    ),
                 );
             });
             f.ret_ok(v("out"));
@@ -2113,7 +2354,10 @@ fn define_tests(m: &mut Module) {
                     "out",
                     push(
                         v("out"),
-                        call("jg_function", vec![v("inv"), field(vget(v("fns"), v("i")), "id")]),
+                        call(
+                            "jg_function",
+                            vec![v("inv"), field(vget(v("fns"), v("i")), "id")],
+                        ),
                     ),
                 );
             });
@@ -2139,10 +2383,18 @@ fn define_tests(m: &mut Module) {
             ("entry", t::bytes()),
             ("image", t::bytes()),
         ],
-        r(t::tuple(vec![t::vec(t::bytes()), t::u64(), t::u64(), t::vec(t::bytes())])),
+        r(t::tuple(vec![
+            t::vec(t::bytes()),
+            t::u64(),
+            t::u64(),
+            t::vec(t::bytes()),
+        ])),
         move |f| {
             load(f);
-            f.let_("g", tri(call("jg_gate", vec![v("inv"), v("entry"), v("image")])));
+            f.let_(
+                "g",
+                tri(call("jg_gate", vec![v("inv"), v("entry"), v("image")])),
+            );
             f.ret_ok(tup(vec![
                 field(v("g"), "functions"),
                 field(v("g"), "ops"),
@@ -2151,7 +2403,12 @@ fn define_tests(m: &mut Module) {
             ]));
         },
     );
-    m.func("t_jg_big", &[("value", t::bytes()), ("ty", t::bytes())], t::bool(), |f| {
-        f.ret(call("jg_big_bytes", vec![v("value"), v("ty")]));
-    });
+    m.func(
+        "t_jg_big",
+        &[("value", t::bytes()), ("ty", t::bytes())],
+        t::bool(),
+        |f| {
+            f.ret(call("jg_big_bytes", vec![v("value"), v("ty")]));
+        },
+    );
 }

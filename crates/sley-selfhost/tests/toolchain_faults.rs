@@ -15,13 +15,23 @@ use sley_vm::ExecutionTermination;
 fn limits_value() -> ConstValue {
     let l = native::toolchain_limits();
     ConstValue {
-        value_type: t::tuple(vec![t::u64(), t::u64(), t::u64(), t::u64(), t::bool(), t::u64()]),
+        value_type: t::tuple(vec![
+            t::u64(),
+            t::u64(),
+            t::u64(),
+            t::u64(),
+            t::bool(),
+            t::u64(),
+        ]),
         data: ConstData::Sequence(vec![
             u64v(l.max_instructions),
             u64v(l.max_fuel),
             u64v(l.max_value_units),
             u64v(l.max_output_units),
-            ConstValue { value_type: TypeExpr::Bool, data: ConstData::Bool(false) },
+            ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(false),
+            },
             u64v(0),
         ]),
     }
@@ -33,7 +43,12 @@ fn sley_build(faults: &[&str], s: &CanonicalS) -> Result<Vec<u8>, u32> {
     let runner = Runner::new(&program, names["drv_build"]);
     let outcome = runner
         .run(
-            vec![objects_input(s), bytes(&s.root.stored_bytes), bytes(s.epoch.as_bytes()), limits_value()],
+            vec![
+                objects_input(s),
+                bytes(&s.root.stored_bytes),
+                bytes(s.epoch.as_bytes()),
+                limits_value(),
+            ],
             native::big_limits(),
         )
         .expect("executes");
@@ -45,21 +60,26 @@ fn sley_build(faults: &[&str], s: &CanonicalS) -> Result<Vec<u8>, u32> {
 
 fn small_program() -> (Program, sley_id::EntityId) {
     let mut m = Module::new("fault-small");
-    m.func("main", &[("c", t::bool()), ("n", t::u64())], t::u64(), |f| {
-        f.var("out", u64c(0));
-        f.if_else(
-            v("c"),
-            |f| {
-                f.let_("a", add(v("n"), u64c(2)));
-                f.set("out", v("a"));
-            },
-            |f| {
-                f.let_("b", add(v("n"), u64c(3)));
-                f.set("out", v("b"));
-            },
-        );
-        f.ret(v("out"));
-    });
+    m.func(
+        "main",
+        &[("c", t::bool()), ("n", t::u64())],
+        t::u64(),
+        |f| {
+            f.var("out", u64c(0));
+            f.if_else(
+                v("c"),
+                |f| {
+                    f.let_("a", add(v("n"), u64c(2)));
+                    f.set("out", v("a"));
+                },
+                |f| {
+                    f.let_("b", add(v("n"), u64c(3)));
+                    f.set("out", v("b"));
+                },
+            );
+            f.ret(v("out"));
+        },
+    );
     let (program, names) = m.finish();
     (program, names["main"])
 }
@@ -76,7 +96,10 @@ fn native_result(s: &CanonicalS) -> Result<Vec<u8>, String> {
 fn reference_toolchain_agrees_on_the_fault_corpus() {
     let (program, entry) = small_program();
     let s = build(&program, entry);
-    assert_eq!(sley_build(&[], &s).expect("builds"), native_result(&s).unwrap());
+    assert_eq!(
+        sley_build(&[], &s).expect("builds"),
+        native_result(&s).unwrap()
+    );
 }
 
 #[test]
@@ -84,7 +107,11 @@ fn lowering_fault_is_detected() {
     let (program, entry) = small_program();
     let s = build(&program, entry);
     let sley = sley_build(&["lower-register"], &s);
-    assert_ne!(sley.ok(), native_result(&s).ok(), "faulty lowering went unnoticed");
+    assert_ne!(
+        sley.ok(),
+        native_result(&s).ok(),
+        "faulty lowering went unnoticed"
+    );
 }
 
 #[test]
@@ -92,7 +119,11 @@ fn package_digest_fault_is_detected() {
     let (program, entry) = small_program();
     let s = build(&program, entry);
     let sley = sley_build(&["package-digest"], &s);
-    assert_ne!(sley.ok(), native_result(&s).ok(), "faulty package digest went unnoticed");
+    assert_ne!(
+        sley.ok(),
+        native_result(&s).ok(),
+        "faulty package digest went unnoticed"
+    );
 }
 
 #[test]
@@ -101,7 +132,9 @@ fn incorrect_type_rule_is_detected() {
     // as UInt(32). The graph and edges stay consistent; only the operation
     // signature is wrong.
     let mut m = Module::new("fault-type-rule");
-    m.func("main", &[("xs", t::vec(t::u8()))], t::u64(), |f| f.ret(vlen(v("xs"))));
+    m.func("main", &[("xs", t::vec(t::u8()))], t::u64(), |f| {
+        f.ret(vlen(v("xs")));
+    });
     let (mut program, names) = m.finish();
     let entry = names["main"];
     program
@@ -112,8 +145,15 @@ fn incorrect_type_rule_is_detected() {
         .result_types = vec![t::u32()];
     program.functions[0].result_type = t::u32();
     let s = build(&program, entry);
-    assert!(native_result(&s).is_err(), "native refuses the mistyped operation");
-    assert_eq!(sley_build(&[], &s), Err(26_002), "reference toolchain reports the signature");
+    assert!(
+        native_result(&s).is_err(),
+        "native refuses the mistyped operation"
+    );
+    assert_eq!(
+        sley_build(&[], &s),
+        Err(26_002),
+        "reference toolchain reports the signature"
+    );
     assert!(
         sley_build(&["judge-declared"], &s).is_ok(),
         "the faulty type rule accepts the mistyped program, so parity detects it"
@@ -143,8 +183,15 @@ fn disabled_dominance_check_is_detected() {
         result_index: 0,
     });
     let s = build(&program, entry);
-    assert!(native_result(&s).is_err(), "native refuses the dominance violation");
-    assert_eq!(sley_build(&[], &s), Err(22_016), "reference toolchain reports CFG_DOMINANCE");
+    assert!(
+        native_result(&s).is_err(),
+        "native refuses the dominance violation"
+    );
+    assert_eq!(
+        sley_build(&[], &s),
+        Err(22_016),
+        "reference toolchain reports CFG_DOMINANCE"
+    );
     assert_ne!(
         sley_build(&["check-dominance"], &s),
         Err(22_016),
@@ -177,7 +224,12 @@ fn disabled_canonical_checks_are_detected() {
         let runner = Runner::new(&program, names["drv_build"]);
         let outcome = runner
             .run(
-                vec![objects.clone(), bytes(&s.root.stored_bytes), bytes(s.epoch.as_bytes()), limits_value()],
+                vec![
+                    objects.clone(),
+                    bytes(&s.root.stored_bytes),
+                    bytes(s.epoch.as_bytes()),
+                    limits_value(),
+                ],
                 native::big_limits(),
             )
             .unwrap();
@@ -187,7 +239,11 @@ fn disabled_canonical_checks_are_detected() {
         }
     };
     assert_eq!(run(&[]), Err(10_000));
-    assert_ne!(run(&["codec-magic"]), Err(10_000), "skipped magic check detected");
+    assert_ne!(
+        run(&["codec-magic"]),
+        Err(10_000),
+        "skipped magic check detected"
+    );
 
     // Set order: a workspace whose package set is out of order.
     let a = sley_id::EntityId::from_bytes([1; 32]);
@@ -228,7 +284,10 @@ fn disabled_canonical_checks_are_detected() {
         let (program, names) = with_faults(faults, || toolchain::module().finish());
         let runner = Runner::new(&program, names["cd_object"]);
         let outcome = runner
-            .run(vec![bytes(&stored), bytes(s.epoch.as_bytes())], native::big_limits())
+            .run(
+                vec![bytes(&stored), bytes(s.epoch.as_bytes())],
+                native::big_limits(),
+            )
             .unwrap();
         match outcome.termination {
             ExecutionTermination::Success(value) => result(value).map(|_| ()),
@@ -236,7 +295,10 @@ fn disabled_canonical_checks_are_detected() {
         }
     };
     assert_eq!(decode(&[]), Err(10_018));
-    assert!(decode(&["codec-set-order"]).is_ok(), "skipped order check detected");
+    assert!(
+        decode(&["codec-set-order"]).is_ok(),
+        "skipped order check detected"
+    );
 }
 
 #[test]
@@ -251,10 +313,23 @@ fn substituted_input_with_disabled_binding_check_is_detected() {
         .unwrap();
     let mut record = s.objects[index].record().clone();
     record.body = EntityBodyValue::Constant(sley_mutate::value::ConstantBody {
-        value: ConstValue { value_type: t::u64(), data: ConstData::UInt(41) },
+        value: ConstValue {
+            value_type: t::u64(),
+            data: ConstData::UInt(41),
+        },
     });
     s.objects[index] = sley_mutate::build_entity_object(s.epoch, &record).unwrap();
-    assert!(native_result(&s).is_err(), "native refuses the unbound object");
-    assert_eq!(sley_build(&[], &s), Err(29_002), "reference toolchain refuses it");
-    assert!(sley_build(&["driver-binding"], &s).is_ok(), "the disabled binding check accepts it");
+    assert!(
+        native_result(&s).is_err(),
+        "native refuses the unbound object"
+    );
+    assert_eq!(
+        sley_build(&[], &s),
+        Err(29_002),
+        "reference toolchain refuses it"
+    );
+    assert!(
+        sley_build(&["driver-binding"], &s).is_ok(),
+        "the disabled binding check accepts it"
+    );
 }

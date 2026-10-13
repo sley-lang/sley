@@ -6,9 +6,12 @@
 //! order), so every index insertion appends.
 
 use super::codes::TOOL_ROOT_BINDING_MISMATCH;
-use super::model::*;
+use super::model::{BLK, CST, EPT, FUN, IMP, OP, PRM, TDEF};
 use super::rt::{code, r};
-use crate::seed::*;
+use crate::seed::{
+    FnB, Module, Ty, add, call, div, eq, field, gt, le, mget_opt, mins, mnew, mul, none, push, rec,
+    rem, some, sub, t, tri, u64c, v, vget, vlen, vnew,
+};
 
 /// The inventory record.
 pub const INV: &str = "Inv";
@@ -74,14 +77,16 @@ pub fn define(m: &mut Module) {
             f.for_u64("i", u64c(0), vlen(v("objects")), |f| {
                 f.let_(
                     "obj",
-                    tri(call("cd_object", vec![vget(v("objects"), v("i")), v("epoch")])),
+                    tri(call(
+                        "cd_object",
+                        vec![vget(v("objects"), v("i")), v("epoch")],
+                    )),
                 );
                 f.let_("id", field(v("obj"), "id"));
                 f.if_(gt(v("i"), u64c(0)), |f| {
-                    f.if_(
-                        le(v("id"), vget(v("ids"), sub(v("i"), u64c(1)))),
-                        |f| f.ret_err(code(TOOL_ROOT_BINDING_MISMATCH)),
-                    );
+                    f.if_(le(v("id"), vget(v("ids"), sub(v("i"), u64c(1)))), |f| {
+                        f.ret_err(code(TOOL_ROOT_BINDING_MISMATCH));
+                    });
                 });
                 f.set("ids", push(v("ids"), v("id")));
                 f.set("oids", push(v("oids"), field(v("obj"), "oid")));
@@ -103,14 +108,46 @@ pub fn define(m: &mut Module) {
                         ("W", "_", Box::new(|_: &mut FnB<'_>| {})),
                         ("K", "_", Box::new(|_: &mut FnB<'_>| {})),
                         ("N", "_", Box::new(|_: &mut FnB<'_>| {})),
-                        ("T", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "tdefs", "x"))),
-                        ("F", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "fns", "x"))),
-                        ("P", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "prms", "x"))),
-                        ("B", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "blks", "x"))),
-                        ("O", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "ops", "x"))),
-                        ("C", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "csts", "x"))),
-                        ("I", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "imps", "x"))),
-                        ("E", "x", Box::new(move |f: &mut FnB<'_>| slot(f, "eps", "x"))),
+                        (
+                            "T",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "tdefs", "x")),
+                        ),
+                        (
+                            "F",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "fns", "x")),
+                        ),
+                        (
+                            "P",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "prms", "x")),
+                        ),
+                        (
+                            "B",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "blks", "x")),
+                        ),
+                        (
+                            "O",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "ops", "x")),
+                        ),
+                        (
+                            "C",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "csts", "x")),
+                        ),
+                        (
+                            "I",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "imps", "x")),
+                        ),
+                        (
+                            "E",
+                            "x",
+                            Box::new(move |f: &mut FnB<'_>| slot(f, "eps", "x")),
+                        ),
                     ],
                 );
             });
@@ -169,7 +206,10 @@ pub fn define(m: &mut Module) {
             t::opt(ty.clone()),
             move |f| {
                 f.match_opt(
-                    call("inv_find", vec![field(v("inv"), "index"), v("id"), u64c(kind)]),
+                    call(
+                        "inv_find",
+                        vec![field(v("inv"), "index"), v("id"), u64c(kind)],
+                    ),
                     "pos",
                     |f| f.ret(some(vget(field(v("inv"), vector), v("pos")))),
                     |_| {},

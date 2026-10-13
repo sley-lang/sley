@@ -6,5 +6,5 @@
 
 pub mod canonical;
 pub mod native;
-pub mod toolchain;
 pub mod seed;
+pub mod toolchain;

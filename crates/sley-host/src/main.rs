@@ -58,7 +58,8 @@ fn parse_args() -> Result<Args, String> {
     if args.next().as_deref() != Some("build") {
         return Err("usage: sley-host build --package PKG --trust HEX[,HEX...] --stage DIR --out FILE [--receipt FILE]".into());
     }
-    let (mut package, mut trust, mut stage, mut out, mut receipt) = (None, Vec::new(), None, None, None);
+    let (mut package, mut trust, mut stage, mut out, mut receipt) =
+        (None, Vec::new(), None, None, None);
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
@@ -101,6 +102,7 @@ fn uint64(value: u64) -> ConstValue {
     }
 }
 
+#[allow(clippy::too_many_lines)] // one linear construction; splitting it hides the order
 fn run(args: &Args) -> Result<String, String> {
     let envelope = read(&args.package)?;
     let hydrated = sley_vm::hydrate_package_envelope_v3(&envelope)

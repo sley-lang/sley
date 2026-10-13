@@ -1,5 +1,6 @@
 //! End to end: the Sley toolchain (`drv_build`) builds canonical S into an
 //! `EXEC_PACKAGE_V3` envelope byte-identical to the native C0 build.
+#![allow(clippy::missing_panics_doc)]
 mod common;
 use common::*;
 use sley_selfhost::canonical;
@@ -10,13 +11,23 @@ use sley_ssmc::{ConstData, ConstValue, TypeExpr};
 fn limits_value(l: sley_vm::ExecutionLimits) -> ConstValue {
     let u = |x: u64| u64v(x);
     ConstValue {
-        value_type: t::tuple(vec![t::u64(), t::u64(), t::u64(), t::u64(), t::bool(), t::u64()]),
+        value_type: t::tuple(vec![
+            t::u64(),
+            t::u64(),
+            t::u64(),
+            t::u64(),
+            t::bool(),
+            t::u64(),
+        ]),
         data: ConstData::Sequence(vec![
             u(l.max_instructions),
             u(l.max_fuel),
             u(l.max_value_units),
             u(l.max_output_units),
-            ConstValue { value_type: TypeExpr::Bool, data: ConstData::Bool(l.cancel_at_fuel.is_some()) },
+            ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(l.cancel_at_fuel.is_some()),
+            },
             u(l.cancel_at_fuel.unwrap_or(0)),
         ]),
     }
@@ -49,21 +60,52 @@ fn small_program() -> (Program, sley_id::EntityId) {
         f.match_var(
             v("s"),
             vec![
-                ("Dot", "_", Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1)))),
-                ("Box", "p", Box::new(|f: &mut FnB<'_>| f.set("out", mul(field(v("p"), "x"), field(v("p"), "y"))))),
+                (
+                    "Dot",
+                    "_",
+                    Box::new(|f: &mut FnB<'_>| f.set("out", u64c(1))),
+                ),
+                (
+                    "Box",
+                    "p",
+                    Box::new(|f: &mut FnB<'_>| {
+                        f.set("out", mul(field(v("p"), "x"), field(v("p"), "y")));
+                    }),
+                ),
             ],
         );
         f.ret(v("out"));
     });
-    m.func("main", &[("n", t::u64()), ("b", t::bytes())], t::bytes(), |f| {
-        f.var("acc", u64c(0));
-        f.for_u64("i", u64c(0), v("n"), |f| {
-            f.set("acc", add(v("acc"), call("area", vec![var_new("Shape", "Box", Some(rec("Pt", vec![v("i"), u64c(3)])))])));
-        });
-        f.var("out", b2v(v("b")));
-        f.set("out", push(v("out"), u8c(7)));
-        f.ret(concat(vnew(t::bytes(), vec![v2b(v("out")), blake3(v("b"))])));
-    });
+    m.func(
+        "main",
+        &[("n", t::u64()), ("b", t::bytes())],
+        t::bytes(),
+        |f| {
+            f.var("acc", u64c(0));
+            f.for_u64("i", u64c(0), v("n"), |f| {
+                f.set(
+                    "acc",
+                    add(
+                        v("acc"),
+                        call(
+                            "area",
+                            vec![var_new(
+                                "Shape",
+                                "Box",
+                                Some(rec("Pt", vec![v("i"), u64c(3)])),
+                            )],
+                        ),
+                    ),
+                );
+            });
+            f.var("out", b2v(v("b")));
+            f.set("out", push(v("out"), u8c(7)));
+            f.ret(concat(vnew(
+                t::bytes(),
+                vec![v2b(v("out")), blake3(v("b"))],
+            )));
+        },
+    );
     let (program, names) = m.finish();
     (program, names["main"])
 }
@@ -84,6 +126,10 @@ fn builds_toolchain_closures_like_c0() {
         let s = canonical::build(&pruned, names[entry], "e2e-closure");
         let (sley, native, n) = both(&s);
         assert_eq!(sley.expect("Sley build succeeds"), native, "{entry}");
-        eprintln!("{entry}: {} objects, {} byte package, {n} instructions", s.objects.len(), native.len());
+        eprintln!(
+            "{entry}: {} objects, {} byte package, {n} instructions",
+            s.objects.len(),
+            native.len()
+        );
     }
 }

@@ -6,7 +6,7 @@
 //! flattened (tags plus fields) rather than nested variants, which keeps the
 //! consuming code simple: unused fields hold empty bytes or zero.
 
-use crate::seed::*;
+use crate::seed::{Module, t};
 
 /// `VRef`: `kind` 1 parameter, 2 operation result.
 pub const VREF: &str = "VRef";
@@ -48,10 +48,17 @@ pub const GATE: &str = "Gate";
 pub const LIM: &str = "Lim";
 
 /// Declares the model types.
+#[allow(clippy::too_many_lines)] // one linear construction; splitting it hides the order
 pub fn declare(m: &mut Module) {
     let ids = || t::vec(t::bytes());
-    m.record(VREF, &[("kind", t::u64()), ("id", t::bytes()), ("idx", t::u64())]);
-    m.record(EDGE, &[("target", t::bytes()), ("args", t::vec(m.ty(VREF)))]);
+    m.record(
+        VREF,
+        &[("kind", t::u64()), ("id", t::bytes()), ("idx", t::u64())],
+    );
+    m.record(
+        EDGE,
+        &[("target", t::bytes()), ("args", t::vec(m.ty(VREF)))],
+    );
     m.record(SARG, &[("pay", t::bool()), ("val", m.ty(VREF))]);
     m.record(
         SCASE,
@@ -141,7 +148,11 @@ pub fn declare(m: &mut Module) {
     );
     m.record(
         CST,
-        &[("id", t::bytes()), ("value", t::bytes()), ("ty", t::bytes())],
+        &[
+            ("id", t::bytes()),
+            ("value", t::bytes()),
+            ("ty", t::bytes()),
+        ],
     );
     m.record(
         MEM,
@@ -177,7 +188,11 @@ pub fn declare(m: &mut Module) {
     );
     m.record(
         EPT,
-        &[("id", t::bytes()), ("function", t::bytes()), ("exposure", t::u64())],
+        &[
+            ("id", t::bytes()),
+            ("function", t::bytes()),
+            ("exposure", t::u64()),
+        ],
     );
     m.variant(
         ENT,

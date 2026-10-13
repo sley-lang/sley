@@ -193,7 +193,12 @@ pub fn admit_v3_package(
         .find(|graph| graph.entity_id == closure.entry)
         .ok_or(AuthorityError::UnknownEntry)?;
     // Semantic leg 1 (C0 seed): profile judgment.
-    let report = judge_closure_for_seed_version(closure, entry, &package.image_bytes, BootstrapProfileVersion::V3)?;
+    let report = judge_closure_for_seed_version(
+        closure,
+        entry,
+        &package.image_bytes,
+        BootstrapProfileVersion::V3,
+    )?;
     // Semantic leg 2 (C0 seed): reference re-lowering.
     let reference = reference_lower_for_seed(closure, entry)?;
     // Permanent mechanics from here on: no language judgment.

@@ -33,9 +33,13 @@
 use sley_ssmc::{ConstData, ConstValue};
 
 use super::inv::{KIND_BLOCK, KIND_FUNCTION, KIND_OPERATION, KIND_PARAMETER};
-use super::model::*;
+use super::model::{BLK, FUN, OP, PRM};
 use super::rt::{code, r};
-use crate::seed::*;
+use crate::seed::{
+    E, FnB, Module, Ty, add, and, boolc, bytesc, call, concat, div, eq, field, ge, gt, is_some, le,
+    lt, mget, mget_opt, mhas, mins, mnew, mul, ne, not, or, push, rem, select, slice, sub, t, tget,
+    tri, tup, u64c, unwrap, v, vget, vlen, vnew, vset,
+};
 
 /// `VM_LOWER_PROFILE_UNSUPPORTED`.
 pub const VM_LOWER_PROFILE_UNSUPPORTED: u32 = 26_000;
@@ -181,7 +185,10 @@ fn reg(f: &mut FnB<'_>, out: &'static str, vr: E) {
             f.let_("#idx", field(v("#vr"), "idx"));
             f.if_(
                 or(
-                    ne(rem(v("#hi"), v("K2")), sub(v("K2"), field(v("#vr"), "kind"))),
+                    ne(
+                        rem(v("#hi"), v("K2")),
+                        sub(v("K2"), field(v("#vr"), "kind")),
+                    ),
                     ge(v("#idx"), rem(v("#c"), v("K32"))),
                 ),
                 |f| f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID)),
@@ -219,7 +226,9 @@ fn find(f: &mut FnB<'_>, out: &str, vec: &str, kind: u64, id: E, fail: u32) {
     f.let_("#k", mget_opt(v("idx"), id));
     f.if_(not(is_some(v("#k"))), move |f| f.ret_err(code(fail)));
     f.let_("#kc", unwrap(v("#k")));
-    f.if_(ne(div(v("#kc"), u64c(K32)), u64c(kind)), move |f| f.ret_err(code(fail)));
+    f.if_(ne(div(v("#kc"), u64c(K32)), u64c(kind)), move |f| {
+        f.ret_err(code(fail));
+    });
     f.let_("#kp", rem(v("#kc"), u64c(K32)));
     f.let_(out, vget(v(vec), v("#kp")));
 }
@@ -269,7 +278,14 @@ pub fn define(m: &mut Module) {
             f.let_("iprms", field(v("inv"), "prms"));
             f.let_("iblks", field(v("inv"), "blks"));
             f.let_("iops", field(v("inv"), "ops"));
-            find(f, "efun", "ifns", KIND_FUNCTION, v("entry"), VM_LOWER_LOCAL_REFERENCE_INVALID);
+            find(
+                f,
+                "efun",
+                "ifns",
+                KIND_FUNCTION,
+                v("entry"),
+                VM_LOWER_LOCAL_REFERENCE_INVALID,
+            );
             f.let_(
                 "res",
                 tri(call(
@@ -303,7 +319,14 @@ pub fn define(m: &mut Module) {
                 f.if_(
                     and(ne(v("fid"), v("entry")), not(mhas(v("done"), v("fid")))),
                     |f| {
-                        find(f, "fun", "ifns", KIND_FUNCTION, v("fid"), VM_LOWER_IMMEDIATE_MISMATCH);
+                        find(
+                            f,
+                            "fun",
+                            "ifns",
+                            KIND_FUNCTION,
+                            v("fid"),
+                            VM_LOWER_IMMEDIATE_MISMATCH,
+                        );
                         f.let_(
                             "cr",
                             tri(call(
@@ -483,11 +506,14 @@ fn define_ty(m: &mut Module) {
                             move |f| spush(f, v("pl"), v("d1")),
                         );
                         // OrderedMap / Result: two fields in order.
-                        f.if_(or(eq(v("tag"), u64c(12)), eq(v("tag"), u64c(14))), move |f| {
-                            f.let_("fs", call("ty_fields", vec![v("pl")]));
-                            spush(f, vget(v("fs"), u64c(1)), v("d1"));
-                            spush(f, vget(v("fs"), u64c(0)), v("d1"));
-                        });
+                        f.if_(
+                            or(eq(v("tag"), u64c(12)), eq(v("tag"), u64c(14))),
+                            move |f| {
+                                f.let_("fs", call("ty_fields", vec![v("pl")]));
+                                spush(f, vget(v("fs"), u64c(1)), v("d1"));
+                                spush(f, vget(v("fs"), u64c(0)), v("d1"));
+                            },
+                        );
                         // FunctionRef: parameters, result, effect entities.
                         f.if_(eq(v("tag"), u64c(15)), move |f| {
                             f.let_("fs", call("ty_fields", vec![v("pl")]));
@@ -513,10 +539,13 @@ fn define_ty(m: &mut Module) {
                             });
                         });
                         // AdapterHandle / CapabilityToken: entity.
-                        f.if_(or(eq(v("tag"), u64c(16)), eq(v("tag"), u64c(17))), move |f| {
-                            emit(f, bytesc(&1_u32.to_be_bytes()), u64c(4));
-                            emit(f, v("pl"), u64c(32));
-                        });
+                        f.if_(
+                            or(eq(v("tag"), u64c(16)), eq(v("tag"), u64c(17))),
+                            move |f| {
+                                emit(f, bytesc(&1_u32.to_be_bytes()), u64c(4));
+                                emit(f, v("pl"), u64c(32));
+                            },
+                        );
                         // TypeParameter: u32.
                         f.if_(eq(v("tag"), u64c(19)), move |f| {
                             emit(
@@ -548,49 +577,57 @@ fn define_ty(m: &mut Module) {
 /// `lw_sort(xs: Vector<Bytes>) -> Vector<Bytes>`: ascending bottom-up merge
 /// sort (no recursion).
 fn define_sort(m: &mut Module) {
-    m.func("lw_sort", &[("xs", t::vec(t::bytes()))], t::vec(t::bytes()), |f| {
-        f.let_("n", vlen(v("xs")));
-        f.var("src", v("xs"));
-        f.var("w", u64c(1));
-        f.while_(lt(v("w"), v("n")), |f| {
-            f.var("dst", vnew(t::bytes(), vec![]));
-            f.var("i", u64c(0));
-            f.while_(lt(v("i"), v("n")), |f| {
-                f.let_("mid", select(lt(add(v("i"), v("w")), v("n")), add(v("i"), v("w")), v("n")));
-                f.let_(
-                    "hi",
-                    select(
-                        lt(add(v("mid"), v("w")), v("n")),
-                        add(v("mid"), v("w")),
-                        v("n"),
-                    ),
-                );
-                f.var("a", v("i"));
-                f.var("b", v("mid"));
-                f.while_(or(lt(v("a"), v("mid")), lt(v("b"), v("hi"))), |f| {
-                    f.var("take_a", lt(v("a"), v("mid")));
-                    f.if_(and(v("take_a"), lt(v("b"), v("hi"))), |f| {
-                        f.set("take_a", le(vget(v("src"), v("a")), vget(v("src"), v("b"))));
-                    });
-                    f.if_else(
-                        v("take_a"),
-                        |f| {
-                            put(f, "dst", vget(v("src"), v("a")));
-                            f.set("a", add(v("a"), u64c(1)));
-                        },
-                        |f| {
-                            put(f, "dst", vget(v("src"), v("b")));
-                            f.set("b", add(v("b"), u64c(1)));
-                        },
+    m.func(
+        "lw_sort",
+        &[("xs", t::vec(t::bytes()))],
+        t::vec(t::bytes()),
+        |f| {
+            f.let_("n", vlen(v("xs")));
+            f.var("src", v("xs"));
+            f.var("w", u64c(1));
+            f.while_(lt(v("w"), v("n")), |f| {
+                f.var("dst", vnew(t::bytes(), vec![]));
+                f.var("i", u64c(0));
+                f.while_(lt(v("i"), v("n")), |f| {
+                    f.let_(
+                        "mid",
+                        select(lt(add(v("i"), v("w")), v("n")), add(v("i"), v("w")), v("n")),
                     );
+                    f.let_(
+                        "hi",
+                        select(
+                            lt(add(v("mid"), v("w")), v("n")),
+                            add(v("mid"), v("w")),
+                            v("n"),
+                        ),
+                    );
+                    f.var("a", v("i"));
+                    f.var("b", v("mid"));
+                    f.while_(or(lt(v("a"), v("mid")), lt(v("b"), v("hi"))), |f| {
+                        f.var("take_a", lt(v("a"), v("mid")));
+                        f.if_(and(v("take_a"), lt(v("b"), v("hi"))), |f| {
+                            f.set("take_a", le(vget(v("src"), v("a")), vget(v("src"), v("b"))));
+                        });
+                        f.if_else(
+                            v("take_a"),
+                            |f| {
+                                put(f, "dst", vget(v("src"), v("a")));
+                                f.set("a", add(v("a"), u64c(1)));
+                            },
+                            |f| {
+                                put(f, "dst", vget(v("src"), v("b")));
+                                f.set("b", add(v("b"), u64c(1)));
+                            },
+                        );
+                    });
+                    f.set("i", v("hi"));
                 });
-                f.set("i", v("hi"));
+                f.set("src", v("dst"));
+                f.set("w", mul(v("w"), u64c(2)));
             });
-            f.set("src", v("dst"));
-            f.set("w", mul(v("w"), u64c(2)));
-        });
-        f.ret(v("src"));
-    });
+            f.ret(v("src"));
+        },
+    );
 }
 
 /// `lw_fn(idx, iprms, iblks, iops, fun, is_entry, work, tm, tbl)` (the
@@ -650,7 +687,14 @@ fn define_fn(m: &mut Module) {
             // One parameter owned by `owner`.
             let param = |f: &mut FnB<'_>, pid: E, owner: E| {
                 f.let_("pid", pid);
-                find(f, "prm", "iprms", KIND_PARAMETER, v("pid"), VM_LOWER_LOCAL_REFERENCE_INVALID);
+                find(
+                    f,
+                    "prm",
+                    "iprms",
+                    KIND_PARAMETER,
+                    v("pid"),
+                    VM_LOWER_LOCAL_REFERENCE_INVALID,
+                );
                 f.if_(ne(field(v("prm"), "owner"), owner), |f| {
                     f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID));
                 });
@@ -669,7 +713,14 @@ fn define_fn(m: &mut Module) {
             f.let_("nb", vlen(v("fbs")));
             f.for_u64("b", u64c(0), v("nb"), move |f| {
                 f.let_("bid", vget(v("fbs"), v("b")));
-                find(f, "blk", "iblks", KIND_BLOCK, v("bid"), VM_LOWER_LOCAL_REFERENCE_INVALID);
+                find(
+                    f,
+                    "blk",
+                    "iblks",
+                    KIND_BLOCK,
+                    v("bid"),
+                    VM_LOWER_LOCAL_REFERENCE_INVALID,
+                );
                 f.if_(ne(field(v("blk"), "function"), v("fid")), |f| {
                     f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID));
                 });
@@ -681,7 +732,14 @@ fn define_fn(m: &mut Module) {
                 f.let_("bos", field(v("blk"), "ops"));
                 f.for_u64("j", u64c(0), vlen(v("bos")), |f| {
                     f.let_("oid", vget(v("bos"), v("j")));
-                    find(f, "op", "iops", KIND_OPERATION, v("oid"), VM_LOWER_LOCAL_REFERENCE_INVALID);
+                    find(
+                        f,
+                        "op",
+                        "iops",
+                        KIND_OPERATION,
+                        v("oid"),
+                        VM_LOWER_LOCAL_REFERENCE_INVALID,
+                    );
                     f.if_(ne(field(v("op"), "block"), v("bid")), |f| {
                         f.ret_err(code(VM_LOWER_LOCAL_REFERENCE_INVALID));
                     });
@@ -721,10 +779,7 @@ fn define_fn(m: &mut Module) {
                         ),
                         |f| f.ret_err(code(VM_LOWER_RESOURCE_LIMIT)),
                     );
-                    charge(
-                        f,
-                        add(add(add(u64c(1), v("nprm")), v("nb")), v("nops")),
-                    );
+                    charge(f, add(add(add(u64c(1), v("nprm")), v("nb")), v("nops")));
                 },
                 |f| {
                     f.if_(gt(v("r"), u64c(MAX_REGISTERS)), |f| {
@@ -736,10 +791,7 @@ fn define_fn(m: &mut Module) {
             charge(f, add(v("nops"), v("nopnd")));
 
             // Grow the u32 table to every register and slot.
-            f.let_(
-                "need",
-                select(gt(v("r"), v("nb")), v("r"), v("nb")),
-            );
+            f.let_("need", select(gt(v("r"), v("nb")), v("r"), v("nb")));
             f.while_(lt(vlen(v("tbl")), v("need")), |f| {
                 f.let_("i", vlen(v("tbl")));
                 f.let_("hi", div(v("i"), u64c(256)));
