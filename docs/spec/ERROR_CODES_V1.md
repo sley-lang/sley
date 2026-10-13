@@ -71,6 +71,9 @@ and ambiguity are failures, never success.
   numbers to be frozen or explicitly disclaimed by the owner).
 - `RAW_HASH_*`: raw-hash primitive refusals (owning contract `RAW_HASH_V1.md`;
   numeric codes unassigned at this revision).
+- `HOST_ADMISSION_*`: SH2 pinned-host package admission refusals (owning
+  contract `EXEC_PACKAGE_V3.md`, host admission refusals; numberless typed
+  vocabulary at this revision).
 - `PACK_*`, `GC_*`, `MERGE_*`: repository operations.
 - `EXCHANGE_*`: repository exchange and pack-clone import (owning contract
   `REPOSITORY_EXCHANGE_V1.md`, S20-540; codes 54000 through 54021).

@@ -109,14 +109,14 @@
     {
       "acceptance_evidence": "absent from GA dependency graph unless declared in the authorized campaign boundary record (host-boundary.json) and gated by staged SH2 proofs",
       "anti_goal": "native/JIT/AOT/marketplace/self-hosting outside an authorized campaign",
-      "detail": "codegen or runtime crates in the lock: none; 7 declared SH2 work items cite the authorized boundary record and a staged gate",
+      "detail": "codegen or runtime crates in the lock: none; 8 declared SH2 work items cite the authorized boundary record and a staged gate",
       "state": "HOLDS",
       "surface": "workspace/package denylist + campaign-declaration record"
     },
     {
       "acceptance_evidence": "core/conformance pass with network disabled",
       "anti_goal": "network-dependent core tests",
-      "detail": "networking crates in the lock: none; the lock holds 61 crates in total",
+      "detail": "networking crates in the lock: none; the lock holds 63 crates in total",
       "state": "HOLDS",
       "surface": "network-isolated gate"
     },
@@ -172,14 +172,14 @@
     {
       "acceptance_evidence": "no tag, upload, or deploy action outside the operator's recorded publication decision (`scripts/publication_authority.py`)",
       "anti_goal": "unauthorized publication/deploy/spend",
-      "detail": "git tags: 5; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
+      "detail": "git tags: 7; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
       "state": "HOLDS",
       "surface": "repo metadata and operator gate"
     }
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "7f873d5a86c724f7ae83650a48f5be4fac5e1ff2c13d91fc040fac8a31a48d90",
+  "report_digest": "a83e32752d35187be2aae3ee3dff4fb4095a00d03ce71c1548b82d45f9ed8c86",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

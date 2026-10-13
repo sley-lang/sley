@@ -1,7 +1,7 @@
 {
   "contract": "sley2.declared-limits.v1",
-  "declared_limits": 209,
-  "documented_limits": 10,
+  "declared_limits": 220,
+  "documented_limits": 11,
   "result": "PASS",
   "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
   "undocumented": [],
@@ -810,6 +810,56 @@
       "value": 134217728
     },
     {
+      "constant": "MAX_REGISTERS",
+      "source": "crates/sley-selfhost/src/toolchain/lower.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_LOWERED_BLOCKS",
+      "source": "crates/sley-selfhost/src/toolchain/lower.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_INSTRUCTIONS",
+      "source": "crates/sley-selfhost/src/toolchain/lower.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_INSTRUCTION_VALUES",
+      "source": "crates/sley-selfhost/src/toolchain/lower.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_LOWERING_WORK",
+      "source": "crates/sley-selfhost/src/toolchain/lower.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_BYTECODE_BYTES",
+      "source": "crates/sley-selfhost/src/toolchain/lower.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_STANDALONE",
+      "source": "crates/sley-selfhost/src/toolchain/rt.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_BYTE_PAYLOAD",
+      "source": "crates/sley-selfhost/src/toolchain/rt.rs",
+      "value": 16777216
+    },
+    {
+      "constant": "MAX_COLLECTION",
+      "source": "crates/sley-selfhost/src/toolchain/rt.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_RECORD_FIELDS",
+      "source": "crates/sley-selfhost/src/toolchain/rt.rs",
+      "value": 65535
+    },
+    {
       "constant": "MAX_FINGERPRINT_PREIMAGE_BYTES",
       "source": "crates/sley-ssmc/src/fingerprint.rs",
       "value": 67108864
@@ -1015,5 +1065,5 @@
       "value": 67108864
     }
   ],
-  "weak_limits": 199
+  "weak_limits": 209
 }
