@@ -91,5 +91,7 @@ python3 scripts/build_release_candidate.py --require-clean
 sha256sum dist/sley-2.1.1-linux-x86_64.tar.gz
 ```
 
-Checksums, the exact source commit, test results and any host attestations must identify the
-delivered 2.1.1 artifact. Records from earlier releases do not qualify it.
+The Linux x86_64 archive was built from `af34be33eb1ae913dddd92aa7f4f275aac0e45ee`. Two clean
+builds on the primary host produced identical bytes. Cross-host reproducibility is not claimed.
+The archive SHA-256 is `b0898ba7404a1656db2f83f448ea96d2c1175346f35e50b135bedc96e3810bfd`
+(7,413,689 bytes, 17 members). Provenance remains unsigned.
