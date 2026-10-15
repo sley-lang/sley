@@ -274,13 +274,59 @@
           },
           "sums_consistent": true,
           "sums_file": true
+        },
+        "v3": {
+          "claim": null,
+          "contract": "sley2-bootstrap-profile-3",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/bootstrap-profile/v3",
+          "files": [
+            {
+              "bytes": 79,
+              "name": "SHA256SUMS",
+              "sha256": "937cd0d55c4e5f82a585080854af0b4d14962fce57615e7bbbfdc8206c5a04a9"
+            },
+            {
+              "bytes": 12710,
+              "name": "profile.json",
+              "sha256": "8cc5677cd47d803cacccdaa53da2686a81eaff6a76d9546c9edc846fa6b24ced"
+            }
+          ],
+          "shape": {
+            "profile.json": {
+              "boundaries": 3,
+              "budgets": 4,
+              "cache_key_inputs": 12,
+              "call_rules": 5,
+              "ceilings": 14,
+              "closure_vectors": 3,
+              "effect_policy": 3,
+              "excluded_opcodes": 5,
+              "failure_registry": 5,
+              "gate": 6,
+              "iteration": 2,
+              "permitted_imports": 3,
+              "permitted_opcodes": 42,
+              "supersedes": 6,
+              "terminators": 4,
+              "types": 3,
+              "vm": 5
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
         }
       },
       "sums_consistent": true,
       "sums_file": true,
       "tracked_versions": [
         "v1",
-        "v2"
+        "v2",
+        "v3"
       ]
     },
     {
@@ -1505,8 +1551,8 @@
     "problems": [],
     "python_sources": 30
   },
-  "report_digest": "943001a1f09731903f9bb58c8ff21a3d1c9f4b6c743c33ea2c4d05363c22ad14",
+  "report_digest": "653e0378414559b02d9f6608dc829d0c94fab8f8a52326d218153aaa917782fc",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
-  "tracked_corpus_directories": 32,
+  "tracked_corpus_directories": 33,
   "work_package": "S20-730"
 }

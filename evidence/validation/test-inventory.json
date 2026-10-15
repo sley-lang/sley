@@ -19,6 +19,12 @@
       "version": "v2"
     },
     {
+      "family": "bootstrap-profile",
+      "rejections": 0,
+      "vectors": 0,
+      "version": "v3"
+    },
+    {
       "family": "candidate-result",
       "rejections": 4,
       "vectors": 16,
@@ -196,7 +202,7 @@
   "conformance_rejections": 285,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "0e3fc54b079baea02bc73fe2b15c89df15e4ee9c09b430cb1bb31662a41f4570",
+  "inventory_digest": "f94b86fde8dfe1e063e78719f277c5d6290d5b91fc3c52a79d184690e79b238b",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -225,7 +231,7 @@
     "manifest_harness_deps": [],
     "python_use_sites": 0,
     "rust_use_sites": 0,
-    "scanned_manifests": 23
+    "scanned_manifests": 25
   },
   "property_tests": 0,
   "python_test_modules": [
@@ -285,7 +291,7 @@
     {
       "crate": "sley-agent",
       "ignored": 0,
-      "tests": 973
+      "tests": 979
     },
     {
       "crate": "sley-check",
@@ -348,6 +354,11 @@
       "tests": 18
     },
     {
+      "crate": "sley-selfhost",
+      "ignored": 5,
+      "tests": 59
+    },
+    {
       "crate": "sley-ssmc",
       "ignored": 0,
       "tests": 10
@@ -383,8 +394,8 @@
       "tests": 506
     }
   ],
-  "rust_ignored_emitters": 39,
-  "rust_unit_tests": 3006,
+  "rust_ignored_emitters": 44,
+  "rust_unit_tests": 3071,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

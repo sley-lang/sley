@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "control map for all 56 threats; coverage measured here; independent review pending",
-  "report_digest": "f4c3b76c066508e988c60df341e29d3efef17365fd16307adb0235a83e650457",
+  "report_digest": "63165229a9c2502636dba7a20f24bb540dcb64705749fb0c4011f2e8e9c90f07",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -33,10 +33,10 @@
         "crates/sley-repo/src/native_exchange.rs#tests",
         "crates/sley-repo/src/refs.rs#tests"
       ],
-      "exercised_source_count": 49,
+      "exercised_source_count": 50,
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
-      "located_file_count": 51,
+      "located_file_count": 57,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -95,7 +95,7 @@
       "exercised_source_count": 26,
       "expected_failure_code": "SCB_NON_CANONICAL",
       "id": "T02",
-      "located_file_count": 30,
+      "located_file_count": 35,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -147,7 +147,7 @@
       "exercised_source_count": 23,
       "expected_failure_code": "SCB_DIGEST_MISMATCH",
       "id": "T03",
-      "located_file_count": 22,
+      "located_file_count": 25,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -358,7 +358,7 @@
       "exercised_source_count": 5,
       "expected_failure_code": "GRAPH_UNRESOLVED_REFERENCE",
       "id": "T09",
-      "located_file_count": 8,
+      "located_file_count": 9,
       "located_in": {
         "fuzz": [
           "fuzz/targets/ssmc_graph_cfg_checker.rs"
@@ -396,7 +396,7 @@
       "exercised_source_count": 8,
       "expected_failure_code": "GRAPH_CYCLE_FORBIDDEN",
       "id": "T10",
-      "located_file_count": 13,
+      "located_file_count": 14,
       "located_in": {
         "checkers": [
           "scripts/check_type_system.py"
@@ -435,7 +435,7 @@
       "exercised_source_count": 1,
       "expected_failure_code": "CFG_RESOURCE_LIMIT",
       "id": "T11",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py"
@@ -471,14 +471,15 @@
       "exercised_source_count": 1,
       "expected_failure_code": "TYPE_RESOURCE_LIMIT",
       "id": "T12",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
         "fuzz": [
           "fuzz/targets/ssmc_graph_cfg_checker.rs"
         ],
         "implementation": [
           "crates/sley-check/src/lib.rs",
-          "crates/sley-protocol/src/server.rs"
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-selfhost/src/toolchain/check.rs"
         ]
       },
       "owner": "sley-check",
@@ -623,7 +624,7 @@
       "exercised_source_count": 23,
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 42,
+      "located_file_count": 48,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
@@ -1172,7 +1173,7 @@
       "exercised_source_count": 4,
       "expected_failure_code": "VM_RESOURCE_LIMIT",
       "id": "T32",
-      "located_file_count": 9,
+      "located_file_count": 11,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py",
@@ -1182,7 +1183,7 @@
           "crates/sley-policy/src/candidate_validation.rs",
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
-          "crates/sley-tests/src/report.rs"
+          "crates/sley-selfhost/src/toolchain/judge.rs"
         ]
       },
       "owner": "sley-vm",
@@ -1214,7 +1215,7 @@
       "exercised_source_count": 7,
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
-      "located_file_count": 12,
+      "located_file_count": 15,
       "located_in": {
         "checkers": [
           "scripts/check_vm_lowering_profile.py"
@@ -1256,7 +1257,7 @@
       "exercised_source_count": 7,
       "expected_failure_code": "VM_FLOAT_PROFILE_MISMATCH",
       "id": "T34",
-      "located_file_count": 9,
+      "located_file_count": 11,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -1266,7 +1267,7 @@
           "crates/sley-agent/tests/ripple.rs",
           "crates/sley-repo/src/refs.rs",
           "crates/sley-scb1/src/lib.rs",
-          "crates/sley-txn/src/repository.rs"
+          "crates/sley-selfhost/src/toolchain/codes.rs"
         ],
         "oracle": [
           "oracle/scb1/src/sley2_scb1_oracle/codec.py",
@@ -1296,12 +1297,13 @@
       "exercised_source_count": 1,
       "expected_failure_code": "CACHE_BINDING_MISMATCH",
       "id": "T35",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
         "checkers": [
           "scripts/check_vm_lowering_profile.py"
         ],
         "implementation": [
+          "crates/sley-selfhost/src/toolchain/lower.rs",
           "crates/sley-vm/src/lib.rs",
           "crates/sley-vm/tests/rw080_lower_scaffold.rs"
         ]
@@ -1810,15 +1812,15 @@
       "exercised_in": [
         "crates/sley-repo/src/native_exchange.rs#tests",
         "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-selfhost/tests/toolchain_faults.rs",
         "crates/sley-test-runner/src/worker.rs#tests",
         "crates/sley-txn/src/native_codec.rs#tests",
-        "crates/sley-txn/src/repository.rs#tests",
-        "crates/sley-vm/tests/rw080_codec_envelope.rs"
+        "crates/sley-txn/src/repository.rs#tests"
       ],
-      "exercised_source_count": 18,
+      "exercised_source_count": 19,
       "expected_failure_code": "SCB_MAGIC_INVALID",
       "id": "T49",
-      "located_file_count": 21,
+      "located_file_count": 25,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -1833,7 +1835,7 @@
           "crates/sley-repo/src/native_exchange.rs",
           "crates/sley-repo/src/refs.rs",
           "crates/sley-scb1/src/lib.rs",
-          "crates/sley-test-runner/src/worker.rs"
+          "crates/sley-selfhost/src/toolchain/codec.rs"
         ],
         "oracle": [
           "oracle/scb1/generate_s20_350_fixtures.py",

@@ -10,6 +10,8 @@ it with a JSON frame that `sley-agent` expands, compiles and validates.
     sley-agent fill d1 fix.json --revision 1   # repair only what was refused
     sley-agent submit d1             # d1's latest revision, Valid and tested
 
+Shortest: `try --familiar f.txt` with `help card` or `help python`.
+
 ## Writing a frame
 
 ```json
@@ -69,7 +71,6 @@ A refused `try` keeps a draft and lists problem pointers. Repair them:
 
 `fill d1 fix.json --revision 2` replaces exactly those subtrees and tries
 again. `draft d1` shows its state and obligations; `--expanded` the plain
-frame derived from yours. A kernel refusal prints the phase, symbol,
-`where:`, `authored:` and a hint. `submit` refuses a change no test covers
+frame derived from yours. `submit` refuses a change no test covers
 (`--untested` overrides).
 More: `help afx|afx-reference|af1|drafts|tests|search|types|opcodes|refusals`.
