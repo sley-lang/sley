@@ -1,0 +1,18 @@
+[sh2] repository 07b43cf5aac67e14d755d5cdc2c1fe45d6bca155 dirty=0
+[sh2] building sley-sh2 (C0 side) and the static musl sley-host
+   Compiling sley-selfhost v2.0.7 (REPO/crates/sley-selfhost)
+    Finished `release` profile [optimized] target(s) in 2m 05s
+    Finished `release` profile [optimized] target(s) in 0.03s
+[sh2] host binary sha256 f8a20ad2a25e22f7effe6168d83983d210d58ed2ec3e4007c3ca984ac5e641f3
+WORKDIR/bin/sley-host: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), static-pie linked, BuildID[sha1]=4b3ac5691ba183d68397199dbbc408db6b978977, not stripped
+[sh2] host binary links no native compiler service (symbol audit: 2361 symbols)
+[sh2] staging canonical S and building C1 with the native seed (C0)
+[sh2] C1 package digest 389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca
+[sh2] stage C2: host runs C1.pkg (trust 389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca) in an empty sandbox
+[sh2] stage C2 finished in 604s: {"schema":"sley2.sh2.host-build-receipt.v1","toolchain_package_digest":"389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca","input_digest":"93a3bb311ee9a1c6511a6d336a9fad6f657598452f80097bd2c80a13a6b07696","objects":62322,"status":"ok","output_sha256":"7382fc9d93a27c34ded8c46ed5365719eed3af5549cc84fd5ca0f783dd98e029","observation_id":"425e3bd8a8a4ce2f3d9f04ad7589a05440ab4b7a58f51e27a
+[sh2] C2 package digest 389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca
+[sh2] stage C3: host runs output.pkg (trust 389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca) in an empty sandbox
+[sh2] stage C3 finished in 605s: {"schema":"sley2.sh2.host-build-receipt.v1","toolchain_package_digest":"389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca","input_digest":"93a3bb311ee9a1c6511a6d336a9fad6f657598452f80097bd2c80a13a6b07696","objects":62322,"status":"ok","output_sha256":"7382fc9d93a27c34ded8c46ed5365719eed3af5549cc84fd5ca0f783dd98e029","observation_id":"425e3bd8a8a4ce2f3d9f04ad7589a05440ab4b7a58f51e27a
+[sh2] C3 package digest 389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca
+[sh2] FIXED POINT: C2 == C3 and C1 == C2 (package 389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca)
+[sh2] self-rebuild closure assembled in WORKDIR/dist (260M)

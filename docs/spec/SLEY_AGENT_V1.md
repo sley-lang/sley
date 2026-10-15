@@ -69,7 +69,7 @@ sley-agent import <cases.json> [--on <draft>[@r<N>]] [--only <name,...>] [--reba
 sley-agent draft [<draft>[@r<N>]] [--obligations | --expanded | --input | --frame]
 sley-agent submit <draft>[@r<N>] [--untested]
 sley-agent status [--raw]
-sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats]
+sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats] [--reference]
 sley-agent test [<ref>] [--public <cases.json>]
 sley-agent explain [<ref>]
 sley-agent search <fn> --public <cases.json> [--from <handle|draft>[@r<N>]] [--max-neighbors <n>] [--max-millis <ms>]
@@ -88,6 +88,13 @@ sley-agent help [guide|af1|afx|afx-quick|afx-reference|drafts|types|tests|opcode
 on demand. The compact guide is capped at 3,500 UTF-8 bytes; its examples run
 through the ordinary workbench and kernel in the help tests. This byte bound
 does not establish a model-token or cost reduction.
+
+`call --reference` uses the reference interpreter instead of the optional compact
+execution plan, for either one call or a batch. Candidate validation, input
+admission, checked semantics, resource accounting and accepted-state authority
+remain unchanged. Deterministic result/fuel/instruction fields match; measured
+`vm_micros` may differ. This switch is for differential validation and profiling,
+not a different language or a way to bypass checks.
 
 A `<ref>` is a handle (`c3`), `latest`, a file holding stored candidate
 hex, raw stored candidate hex, or a bare candidate record (which is framed
@@ -2269,15 +2276,32 @@ validation, tests, submission) is unchanged, and `view --after cN` shows the low
 
     {"fn": "f", "params": [["xs", "Vec<i64>"]], "returns": "i64", "body": [statement, ...]}
 
-Statements: `["let", x, e]`; `["var", x, T, e]` and `["set", x, e]` (only a `var` may be set);
+Statements: `["let", x, e]`; `["var", x, T, e]` or `["var", x, e]` (typed like `let`) and
+`["set", x, e]` (only a `var` may be set);
 `["if", c, [..], [..]]` (else optional); `["for", x, xs, [..]]` (elements of a vector, in order; the
-index is not visible); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
-`["ok", e]` and `["fail", "Case"]`; `["trap"]`. Variables declared in a branch or loop body go out of
+index is not visible); `["for-indexed", i, x, xs, [..]]` (read-only `u64` index and element);
+`["range", i, start, end, [..]]` (read-only integer induction variable); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
+`["ok", e]` and `["fail", "Case"]`; `["trap"]`; `["break"]` and `["continue"]` (2.1.1: the
+innermost loop); `["declare", x, w]` (2.1.1: a `var` of `w`'s static type holding its zero; `w` is
+not evaluated). Variables declared in a branch or loop body go out of
 scope at its end. A `let` or `var` in the same statement list as an earlier declaration of the name
 rebinds it; inside a nested branch or loop body, declaring a name that is declared outside that body
 (a variable, a parameter, or a `for` variable) is refused, because hiding and overwriting the outer
 name are both familiar readings. A body must not reach its end without returning, and a statement
 after one that returns is refused.
+
+A range is half-open: visit `start`, `start + 1`, ... while less than `end`.
+Bounds evaluate exactly once, left to right, before testing emptiness. Equal or
+reversed bounds execute no body; bound failures still occur in that order.
+Both bounds must have one identical integer type. Untyped literals use a known
+bound type, otherwise the existing `i64` default; explicit integer types never
+convert implicitly. There is no subtraction of the bounds and no wraparound.
+The checked increment from the last visited value to the exclusive endpoint
+cannot overflow, including endpoints at the maximum of the integer type.
+Range/index/element names must be distinct and absent from enclosing scope.
+They cannot be assigned or redeclared inside the body, and do not escape it.
+Vector iteration evaluates the vector once. Mutating an outer bound or vector
+variable inside a loop does not change that loop's captured input.
 
 Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "value": v}`, or
 `[op, args...]` with
@@ -2291,13 +2315,84 @@ Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "
 - `eq ne lt le gt ge not`, and `and or`, which evaluate both operands;
 - `if`: `["if", c, a, b]` evaluates only the chosen value;
 - `len` (`u64`), `get` (`[xs, i]`, `u64` index; out of range traps or `get?Case`), `field`
-  (`[r, "name"]`), `call` (`["f", args...]`; `call?` unwraps a Result).
+  (`[r, "name"]`), `call` (`["f", args...]`; `call?` unwraps a Result);
+- `fold` (2.1.1): `["fold", kind, x, xs, e, c?, d?]` visits every element `x` of the vector `xs`, or
+  every integer of `["range", start, end]` (half-open), where the bool `c` holds when given. `sum`
+  adds `e` with checked addition from 0; `count` counts the elements where the bool `e` holds (an
+  `i64`); `any` and `all` combine the bool `e` with `or` and `and`; `max` and `min` keep the largest or
+  smallest `e`, and when no element is visited give `d` if given, else trap. It lowers to the
+  `var`, `for`/`range`, `if` and `set` statements above, so it means exactly that loop;
+- `floordiv floormod` (2.1.1): Python's `//` and `%`: the quotient rounds toward negative infinity and
+  the remainder takes the divisor's sign; checked like `div` and `rem`, with the same modes;
+- `truthy` (2.1.1): a bool as itself, an integer `!= 0`, a vector or text that is not empty;
+- `pow` (2.1.1): `["pow", a, b]` multiplies `a` by itself `b` times with checked multiplication; a
+  negative `b` traps. `gcd`: the greatest common divisor of the absolute values (`gcd(0, 0)` is 0).
+  `powmod`: `["powmod", b, e, m]` is `1 % m` multiplied by `b % m` `e` times, each product reduced
+  modulo `m` with `floormod` (a negative `e` traps; `m == 0` fails like a division by zero).
 
 Integer literals take the type of the other operand, the declared variable or the return type, else
 `i64`; integer types never mix. A refusal names the authored location (`/fns/0/body/2/1`); a compiler
 refusal inside lowered blocks is mapped back to the statement that produced it, with the lowered
 pointer beside it. A `body` in `patch` is refused: restate a body function through `fns`.
 `help structured` is the short reference.
+
+### 5.4.1 Root-bound function proposals
+
+A controller may bind a fresh `try` proposal with `--base-root ROOT`, where
+ROOT is the complete lowercase 64-hex `root` supplied by `--json view`
+(including focused views) of the accepted program. A different accepted root
+is `AGENT_PROPOSAL_STALE`; the guard is checked before constructing a trial
+and again before publishing its candidate. Candidate commit still uses the
+kernel's own exact base preconditions. A view of a candidate is not a fresh
+accepted-program editing context.
+
+`--functions NAME,OTHER` additionally limits the proposal to a nonempty
+function frame: only `af1`, `afx`, and `fns` are allowed at the top level,
+each function name must occur once and belong to the controller's allowlist.
+Names are exact identifiers, not patterns. This switch requires `--base-root`.
+Existing functions outside that set, their parameters, blocks and operations
+must retain their exact object identities in the resulting graph. New functions
+must also belong to the set. The compiler may create the ordinary types,
+constants and namespace membership needed to lower the allowed functions.
+The guard does not promise that callers' behavior is unchanged when an allowed
+callee changes; the caller owns behavioral and effect requirements and tests.
+Violating this authoring constraint is `AGENT_PROPOSAL_SCOPE` and publishes no
+candidate. A malformed root or incompatible switches is `AGENT_USAGE_INVALID`.
+
+Both guards apply to JSON function frames and familiar proposals, and do not
+change the parser, kernel or graph-native lifecycle. Multiple definitions are
+one atomic candidate. A guarded proposal is fresh: `--on` is refused. Guards
+are per-invocation authoring constraints, not capability grants or persistent
+restrictions on subsequent authoring commands. Controllers must carry their
+scope and fresh root on every new attempt. Nothing commits automatically.
+
+### 5.4.2 Body-only proposals
+
+`try body.json --body NAME --base-root ROOT` accepts a JSON statement list
+for one existing function. With `--familiar`, the file contains statements
+without a function header or outer braces. The name, parameter names and types,
+and result type come from the selected accepted graph at ROOT. This is header
+binding, not reconstruction of any previous authoring text. For creation a
+controller can first install a typed stub from the task's declared signature;
+that setup must be counted by a measurement controller.
+
+The command wraps the body into an ordinary structured function frame and
+uses the same lowering, validator, tests and atomic candidate path. The root
+binding is required; `--on` is incompatible. If `--functions` is omitted, the
+scope is the selected function only. An explicit scope must contain the target.
+The selected function's parameter identities/objects, result type, visibility,
+contracts, type parameters and effects are checked for exact preservation.
+Whole body replacement does not preserve interior block/operation identities;
+use a targeted graph edit when those identities are part of the edit contract.
+
+AF1 cannot restate generic or effect-declaring functions, so `--body` refuses
+such targets before recording a trial. Missing targets, an incompatible input
+shape and unsupported signatures are refused, never guessed. In particular a
+text body cannot supply a replacement header or an additional function.
+Diagnostics index the synthesized draft `frame.json`; familiar positions remain
+relative to the original body text, without a fabricated header line offset.
+The input and frame are draft records, never canonical program authority. JSON
+body-only proposals continue to work without the optional familiar feature.
 
 ### 5.5 Familiar text proposals (optional frontend)
 
@@ -2310,12 +2405,16 @@ and inline text is not accepted.
     fn name(p: T, q: T) -> T {
         let x = e            var t: T = e          t = e
         if c { .. } else if c { .. } else { .. }
-        for x in xs { .. }   while c { .. }
+        for x in xs { .. }   for i, x in xs { .. }
+        for i in start..end { .. }   while c { .. }
         return e             return ok(e)          return err(Case)      trap
     }
 
 Each construct maps to one structured form: `let`, `var`, `set`, `if`, `for`, `while`, `return`,
-`ok`, `fail`, `trap`. Expressions, loosest first: `a if c else b` (`["if", c, a, b]`, only when `if`
+`ok`, `fail`, `trap`. `for i in start..end` maps to `range`, and
+`for i, x in xs` maps to `for-indexed`, with the semantics of section 5.4.
+Ranges occur only in a `for` header; inclusive ranges, steps and iterable range
+values are refused. Expressions, loosest first: `a if c else b` (`["if", c, a, b]`, only when `if`
 is on the line of `a`), `or`, `and`, `not`, `== != < <= > >=` (`eq` ... `ge`, no chaining), `+ -`,
 `* / %` (`add sub mul div rem`), unary `-` (`neg`; a minus before a literal makes a negative
 literal), then `f(args)` (`call`), `x.field`, `xs[i]` (`get`). `min max abs clamp len` are the
@@ -2326,9 +2425,25 @@ is accepted), typed integers (`7u64`), `true`, `false`, and JSON-escaped text in
 Comments run from `#` to the end of the line, or fill a line that starts with `//`. Newlines and
 optional `;` separate statements.
 
-There is no other syntax. Methods, ranges, `break`/`continue`, compound assignment, floating-point
+Sley 2.1.1 adds, each mapping to the forms above:
+
+- `var t = e` (the type of `e`), and a `let` that is later assigned (a `let` is lowered as an
+  inferred `var`; `let mut x = e` and `let x: T = e` are accepted spellings);
+- compound assignment `t += e` (also `-= *= /= %=`), meaning `t = t op e`;
+- generator folds `sum(e for x in xs if c)`, `count(c for x in xs)`, `any(..)`, `all(..)`, `max(..)`
+  and `min(..)` (section 5.4 `fold`; the `if` part is optional);
+- a bare value as the last statement of a function, or of each branch of a final `if`, is the
+  function's result (`return e`; `Ok(e)` / `Err(Case)` give `ok` / `fail`); a bare value anywhere
+  else is refused;
+- `if c { a } else if d { b } else { e }` used as a value, with one expression per branch (the same
+  `["if", c, a, b]`);
+- `&&`, `||` and a `!` that does not start `!=`, spelling `and`, `or` and `not`;
+- `break` and `continue` (structured `["break"]` / `["continue"]`: leave the innermost loop, or go to
+  its next pass; a `for` or range loop advances first).
+
+There is no other syntax. Methods, inclusive ranges, `++`, floating-point
 or hexadecimal literals, slices, tuples, bitwise operators, a trailing `//` and spellings from other
-languages (`&&`, `!`, `elif`, `let mut`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
+languages (`elif`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
 their line and column, and the revision is recorded as a text draft: its `input.txt` keeps the
 text and no frame or candidate is made. A function may not be named after a built-in.
 
@@ -2339,6 +2454,55 @@ the text. Refusals keep the frame's pointers (`/fns/0/body/2/1`) and add, for fa
 pointer's line and column (`"text": {"line": L, "column": C}` on the obligation, and a line in the
 refusal). Positions are diagnostics: they never enter canonical bytes, identities or the program.
 Nothing renders a program back into this syntax. `help familiar` is the short reference.
+
+
+### 5.5.1 The Python dialect (2.1.1, ADR-0057)
+
+Text whose first significant line starts with `def`, `import` or `from` is the Python dialect of the
+same frontend (same feature, same module, same switch). It parses typed Python into the structured
+body frame of section 5.4 and keeps Python's meaning wherever Sley can express it exactly; anything
+else is refused at its line and column.
+
+- Functions: `def f(x: int, xs: list[int]) -> int:` with every parameter and the result annotated;
+  `int` is `i64`, `str` is `text`, `bool`, `list[T]` is `Vec<T>`, other names are records. A nested
+  `def` is lowered as a top-level helper (one that reads its enclosing function's variables is
+  refused by the lowering). `import` and `from` lines are skipped; docstrings and `pass` do nothing.
+- Blocks are indented with spaces; a block may also be one statement after its `:`.
+- Statements: `=` (the first assignment in a block declares, later ones assign), `a = b = e`,
+  `a, b = e1, e2` (every value is computed first), `q, r = divmod(a, b)`, `x: T = e`,
+  `+= -= *= //= %= <<= >>= &=`, `if`/`elif`/`else`, `while`, `for x in xs`, `for i in range(a, b)`
+  (`range(n)` starts at 0; `range(a, b, step)` visits `a + k * step` for `k` in
+  `0..max(0, -((a - b) // step))`, and a zero step fails like a division by zero),
+  `for i, x in enumerate(xs)`, `for x, y in zip(xs, ys)`,
+  `for x in xs[a:b]`, `break`, `continue`, `return e`, `assert c` (traps when false), `raise ...`
+  (traps). A top-level class (a record description) and decorator lines are skipped: records come
+  from the program.
+- Python scoping: a parameter the body assigns becomes a variable holding its value; a loop variable
+  that the body assigns, or that is declared before the loop, is assigned at the top of each pass; a
+  name assigned in every branch of a complete `if`/`elif`/`else` is declared before it (`["declare",
+  x, w]`, typed by its first value, which is not evaluated there) and defined after it. A name that
+  some path leaves unassigned stays local to its block.
+- Integers are `i64`: `len` is converted to `i64`, an index is converted to `u64` (a negative computed
+  index fails like a checked operation; a literal `xs[-k]` is `xs[len(xs) - k]`), and `enumerate`'s
+  index is `i64`. Every conversion is explicit `to`; nothing converts implicitly.
+- Expressions: `//` and `%` are `floordiv` and `floormod`; `/` is refused (no floats); `**` is `pow`
+  (`-a ** b` is `-(a ** b)`); `pow(b, e)` is `pow` and `pow(b, e, m)` is `powmod` (repeated
+  multiplication modulo `m`); `a >> k` is `floordiv(a, 2 ** k)` and `a << k` is `a * 2 ** k`
+  (checked); `a & m` with a literal mask `m = 2**k - 1` is `floormod(a, 2**k)`, exact for negative
+  `a`, and other `&`, `|`, `^` and `~` are refused; `len(set(xs))` counts the positions whose element
+  appears at no earlier position; comparisons chain (`a < b <= c` is `a < b and b <= c`); `x in xs` and
+  `x not in xs` are `any` folds; `and` and `or` short-circuit (they lower to the conditional value);
+  every condition, and `not`, take Python truthiness (`truthy`); `True` and `False` are booleans;
+  `x if c else y`, `len min max abs`, `math.gcd` / `gcd`, `bool(x)`, `int(x)` (the integer itself).
+- Folds: `sum any all max min` over a list, a slice, a generator or a list comprehension, with any
+  number of `for ... in ... if ...` clauses (`len(...)` of a comprehension is a `count`;
+  `max(.., default=v)` gives `d`). Slices (`xs[a:b]`, either bound optional, the end clamped to the
+  length) and `zip` are read-only views iterated by index; a slice is never a value.
+
+Not supported, and refused: list values (literals, `append`, a slice stored or returned), dicts,
+sets other than `len(set(xs))`, tuple values, `None`, methods, `lambda`, `try`, `with`, string
+iteration and float types or literals. `help python` is the short reference; its first line is the one-line note for an
+author's system prompt.
 
 ## 6. Opcodes
 
@@ -2427,6 +2591,8 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 
 | Symbol | Meaning |
 |---|---|
+| `AGENT_PROPOSAL_STALE` | the accepted state root differs from the proposal's explicit `--base-root`; read fresh context and author again |
+| `AGENT_PROPOSAL_SCOPE` | a function-scoped proposal violates its declared function set or changes protected graph entities |
 | `AGENT_USAGE_INVALID` | the command line names no known command or arguments |
 | `AGENT_WORKSPACE_NOT_FOUND` | no directory at or above the start holds `repo/` or `base.pack` |
 | `AGENT_WORKSPACE_INVALID` | the repository, seed, policy grant or genesis could not be loaded or written |

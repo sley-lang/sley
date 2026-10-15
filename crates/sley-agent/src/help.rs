@@ -37,6 +37,18 @@ pub const STRUCTURED: &str = include_str!("../data/help-structured.md");
 /// The optional familiar authoring syntax (ADR-0055).
 #[cfg(feature = "familiar")]
 pub const FAMILIAR: &str = include_str!("../data/help-familiar.md");
+/// A compact familiar-syntax card for an author's system prompt.
+#[cfg(feature = "familiar")]
+pub const CARD: &str = include_str!("../data/help-card.md");
+/// The Python dialect of the familiar frontend, for an author's system prompt.
+#[cfg(feature = "familiar")]
+pub const PYTHON: &str = include_str!("../data/help-python.md");
+/// What `help python` says when the frontend is not built in.
+#[cfg(not(feature = "familiar"))]
+pub const PYTHON: &str = FAMILIAR;
+/// What `help card` says when the frontend is not built in.
+#[cfg(not(feature = "familiar"))]
+pub const CARD: &str = FAMILIAR;
 /// What `help familiar` says when the frontend is not built in.
 #[cfg(not(feature = "familiar"))]
 pub const FAMILIAR: &str = "# Familiar syntax\nThis sley-agent was built without the optional familiar frontend \
@@ -56,6 +68,8 @@ pub const TOPICS: &[&str] = &[
     "search",
     "structured",
     "familiar",
+    "card",
+    "python",
     "residual",
     "residual-quick",
     "residual-reference",
@@ -76,6 +90,8 @@ pub fn topic(name: &str) -> Option<String> {
         "search" => SEARCH.to_owned(),
         "structured" | "body" => STRUCTURED.to_owned(),
         "familiar" => FAMILIAR.to_owned(),
+        "card" => CARD.to_owned(),
+        "python" => PYTHON.to_owned(),
         "residual" | "residual-quick" => RESIDUAL_QUICK.to_owned(),
         "residual-reference" => RESIDUAL.to_owned(),
         "opcodes" => opcodes(),
