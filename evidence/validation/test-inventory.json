@@ -19,6 +19,12 @@
       "version": "v2"
     },
     {
+      "family": "bootstrap-profile",
+      "rejections": 0,
+      "vectors": 0,
+      "version": "v3"
+    },
+    {
       "family": "candidate-result",
       "rejections": 4,
       "vectors": 16,
@@ -196,7 +202,7 @@
   "conformance_rejections": 285,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "7e9666cb670dd61adcf805f6ae618407bdb87c7bcb46a2fb7839c3974453c893",
+  "inventory_digest": "f94b86fde8dfe1e063e78719f277c5d6290d5b91fc3c52a79d184690e79b238b",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -225,7 +231,7 @@
     "manifest_harness_deps": [],
     "python_use_sites": 0,
     "rust_use_sites": 0,
-    "scanned_manifests": 23
+    "scanned_manifests": 25
   },
   "property_tests": 0,
   "python_test_modules": [
@@ -256,8 +262,8 @@
     },
     {
       "directory": "bench/release/tests",
-      "files": 10,
-      "tests": 176
+      "files": 12,
+      "tests": 184
     },
     {
       "directory": "bench/review/tests",
@@ -275,7 +281,7 @@
       "tests": 133
     }
   ],
-  "python_tests": 938,
+  "python_tests": 946,
   "rust_crates": [
     {
       "crate": "sley-adapter",
@@ -285,7 +291,7 @@
     {
       "crate": "sley-agent",
       "ignored": 0,
-      "tests": 269
+      "tests": 979
     },
     {
       "crate": "sley-check",
@@ -315,7 +321,7 @@
     {
       "crate": "sley-mutate",
       "ignored": 0,
-      "tests": 81
+      "tests": 82
     },
     {
       "crate": "sley-policy",
@@ -340,12 +346,17 @@
     {
       "crate": "sley-scb1",
       "ignored": 0,
-      "tests": 10
+      "tests": 11
     },
     {
       "crate": "sley-schema",
       "ignored": 0,
       "tests": 18
+    },
+    {
+      "crate": "sley-selfhost",
+      "ignored": 5,
+      "tests": 59
     },
     {
       "crate": "sley-ssmc",
@@ -380,11 +391,11 @@
     {
       "crate": "sley-vm",
       "ignored": 6,
-      "tests": 496
+      "tests": 506
     }
   ],
-  "rust_ignored_emitters": 39,
-  "rust_unit_tests": 2290,
+  "rust_ignored_emitters": 44,
+  "rust_unit_tests": 3071,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

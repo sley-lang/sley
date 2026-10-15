@@ -1,7 +1,12 @@
 //! Restricted S20-270 deterministic execution profile.
 
 use core::fmt;
+use std::borrow::Cow;
 use std::sync::Arc;
+
+mod liveness;
+mod owned;
+mod scalar;
 
 use sley_check::{TypeEnvironment, TypeError};
 use sley_id::{BytecodeCacheKey, EntityId, ObservationId, SchemaEpochId, StateRoot, ValueHash};
@@ -397,11 +402,81 @@ impl From<FingerprintError> for ExecutionError {
     }
 }
 
+/// One step from a value into a part of it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Step {
+    /// The payload of a variant, `Some`, `Ok`, or `Err`.
+    Payload,
+    /// Element `i` of a tuple/vector, or field `i` of a record.
+    Item(u32),
+}
+
+/// Longest view path kept inline; deeper views materialize their target.
+const MAX_VIEW_PATH: usize = 6;
+
+/// A runtime value: a shared immutable root plus a view path into it.
+///
+/// Views let projections share the root instead of deep-copying the part
+/// they select; only host copying changes, never a value or a charge.
 #[derive(Clone, Debug)]
 struct RuntimeValue {
     root: Arc<ConstValue>,
-    payload_depth: usize,
+    path: [Step; MAX_VIEW_PATH],
+    depth: u8,
     units: u64,
+    /// Cached value units of each immediate part (tuple element or record
+    /// field) of an unviewed root the VM built, so projections charge the
+    /// same units without walking the part.
+    parts: Option<Arc<[u64]>>,
+    /// The same table for the payload of a wrapper (`Some`, `Ok`, `Err`, a
+    /// variant case), handed to its payload view.
+    inner: Option<Arc<[u64]>>,
+}
+
+fn step_into(value: &ConstValue, step: Step) -> Option<&ConstValue> {
+    match step {
+        Step::Payload => match &value.data {
+            ConstData::Variant(variant) => variant.payload.as_deref(),
+            ConstData::Option(Some(payload))
+            | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
+                Some(payload)
+            }
+            _ => None,
+        },
+        Step::Item(index) => {
+            let index = usize::try_from(index).ok()?;
+            match &value.data {
+                ConstData::Sequence(items) => items.get(index),
+                ConstData::Record(record) => record.fields.get(index).map(|field| &field.value),
+                _ => None,
+            }
+        }
+    }
+}
+
+fn step_out(value: ConstValue, step: Step) -> Option<ConstValue> {
+    match step {
+        Step::Payload => match value.data {
+            ConstData::Variant(variant) => variant.payload.map(|payload| *payload),
+            ConstData::Option(Some(payload))
+            | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
+                Some(*payload)
+            }
+            _ => None,
+        },
+        Step::Item(index) => {
+            let index = usize::try_from(index).ok()?;
+            match value.data {
+                ConstData::Sequence(mut items) if index < items.len() => {
+                    Some(items.swap_remove(index))
+                }
+                ConstData::Record(mut record) if index < record.fields.len() => {
+                    Some(record.fields.swap_remove(index).value)
+                }
+                _ => None,
+            }
+        }
+    }
 }
 
 impl RuntimeValue {
@@ -413,24 +488,67 @@ impl RuntimeValue {
     fn with_units(value: ConstValue, units: u64) -> Self {
         Self {
             root: Arc::new(value),
-            payload_depth: 0,
+            path: [Step::Payload; MAX_VIEW_PATH],
+            depth: 0,
             units,
+            parts: None,
+            inner: None,
         }
+    }
+
+    /// A wrapper whose payload carries `inner` part units.
+    fn with_inner(value: ConstValue, units: u64, inner: Option<Arc<[u64]>>) -> Self {
+        Self {
+            inner,
+            ..Self::with_units(value, units)
+        }
+    }
+
+    fn with_parts(value: ConstValue, units: u64, parts: Vec<u64>) -> Self {
+        Self {
+            parts: Some(parts.into()),
+            ..Self::with_units(value, units)
+        }
+    }
+
+    /// The cached units of part `index`, when known.
+    fn part_units(&self, index: usize) -> Option<u64> {
+        self.parts
+            .as_ref()
+            .and_then(|parts| parts.get(index).copied())
     }
 
     fn value(&self) -> RuntimeResult<&ConstValue> {
         let mut value = self.root.as_ref();
-        for _ in 0..self.payload_depth {
-            value = match &value.data {
-                ConstData::Variant(variant) => variant.payload.as_deref().ok_or(RuntimeFault)?,
-                ConstData::Option(Some(payload))
-                | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
-                    payload
-                }
-                _ => return Err(RuntimeFault),
-            };
+        for step in &self.path[..usize::from(self.depth)] {
+            value = step_into(value, *step).ok_or(RuntimeFault)?;
         }
         Ok(value)
+    }
+
+    /// A view one step deeper with the given units, materializing the
+    /// target when the inline path is full.
+    fn view(&self, step: Step, units: u64) -> RuntimeResult<Self> {
+        if usize::from(self.depth) == MAX_VIEW_PATH {
+            let target = step_into(self.value()?, step).ok_or(RuntimeFault)?.clone();
+            return Ok(Self::with_units(target, units));
+        }
+        step_into(self.value()?, step).ok_or(RuntimeFault)?;
+        let mut path = self.path;
+        path[usize::from(self.depth)] = step;
+        Ok(Self {
+            root: Arc::clone(&self.root),
+            path,
+            depth: self.depth + 1,
+            units,
+            // A payload view inherits the wrapper's payload table.
+            parts: if step == Step::Payload {
+                self.inner.clone()
+            } else {
+                None
+            },
+            inner: None,
+        })
     }
 
     fn payload_view(&self) -> RuntimeResult<Self> {
@@ -445,26 +563,42 @@ impl RuntimeValue {
             }
             _ => return Err(RuntimeFault),
         };
-        Ok(Self {
-            root: Arc::clone(&self.root),
-            payload_depth: self.payload_depth.checked_add(1).ok_or(RuntimeFault)?,
-            units: self.units.checked_sub(wrapper_units).ok_or(RuntimeFault)?,
-        })
+        self.view(
+            Step::Payload,
+            self.units.checked_sub(wrapper_units).ok_or(RuntimeFault)?,
+        )
+    }
+
+    /// A shared view of element/field `index` (units of the part, given).
+    fn item_view(&self, index: u32, units: u64) -> RuntimeResult<Self> {
+        self.view(Step::Item(index), units)
+    }
+
+    /// Consuming [`Self::payload_view`]: the view keeps this value's root
+    /// without taking another reference, so a later move can unwrap it.
+    fn into_payload_view(self) -> RuntimeResult<Self> {
+        let view = self.payload_view()?;
+        drop(self);
+        Ok(view)
     }
 
     fn into_value(self) -> RuntimeResult<ConstValue> {
-        let mut value = Arc::try_unwrap(self.root).unwrap_or_else(|root| root.as_ref().clone());
-        for _ in 0..self.payload_depth {
-            value = match value.data {
-                ConstData::Variant(variant) => *variant.payload.ok_or(RuntimeFault)?,
-                ConstData::Option(Some(payload))
-                | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
-                    *payload
+        let depth = usize::from(self.depth);
+        match Arc::try_unwrap(self.root) {
+            Ok(mut value) => {
+                for step in &self.path[..depth] {
+                    value = step_out(value, *step).ok_or(RuntimeFault)?;
                 }
-                _ => return Err(RuntimeFault),
-            };
+                Ok(value)
+            }
+            Err(root) => {
+                let mut value = root.as_ref();
+                for step in &self.path[..depth] {
+                    value = step_into(value, *step).ok_or(RuntimeFault)?;
+                }
+                Ok(value.clone())
+            }
         }
-        Ok(value)
     }
 }
 
@@ -473,6 +607,7 @@ struct RuntimeFault;
 
 type RuntimeResult<T> = Result<T, RuntimeFault>;
 
+#[derive(Debug)]
 pub(crate) struct ValidatedInputs {
     pub(crate) hashes: Vec<ValueHash>,
     value_units: u64,
@@ -511,6 +646,9 @@ struct Runtime {
     cells: Vec<ConstValue>,
     max_call_depth: usize,
     peak_call_depth: usize,
+    /// The value the last `Return` produced (handed to the caller frame
+    /// with its cached units and parts).
+    returned: Option<RuntimeValue>,
 }
 
 /// Executes one restricted-v1 Function through the integrated lowering authority boundary.
@@ -599,6 +737,16 @@ pub fn execute_loaded_image(
         .map_err(LoadedExecutionError::Execution)
 }
 
+/// Local execution strategy; it does not change any semantic/cache identity.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ExecutionMode {
+    /// Use eligible derived plans, with the ordinary reference fallback.
+    #[default]
+    Auto,
+    /// Always use the reference interpreter, retaining every admission check.
+    Reference,
+}
+
 /// Derived-image bytes structurally loaded once and verified against their
 /// manifest-approved digest, for repeated execution.
 ///
@@ -610,15 +758,50 @@ pub fn execute_loaded_image(
 /// check) depends only on the bytes and the approved digest, so it runs
 /// once; every execution still re-derives the cache key and re-verifies it
 /// and the import set against the inventories it is given, in the same
-/// order and with the same refusals, before validating inputs and running
-/// the same runner.
+/// order and with the same refusals, before validating inputs. Eligible scalar
+/// and read-only collection graphs use compact values with shared arithmetic
+/// and accounting;
+/// other graphs use the reference runner. Both produce the same observations.
 #[derive(Clone, Debug)]
 pub struct VerifiedImage {
     expected: ApprovedImage,
     lowered: LoweredFunction,
+    scalar: Option<scalar::Plan>,
+}
+
+/// One admitted request bound to an immutable image and immutable inventories.
+///
+/// Constructed only by [`VerifiedImage::prepare`]. Inputs and limits are owned
+/// privately; the image and inventories stay immutably borrowed for its lifetime.
+/// Repeated execution reuses admission evidence, never an execution result.
+/// Every run starts fresh runtime state and derives its complete observation.
+/// This is an in-memory advisory handle, not a serialized admission receipt.
+#[derive(Debug)]
+pub struct PreparedExecution<'a> {
+    image: &'a VerifiedImage,
+    source: ExecutionSource<'a>,
+    request: ExecutionRequest,
+    validated: ValidatedInputs,
+}
+
+impl PreparedExecution<'_> {
+    /// Executes the fixed request again, preserving all deterministic limits.
+    /// Unsupported compact plans use the reference runner with fresh input copies.
+    ///
+    /// # Errors
+    /// Preserves the ordinary execution/observation fingerprint failures.
+    pub fn execute(&self) -> Result<ExecutionOutcome, LoadedExecutionError> {
+        self.image
+            .execute_admitted(&self.source, &self.validated, Cow::Borrowed(&self.request))
+    }
 }
 
 impl VerifiedImage {
+    #[cfg(test)]
+    pub(crate) fn has_scalar_plan(&self) -> bool {
+        self.scalar.is_some()
+    }
+
     /// Structurally loads `bytes` and verifies them against the approved
     /// digest: the first two checks of [`execute_loaded_image`].
     ///
@@ -626,6 +809,22 @@ impl VerifiedImage {
     ///
     /// The structural refusal, or [`ImageError::DigestMismatch`].
     pub fn load(expected: &ApprovedImage, bytes: &[u8]) -> Result<Self, LoadedExecutionError> {
+        Self::load_with_mode(expected, bytes, ExecutionMode::Auto)
+    }
+
+    /// Loads an image with an explicit reference/derived execution choice.
+    ///
+    /// The choice changes only the local execution strategy, never bytecode,
+    /// cache identity, input admission, resource rules or observation identity.
+    /// Reference mode skips compact-plan preparation as well as its execution.
+    ///
+    /// # Errors
+    /// The same structural and digest refusals as [`Self::load`].
+    pub fn load_with_mode(
+        expected: &ApprovedImage,
+        bytes: &[u8],
+        mode: ExecutionMode,
+    ) -> Result<Self, LoadedExecutionError> {
         let loaded = load_image(bytes).map_err(LoadedExecutionError::Image)?;
         if loaded.digest != expected.digest {
             return Err(LoadedExecutionError::Image(ImageError::DigestMismatch));
@@ -635,6 +834,10 @@ impl VerifiedImage {
         // key per request and refuses unless the two are equal, so the
         // runner and the observation see exactly the key it would.
         Ok(Self {
+            scalar: match mode {
+                ExecutionMode::Auto => scalar::Plan::compile(&loaded.entry),
+                ExecutionMode::Reference => None,
+            },
             lowered: LoweredFunction {
                 bytecode: loaded.entry,
                 bytes: bytes.to_vec(),
@@ -653,12 +856,34 @@ impl VerifiedImage {
     ///
     /// The binding mismatch, or the exact preserved failure the lowering
     /// path would report for the same condition.
-    #[allow(clippy::needless_pass_by_value)]
     pub fn execute(
         &self,
         input: LoadedExecutionInput<'_>,
         request: ExecutionRequest,
     ) -> Result<ExecutionOutcome, LoadedExecutionError> {
+        let prepared = self.prepare(input, request)?;
+        self.execute_admitted(
+            &prepared.source,
+            &prepared.validated,
+            Cow::Owned(prepared.request),
+        )
+    }
+
+    /// Binds and admits one fixed request for repeated execution.
+    ///
+    /// Performs the same binding, import, type, canonical-form and input-hash
+    /// checks as [`Self::execute`], in the same order. The returned handle owns
+    /// its inputs and limits and borrows every source of execution state, so
+    /// none can change while the admission evidence is reused. Preparation does
+    /// not execute the program; runtime resource failures occur on each run.
+    ///
+    /// # Errors
+    /// The same binding or input-admission refusal as [`Self::execute`].
+    pub fn prepare<'a>(
+        &'a self,
+        input: LoadedExecutionInput<'a>,
+        request: ExecutionRequest,
+    ) -> Result<PreparedExecution<'a>, LoadedExecutionError> {
         let expected = &self.expected;
         let lowered = &self.lowered;
         let source = ExecutionSource::loaded(&input, lowered.bytecode.function);
@@ -681,7 +906,38 @@ impl VerifiedImage {
         }
         let validated_inputs = validate_loaded_inputs(&source, &lowered.bytecode, &request)
             .map_err(LoadedExecutionError::Execution)?;
-        execute_core(&source, lowered, &validated_inputs, request)
+        Ok(PreparedExecution {
+            image: self,
+            source,
+            request,
+            validated: validated_inputs,
+        })
+    }
+
+    fn execute_admitted(
+        &self,
+        source: &ExecutionSource<'_>,
+        validated_inputs: &ValidatedInputs,
+        request: Cow<'_, ExecutionRequest>,
+    ) -> Result<ExecutionOutcome, LoadedExecutionError> {
+        let lowered = &self.lowered;
+        if source.profile.is_extended()
+            && let Some(plan) = &self.scalar
+            && let Some(result) = plan.execute(source, lowered, validated_inputs, &request)
+        {
+            return finish(
+                source,
+                request.limits,
+                lowered.cache_key,
+                &validated_inputs.hashes,
+                result.termination,
+                result.instruction_count,
+                result.fuel_used,
+                result.peak_value_units,
+            )
+            .map_err(LoadedExecutionError::Execution);
+        }
+        execute_core(source, lowered, validated_inputs, request.into_owned())
             .map_err(LoadedExecutionError::Execution)
     }
 }
@@ -896,6 +1152,75 @@ pub fn execute_approved_package_v2(
     )
     .map_err(PackageExecutionError::Execution)
 }
+/// Executes an approved `EXEC_PACKAGE_V3` package (the v2 path with the v3
+/// binding).
+///
+/// # Errors
+///
+/// The v2 package-execution vocabulary.
+pub fn execute_approved_package_v3(
+    package: &crate::exec_package::ExecutionPackage,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    request: ExecutionRequest,
+) -> Result<ExecutionOutcome, PackageExecutionError> {
+    use crate::exec_package::{hydrate_layouts, package_digests_v3, verify_package_binding_v3};
+    let digests = package_digests_v3(package).map_err(PackageExecutionError::Package)?;
+    verify_package_binding_v3(package, &digests, expected)
+        .map_err(PackageExecutionError::Package)?;
+    if request.limits != expected.admitted_limits {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let loaded = load_image(&package.image_bytes).map_err(PackageExecutionError::Image)?;
+    if loaded.digest != expected.image_digest {
+        return Err(PackageExecutionError::Image(ImageError::DigestMismatch));
+    }
+    let types = hydrate_layouts(package.type_definitions.clone())
+        .map_err(PackageExecutionError::Package)?;
+    let source = ExecutionSource {
+        types: &types,
+        constants: &package.constants,
+        globals: &package.globals,
+        contracts: &package.contracts,
+        adapters: &package.imports,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        function: loaded.entry.function,
+    };
+    let cache_key = crate::derive_cache_key(
+        source.schema_epoch,
+        source.state_root,
+        source.function,
+        source.profile,
+    )
+    .map_err(|error| PackageExecutionError::Execution(ExecutionError::Lowering(error.into())))?;
+    if cache_key != expected.cache_key {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let validated_inputs =
+        validate_package_inputs_structural(&types, &loaded.entry, &request, source.schema_epoch)
+            .map_err(PackageExecutionError::Execution)?;
+    let lowered = LoweredFunction {
+        bytecode: loaded.entry.clone(),
+        bytes: package.image_bytes.clone(),
+        cache_key,
+        lowering_work: 0,
+        callees: loaded.callees.clone(),
+    };
+    execute_core_package(
+        &source,
+        &lowered,
+        &validated_inputs,
+        request,
+        expected,
+        &digests,
+    )
+    .map_err(PackageExecutionError::Execution)
+}
 
 /// Validates package-path inputs structurally (no semantic judgment).
 ///
@@ -973,6 +1298,7 @@ fn execute_core_package(
         cells: Vec::new(),
         max_call_depth: MAX_CALL_DEPTH,
         peak_call_depth: 1,
+        returned: None,
     };
     if runtime.peak_value_units > limits.max_value_units {
         return finish_package(
@@ -1327,6 +1653,7 @@ fn run_core(
         cells: Vec::new(),
         max_call_depth,
         peak_call_depth: 1,
+        returned: None,
     };
     let termination = if runtime.peak_value_units > limits.max_value_units {
         ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits)
@@ -1383,12 +1710,26 @@ fn run(
     source: &ExecutionSource<'_>,
     lowered: Option<&LoweredFunction>,
 ) -> RuntimeResult<ExecutionTermination> {
+    // Per-execution mechanics tables: register liveness for the entry body
+    // and every callee body, a callee index, and the constant index. None
+    // of them changes what executes or what is charged.
+    let mut livenesses = vec![liveness::compute(blocks)];
+    let mut callee_index: std::collections::HashMap<EntityId, usize> =
+        std::collections::HashMap::new();
+    if let Some(lowered) = lowered {
+        for (position, callee) in lowered.callees.iter().enumerate() {
+            livenesses.push(liveness::compute(&callee.blocks));
+            callee_index.entry(callee.function).or_insert(position + 1);
+        }
+    }
+    let constants = owned::constant_index(source);
     let mut stack: Vec<Suspended<'_>> = Vec::new();
     let mut current = Current {
         blocks,
         result_type,
         register_types,
         pc: 0,
+        func: 0,
     };
     loop {
         let block = current.blocks.get(runtime.block).ok_or(RuntimeFault)?;
@@ -1400,6 +1741,7 @@ fn run(
                 return Ok(unwind(runtime, stack, termination));
             }
             if source.profile.is_extended() {
+                let mask = livenesses[current.func].mask(runtime.block, current.pc - 1);
                 let call = if instruction.opcode == sley_ssmc::Opcode::CallDirect.tag() {
                     Some(prepare_call(
                         runtime,
@@ -1408,6 +1750,8 @@ fn run(
                         current.register_types,
                         lowered,
                         stack.len().saturating_add(1),
+                        &callee_index,
+                        mask,
                     )?)
                 } else if instruction.opcode == sley_ssmc::Opcode::ContractAssert.tag() {
                     Some(prepare_contract_assert(
@@ -1418,6 +1762,8 @@ fn run(
                         lowered,
                         stack.len().saturating_add(1),
                         source.contracts,
+                        &callee_index,
+                        mask,
                     )?)
                 } else {
                     None
@@ -1430,6 +1776,7 @@ fn run(
                         CallStep::Enter {
                             child,
                             callee,
+                            func,
                             result_register,
                             shape,
                         } => {
@@ -1439,6 +1786,7 @@ fn run(
                                 result_type: current.result_type,
                                 register_types: current.register_types,
                                 pc: current.pc,
+                                func: current.func,
                                 result_register,
                                 shape,
                             });
@@ -1447,6 +1795,7 @@ fn run(
                                 result_type: &callee.result_type,
                                 register_types: &callee.register_types,
                                 pc: 0,
+                                func,
                             };
                         }
                     }
@@ -1456,8 +1805,8 @@ fn run(
                     runtime,
                     &limits,
                     instruction,
-                    block,
-                    current.pc - 1,
+                    mask,
+                    &constants,
                     current.register_types,
                     source,
                 )? {
@@ -1477,12 +1826,17 @@ fn run(
             &block.terminator,
             current.blocks,
             current.result_type,
+            &livenesses[current.func],
         )?
         else {
             current.pc = 0;
             continue;
         };
         let Some(parent) = stack.pop() else {
+            if let ExecutionTermination::Success(_) = termination {
+                let value = runtime.returned.take().ok_or(RuntimeFault)?;
+                return Ok(ExecutionTermination::Success(value.into_value()?));
+            }
             return Ok(termination);
         };
         match return_to_caller(runtime, &limits, parent, termination)? {
@@ -1500,32 +1854,36 @@ fn return_to_caller<'a>(
     parent: Suspended<'a>,
     termination: ExecutionTermination,
 ) -> RuntimeResult<Result<Current<'a>, ExecutionTermination>> {
-    let child = core::mem::replace(runtime, parent.runtime);
+    let mut child = core::mem::replace(runtime, parent.runtime);
+    let returned = child.returned.take();
     adopt_frame(runtime, child);
-    let ExecutionTermination::Success(value) = termination else {
+    let ExecutionTermination::Success(_) = termination else {
         return Ok(Err(termination));
     };
+    let returned = returned.ok_or(RuntimeFault)?;
     let value = match parent.shape {
-        ReturnShape::Direct => value,
+        ReturnShape::Direct => returned,
         ReturnShape::ContractAssertion => {
-            let ConstData::Bool(held) = value.data else {
+            let ConstData::Bool(held) = returned.value()?.data else {
                 return Err(RuntimeFault);
             };
-            contract_assert_value(held)
+            RuntimeValue::new(contract_assert_value(held))
         }
     };
-    if !charge_value(runtime, value_units_const(&value), limits.max_value_units) {
+    let units = value.units;
+    if !charge_value(runtime, units, limits.max_value_units) {
         return Ok(Err(ExecutionTermination::ResourceLimit(
             ResourceKind::ValueUnits,
         )));
     }
     runtime.instruction_count = runtime.instruction_count.saturating_add(1);
-    write_register(runtime, parent.result_register, RuntimeValue::new(value))?;
+    write_register(runtime, parent.result_register, value)?;
     Ok(Ok(Current {
         blocks: parent.blocks,
         result_type: parent.result_type,
         register_types: parent.register_types,
         pc: parent.pc,
+        func: parent.func,
     }))
 }
 
@@ -1588,6 +1946,7 @@ struct Suspended<'a> {
     result_type: &'a TypeExpr,
     register_types: &'a [TypeExpr],
     pc: usize,
+    func: usize,
     result_register: usize,
     shape: ReturnShape,
 }
@@ -1611,6 +1970,8 @@ struct Current<'a> {
     result_type: &'a TypeExpr,
     register_types: &'a [TypeExpr],
     pc: usize,
+    /// Index into the execution's liveness table (0 = entry body).
+    func: usize,
 }
 
 /// What a `call_direct` instruction does next.
@@ -1619,6 +1980,7 @@ enum CallStep<'a> {
     Enter {
         child: Runtime,
         callee: &'a crate::BytecodeFunction,
+        func: usize,
         result_register: usize,
         shape: ReturnShape,
     },
@@ -1637,6 +1999,7 @@ fn adopt_frame(runtime: &mut Runtime, child: Runtime) {
 /// Prepares `call_direct` (contract E6): refuses a frame beyond the ceiling,
 /// charges one fuel, and opens a callee register file that shares the
 /// budgets and cells with the caller.
+#[allow(clippy::too_many_arguments)]
 fn prepare_call<'a>(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
@@ -1644,6 +2007,8 @@ fn prepare_call<'a>(
     register_types: &[TypeExpr],
     lowered: Option<&'a LoweredFunction>,
     frames: usize,
+    callees: &std::collections::HashMap<EntityId, usize>,
+    mask: u64,
 ) -> RuntimeResult<CallStep<'a>> {
     let sley_ssmc::Immediate::Function(reference) = &instruction.immediate else {
         return Err(RuntimeFault);
@@ -1657,11 +2022,14 @@ fn prepare_call<'a>(
         frames,
         reference.function,
         ReturnShape::Direct,
+        callees,
+        mask,
     )
 }
 
 /// Prepares `contract_assert` (slice E7a): resolves the contract's predicate
 /// and enters it as an ordinary frame whose return the caller wraps.
+#[allow(clippy::too_many_arguments)]
 fn prepare_contract_assert<'a>(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
@@ -1670,6 +2038,8 @@ fn prepare_contract_assert<'a>(
     lowered: Option<&'a LoweredFunction>,
     frames: usize,
     contracts: &[sley_ssmc::ContractDefinition],
+    callees: &std::collections::HashMap<EntityId, usize>,
+    mask: u64,
 ) -> RuntimeResult<CallStep<'a>> {
     let sley_ssmc::Immediate::Entity(contract) = &instruction.immediate else {
         return Err(RuntimeFault);
@@ -1687,6 +2057,8 @@ fn prepare_contract_assert<'a>(
         frames,
         definition.predicate,
         ReturnShape::ContractAssertion,
+        callees,
+        mask,
     )
 }
 
@@ -1701,6 +2073,8 @@ fn prepare_frame<'a>(
     frames: usize,
     function: sley_id::EntityId,
     shape: ReturnShape,
+    callees: &std::collections::HashMap<EntityId, usize>,
+    mask: u64,
 ) -> RuntimeResult<CallStep<'a>> {
     // The ceiling counts live frames including the running one: opening a
     // frame that would make 257 live is refused, so 256 live frames (entry
@@ -1714,11 +2088,10 @@ fn prepare_frame<'a>(
         return Ok(CallStep::Terminated(termination));
     }
     let lowered = lowered.ok_or(RuntimeFault)?;
-    let callee = lowered
-        .callees
-        .iter()
-        .find(|callee| callee.function == function)
-        .or_else(|| (lowered.bytecode.function == function).then_some(&lowered.bytecode))
+    let (callee, func) = callees
+        .get(&function)
+        .and_then(|position| Some((lowered.callees.get(position - 1)?, *position)))
+        .or_else(|| (lowered.bytecode.function == function).then_some((&lowered.bytecode, 0)))
         .ok_or(RuntimeFault)?;
     let [result_register] = instruction.results.as_slice() else {
         return Err(RuntimeFault);
@@ -1746,9 +2119,19 @@ fn prepare_frame<'a>(
         cells: core::mem::take(&mut runtime.cells),
         max_call_depth: runtime.max_call_depth,
         peak_call_depth: runtime.peak_call_depth.max(frames.saturating_add(1)),
+        returned: None,
     };
-    for (operand, parameter) in instruction.operands.iter().zip(&callee.parameter_registers) {
-        let value = read_register(runtime, *operand)?.clone();
+    for (k, (operand, parameter)) in instruction
+        .operands
+        .iter()
+        .zip(&callee.parameter_registers)
+        .enumerate()
+    {
+        let value = if k < 64 && mask & (1_u64 << k) != 0 {
+            take_register(runtime, *operand)?
+        } else {
+            read_register(runtime, *operand)?.clone()
+        };
         if !charge_value(&mut child, value.units, limits.max_value_units) {
             adopt_frame(runtime, child);
             return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
@@ -1761,6 +2144,7 @@ fn prepare_frame<'a>(
     Ok(CallStep::Enter {
         child,
         callee,
+        func,
         result_register,
         shape,
     })
@@ -1819,8 +2203,8 @@ fn execute_extended(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
     instruction: &crate::Instruction,
-    block: &crate::BytecodeBlock,
-    instruction_index: usize,
+    mask: u64,
+    constants: &owned::ConstantIndex,
     register_types: &[TypeExpr],
     source: &ExecutionSource<'_>,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
@@ -1834,7 +2218,7 @@ fn execute_extended(
         && matches!(
             instruction.immediate,
             sley_ssmc::Immediate::Entity(entry)
-                if entry == crate::extended::bridge_entry_id(*b"PSH1")
+                if crate::extended::is_push_identity(&entry)
         );
     let (value, stored, known_units) = if owned_push {
         let [scope_register, request_register] = instruction.operands.as_slice() else {
@@ -1845,10 +2229,14 @@ fn execute_extended(
         {
             return Ok(Some(termination));
         }
-        let request = read_register(runtime, *request_register)?.clone();
+        let request = if mask & 2 != 0 {
+            take_register(runtime, *request_register)?
+        } else {
+            read_register(runtime, *request_register)?.clone()
+        };
         let request_units = request.units;
         let request = request.into_value()?;
-        let scope = if register_is_dead_block_local(block, instruction_index, *scope_register) {
+        let scope = if mask & 1 != 0 {
             take_register(runtime, *scope_register)?
         } else {
             read_register(runtime, *scope_register)?.clone()
@@ -1869,6 +2257,35 @@ fn execute_extended(
                 .saturating_add(request_units)
         });
         (value, 0, known_units)
+    } else if let Some(produced) = owned::execute(
+        runtime,
+        constants,
+        source,
+        opcode,
+        instruction,
+        mask,
+        result_type,
+    )? {
+        // Shared-root results (constants) and derived-unit results skip the
+        // generic construction path; they are charged and written exactly as
+        // the general path would.
+        if &produced.value()?.value_type != result_type {
+            return Err(RuntimeFault);
+        }
+        if runtime.cells.len() >= MAX_EXECUTION_CELLS {
+            return Ok(Some(ExecutionTermination::ResourceLimit(
+                ResourceKind::ValueUnits,
+            )));
+        }
+        debug_assert_eq!(produced.units, value_units_const(produced.value()?));
+        if !charge_value(runtime, produced.units, limits.max_value_units) {
+            return Ok(Some(ExecutionTermination::ResourceLimit(
+                ResourceKind::ValueUnits,
+            )));
+        }
+        runtime.instruction_count = runtime.instruction_count.saturating_add(1);
+        write_register(runtime, register, produced)?;
+        return Ok(None);
     } else {
         // Slice E8: bridge fuel is charged up front, before the arm allocates
         // or converts, so a starved budget terminates without the work being
@@ -1895,18 +2312,40 @@ fn execute_extended(
             }
         }
         let registers = &runtime.registers;
-        let operands = instruction
-            .operands
-            .iter()
-            .map(|register| {
-                let register = usize::try_from(*register).map_err(|_| RuntimeFault)?;
-                registers
-                    .get(register)
-                    .and_then(Option::as_ref)
-                    .ok_or(RuntimeFault)?
-                    .value()
-            })
-            .collect::<RuntimeResult<Vec<_>>>()?;
+        let read = |register: &Register| {
+            let register = usize::try_from(*register).map_err(|_| RuntimeFault)?;
+            registers
+                .get(register)
+                .and_then(Option::as_ref)
+                .ok_or(RuntimeFault)?
+                .value()
+        };
+        // Most instructions have at most three operands. Borrow those on
+        // the stack instead of allocating a Vec on every loop iteration.
+        // Larger tuples, records and vectors retain the general path.
+        let inline;
+        let overflow;
+        let operands: &[&ConstValue] = match instruction.operands.as_slice() {
+            [] => &[],
+            [a] => {
+                let a = read(a)?;
+                inline = [a, a, a];
+                &inline[..1]
+            }
+            [a, b] => {
+                let a = read(a)?;
+                inline = [a, read(b)?, a];
+                &inline[..2]
+            }
+            [a, b, c] => {
+                inline = [read(a)?, read(b)?, read(c)?];
+                &inline
+            }
+            many => {
+                overflow = many.iter().map(read).collect::<RuntimeResult<Vec<_>>>()?;
+                &overflow
+            }
+        };
         let mut context = crate::extended::ExecutionContext {
             types: source.types,
             constants: source.constants,
@@ -1919,7 +2358,7 @@ fn execute_extended(
             &mut context,
             opcode,
             &instruction.immediate,
-            &operands,
+            operands,
             result_type,
         )
         .map_err(|_| RuntimeFault)?;
@@ -1948,6 +2387,11 @@ fn execute_extended(
     // with the budget intact; contract E5 counts cell contents as live value
     // units, and this is where they are counted.
     let value_units = known_units.unwrap_or_else(|| value_units_const(&value));
+    debug_assert_eq!(
+        value_units,
+        value_units_const(&value),
+        "derived value units must equal the full walk"
+    );
     if !charge_value(
         runtime,
         value_units.saturating_add(stored),
@@ -1987,7 +2431,8 @@ pub(crate) fn validate_inputs(
             value_units,
             check_input_shape(input.types, parameter_type, value)?,
         )?;
-        require_canonical_form(value)?;
+        // check_input_shape already judges every nested integer's width.
+        require_canonical_encoding(value)?;
         hashes.push(hash_validated_value(input.schema_epoch, value)?);
     }
     Ok(ValidatedInputs {
@@ -2021,7 +2466,8 @@ fn validate_loaded_inputs(
             value_units,
             check_input_shape(source.types, register, value)?,
         )?;
-        require_canonical_form(value)?;
+        // check_input_shape already judges every nested integer's width.
+        require_canonical_encoding(value)?;
         hashes.push(hash_validated_value(source.schema_epoch, value)?);
     }
     Ok(ValidatedInputs {
@@ -2063,12 +2509,26 @@ fn check_input_shape(
 /// canonical rules), so the VM also requires every integer in the value to
 /// carry data of its declared signedness inside its declared width. The
 /// S20-270 and loaded-image callers run `check_constant` first, which
-/// already refuses such a value with `TYPE_CONST_RANGE`; the package path
-/// judges inputs structurally only, and this is where it refuses one. The
+/// already refuses such a value with `TYPE_CONST_RANGE`, and need only
+/// `require_canonical_encoding`. The package path judges inputs structurally
+/// only, and this is where it refuses an out-of-width integer. The
 /// walk runs after the codec accepted the value, so its depth is already
 /// bounded.
 fn require_canonical_form(value: &ConstValue) -> Result<(), ExecutionError> {
-    if sley_mutate::encode_const_value(value).is_err() || !integers_fit_declared_widths(value) {
+    require_canonical_encoding(value)?;
+    if !integers_fit_declared_widths(value) {
+        return Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical));
+    }
+    Ok(())
+}
+
+/// Checks the codec's complete canonical judgment. Integer range judgment
+/// must precede this via `check_input_shape`, or follow it via
+/// `require_canonical_form` for structurally admitted package inputs.
+fn require_canonical_encoding(value: &ConstValue) -> Result<(), ExecutionError> {
+    // The encoder starts with this same complete canonical measurement. Input
+    // admission needs its judgment, not a subsequent allocation and byte walk.
+    if sley_mutate::measure_const_value_bounded(value, u64::MAX).is_err() {
         return Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical));
     }
     Ok(())
@@ -2395,26 +2855,35 @@ fn dispatch_terminator(
     terminator: &BytecodeTerminator,
     blocks: &[crate::BytecodeBlock],
     result_type: &TypeExpr,
+    live: &liveness::FnLiveness,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     if let Some(termination) = charge_action(runtime, limits, None) {
         return Ok(Some(termination));
     }
+    let source_block = runtime.block;
     match terminator {
         BytecodeTerminator::Return(register) => {
-            let value = read_register(runtime, *register)?.value()?.clone();
-            if &value.value_type != result_type {
+            // The frame ends here, so every register is dead: move the value.
+            let value = take_register(runtime, *register)?;
+            if &value.value()?.value_type != result_type {
                 return Ok(Some(ExecutionTermination::InternalInvariant));
             }
-            if value_units_const(&value) > limits.max_output_units {
+            if value.units > limits.max_output_units {
                 return Ok(Some(ExecutionTermination::ResourceLimit(
                     ResourceKind::OutputUnits,
                 )));
             }
-            Ok(Some(ExecutionTermination::Success(value)))
+            // The value travels in `runtime.returned`; the frame's caller (or
+            // the top-level runner) takes it from there.
+            runtime.returned = Some(value);
+            Ok(Some(ExecutionTermination::Success(ConstValue {
+                value_type: TypeExpr::Unit,
+                data: ConstData::Unit,
+            })))
         }
         BytecodeTerminator::Branch(edge) => {
-            let source = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            if let Some(termination) = bind_edge(runtime, blocks, source, edge, limits)? {
+            if let Some(termination) = bind_edge(runtime, blocks, edge, limits, live, source_block)?
+            {
                 return Ok(Some(termination));
             }
             Ok(None)
@@ -2429,8 +2898,8 @@ fn dispatch_terminator(
                 return Ok(Some(ExecutionTermination::InternalInvariant));
             };
             let edge = if condition { if_true } else { if_false };
-            let source = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            if let Some(termination) = bind_edge(runtime, blocks, source, edge, limits)? {
+            if let Some(termination) = bind_edge(runtime, blocks, edge, limits, live, source_block)?
+            {
                 return Ok(Some(termination));
             }
             Ok(None)
@@ -2441,13 +2910,13 @@ fn dispatch_terminator(
                     matches!(argument, BytecodeSwitchArgument::Value(register) if register == value)
                 })
             });
-            let block = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            let selected = if carried_as_argument || !register_is_block_local(block, *value) {
-                read_register(runtime, *value)?.clone()
-            } else {
-                take_register(runtime, *value)?
-            };
-            let (case_key, payload) = selected_case(&selected)?;
+            let selected =
+                if carried_as_argument || !live.dead_after_terminator(source_block, *value) {
+                    read_register(runtime, *value)?.clone()
+                } else {
+                    take_register(runtime, *value)?
+                };
+            let (case_key, payload) = selected_case(selected)?;
             for case in cases {
                 if let Some(termination) = charge_action(runtime, limits, None) {
                     return Ok(Some(termination));
@@ -2456,10 +2925,11 @@ fn dispatch_terminator(
                     return bind_switch_edge(
                         runtime,
                         blocks,
-                        block,
                         &case.edge,
-                        payload.as_ref(),
+                        payload,
                         limits,
+                        live,
+                        source_block,
                     );
                 }
             }
@@ -2490,17 +2960,19 @@ fn dispatch_terminator(
 fn bind_edge(
     runtime: &mut Runtime,
     blocks: &[crate::BytecodeBlock],
-    source: &crate::BytecodeBlock,
     edge: &BytecodeTargetEdge,
     limits: &ExecutionLimits,
+    live: &liveness::FnLiveness,
+    source_block: usize,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     let mut values = Vec::with_capacity(edge.arguments.len());
-    for register in &edge.arguments {
+    for (position, register) in edge.arguments.iter().enumerate() {
         if let Some(termination) = charge_action(runtime, limits, None) {
             return Ok(Some(termination));
         }
+        let last_occurrence = !edge.arguments[position + 1..].contains(register);
         values.push(
-            if register_is_block_local(source, *register) && edge_use_count(edge, *register) == 1 {
+            if last_occurrence && live.dead_after_terminator(source_block, *register) {
                 take_register(runtime, *register)?
             } else {
                 read_register(runtime, *register)?.clone()
@@ -2514,27 +2986,24 @@ fn bind_edge(
 fn bind_switch_edge(
     runtime: &mut Runtime,
     blocks: &[crate::BytecodeBlock],
-    source: &crate::BytecodeBlock,
     edge: &BytecodeSwitchEdge,
-    payload: Option<&RuntimeValue>,
+    mut payload: Option<RuntimeValue>,
     limits: &ExecutionLimits,
+    live: &liveness::FnLiveness,
+    source_block: usize,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     let mut values = Vec::with_capacity(edge.arguments.len());
-    for argument in &edge.arguments {
+    for (position, argument) in edge.arguments.iter().enumerate() {
         if let Some(termination) = charge_action(runtime, limits, None) {
             return Ok(Some(termination));
         }
         match argument {
             BytecodeSwitchArgument::Value(register) => {
-                let selected_uses = edge
-                    .arguments
-                    .iter()
-                    .filter(|argument| {
-                        matches!(argument, BytecodeSwitchArgument::Value(value) if value == register)
-                    })
-                    .count();
+                let last_occurrence = !edge.arguments[position + 1..].iter().any(|later| {
+                    matches!(later, BytecodeSwitchArgument::Value(value) if value == register)
+                });
                 values.push(
-                    if register_is_block_local(source, *register) && selected_uses == 1 {
+                    if last_occurrence && live.dead_after_terminator(source_block, *register) {
                         take_register(runtime, *register)?
                     } else {
                         read_register(runtime, *register).cloned()?
@@ -2545,10 +3014,18 @@ fn bind_switch_edge(
                 if let Some(termination) = charge_action(runtime, limits, None) {
                     return Ok(Some(termination));
                 }
-                let Some(payload) = payload.cloned() else {
+                let more = edge.arguments[position + 1..]
+                    .iter()
+                    .any(|later| matches!(later, BytecodeSwitchArgument::CasePayload));
+                let value = if more {
+                    payload.clone()
+                } else {
+                    payload.take()
+                };
+                let Some(value) = value else {
                     return Ok(Some(ExecutionTermination::InternalInvariant));
                 };
-                values.push(payload);
+                values.push(value);
             }
         }
     }
@@ -2575,31 +3052,24 @@ fn bind_values(
     Ok(())
 }
 
-fn selected_case(value: &RuntimeValue) -> RuntimeResult<(CaseKey, Option<RuntimeValue>)> {
-    match &value.value()?.data {
-        ConstData::Variant(variant) => Ok((
+fn selected_case(value: RuntimeValue) -> RuntimeResult<(CaseKey, Option<RuntimeValue>)> {
+    let (key, has_payload) = match &value.value()?.data {
+        ConstData::Variant(variant) => (
             CaseKey::Member(variant.member_id),
-            variant
-                .payload
-                .as_ref()
-                .map(|_| value.payload_view())
-                .transpose()?,
-        )),
-        ConstData::Option(None) => Ok((CaseKey::Builtin(BuiltinCase::None), None)),
-        ConstData::Option(Some(_)) => Ok((
-            CaseKey::Builtin(BuiltinCase::Some),
-            Some(value.payload_view()?),
-        )),
-        ConstData::Result(ResultConst::Ok(_)) => Ok((
-            CaseKey::Builtin(BuiltinCase::Ok),
-            Some(value.payload_view()?),
-        )),
-        ConstData::Result(ResultConst::Err(_)) => Ok((
-            CaseKey::Builtin(BuiltinCase::Err),
-            Some(value.payload_view()?),
-        )),
-        _ => Err(RuntimeFault),
-    }
+            variant.payload.is_some(),
+        ),
+        ConstData::Option(None) => (CaseKey::Builtin(BuiltinCase::None), false),
+        ConstData::Option(Some(_)) => (CaseKey::Builtin(BuiltinCase::Some), true),
+        ConstData::Result(ResultConst::Ok(_)) => (CaseKey::Builtin(BuiltinCase::Ok), true),
+        ConstData::Result(ResultConst::Err(_)) => (CaseKey::Builtin(BuiltinCase::Err), true),
+        _ => return Err(RuntimeFault),
+    };
+    let payload = if has_payload {
+        Some(value.into_payload_view()?)
+    } else {
+        None
+    };
+    Ok((key, payload))
 }
 
 fn charge_action(
@@ -2664,61 +3134,6 @@ fn take_register(runtime: &mut Runtime, register: Register) -> RuntimeResult<Run
         .get_mut(register)
         .and_then(Option::take)
         .ok_or(RuntimeFault)
-}
-
-fn edge_use_count(edge: &BytecodeTargetEdge, register: Register) -> usize {
-    edge.arguments
-        .iter()
-        .filter(|candidate| **candidate == register)
-        .count()
-}
-
-fn terminator_use_count(terminator: &BytecodeTerminator, register: Register) -> usize {
-    match terminator {
-        BytecodeTerminator::Return(value) => usize::from(*value == register),
-        BytecodeTerminator::Branch(edge) => edge_use_count(edge, register),
-        BytecodeTerminator::CondBranch {
-            condition,
-            if_true,
-            if_false,
-        } => {
-            usize::from(*condition == register)
-                + edge_use_count(if_true, register)
-                + edge_use_count(if_false, register)
-        }
-        BytecodeTerminator::VariantSwitch { value, cases } => {
-            usize::from(*value == register)
-                + cases
-                    .iter()
-                    .flat_map(|case| &case.edge.arguments)
-                    .filter(|argument| {
-                        matches!(
-                            argument,
-                            BytecodeSwitchArgument::Value(value) if *value == register
-                        )
-                    })
-                    .count()
-        }
-        BytecodeTerminator::Trap { payload, .. } => usize::from(*payload == Some(register)),
-    }
-}
-
-fn register_is_dead_block_local(
-    block: &crate::BytecodeBlock,
-    instruction_index: usize,
-    register: Register,
-) -> bool {
-    register_is_block_local(block, register)
-        && block.instructions[instruction_index + 1..]
-            .iter()
-            .all(|instruction| !instruction.operands.contains(&register))
-        && terminator_use_count(&block.terminator, register) == 0
-}
-
-fn register_is_block_local(block: &crate::BytecodeBlock, register: Register) -> bool {
-    // Operation results remain visible in every block they dominate. Only
-    // block parameters are confined to this block and safe to move away.
-    block.parameter_registers.contains(&register)
 }
 
 fn write_register(
@@ -3657,10 +4072,10 @@ mod tests {
             value_type: TypeExpr::Option(Box::new(TypeExpr::Bool)),
             data: ConstData::Option(Some(Box::new(bool_value(true)))),
         });
-        let (_, payload) = selected_case(&runtime).unwrap();
+        let (_, payload) = selected_case(runtime.clone()).unwrap();
         let payload = payload.unwrap();
         assert!(Arc::ptr_eq(&runtime.root, &payload.root));
-        assert_eq!(payload.payload_depth, 1);
+        assert_eq!(payload.depth, 1);
         assert_eq!(payload.units, value_units_const(payload.value().unwrap()));
 
         for wrapped in [
@@ -3890,6 +4305,7 @@ mod tests {
             cells: Vec::new(),
             max_call_depth: MAX_CALL_DEPTH,
             peak_call_depth: 1,
+            returned: None,
         };
         let blocks = vec![crate::BytecodeBlock {
             slot: 0,

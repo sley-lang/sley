@@ -21,6 +21,7 @@ Everything about Sley 2, organized by what you're trying to do.
 | 🩹 [Sley 2.0.1 release notes](release/SLEY-2.0.1.md) | See the fixes since 2.0.0, including four contributed by Fred Nix |
 | 🤖 [Sley 2.0.2 release notes](release/SLEY-2.0.2.md) | See the agent workbench `sley-agent`: views, frames, tests and refusals agents can act on |
 | 🛠️ [Sley 2.0.3 release notes](release/SLEY-2.0.3.md) | Compact authoring, persistent drafts, focused views and checked transformations |
+| 🧩 [Sley 2.0.5 release notes](release/SLEY-2.0.5.md) | Structured function bodies, checked integer conversion, optional familiar proposals, experimental residual authoring, faster execution |
 | ❓ [FAQ](https://sleylang.org/faq) *(sleylang.org)* | Get quick answers about scope, status, and Sley 1.x |
 
 ## Specifications

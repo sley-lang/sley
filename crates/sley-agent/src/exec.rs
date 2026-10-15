@@ -19,8 +19,9 @@ use sley_ssmc::{ConstValue, ExpectedOutcome, FunctionGraph, TestCaseDefinition, 
 use sley_tests::{ExpectedEvidence, RestrictedComparison, compare_expected_evidence};
 use sley_vm::host_abi::image_digest;
 use sley_vm::{
-    ApprovedImage, CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination,
-    LoadedExecutionInput, LoweringInput, VerifiedImage, lower_function,
+    ApprovedImage, CacheProfile, ExecutionLimits, ExecutionMode, ExecutionRequest,
+    ExecutionTermination, LoadedExecutionInput, LoweringInput, PreparedExecution, VerifiedImage,
+    lower_function,
 };
 
 use crate::error::{AgentError, AgentErrorCode, Result};
@@ -66,8 +67,42 @@ pub struct Outcome {
     pub micros: u64,
 }
 
+impl Outcome {
+    fn from_execution(outcome: sley_vm::ExecutionOutcome, started: Instant) -> Self {
+        Self {
+            termination: outcome.termination,
+            fuel: outcome.fuel_used,
+            instructions: outcome.instruction_count,
+            micros: u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX),
+        }
+    }
+}
+
+/// A fixed admitted call over an immutably borrowed executor.
+/// Preparation cost is paid by [`Executor::prepare_call`]; each run still
+/// computes its result, resource accounting and observation from fresh state.
+pub struct PreparedCall<'a> {
+    execution: PreparedExecution<'a>,
+}
+
+impl PreparedCall<'_> {
+    /// Runs the admitted call again without admitting or hashing its inputs again.
+    ///
+    /// # Errors
+    /// `AGENT_EXECUTION_REFUSED` if execution or observation derivation refuses.
+    pub fn run(&self) -> Result<Outcome> {
+        let started = Instant::now();
+        let outcome = self
+            .execution
+            .execute()
+            .map_err(|error| refused(format!("execution refused: {error}")))?;
+        Ok(Outcome::from_execution(outcome, started))
+    }
+}
+
 /// A lower-once executor over one program state.
 pub struct Executor {
+    mode: ExecutionMode,
     epoch: sley_id::SchemaEpochId,
     root: sley_id::StateRoot,
     entities: CompleteEntities,
@@ -88,6 +123,15 @@ impl Executor {
     /// `AGENT_EXECUTION_REFUSED` when the state does not project or its
     /// types do not form an environment (a state that validation refuses).
     pub fn new(program: &Program) -> Result<Self> {
+        Self::with_execution_mode(program, ExecutionMode::Auto)
+    }
+
+    /// Projects a program with an explicit derived/reference execution choice.
+    /// Admission, checked semantics, resource limits and authority are unchanged.
+    ///
+    /// # Errors
+    /// The same projection and type-environment refusals as [`Self::new`].
+    pub fn with_execution_mode(program: &Program, mode: ExecutionMode) -> Result<Self> {
         let entities = project_complete_entities(program.objects())
             .map_err(|error| refused(format!("the program does not project: {error}")))?;
         let types = TypeEnvironment::new(entities.type_definitions.clone())
@@ -99,6 +143,7 @@ impl Executor {
             .map(|(index, function)| (function.entity_id, index))
             .collect();
         Ok(Self {
+            mode,
             epoch: program.epoch(),
             root: program.root(),
             entities,
@@ -178,7 +223,7 @@ impl Executor {
                 .map(|row| row.entity_id)
                 .collect(),
         };
-        let image = VerifiedImage::load(&approved, &lowered.bytes)
+        let image = VerifiedImage::load_with_mode(&approved, &lowered.bytes, self.mode)
             .map_err(|error| refused(format!("execution refused: {error}")))?;
         self.lowered.insert(*id, Lowered { image });
         Ok(())
@@ -192,6 +237,44 @@ impl Executor {
     /// refuses it.
     pub fn prepare(&mut self, id: &EntityId) -> Result<()> {
         self.lower(id)
+    }
+
+    /// Admits a fixed call to a function already lowered by [`Self::prepare`].
+    /// The returned handle owns its inputs/limits and immutably borrows this
+    /// executor. Program state and admitted inputs cannot change underneath it.
+    /// This advisory handle is not native-test admission or signed evidence.
+    ///
+    /// # Errors
+    /// `AGENT_EXECUTION_REFUSED` when the function was not prepared or input
+    /// admission refuses. Runtime traps and limits remain per-run outcomes.
+    pub fn prepare_call(
+        &self,
+        id: &EntityId,
+        inputs: Vec<ConstValue>,
+        limits: ExecutionLimits,
+    ) -> Result<PreparedCall<'_>> {
+        let lowered = self
+            .lowered
+            .get(id)
+            .ok_or_else(|| refused("function is not prepared"))?;
+        let execution = lowered
+            .image
+            .prepare(self.loaded_input(), ExecutionRequest { inputs, limits })
+            .map_err(|error| refused(format!("execution refused: {error}")))?;
+        Ok(PreparedCall { execution })
+    }
+
+    fn loaded_input(&self) -> LoadedExecutionInput<'_> {
+        LoadedExecutionInput {
+            types: &self.types,
+            constants: &self.entities.constants,
+            globals: &self.entities.globals,
+            contracts: &self.entities.contracts,
+            adapters: &self.entities.adapters,
+            schema_epoch: self.epoch,
+            state_root: self.root,
+            profile: CacheProfile::EXTENDED_V1,
+        }
     }
 
     /// Executes a function on typed inputs, lowering it on first use.
@@ -208,28 +291,13 @@ impl Executor {
     ) -> Result<Outcome> {
         self.lower(id)?;
         let lowered = &self.lowered[id];
-        let input = LoadedExecutionInput {
-            types: &self.types,
-            constants: &self.entities.constants,
-            globals: &self.entities.globals,
-            contracts: &self.entities.contracts,
-            adapters: &self.entities.adapters,
-            schema_epoch: self.epoch,
-            state_root: self.root,
-            profile: CacheProfile::EXTENDED_V1,
-        };
+        let input = self.loaded_input();
         let started = Instant::now();
         let outcome = lowered
             .image
             .execute(input, ExecutionRequest { inputs, limits })
             .map_err(|error| refused(format!("execution refused: {error}")))?;
-        let micros = u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
-        Ok(Outcome {
-            termination: outcome.termination,
-            fuel: outcome.fuel_used,
-            instructions: outcome.instruction_count,
-            micros,
-        })
+        Ok(Outcome::from_execution(outcome, started))
     }
 
     /// Runs one `TestCase` under its declared fuel and compares with the

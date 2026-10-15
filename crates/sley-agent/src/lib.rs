@@ -16,8 +16,14 @@
 //! - Verified search: bounded, typed local repair proposals checked by the
 //!   kernel and the author's public cases, never submitted ([`search`]).
 //!
-//! The kernel alone judges candidates. Nothing here is admission evidence;
-//! nothing here commits, signs, or parses Sley source.
+//! - The optional familiar frontend (cargo feature `familiar`, ADR-0055): a
+//!   textual proposal syntax parsed into structured bodies at the authoring
+//!   boundary, then handled like any JSON frame ([`familiar`]).
+//!
+//! The kernel alone judges candidates. Nothing here is admission evidence,
+//! and nothing here commits or signs. The familiar frontend is the one
+//! parser of program text; it is optional, its text is never canonical, and
+//! no other path depends on it.
 
 // The library has no unsafe code. The binary's allocator is the one exception
 // in the workspace, and it is a module of the binary target (ADR-0052).
@@ -32,6 +38,8 @@ pub mod error;
 pub mod events;
 pub mod exec;
 pub mod explain;
+#[cfg(feature = "familiar")]
+pub mod familiar;
 pub mod focus;
 pub mod frame;
 pub mod genesis;
@@ -42,8 +50,10 @@ pub mod locate;
 pub mod names;
 pub mod opcodes;
 pub mod raw;
+pub mod residual;
 pub mod ripple;
 pub mod search;
+pub(crate) mod structured;
 pub mod tables;
 pub mod types;
 pub mod values;

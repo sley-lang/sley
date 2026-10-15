@@ -1,0 +1,13 @@
+{
+  "schema": "sley2.sh2.host-build-receipt.v1",
+  "toolchain_package_digest": "389c314cf1ddf36a6964346629ba82a84e4c94dd706f69dd4f6591ed851235ca",
+  "input_digest": "152faa2df3ee1da099b109eef4cfe83e4fc8f4e19d0d48b0835e1f8dbbb140c1",
+  "objects": 62322,
+  "status": "ok",
+  "output_sha256": "031af27f1284e43565595b81115d9addc7a54610cc67851e9691ea15334453cb",
+  "observation_id": "2816458cbaee99d66e93341b8665140af6e8736e60efadcfc9904ea8c549ee96",
+  "instructions": 783179198,
+  "fuel": 3341081644,
+  "peak_value_units": 30656564075255,
+  "elapsed_ms": 599481
+}

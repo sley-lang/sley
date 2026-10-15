@@ -41,7 +41,8 @@ PHASE=${2:-check}; [[ "${1:-}" == "--phase" ]] && PHASE=$2
 mkdir -p "$OUT"
 echo "== lease gate"
 # gf-lab-lease: exit 0 = node free (prints "free"); 10 = lease held (prints gate JSON); 1 = unreachable.
-set +e; LEASE=$(gf-lab-lease status 2>&1); RC=$?; set -e
+# Transport diagnostics stay on stderr; only stdout is the lease status.
+set +e; LEASE=$(gf-lab-lease status); RC=$?; set -e
 echo "$LEASE"
 if [[ $RC -ne 0 || "$LEASE" != free* ]]; then
   echo "REFUSED: lab lease gate rc=$RC (held or unreachable). Do not proceed; never use ZJX_BREAKGLASS." >&2

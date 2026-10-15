@@ -61,6 +61,17 @@ impl NameMap {
         };
         let value: serde_json::Value =
             serde_json::from_str(&text).map_err(|error| invalid(&error.to_string()))?;
+        Self::from_value(&value, path)
+    }
+
+    /// Decodes an already-read name map, including the usual identifier rules.
+    pub(crate) fn from_value(value: &serde_json::Value, path: &Path) -> Result<Self> {
+        let invalid = |detail: &str| {
+            AgentError::new(
+                AgentErrorCode::WorkspaceInvalid,
+                format!("{}: {detail}", path.display()),
+            )
+        };
         let object = value
             .as_object()
             .ok_or_else(|| invalid("a name map is one JSON object"))?;
@@ -114,6 +125,23 @@ impl NameMap {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    /// Returns a domain-separated digest of the effective preferred-name map.
+    ///
+    /// Entries are ordered by their 32-byte identity and each name is
+    /// length-prefixed, so JSON formatting and map insertion order do not
+    /// affect the snapshot identity.
+    #[must_use]
+    pub fn digest(&self) -> String {
+        let mut bytes = b"sley.ghostweave.name-map.v1\0".to_vec();
+        bytes.extend_from_slice(&(self.entries.len() as u64).to_be_bytes());
+        for (identity, name) in &self.entries {
+            bytes.extend_from_slice(identity);
+            bytes.extend_from_slice(&(name.len() as u64).to_be_bytes());
+            bytes.extend_from_slice(name.as_bytes());
+        }
+        crate::draft::sha256(&bytes)
     }
 }
 

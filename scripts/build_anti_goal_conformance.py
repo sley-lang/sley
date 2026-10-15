@@ -69,6 +69,13 @@ FORBIDDEN_DEPENDENCIES = {
 # cite (REWEAVE-1.0 scope adoption, ADR-0049). The record itself is chartered
 # by RW-030; until it exists, no SH2 work item can be authorized.
 BOUNDARY_RECORD = "host-boundary.json"
+# The optional familiar authoring frontend (ADR-0055): the one parser of
+# program text, confined to one feature-gated module of the agent workbench.
+FAMILIAR_FEATURE = "familiar"
+FAMILIAR_SOURCE = AGENT_CRATE / "src/familiar.rs"
+FAMILIAR_ADR = Path("docs/adr/ADR-0055-familiar-authoring-frontend.md")
+FAMILIAR_GATE = re.compile(r'#\[cfg\(feature\s*=\s*"familiar"\)\]\s*pub(?:\(crate\))?\s+mod\s+familiar\s*;')
+FAMILIAR_IMPORT = re.compile(r"^\s*use\s+([A-Za-z_][A-Za-z0-9_]*)", re.M)
 SH2_WORK_ITEMS = Path("evidence") / "reweave" / "sh2-work-items.json"
 SH2_WORK_ITEMS_CONTRACT = "sley2.reweave-sh2-work-items.v1"
 
@@ -108,6 +115,37 @@ def rust_code(source: str) -> str:
 def code_of(path: Path) -> str:
     """`rust_code` of a file, lexed once per run."""
     return rust_code(path.read_text(encoding="utf-8", errors="ignore"))
+
+
+CFG_TEST_MODULE = re.compile(r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{")
+
+
+def without_test_modules(source: str) -> str:
+    """The source with every inline `#[cfg(test)] mod name { ... }` blanked.
+
+    Test modules compile only into test binaries, never into a shipped
+    kernel or agent executable. Braces are matched on the masked code, so
+    braces inside comments and literals do not count; an unbalanced module
+    is left in place (it then still counts, which fails closed).
+    """
+    code = rust_code(source)
+    out = list(source)
+    for match in CFG_TEST_MODULE.finditer(code):
+        depth, end = 0, None
+        for index in range(match.end() - 1, len(code)):
+            if code[index] == "{":
+                depth += 1
+            elif code[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        if end is None:
+            continue
+        for index in range(match.start(), end + 1):
+            if out[index] != "\n":
+                out[index] = " "
+    return "".join(out)
 
 
 def uses_unsafe(code: str) -> bool:
@@ -275,6 +313,44 @@ def unsafe_row(sources: list[Path]) -> tuple[bool, str]:
     return forbid and not unsafe_sources and not problems, detail
 
 
+def familiar_frontend_problems() -> list[str]:
+    """Why the ADR-0055 frontend confinement does not hold; empty when it does.
+
+    The frontend is one module of the sley-agent crate behind its optional
+    `familiar` feature, which enables no dependency; the module imports only
+    `std` and `serde_json`, so it can produce a JSON frame and nothing else
+    (no kernel, candidate, store or commit API); and no other crate depends
+    on the agent crate or names the module.
+    """
+    problems: list[str] = []
+    if not (ROOT / FAMILIAR_ADR).is_file():
+        problems.append(f"{FAMILIAR_ADR} is missing")
+    manifest = tomllib.loads((ROOT / AGENT_CRATE / "Cargo.toml").read_text(encoding="utf-8"))
+    features = manifest.get("features", {})
+    if (ROOT / FAMILIAR_SOURCE).exists():
+        if features.get(FAMILIAR_FEATURE) != []:
+            problems.append("the agent crate's `familiar` feature must exist and enable nothing")
+        lib = (ROOT / AGENT_CRATE / "src/lib.rs").read_text(encoding="utf-8")
+        if not FAMILIAR_GATE.search(lib):
+            problems.append("src/lib.rs must declare the familiar module behind its feature")
+        imports = sorted(set(FAMILIAR_IMPORT.findall(code_of(ROOT / FAMILIAR_SOURCE))) - {"std", "serde_json", "super"})
+        if imports:
+            problems.append(f"the familiar module may import only std and serde_json, not {imports}")
+    for path in sorted((ROOT / "crates").glob("*/Cargo.toml")):
+        crate = path.parent.relative_to(ROOT)
+        if crate == AGENT_CRATE:
+            continue
+        other = tomllib.loads(path.read_text(encoding="utf-8"))
+        if FAMILIAR_FEATURE in other.get("features", {}):
+            problems.append(f"{crate} declares a familiar feature")
+        if "sley-agent" in other.get("dependencies", {}) or "sley-agent" in other.get("build-dependencies", {}):
+            problems.append(f"{crate} depends on sley-agent")
+        for source in sorted((path.parent / "src").rglob("*.rs")):
+            if re.search(r"\bfamiliar::", code_of(source)):
+                problems.append(f"{source.relative_to(ROOT)} names the familiar module")
+    return problems
+
+
 def evaluate() -> dict[str, dict]:
     """One verdict per mechanically checkable anti-goal."""
     locked = locked_dependencies()
@@ -291,11 +367,13 @@ def evaluate() -> dict[str, dict]:
         if "/target/" not in str(path) and not path.is_relative_to(fixture_root)
     ]
     parsers = sorted(locked & set(FORBIDDEN_DEPENDENCIES["parser"]))
+    frontend = familiar_frontend_problems()
     record(
-        "Sley source syntax or parser",
-        not sley_files and not parsers,
+        "Sley source syntax or parser outside the optional authoring frontend",
+        not sley_files and not parsers and not frontend,
         f"{len(sley_files)} production .sley files; parser crates in the lock: {parsers or 'none'}; "
-        "benchmark fixture sources are inert corpus inputs",
+        "benchmark fixture sources are inert corpus inputs; ADR-0055 frontend confinement: "
+        + (f"problems {frontend}" if frontend else "holds (one feature-gated sley-agent module, std and serde_json only, no dependents)"),
     )
 
     services = sorted(locked & set(FORBIDDEN_DEPENDENCIES["language_service"]))
@@ -340,7 +418,8 @@ def evaluate() -> dict[str, dict]:
         if "tests" in path.relative_to(ROOT).parts:
             continue
         source = path.read_text(encoding="utf-8", errors="ignore")
-        if "std::process::Command" not in source:
+        # Inline test modules are test-binary code, like integration tests.
+        if "std::process::Command" not in without_test_modules(source):
             continue
         relative = path.relative_to(ROOT)
         if relative == PROBE_SOURCE and approved_probe_process_surface(source):

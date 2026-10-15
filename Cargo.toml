@@ -6,6 +6,7 @@ members = [
     "crates/sley-check",
     "crates/sley-cli",
     "crates/sley-conformance",
+    "crates/sley-host",
     "crates/sley-id",
     "crates/sley-json-bridge",
     "crates/sley-mutate",
@@ -14,6 +15,7 @@ members = [
     "crates/sley-repo",
     "crates/sley-query",
     "crates/sley-scb1",
+    "crates/sley-selfhost",
     "crates/sley-schema",
     "crates/sley-ssmc",
     "crates/sley-state-root",
@@ -25,7 +27,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.0.3"
+version = "2.1.1"
 edition = "2024"
 rust-version = "1.93"
 license = "Apache-2.0"

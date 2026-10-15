@@ -430,14 +430,39 @@ pub(crate) fn claim_file(
     name: impl Fn(u64) -> String,
     content: &[u8],
 ) -> Result<u64> {
+    claim_file_bounded(dir, first, u64::MAX, name, content)
+}
+
+/// Atomic allocation with an inclusive ceiling, including concurrent collisions.
+pub(crate) fn claim_file_bounded(
+    dir: &Path,
+    first: u64,
+    last: u64,
+    name: impl Fn(u64) -> String,
+    content: &[u8],
+) -> Result<u64> {
     let scratch = dir.join(scratch_name("claim")?);
     fs::write(&scratch, content).map_err(|error| io(&scratch, &error))?;
     let mut number = first;
     let claimed = loop {
+        if number > last {
+            break Err(AgentError::new(
+                AgentErrorCode::Io,
+                "local record allocation bound reached",
+            ));
+        }
         let target = dir.join(name(number));
         match fs::hard_link(&scratch, &target) {
             Ok(()) => break Ok(number),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => number += 1,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let Some(next) = number.checked_add(1) else {
+                    break Err(AgentError::new(
+                        AgentErrorCode::Io,
+                        "local record number exhausted",
+                    ));
+                };
+                number = next;
+            }
             Err(error) => break Err(io(&target, &error)),
         }
     };

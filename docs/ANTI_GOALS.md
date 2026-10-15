@@ -12,7 +12,7 @@ acceptance evidence is mechanical and writes
 
 | Anti-goal | Enforcement surface | Acceptance evidence |
 |---|---|---|
-| Sley source syntax or parser | dependency/file inventory; protocol input corpus | no production parser crate/grammar/`.sley`; inert benchmark fixture sources never enter the product graph; source-like protocol input rejected |
+| Sley source syntax or parser outside the optional authoring frontend | dependency/file inventory; protocol input corpus; frontend confinement check (ADR-0055) | no production parser crate/grammar/`.sley`; inert benchmark fixture sources never enter the product graph; source-like protocol input rejected; the one text parser is the optional `familiar` feature module of `sley-agent`, which emits only a structured JSON frame for the ordinary candidate path, is selected explicitly per proposal, is depended on by nothing, and is never needed by a committed program |
 | canonical text or human projection | format and release inventory | SCB1 only; debug notation rejected as input |
 | formatter, REPL, Tree-sitter, conventional LSP | package and command inventory | release-check denylist is empty |
 | Sley 1.x compatibility | dependency and fixture review | no legacy crate/source dependency; importer absent from GA graph |

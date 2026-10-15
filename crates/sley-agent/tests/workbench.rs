@@ -579,6 +579,65 @@ fn malformed_frames_fail_with_a_json_pointer() {
 }
 
 #[test]
+fn prepared_public_calls_preserve_results_and_resource_outcomes() {
+    use sley_agent::{
+        exec::{Executor, call_limits},
+        names::{NameMap, Names},
+        values::{self, ProgramTypes},
+    };
+    let temp = committed_program("prepared-public-call", None);
+    let workspace = sley_agent::workspace::Workspace::at(&temp.path);
+    let head = workspace.head().unwrap();
+    let mut map = NameMap::read(&temp.path.join("names.json")).unwrap();
+    map.extend(&NameMap::read(&temp.path.join(".sley/names.json")).unwrap());
+    let names = Names::build(head.program(), &map);
+    let function = names.resolve("bound").unwrap();
+    let mut executor = Executor::new(head.program()).unwrap();
+    assert!(
+        executor
+            .prepare_call(&function, vec![], call_limits())
+            .is_err()
+    );
+    executor.prepare(&function).unwrap();
+    assert!(
+        executor
+            .prepare_call(&function, vec![], call_limits())
+            .is_err()
+    );
+    let defs = ProgramTypes {
+        program: head.program(),
+        names: &names,
+    };
+    let inputs = [json!(1), json!(0), json!(10)]
+        .iter()
+        .zip(executor.parameter_types(&function))
+        .map(|(v, ty)| values::read(v, &ty, &defs, "input").unwrap())
+        .collect::<Vec<_>>();
+    for limits in [
+        call_limits(),
+        sley_vm::ExecutionLimits {
+            max_fuel: 0,
+            ..call_limits()
+        },
+        sley_vm::ExecutionLimits {
+            cancel_at_fuel: Some(0),
+            ..call_limits()
+        },
+    ] {
+        let ordinary = executor.run(&function, inputs.clone(), limits).unwrap();
+        let prepared = executor
+            .prepare_call(&function, inputs.clone(), limits)
+            .unwrap();
+        for _ in 0..3 {
+            let repeated = prepared.run().unwrap();
+            assert_eq!(repeated.termination, ordinary.termination);
+            assert_eq!(repeated.fuel, ordinary.fuel);
+            assert_eq!(repeated.instructions, ordinary.instructions);
+        }
+    }
+}
+
+#[test]
 fn call_batch_streams_one_result_per_input() {
     let temp = committed_program("batch", None);
     let batch = temp.path.join("batch.json");
@@ -598,6 +657,25 @@ fn call_batch_streams_one_result_per_input() {
             "{\"Err\":\"Inverted\"}"
         ]
     );
+}
+
+#[test]
+fn batch_signature_reuse_still_checks_every_row() {
+    let temp = committed_program("batch-admission", None);
+    let batch = temp.path.join("batch.jsonl");
+    // The first row is valid. Later rows must retain the same arity and
+    // value checks as single calls; buffered answers must not leak on error.
+    for invalid in ["[1,0]", "[1,0,true]", "[1,0,9223372036854775808]"] {
+        let (single_status, single_text) = run(&temp.path, &["call", "bound", invalid]);
+        assert_eq!(single_status, 2, "{single_text}");
+        fs::write(&batch, format!("[1,0,10]\n{invalid}\n")).unwrap();
+        let (batch_status, batch_text) = run(
+            &temp.path,
+            &["call", "bound", "--batch", batch.to_str().unwrap()],
+        );
+        assert_eq!(batch_status, single_status);
+        assert_eq!(batch_text, single_text);
+    }
 }
 
 #[test]

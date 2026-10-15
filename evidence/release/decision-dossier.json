@@ -2,14 +2,15 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "19 GA acceptance criteria are not evidenced",
+    "21 GA acceptance criteria are not evidenced",
     "27 review obligations are open",
     "no succession trial has been executed",
+    "only one host has attested the candidate",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "971254411c3e7b5771446f02946b542659a43ac2d84a1b8e4bd6994d77a0c5d0",
+  "dossier_digest": "cf840d0929e3f855e3b0325e27ad4f4e566f67d93816ac15583078becab2d3d6",
   "entries": [
     {
       "evidence": [
@@ -34,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "69d57b1d8fac0ef9d9f639cb606ded9be6289760"
+      "value": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee"
     },
     {
       "evidence": [
@@ -142,12 +143,12 @@
           "manifest_harness_deps": [],
           "python_use_sites": 0,
           "rust_use_sites": 0,
-          "scanned_manifests": 23
+          "scanned_manifests": 25
         },
         "property_tests": 0,
-        "python_tests": 938,
-        "rust_ignored_emitters": 39,
-        "rust_unit_tests": 2290
+        "python_tests": 946,
+        "rust_ignored_emitters": 44,
+        "rust_unit_tests": 3071
       }
     },
     {
@@ -273,7 +274,7 @@
       "item": "artifact path",
       "note": "the local candidate artifact name; no published path exists",
       "state": "EVIDENCED",
-      "value": "sley-2.0.3-linux-x86_64.tar.gz"
+      "value": "sley-2.1.1-linux-x86_64.tar.gz"
     },
     {
       "evidence": [
@@ -283,7 +284,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "4a9aef6962795f49f6e9c13dfe2cd6815a9392106708cccbc491367c4ca3c2a3"
+      "value": "b0898ba7404a1656db2f83f448ea96d2c1175346f35e50b135bedc96e3810bfd"
     },
     {
       "evidence": [
@@ -292,19 +293,19 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 5883672
+      "value": 7413689
     },
     {
       "evidence": [
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "multi-host reproducibility across distinct attested hosts",
+      "note": "single-host reproducibility; the second host is an operator-gated lane",
       "state": "EVIDENCED",
       "value": {
-        "distinct_hosts": 2,
-        "result": "MULTI_HOST_REPRODUCIBLE",
-        "second_host": "ATTESTED"
+        "distinct_hosts": 1,
+        "result": "SINGLE_HOST_REPRODUCIBLE",
+        "second_host": "GATED_OPERATOR_LANE"
       }
     },
     {
@@ -317,7 +318,7 @@
       "note": "both standards documents exist as drafts; the root license text is operator-approved, which the documents state in band",
       "state": "EVIDENCED",
       "value": {
-        "components": 64,
+        "components": 66,
         "cyclonedx_spec_version": "1.6",
         "license_disposition_blocked": 0,
         "root_license_text_approved": true,
@@ -386,7 +387,7 @@
         "S20-390 is complete only for restricted fixed-head atomic commit with no selected tests; named refs, branches, recursive recovery, clone-equivalent transaction exchange, full semantics, runtime authority, M3/M4, and GA remain blocked",
         "S20-370 protects policy, oracle roots, and named entity bindings; S20-380 adds narrow local authenticated tokens plus exact scope/expiry/replay/budget enforcement for the in-memory reference wrapper, but policy-transition authentication, candidate/VM integration, live-host confinement, commit, and production-epoch assembly remain blocked",
         "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
-        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (the second host is pending the lab lease; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
+        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (secondary-host work is excluded by operator instruction; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
         "The succession corpus is frozen but no benchmark trial has executed"
       ]
     },
@@ -415,7 +416,7 @@
           "M3/M4 effectful runtime: S20-280 full host access and S20-380 full token authority own the semantics of effect_request, adapter_invoke, and capability_narrow. Slice E7a landed contract_assert, which needed neither",
           "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
           "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
-          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (the second host is pending the lab lease; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
+          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (secondary-host work is excluded by operator instruction; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
           "Independent review: the user-authorized Council qualification rounds are available and recorded under evidence/review/rounds. Current-delta verdicts are distinct from the remaining final independent release and security dispositions; broader pending review obligations remain in their owner records.",
           "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
         ]
@@ -431,7 +432,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.3 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit 69d57b1d8fac0ef9d9f639cb606ded9be6289760); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 33 evidenced, 17 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0.6 2.0.6 on 2026-10-04 (machine summary release_decision; ga_claimed false, final commit af34be33eb1ae913dddd92aa7f4f275aac0e45ee); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 31 evidenced, 17 awaiting review, and 4 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -455,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "2ebfc65e803d52e41f71b31e603b95b4e37af80cccb36436152cc4d578aaeb9f",
+  "entries_digest": "94646a2b35674bada29f05ea4f39d20919bb409d85730ed341b3722ff81c2180",
   "evidenced": 24,
   "gated": 10,
   "gates": {

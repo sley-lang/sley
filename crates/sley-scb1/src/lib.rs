@@ -200,17 +200,27 @@ pub fn encode_uvar(mut value: u64) -> Vec<u8> {
 
 /// Encodes an unsigned 128-bit integer as canonical SCB1 uvarint.
 #[must_use]
-pub fn encode_uvar128(mut value: u128) -> Vec<u8> {
-    let mut out = Vec::with_capacity(19);
+pub fn encode_uvar128(value: u128) -> Vec<u8> {
+    let mut out = [0; 19];
+    let length = encode_uvar128_into(value, &mut out);
+    out[..length].to_vec()
+}
+
+/// Writes canonical SCB1 uvarint bytes into fixed-size scratch storage.
+/// Returns the prefix length written; remaining bytes are unchanged.
+#[must_use]
+pub fn encode_uvar128_into(mut value: u128, out: &mut [u8; 19]) -> usize {
+    let mut length = 0;
     loop {
         let mut byte = (value & 0x7f) as u8;
         value >>= 7;
         if value != 0 {
             byte |= 0x80;
         }
-        out.push(byte);
+        out[length] = byte;
+        length += 1;
         if value == 0 {
-            return out;
+            return length;
         }
     }
 }
@@ -225,6 +235,13 @@ pub fn encode_sint64(value: i64) -> Vec<u8> {
 #[must_use]
 pub fn encode_sint128(value: i128) -> Vec<u8> {
     encode_uvar128(((value << 1) ^ (value >> 127)).cast_unsigned())
+}
+
+/// Writes signed 128-bit SCB1 `ZigZag` bytes into fixed-size scratch storage.
+/// Returns the prefix length written; remaining bytes are unchanged.
+#[must_use]
+pub fn encode_sint128_into(value: i128, out: &mut [u8; 19]) -> usize {
+    encode_uvar128_into(((value << 1) ^ (value >> 127)).cast_unsigned(), out)
 }
 
 /// Encodes a boolean.
@@ -1297,8 +1314,8 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::{
         ScbErrorCode, ScbValueCursor, encode_bool, encode_bytes, encode_f32_bits, encode_f64_bits,
-        encode_list, encode_record, encode_sint64, encode_sint128, encode_text, encode_union,
-        encode_uvar, encode_uvar128,
+        encode_list, encode_record, encode_sint64, encode_sint128, encode_sint128_into,
+        encode_text, encode_union, encode_uvar, encode_uvar128, encode_uvar128_into,
     };
 
     fn to_hex(bytes: &[u8]) -> String {
@@ -1446,6 +1463,10 @@ mod tests {
         for (value, width, expected_hex) in cases {
             let encoded = encode_uvar128(value);
             assert_eq!(to_hex(&encoded), expected_hex);
+            let mut scratch = [0xa5; 19];
+            let length = encode_uvar128_into(value, &mut scratch);
+            assert_eq!(to_hex(&scratch[..length]), expected_hex);
+            assert!(scratch[length..].iter().all(|byte| *byte == 0xa5));
             let mut cursor = ScbValueCursor::new(&encoded).unwrap();
             assert_eq!(cursor.read_uvar128(width).unwrap(), value);
             cursor.check_finished().unwrap();
@@ -1466,9 +1487,34 @@ mod tests {
         for (value, expected_hex) in cases {
             let encoded = encode_sint128(value);
             assert_eq!(to_hex(&encoded), expected_hex);
+            let mut scratch = [0xa5; 19];
+            let length = encode_sint128_into(value, &mut scratch);
+            assert_eq!(to_hex(&scratch[..length]), expected_hex);
+            assert!(scratch[length..].iter().all(|byte| *byte == 0xa5));
             let mut cursor = ScbValueCursor::new(&encoded).unwrap();
             assert_eq!(cursor.read_sint128().unwrap(), value);
             cursor.check_finished().unwrap();
+        }
+    }
+
+    #[test]
+    fn scratch_integer_encoders_round_trip_every_bit_boundary() {
+        for bit in 0..128 {
+            let middle = 1_u128 << bit;
+            for value in [middle - 1, middle, middle + 1] {
+                let mut scratch = [0xa5; 19];
+                let length = encode_uvar128_into(value, &mut scratch);
+                let mut cursor = ScbValueCursor::new(&scratch[..length]).unwrap();
+                assert_eq!(cursor.read_uvar128(128).unwrap(), value);
+                cursor.check_finished().unwrap();
+                assert!(scratch[length..].iter().all(|byte| *byte == 0xa5));
+                for signed in [value.cast_signed(), value.cast_signed().wrapping_neg()] {
+                    let length = encode_sint128_into(signed, &mut scratch);
+                    let mut cursor = ScbValueCursor::new(&scratch[..length]).unwrap();
+                    assert_eq!(cursor.read_sint128().unwrap(), signed);
+                    cursor.check_finished().unwrap();
+                }
+            }
         }
     }
 

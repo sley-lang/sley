@@ -1,0 +1,15 @@
+    Finished `release` profile [optimized] target(s) in 0.04s
+[sh2-change] CI2: ok (host exit 0)
+[sh2-change] C2' package digest 6b2f8f5ad1e427a32db952f6754ed12b6f0035188d5fa4998877695059848737
+[sh2-change] CI3: ok (host exit 0)
+[sh2-change] BAD-C2: toolchain-error-10000 (host exit 1)
+[sh2-change] BAD-CI2: toolchain-error-10900 (host exit 1)
+[sh2-change] changed behavior: C2 refuses the corrupt request with 10000, C2' with 10900; no output
+[sh2-change] OMIT-C2: toolchain-error-29002 (host exit 1)
+[sh2-change] FAKE: ok (host exit 0)
+[sh2-change] fake builder returned the prior image (as constructed); acceptance requires a changed toolchain
+[sh2-change] FAKE-BAD: toolchain-error-10000 (host exit 1)
+[sh2-change] fake builder REJECTED: its output refuses with toolchain-error-10000, not 10900
+[sh2-change] USE: ok (host exit 0)
+[sh2-change] use closure: C2 builds an unrelated program byte-identically to C0
+[sh2-change] CHANGED INPUT PROOF: PASS

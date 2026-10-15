@@ -168,3 +168,40 @@ It also checked the binary on real batches: outputs were byte-identical, and
 - A future release could remove the exception if the kernel crates stop
   churning allocations, or if the archive moves to a toolchain whose
   default allocator keeps freed memory.
+
+## Addendum (Sley 2.0.5): planner heap observations
+
+Residual planning (`help residual`) bounds its additional live heap. The
+allocator module therefore reports allocation extents to a safe observation
+ledger (`residual/frontier/heap.rs`); the unsafe exception stays confined to
+this module, and no pointer or provenance handling, layout pairing, cache
+bound or allocation-failure retry policy changes.
+
+- Successful allocations report their live extent (class-rounded for cached
+  requests); releases subtract it even when their blocks become idle; system
+  reallocation provisionally observes both source and destination, and a
+  failed reallocation keeps the old charge.
+- The callbacks use atomic additions and subtractions with checked arithmetic
+  and a permanent invalid-accounting flag. They reach constant-initialized
+  thread-local state through non-panicking `try_with`/`try_borrow`, never
+  allocate, and update only active scope slots. Up to 32 nested observations
+  use safe `Arc` ownership; dropping a budget on another thread deactivates its
+  slot; exhausted slots fail closed. Scope creation and reclamation happen
+  outside the callbacks. This follows the
+  [GlobalAlloc contract](https://doc.rust-lang.org/core/alloc/trait.GlobalAlloc.html)
+  and the [TLS access contract](https://doc.rust-lang.org/std/thread/struct.LocalKey.html).
+- The binary enables observation before argument parsing; library callers
+  without this allocator are explicitly unobserved. A planning budget records
+  its baseline and keeps its peak through releases and nested scopes;
+  checkpoints refuse when the additional live heap exceeds the configured
+  ceiling. Observers close before persistence and the ordinary trial.
+  Decision 6 still governs ordinary value, fuel and instruction semantics;
+  residual resource admission gains this one refusal condition.
+- This is checkpoint enforcement, not preallocation or an OS memory cap: one
+  allocation can overshoot, infallible allocation can still abort on OOM, and
+  idle cache, allocator metadata, stacks and mappings are excluded. The
+  measure is a process live-extent delta on the planning thread, not RSS.
+- Allocation-peak tests that assert local lower bounds select themselves in a
+  fresh test process (`--exact`), because parallel tests can free unrelated
+  baseline memory; their assertions and limits are unchanged. Miri skips that
+  subprocess helper and runs the allocator tests single-threaded.

@@ -17,6 +17,17 @@ tracked evidence, and enumerates the demo's 20.12 verbs honestly
 and `bench/release/run_demo.py`; implementation state is tracked in the
 machine summary.
 
+2.0.7 development clarification (2026-10-04): current candidate builders read
+the version from `workspace.package.version` in `Cargo.toml` through
+`scripts/release_version.py`. Artifact names and candidate SBOM versions use
+that identity; historical versioned evidence below is not evidence for a new
+candidate. Staging checks workspace package identities against `Cargo.lock`.
+The candidate's publication flag requires the exact `v<version>` in the
+recorded operator decision. Prior-tag authorization does not cover 2.0.7.
+The unpacked agent checks also compare automatic/reference values, conversion
+errors, fuel and instruction counts, batch output and accepted-root preservation.
+`--allow-dirty` candidates remain explicitly dirty development artifacts.
+
 ## Boundary
 
 S20-720 freezes the mechanics of the clean-room release candidate: how the

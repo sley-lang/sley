@@ -2915,8 +2915,8 @@ fn a_tests_only_rebase_after_committing_an_intent_derives_nothing_again() {
     assert_eq!(inventory["edits"], 0);
     assert_eq!(
         report["changed"],
-        json!([{"change": "created", "exported": false, "kind": "test", "name": "t_offset_0"},
-               {"change": "created", "exported": false, "kind": "test", "name": "t_offset_1"}])
+        json!([{"change": "created", "existing_export": false, "kind": "test", "name": "t_offset_0"},
+               {"change": "created", "existing_export": false, "kind": "test", "name": "t_offset_1"}])
     );
     let (status, text) = run(&temp.path, &["submit", "d2"]);
     assert_eq!(status, 0, "{text}");
@@ -3452,4 +3452,75 @@ fn a_later_arity_value_never_changes_an_earlier_fill() {
         Machine::candidate(&temp.path, &frame).call("g", &[json!(1)]),
         json!({"Ok": 701})
     );
+}
+
+#[test]
+fn a_candidate_reports_each_changed_function_visibility_beside_existing_exports() {
+    // Extracting a shared exported helper: the two callers already existed and
+    // were exported; the helper is new. `existing_export` keeps its meaning
+    // (an exported function that existed before); a created function also
+    // carries its `visibility`, so a new exported helper does not read as
+    // private. Unchanged visibilities add no bytes.
+    let temp = workspace("changed-visibility");
+    let meter = |name: &str| {
+        json!({"fn": name, "params": [["x", "i16"]], "returns": "i16",
+               "blocks": [{"name": "entry", "term": ["return", "x"]}]})
+    };
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [meter("meter_a"), meter("meter_b")]}),
+    );
+    let caller = |name: &str| {
+        json!({"fn": name, "params": [["x", "i16"]], "returns": "i16", "blocks": [
+            {"name": "entry", "ops": [["y", "call", "nonnegative", "x"]], "term": ["return", "y"]}]})
+    };
+    let frame = json!({"af1": 1, "afx": 1, "fns": [
+        {"fn": "nonnegative", "params": [["x", "i16"]], "returns": "i16", "blocks": [
+            {"name": "entry", "term": ["cond", ["lt", "x", 0], "negative", "positive"]},
+            {"name": "negative", "term": ["return", 0]},
+            {"name": "positive", "term": ["return", "x"]}]},
+        caller("meter_a"), caller("meter_b")]});
+    let (status, report) = run_json(&temp.path, &["try", &frame.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{report:#}");
+    assert_eq!(
+        report["changed"],
+        json!([
+            {"change": "replaced", "existing_export": true, "kind": "fn", "name": "meter_a"},
+            {"change": "replaced", "existing_export": true, "kind": "fn", "name": "meter_b"},
+            {"change": "created", "existing_export": false, "kind": "fn", "name": "nonnegative", "visibility": "exported"},
+            {"change": "created", "existing_export": false, "kind": "const", "name": "k_0"}
+        ]),
+        "{report:#}"
+    );
+    // The text form keeps its documented `exported:` line for existing exports only.
+    let (status, text) = run(&temp.path, &["try", &frame.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("exported: ~meter_a ~meter_b\n"), "{text}");
+}
+
+#[test]
+fn a_json_result_with_a_failing_authored_test_says_so_and_names_the_next_step() {
+    // The text form says `tests: 1/2 passed`, `FAIL ...` and `next: fix only
+    // what failed`; the JSON form must carry the same facts, not only a
+    // `Valid` verdict, or a JSON reader cannot tell a failed test from success.
+    let temp = workspace("json-next");
+    let frame = json!({"af1": 1, "afx": 1,
+        "fns": [{"fn": "g", "params": [["x", "i64"]], "returns": "i64",
+                 "blocks": [{"name": "entry", "term": ["return", "x"]}]}],
+        "test_tables": [{"name": "t", "fn": "g", "cases": [
+            {"args": [1], "expect": 1}, {"args": [0], "expect": 49}]}]});
+    let (status, report) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 1, "{report:#}");
+    assert_eq!(report["verdict"]["valid"], true, "{report:#}");
+    assert_eq!(report["tests_failed"], 1, "{report:#}");
+    let next = report["next"].as_str().unwrap();
+    assert!(
+        next.starts_with("fix only what failed on top of d1: sley-agent try --on d1"),
+        "{next}"
+    );
+    // A passing candidate names its submission step, and adds no failure count.
+    let (status, report) = run_json(&temp.path, &["try", &frame.to_string().replace("49", "0")]);
+    assert_eq!(status, 0, "{report:#}");
+    assert!(report.get("tests_failed").is_none(), "{report:#}");
+    assert_eq!(report["next"], "sley-agent submit d2", "{report:#}");
 }

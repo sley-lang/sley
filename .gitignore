@@ -28,3 +28,4 @@ credentials/
 secrets/
 .aws/
 .gnupg/
+/target-*/
