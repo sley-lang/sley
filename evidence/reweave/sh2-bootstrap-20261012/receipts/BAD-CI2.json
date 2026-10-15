@@ -1,0 +1,13 @@
+{
+  "schema": "sley2.sh2.host-build-receipt.v1",
+  "toolchain_package_digest": "6b2f8f5ad1e427a32db952f6754ed12b6f0035188d5fa4998877695059848737",
+  "input_digest": "2f2f4ec55adb1aecba7b2556cdfe1c8a1bc839c35020ad158f40d942bea52c1d",
+  "objects": 62322,
+  "status": "toolchain-error-10900",
+  "output_sha256": null,
+  "observation_id": "4fd56880773af96966c5f0b252a0ad869ff1dc1f06073e98d0e72710719428d4",
+  "instructions": 12416265,
+  "fuel": 69246600,
+  "peak_value_units": 721908029209,
+  "elapsed_ms": 51324
+}

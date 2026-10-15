@@ -17,33 +17,38 @@ pub mod extended;
 #[cfg(test)]
 mod extended_tests;
 pub mod host_abi;
+pub mod host_admission;
 mod lower;
 pub mod native_execution;
 pub mod raw_hash;
 
 pub use admission_authority::{
     AuthorityError, SleyAdmissionEvidence, V2Closure, admit_v2_package,
-    admit_v2_package_from_sley_evidence,
+    admit_v2_package_from_sley_evidence, admit_v3_package,
 };
 pub use exec_package::{
     AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST,
-    BOOTSTRAP_PROFILE_2_DIGEST, DecodedDependencySection, DecodedPackageEnvelopeV2,
-    EXEC_PACKAGE_CONTRACT, EXEC_PACKAGE_IDENTITY, EXEC_PACKAGE_V2_CONTRACT,
-    EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES, EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES,
-    EXEC_PACKAGE_V2_IDENTITY, EXEC_PACKAGE_V2_VERSION, EXEC_PACKAGE_VERSION, ExecutionPackage,
-    HydratedPackageEnvelopeV2, PackageDigests, PackageError, admit_package, approve_package,
-    approve_package_v2, decode_constants_section, decode_dependency_section,
-    decode_imports_section, decode_layouts_section, decode_package_envelope_v2,
-    encode_package_envelope_v2, hydrate_layouts, hydrate_package_envelope_v2, package_digests,
-    package_digests_v2, verify_package_binding, verify_package_binding_v2,
+    BOOTSTRAP_PROFILE_2_DIGEST, BOOTSTRAP_PROFILE_3_DIGEST, DecodedDependencySection,
+    DecodedPackageEnvelopeV2, EXEC_PACKAGE_CONTRACT, EXEC_PACKAGE_IDENTITY,
+    EXEC_PACKAGE_V2_CONTRACT, EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES,
+    EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES, EXEC_PACKAGE_V2_IDENTITY, EXEC_PACKAGE_V2_VERSION,
+    EXEC_PACKAGE_V3_VERSION, EXEC_PACKAGE_VERSION, ExecutionPackage, HydratedPackageEnvelopeV2,
+    PackageDigests, PackageError, admit_package, approve_package, approve_package_v2,
+    approve_package_v3, approve_pinned_package_v3, decode_constants_section,
+    decode_dependency_section, decode_imports_section, decode_layouts_section,
+    decode_package_envelope_v2, decode_package_envelope_v3, encode_package_envelope_v2,
+    encode_package_envelope_v3, hydrate_layouts, hydrate_package_envelope_v2,
+    hydrate_package_envelope_v3, package_digests, package_digests_v2, package_digests_v3,
+    verify_package_binding, verify_package_binding_v2, verify_package_binding_v3,
 };
 pub use execute::{
-    ApprovedImage, ExecutionError, ExecutionErrorCode, ExecutionLimits, ExecutionOutcome,
-    ExecutionRequest, ExecutionStatusCode, ExecutionTermination, LoadedExecutionError,
-    LoadedExecutionInput, MAX_EXECUTION_CELLS, MAX_EXECUTION_INPUT_VALUE_UNITS,
-    MAX_EXECUTION_INPUTS, MAX_OBSERVATION_PREIMAGE_BYTES, PackageExecutionError, PreparedExecution,
-    ResourceKind, VerifiedImage, derive_observation_id, execute_approved_package,
-    execute_approved_package_v2, execute_function, execute_loaded_image, execution_value_units,
+    ApprovedImage, ExecutionError, ExecutionErrorCode, ExecutionLimits, ExecutionMode,
+    ExecutionOutcome, ExecutionRequest, ExecutionStatusCode, ExecutionTermination,
+    LoadedExecutionError, LoadedExecutionInput, MAX_EXECUTION_CELLS,
+    MAX_EXECUTION_INPUT_VALUE_UNITS, MAX_EXECUTION_INPUTS, MAX_OBSERVATION_PREIMAGE_BYTES,
+    PackageExecutionError, PreparedExecution, ResourceKind, VerifiedImage, derive_observation_id,
+    execute_approved_package, execute_approved_package_v2, execute_approved_package_v3,
+    execute_function, execute_loaded_image, execution_value_units,
     validated_execution_input_hashes,
 };
 pub use lower::{

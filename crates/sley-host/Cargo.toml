@@ -1,0 +1,19 @@
+[package]
+name = "sley-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sley 2 SH2 pinned native host: runs pinned EXEC_PACKAGE_V3 packages on staged inputs, with no compiler service."
+
+[[bin]]
+name = "sley-host"
+path = "src/main.rs"
+
+[dependencies]
+sley-vm = { path = "../sley-vm" }
+sley-ssmc = { path = "../sley-ssmc" }
+sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+
+[lints]
+workspace = true
