@@ -457,13 +457,14 @@ next: sley-agent submit d1
 ```
 
 `c1` is the candidate's handle; `d1` is its persistent draft. Use the handles
-printed by your own successful `try` if they differ. Read the function the
+printed by your own successful `try` if they differ; state and entity IDs also
+vary by workspace. Read the function the
 way the candidate would leave it, and call it (listing abbreviated):
 
 ```console
 $ sley-agent view area --after c1
-# sley view (AV1, non-canonical) root=95130542 after=c1
-fn area(w: i64, h: i64) -> Result<i64,ShapeError>   [bfb8e42c]
+# sley view (AV1, non-canonical) root=0862aab8 after=c1
+fn area(w: i64, h: i64) -> Result<i64,ShapeError>   [65b139b8]
   entry:
     entry__if0__a1 = const k_1 (1)
     entry__if0 = lt w, entry__if0__a1
@@ -479,7 +480,7 @@ latest revision when valid. Submission does not change the workspace's accepted
 head.
 
 `Valid` reports candidate validation, and `3/3 passed` reports advisory test
-matches. In 2.0.7, `sley-agent commit c1` refuses this example with
+matches. In 2.1.1, `sley-agent commit c1` exits with code 2 and refuses this example with
 `TXN_TEST_EVIDENCE_UNSUPPORTED`: its code-and-test candidate selects TestCases,
 and authoritative native test evidence is not available. These advisory
 matches are not commit-admission evidence. Keep candidate validation, test
