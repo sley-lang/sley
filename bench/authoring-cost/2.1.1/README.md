@@ -33,7 +33,7 @@ The baseline pairing distinction matters: two models have different retained val
 python3 -B recalculate.py projection.json --common-task-baseline
 ```
 
-That alternative yields validation cost ratio 0.4666146381646913 and token ratio 0.3778654903775837. It cannot be combined successfully with verification of the published baseline method. The release-note rounding is unchanged.
+That alternative yields validation cost ratio 0.4666146381646913 and token ratio 0.3778654903775837. It cannot be combined successfully with verification of the published baseline method. The validation cost reduction still rounds to 53%. The validation token reduction changes from 62.93% to 62.21% (63% to 62% when rounded to whole percentages). This alternative does not change the published calculation or its recorded values.
 
 A comparison with no common tasks, zero correct answers on either side, or zero reference value is explicitly undefined. Positive means that underflow to zero, and ratios that underflow or overflow, are also undefined with explicit numeric reasons. Oversized JSON integers refuse before conversion to floating point. Each model remains visible with a reason; the median uses defined model ratios only. All twelve supplied published comparisons have eight defined models. Verification refuses fewer models, mismatched denominators or changed points. No confidence intervals or significance claims are generated; this packet does not recreate the earlier per-model bootstrap analysis.
 
