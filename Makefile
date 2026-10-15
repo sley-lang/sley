@@ -1,4 +1,4 @@
-.PHONY: remote-consistency evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke fixtures-check accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: public-entrypoints-check public-entrypoints-live-check remote-consistency evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke fixtures-check accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -420,3 +420,10 @@ remote-consistency:
 	python3 scripts/check_remote_consistency.py $(REMOTE_CONSISTENCY_ARGS)
 	python3 scripts/check_remote_head.py --self-test
 	python3 scripts/check_remote_head.py --check
+
+# Source checks are offline. Deployment comparison is an explicit read-only GET.
+public-entrypoints-check:
+	python3 scripts/check_public_entrypoints.py
+
+public-entrypoints-live-check:
+	python3 scripts/check_public_entrypoints.py --live-site

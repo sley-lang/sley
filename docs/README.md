@@ -6,6 +6,13 @@ Everything about Sley 2, organized by what you're trying to do.
 > to understand it · [Architecture walkthrough](https://sleylang.org/tutorial)
 > to see a change travel through the system.
 
+Current release: [Sley 2.1.1](release/SLEY-2.1.1.md). For a first program,
+start with the [README authoring path](../README.md#write-and-test-your-first-program).
+The separate import demo exercises the protocol with a prebuilt program.
+
+Release maintainers can run the [public entry-point checks](PUBLIC_ENTRYPOINTS.md)
+before a release and after the website deployment.
+
 ---
 
 ## Guides
