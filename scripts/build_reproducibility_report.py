@@ -325,7 +325,9 @@ def build_report(attestations: list[dict], superseded: list[dict] | None = None)
         },
         "superseded_attestations": list(superseded or []),
         "ga_claimed": False,
-        "publication_authorized": publication_authority.authorized(),
+        "publication_authorized": publication_authority.authorized_for_tag(
+            "v" + ARTIFACT_NAME.removeprefix("sley-").removesuffix("-linux-x86_64.tar.gz")
+        ),
         "blockers": [
             blocker
             for blocker in BLOCKERS
