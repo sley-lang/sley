@@ -6,6 +6,11 @@ claim about every semantic entity, input or execution route. Representation,
 validation, lowering, advisory execution, native test evidence and transaction
 admission are separate observations.
 
+This is a retained 2.0.6 measurement. The current release is
+[2.1.1](release/SLEY-2.1.1.md), with later frontend and self-hosted toolchain
+work described in its release notes. The matrix and artifact identities below
+remain pinned to 2.0.6.
+
 Start with the [recorded executable matrix](examples/capability-2.0.6/MATRIX.md).
 Each row links its actual verdicts, calls and commit/refusal results. The
 [runner](examples/capability_matrix.py), inputs, raw transcript and hashes are

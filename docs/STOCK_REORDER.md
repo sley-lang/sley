@@ -10,6 +10,11 @@ an optional receipt, and creates the ZIP. Those host capabilities are not suppli
 by the Sley function. Execution is **advisory over an exact candidate**, because
 this release's route cannot admit the combined code-and-test transaction.
 
+The package and recorded runs use the published **2.0.6** binary. The current
+release is [2.1.1](release/SLEY-2.1.1.md); this retained example keeps its
+original binary, candidate and packet identities. See the
+[Quickstart](QUICKSTART.md) for current onboarding.
+
 ## Rule and supported inputs
 
 Every row has a unique SKU and seven signed 64-bit integer fields:
