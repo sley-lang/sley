@@ -231,6 +231,11 @@ fixed point. See the [2.1.1 release notes](docs/release/SLEY-2.1.1.md) and the
 [2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
 list every acceptance criterion that wasn't met at 2.0.0 and every open finding.
 
+The [initial workload and adoption roadmap](docs/ADOPTION_ROADMAP.md) focuses
+evaluation on short function authoring, then separately measured changes to
+existing programs. It orders economic evidence, authoritative tested commits
+and a useful application, while preserving the accepted self-hosting work.
+
 | Track | State |
 |---|---|
 | **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1 and the agent workbench in 2.0.2. The kernel, repository, protocol, CLI, agent workbench, and reproducible packaging are in place. |

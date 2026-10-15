@@ -143,6 +143,7 @@ are versioned (`_V1`, `_V2`) and revised in place with a recorded history.
 | Document | What's in it |
 |---|---|
 | [Architecture Decision Records](adr/README.md) | Append-only ADRs, from [machine-native lineage](adr/ADR-0001-machine-native-lineage.md) to [REWEAVE adoption](adr/ADR-0049-reweave-scope-adoption.md) |
+| [Initial workload and adoption roadmap](ADOPTION_ROADMAP.md) | The first evaluation target, required adoption evidence, near-term priorities and self-hosting tradeoffs |
 | [Anti-goals](ANTI_GOALS.md) | What Sley must never become, and the test that enforces each rule |
 | [Work packages](WORK_PACKAGES.md) | The work-package DAG that built 2.0 |
 | [Audits and closeouts](audits/) | The closeout record for each work package, fuzz slices, and architecture audits |
