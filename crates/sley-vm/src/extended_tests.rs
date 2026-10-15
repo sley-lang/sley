@@ -498,6 +498,13 @@ fn scalar_plan_matches_reference_at_resource_and_arithmetic_boundaries() {
                     Vec::new(),
                 );
                 let (image, input, approved, bytes) = loaded_fixture(&fixture);
+                let forced_reference = crate::VerifiedImage::load_with_mode(
+                    &approved,
+                    &bytes,
+                    crate::ExecutionMode::Reference,
+                )
+                .unwrap();
+                assert!(!forced_reference.has_scalar_plan());
                 assert!(
                     image.has_scalar_plan(),
                     "eligible arithmetic must use the scalar plan"
@@ -561,8 +568,14 @@ fn scalar_plan_matches_reference_at_resource_and_arithmetic_boundaries() {
                         };
                         assert_eq!(
                             image.execute(input, request.clone()),
-                            crate::execute_loaded_image(input, &approved, &bytes, request),
+                            crate::execute_loaded_image(input, &approved, &bytes, request.clone()),
                             "{opcode:?}/{bits}/{signed}/{a}/{b}/{limits:?}"
+                        );
+                        let reference = forced_reference.execute(input, request.clone());
+                        assert_eq!(image.execute(input, request.clone()), reference);
+                        assert_eq!(
+                            forced_reference.prepare(input, request).unwrap().execute(),
+                            reference
                         );
                     }
                 }
@@ -628,6 +641,108 @@ fn scalar_plan_rebinds_constants_and_falls_back_for_invalid_inventories() {
             for _ in 0..2 {
                 assert_eq!(prepared.execute(), reference);
             }
+        }
+    }
+}
+
+#[test]
+fn scalar_large_constant_inventory_lookup_preserves_first_match_and_budget_order() {
+    let constants: Vec<_> = (0..32_u8)
+        .map(|i| ConstantDefinition {
+            entity_id: id(200 + i),
+            value: uint(u128::from(i)),
+        })
+        .collect();
+    let steps: Vec<_> = constants
+        .iter()
+        .map(|c| {
+            step(
+                Opcode::ConstantRef,
+                vec![],
+                Immediate::Entity(c.entity_id),
+                u64_type(),
+            )
+        })
+        .collect();
+    let fixture = Fixture::new(&[], &steps, constants);
+    let (image, input, approved, bytes) = loaded_fixture(&fixture);
+    assert!(image.has_scalar_plan());
+    let mut reversed = fixture.constants.clone();
+    reversed.reverse();
+    let mut duplicate = fixture.constants.clone();
+    duplicate.insert(
+        0,
+        ConstantDefinition {
+            entity_id: id(231),
+            value: uint(111),
+        },
+    );
+    let mut missing = fixture.constants.clone();
+    missing.pop();
+    let mut wrong_type = fixture.constants.clone();
+    wrong_type[31].value = boolean(true);
+    let mut changed = fixture.constants.clone();
+    changed[31].value = uint(900);
+    for constants in [
+        &fixture.constants,
+        &reversed,
+        &duplicate,
+        &missing,
+        &wrong_type,
+        &changed,
+    ] {
+        let input = crate::LoadedExecutionInput { constants, ..input };
+        let full = ExecutionRequest {
+            inputs: vec![],
+            limits: limits(),
+        };
+        let baseline = crate::execute_loaded_image(input, &approved, &bytes, full).unwrap();
+        let mut caps = vec![limits()];
+        for cap in 0..=baseline.fuel_used + 1 {
+            caps.extend([
+                ExecutionLimits {
+                    max_fuel: cap,
+                    ..limits()
+                },
+                ExecutionLimits {
+                    max_instructions: cap,
+                    ..limits()
+                },
+                ExecutionLimits {
+                    cancel_at_fuel: Some(cap),
+                    ..limits()
+                },
+            ]);
+        }
+        for cap in [
+            0,
+            baseline.peak_value_units.saturating_sub(1),
+            baseline.peak_value_units,
+            baseline.peak_value_units + 1,
+        ] {
+            caps.push(ExecutionLimits {
+                max_value_units: cap,
+                ..limits()
+            });
+        }
+        for cap in [0, 8, 9, 10] {
+            caps.push(ExecutionLimits {
+                max_output_units: cap,
+                ..limits()
+            });
+        }
+        for limits in caps {
+            let request = ExecutionRequest {
+                inputs: vec![],
+                limits,
+            };
+            let expected = crate::execute_loaded_image(input, &approved, &bytes, request.clone());
+            assert_eq!(
+                image.execute(input, request.clone()),
+                expected,
+                "{constants:?}/{limits:?}"
+            );
+            assert_eq!(image.prepare(input, request).unwrap().execute(), expected);
         }
     }
 }

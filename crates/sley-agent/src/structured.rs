@@ -5,20 +5,39 @@
 //! then handle. It never changes what a program means: every construct maps
 //! onto existing operations and terminators.
 //!
-//! Statements: `["let", x, e]`, `["var", x, T, e]`, `["set", x, e]`,
+//! Statements: `["let", x, e]`, `["var", x, T, e]` (or `["var", x, e]`, typed
+//! like `let`), `["set", x, e]`,
 //! `["if", c, [..], [..]?]`, `["for", x, xs, [..]]`, `["while", c, [..]]`,
-//! `["return", e]`, `["ok", e]`, `["fail", Case]`, `["trap"]`.
+//! `["range", i, start, end, [..]]`, `["for-indexed", i, x, xs, [..]]`,
+//! `["return", e]`, `["ok", e]`, `["fail", Case]`, `["trap"]`, `["break"]` and
+//! `["continue"]` (the innermost loop: leave it, or go to its next pass).
 //!
 //! Expressions: a name, an integer, `true`/`false`, a typed literal
 //! `{"type": T, "value": v}`, or `[op, args..]`:
 //! - `add sub mul div rem neg abs`: checked; a failure traps, unless the
 //!   operation is spelled `op?` (return the `ArithmeticError` from a Result
 //!   function) or `op?Case` (return error case `Case`).
+//! - `floordiv floormod`: Python's `//` and `%` (the quotient rounds toward
+//!   negative infinity; the remainder takes the divisor's sign); checked like
+//!   `div` and `rem`.
 //! - `to`: `["to", T, x]` converts between integer types; a value outside
 //!   `T` fails like a checked operation (`to?`, `to?Case`).
 //! - `min max clamp`: total; `clamp(x, lo, hi)` is `min(max(x, lo), hi)`.
 //! - `eq ne lt le gt ge not`; `and or` evaluate both operands.
 //! - `if`: `["if", c, a, b]` computes only the chosen value.
+//! - `fold`: `["fold", kind, x, xs, e, c?]` visits every element `x` of `xs`
+//!   (where `c` holds, when given): `sum` adds `e` with checked addition,
+//!   `count` counts the elements where the bool `e` holds (an `i64`), `any`
+//!   and `all` combine the bool `e` with `or` and `and`, `max` and `min`
+//!   keep the largest or smallest `e` (no element is a trap). `xs` may also
+//!   be `["range", start, end]`: `x` takes each integer of the half-open
+//!   range. Every element is visited; `e` and `c` are evaluated for each
+//!   element they reach.
+//! - `truthy`: a bool as itself, an integer `!= 0`, a vector or text that is
+//!   not empty (the Python dialect's conditions).
+//! - `pow`: `["pow", a, b]` multiplies `a` by itself `b` times (checked; a
+//!   negative `b` traps). `gcd`: the greatest common divisor of the absolute
+//!   values (`gcd(0, 0)` is 0).
 //! - `len` (u64), `get` (`[xs, u64]`; out of range traps or `get?Case`),
 //!   `field` (`[record, "name"]`), `call` (`["f", args..]`; `call?` unwraps a
 //!   Result).
@@ -299,6 +318,18 @@ impl Env {
     }
 }
 
+/// The loop a `break` or `continue` leaves: its exit block and the state it
+/// takes, its header and the state that takes, and the index a `continue`
+/// advances first (`for` and `range`).
+#[derive(Clone)]
+struct LoopCx {
+    exit: String,
+    exit_args: Env,
+    header: String,
+    before: Env,
+    step: Option<String>,
+}
+
 struct Block {
     name: String,
     params: Vec<(String, String)>,
@@ -323,6 +354,8 @@ struct Fn<'c, 'a> {
     /// How many blocks (`if` branches, loop bodies) enclose the statement
     /// being lowered; 0 at the top of the body.
     depth: usize,
+    /// The loops enclosing the statement being lowered, innermost last.
+    loops: Vec<LoopCx>,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -376,6 +409,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             trap: None,
             origins: Vec::new(),
             pending_exit: None,
+            loops: Vec::new(),
             depth: 0,
         })
     }
@@ -557,9 +591,15 @@ impl<'c, 'a> Fn<'c, 'a> {
                         Some("bool".into())
                     }
                     "len" => Some("u64".into()),
+                    "truthy" => Some("bool".into()),
+                    "pow" | "gcd" | "powmod" => {
+                        args.iter().find_map(|a| self.static_type(a, env, None))
+                    }
                     "to" => args.first().and_then(Value::as_str).map(normal),
                     "add" | "sub" | "mul" | "div" | "rem" | "neg" | "abs" | "min" | "max"
-                    | "clamp" => args.iter().find_map(|a| self.static_type(a, env, None)),
+                    | "clamp" | "floordiv" | "floormod" => {
+                        args.iter().find_map(|a| self.static_type(a, env, None))
+                    }
                     "get" => vec_elem(&self.static_type(args.first()?, env, None)?),
                     "field" => {
                         let rec = self.static_type(args.first()?, env, None)?;
@@ -567,9 +607,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                             .get(args.get(1)?.as_str()?)
                             .cloned()
                     }
-                    "call" => {
+                    "call" | "tcall" => {
                         let (_, returns) = self.signature(args.first()?.as_str()?)?;
-                        if mode.is_some() {
+                        if mode.is_some() && (base == "call" || result_parts(&returns).is_some()) {
                             result_parts(&returns).map(|p| p.0)
                         } else {
                             Some(returns)
@@ -578,6 +618,23 @@ impl<'c, 'a> Fn<'c, 'a> {
                     "if" => self
                         .static_type(args.get(1)?, env, hint)
                         .or_else(|| self.static_type(args.get(2)?, env, hint)),
+                    "fold" => match args.first()?.as_str()? {
+                        "count" => Some("i64".into()),
+                        "any" | "all" => Some("bool".into()),
+                        _ => {
+                            let elem = self.fold_element(args.get(2)?, env)?;
+                            let mut inner = env.clone();
+                            inner.set(
+                                args.get(1)?.as_str()?,
+                                Binding {
+                                    operand: Value::Null,
+                                    ty: elem,
+                                    mutable: false,
+                                },
+                            );
+                            self.static_type(args.get(3)?, &inner, hint)
+                        }
+                    },
                     _ => None,
                 }
             }
@@ -613,6 +670,7 @@ impl<'c, 'a> Fn<'c, 'a> {
     }
 
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::many_single_char_names)]
     fn expr(
         &mut self,
         e: &Value,
@@ -734,6 +792,34 @@ impl<'c, 'a> Fn<'c, 'a> {
                 let (vals, _) = self.operands(args, env, at, None)?;
                 Ok((self.emit_value(b, vals, at), "bool".into()))
             }
+            "fold" => self.fold(args, env, at, hint),
+            "floordiv" | "floormod" => {
+                if args.len() != 2 {
+                    return fail(at, format!("`{base}` takes 2 operands"));
+                }
+                let (vals, ty) = self.operands(args, env, at, hint)?;
+                if !is_int(&ty) {
+                    return fail(at, format!("`{base}` needs integer operands, not {ty}"));
+                }
+                self.handler(mode, at)?;
+                // Python's floor division and modulo: the truncating quotient
+                // and remainder, corrected when the remainder is nonzero and its
+                // sign differs from the divisor's.
+                let suffix = &word[base.len()..];
+                let a = self.hold(env, vals[0].clone(), &ty);
+                let b = self.hold(env, vals[1].clone(), &ty);
+                let rem = json!([format!("rem{suffix}"), a, b]);
+                let adjust = json!(["and", ["ne", rem, 0], ["ne", ["lt", rem, 0], ["lt", b, 0]]]);
+                let lowered = if base == "floordiv" {
+                    let quotient = json!([format!("div{suffix}"), a, b]);
+                    json!(["if", adjust, ["sub", quotient, 1], quotient])
+                } else {
+                    json!(["if", adjust, ["add", rem, b], rem])
+                };
+                let result = self.expr(&lowered, env, at, Some(&ty));
+                Self::release(env, &[a, b]);
+                result
+            }
             "not" => {
                 if args.len() != 1 {
                     return fail(at, "`not` takes 1 operand");
@@ -756,6 +842,118 @@ impl<'c, 'a> Fn<'c, 'a> {
                     return fail(at, format!("`{base}` needs bool operands"));
                 }
                 Ok((self.emit_value(base, vec![a, b], at), "bool".into()))
+            }
+            "truthy" => {
+                if args.len() != 1 {
+                    return fail(at, "`truthy` takes 1 operand");
+                }
+                let (v, t) = self.expr(&args[0], env, &sub(0), None)?;
+                if t == "bool" {
+                    return Ok((v, t));
+                }
+                if is_int(&t) {
+                    let zero = Self::lit(&json!(0), &t);
+                    return Ok((self.emit_value("ne", vec![v, zero], at), "bool".into()));
+                }
+                if vec_elem(&t).is_some() {
+                    let length = self.emit_value("vec_len", vec![v], at);
+                    let zero = Self::lit(&json!(0), "u64");
+                    return Ok((self.emit_value("ne", vec![length, zero], at), "bool".into()));
+                }
+                if t == "text" {
+                    let empty = json!({"type": "text", "value": ""});
+                    return Ok((self.emit_value("ne", vec![v, empty], at), "bool".into()));
+                }
+                fail(at, format!("a {t} has no truth value"))
+            }
+            "powmod" => {
+                // Python's pow(b, e, m): repeated checked multiplication modulo m
+                // (floor modulo; m == 0 fails like a division by zero, a
+                // negative e traps).
+                if args.len() != 3 {
+                    return fail(at, "`powmod` takes 3 operands");
+                }
+                let (vals, ty) = self.operands(args, env, at, hint)?;
+                if !is_int(&ty) {
+                    return fail(at, format!("`powmod` needs integer operands, not {ty}"));
+                }
+                self.handler(mode, at)?;
+                let b = self.hold(env, vals[0].clone(), &ty);
+                let e = self.hold(env, vals[1].clone(), &ty);
+                let m = self.hold(env, vals[2].clone(), &ty);
+                let (x, y) = (self.fresh("-x"), self.fresh("-y"));
+                let statements = vec![
+                    json!(["if", ["lt", e, 0], [["trap"]]]),
+                    json!(["var", x, ty, ["floormod", {"type": ty, "value": 1}, m]]),
+                    json!(["var", y, ty, {"type": ty, "value": 0}]),
+                    json!([
+                        "while",
+                        ["lt", y, e],
+                        [
+                            ["set", x, ["floormod", ["mul", x, ["floormod", b, m]], m]],
+                            ["set", y, ["add", y, 1]]
+                        ]
+                    ]),
+                ];
+                self.stmts(&statements, env, at, true)?;
+                let result = env.operand(&x);
+                env.remove(&x);
+                env.remove(&y);
+                Self::release(env, &[b, e, m]);
+                Ok((result, ty))
+            }
+            "pow" | "gcd" => {
+                if args.len() != 2 {
+                    return fail(at, format!("`{base}` takes 2 operands"));
+                }
+                let (vals, ty) = self.operands(args, env, at, hint)?;
+                if !is_int(&ty) {
+                    return fail(at, format!("`{base}` needs integer operands, not {ty}"));
+                }
+                self.handler(mode, at)?;
+                let suffix = &word[base.len()..];
+                let a = self.hold(env, vals[0].clone(), &ty);
+                let b = self.hold(env, vals[1].clone(), &ty);
+                let (x, y) = (self.fresh("-x"), self.fresh("-y"));
+                let statements = if base == "pow" {
+                    // Repeated checked multiplication; a negative exponent traps
+                    // (Python would produce a float).
+                    vec![
+                        json!(["if", ["lt", b, 0], [["trap"]]]),
+                        json!(["var", x, ty, {"type": ty, "value": 1}]),
+                        json!(["var", y, ty, {"type": ty, "value": 0}]),
+                        json!([
+                            "while",
+                            ["lt", y, b],
+                            [
+                                ["set", x, [format!("mul{suffix}"), x, a]],
+                                ["set", y, ["add", y, 1]]
+                            ]
+                        ]),
+                    ]
+                } else {
+                    // Euclid on absolute values: gcd(0, 0) is 0.
+                    let rest = format!("gcd_rest_{}", self.counter);
+                    vec![
+                        json!(["var", x, ty, [format!("abs{suffix}"), a]]),
+                        json!(["var", y, ty, [format!("abs{suffix}"), b]]),
+                        json!([
+                            "while",
+                            ["ne", y, 0],
+                            [
+                                ["let", rest, ["rem", x, y]],
+                                ["set", x, y],
+                                ["set", y, rest]
+                            ]
+                        ]),
+                    ]
+                };
+                self.stmts(&statements, env, at, true)?;
+                let result = env.operand(&x);
+                env.remove(&x);
+                env.remove(&y);
+                Self::release(env, &[a, b]);
+                Ok((result, ty))
             }
             "len" => {
                 if args.len() != 1 {
@@ -1077,13 +1275,33 @@ impl<'c, 'a> Fn<'c, 'a> {
                     );
                 }
                 "var" => {
+                    if items.len() == 3 {
+                        let n = name_ok(1)?;
+                        self.no_shadow(env, outer, &n, &here, internal)?;
+                        let (v, t) = self.expr(&items[2], env, &part(2), None)?;
+                        env.set(
+                            &n,
+                            Binding {
+                                operand: v,
+                                ty: t,
+                                mutable: true,
+                            },
+                        );
+                        continue;
+                    }
                     if items.len() != 4 {
-                        return fail(&here, "[\"var\", name, type, value]");
+                        return fail(
+                            &here,
+                            "[\"var\", name, type, value] or [\"var\", name, value]",
+                        );
                     }
                     let n = name_ok(1)?;
                     self.no_shadow(env, outer, &n, &here, internal)?;
                     let Some(ty) = items[2].as_str().map(normal) else {
-                        return fail(&here, "[\"var\", name, type, value]");
+                        return fail(
+                            &here,
+                            "[\"var\", name, type, value] or [\"var\", name, value]",
+                        );
                     };
                     let (v, t) = self.expr(&items[3], env, &part(3), Some(&ty))?;
                     if t != ty {
@@ -1093,6 +1311,45 @@ impl<'c, 'a> Fn<'c, 'a> {
                         &n,
                         Binding {
                             operand: v,
+                            ty,
+                            mutable: true,
+                        },
+                    );
+                }
+                "declare" => {
+                    // ["declare", x, witness]: a var of the witness's static type
+                    // (never evaluated), holding that type's zero, before branches
+                    // that each assign it.
+                    if items.len() != 3 {
+                        return fail(&here, "[\"declare\", name, witness]");
+                    }
+                    let n = name_ok(1)?;
+                    self.no_shadow(env, outer, &n, &here, internal)?;
+                    // An untyped literal witness is an i64, as everywhere else.
+                    let Some(ty) = self.static_type(&items[2], env, Some("i64")) else {
+                        return fail(
+                            &here,
+                            format!(
+                                "`{n}` is assigned in every branch, but its type is not known before them: assign it once before the if"
+                            ),
+                        );
+                    };
+                    let zero = if is_int(&ty) {
+                        Self::lit(&json!(0), &ty)
+                    } else if ty == "bool" {
+                        Self::lit(&json!(false), "bool")
+                    } else if ty == "text" {
+                        json!({"type": "text", "value": ""})
+                    } else {
+                        return fail(
+                            &here,
+                            format!("`{n}` ({ty}) must be assigned once before the if"),
+                        );
+                    };
+                    env.set(
+                        &n,
+                        Binding {
+                            operand: zero,
                             ty,
                             mutable: true,
                         },
@@ -1124,7 +1381,8 @@ impl<'c, 'a> Fn<'c, 'a> {
                     );
                 }
                 "if" => self.if_stmt(items, env, &here, internal)?,
-                "for" => self.for_stmt(items, env, &here)?,
+                "for" | "for-indexed" => self.for_stmt(items, env, &here)?,
+                "range" => self.range_stmt(items, env, &here)?,
                 "while" => self.while_stmt(items, env, &here, internal)?,
                 "return" | "ok" => {
                     if items.len() != 2 {
@@ -1154,6 +1412,23 @@ impl<'c, 'a> Fn<'c, 'a> {
                     self.end(json!(["fail", items[1]]), &here);
                 }
                 "trap" => self.end(json!(["trap"]), &here),
+                "break" | "continue" => {
+                    let Some(cx) = self.loops.last().cloned() else {
+                        return fail(&here, format!("`{kind}` is outside every loop"));
+                    };
+                    let mut state = env.clone();
+                    let (target, args) = if kind == "break" {
+                        (cx.exit, state.scoped(&cx.exit_args).operands())
+                    } else {
+                        if let Some(step) = &cx.step {
+                            self.advance(&mut state, step, &here);
+                        }
+                        (cx.header, state.scoped(&cx.before).operands())
+                    };
+                    let mut term = vec![json!("br"), json!(target)];
+                    term.extend(args);
+                    self.end(Value::Array(term), &here);
+                }
                 _ => return fail(&here, format!("unknown statement `{kind}`")),
             }
         }
@@ -1284,32 +1559,301 @@ impl<'c, 'a> Fn<'c, 'a> {
         *env = exit_env.scoped(before);
     }
 
-    fn for_stmt(&mut self, items: &[Value], env: &mut Env, at: &str) -> R<()> {
-        let (Some(var), Some(list), Some(body)) = (
-            items
-                .get(1)
-                .and_then(Value::as_str)
-                .filter(|n| identifier(n)),
-            items.get(2),
-            items.get(3).and_then(Value::as_array),
-        ) else {
-            return fail(at, "[\"for\", name, vector, [body...]]");
-        };
-        if items.len() != 4 {
-            return fail(at, "[\"for\", name, vector, [body...]]");
+    fn advance(&mut self, env: &mut Env, key: &str, at: &str) {
+        let binding = env.get(key).expect("lowering owns the loop index").clone();
+        let trap = self.trap_block();
+        let next = self.emit_value(
+            &format!("add?{trap}"),
+            vec![binding.operand.clone(), Self::lit(&json!(1), &binding.ty)],
+            at,
+        );
+        env.set(
+            key,
+            Binding {
+                operand: next,
+                ..binding
+            },
+        );
+    }
+
+    /// The element type a fold visits: a vector's elements, or a range's
+    /// integers.
+    fn fold_element(&self, list: &Value, env: &Env) -> Option<String> {
+        if let Some(items) = list.as_array()
+            && items.first().and_then(Value::as_str) == Some("range")
+        {
+            return items[1..]
+                .iter()
+                .filter(|a| !a.is_number())
+                .find_map(|a| self.static_type(a, env, None))
+                .or_else(|| Some("i64".into()));
         }
-        if env.get(var).is_some() || self.params.contains_key(var) {
+        vec_elem(&self.static_type(list, env, None)?)
+    }
+
+    /// `["fold", kind, x, xs, e, c?]`: an accumulator loop over `xs`, lowered
+    /// through the ordinary `var`, `for`, `if` and `set` statements.
+    #[allow(clippy::too_many_lines)]
+    fn fold(
+        &mut self,
+        args: &[Value],
+        env: &mut Env,
+        at: &str,
+        hint: Option<&str>,
+    ) -> R<(Value, String)> {
+        const GRAMMAR: &str = "[\"fold\", sum|count|any|all, element, vector, value, condition?]";
+        if !(4..=6).contains(&args.len()) {
+            return fail(at, GRAMMAR);
+        }
+        let Some(kind) = args[0].as_str() else {
+            return fail(at, GRAMMAR);
+        };
+        let x = self
+            .loop_name(&args[1], env, &format!("{at}/2"))?
+            .to_owned();
+        let (list, value) = (&args[2], &args[3]);
+        let condition = args.get(4).filter(|c| !c.is_null());
+        // max/min: the value when no element is visited (else a trap).
+        let fallback = args.get(5).filter(|d| !d.is_null());
+        let Some(elem) = self.fold_element(list, env) else {
+            return fail(&format!("{at}/3"), "a fold visits a vector or a range");
+        };
+        let mut inner = env.clone();
+        inner.set(
+            &x,
+            Binding {
+                operand: Value::Null,
+                ty: elem,
+                mutable: false,
+            },
+        );
+        let value_ty = self.static_type(value, &inner, hint);
+        let acc = self.fresh("-fold");
+        let (ty, init, step) = match kind {
+            "sum" => {
+                let ty = value_ty
+                    .clone()
+                    .or_else(|| hint.filter(|h| is_int(h)).map(str::to_owned))
+                    .unwrap_or_else(|| "i64".into());
+                if !is_int(&ty) {
+                    return fail(&format!("{at}/4"), format!("`sum` adds integers, not {ty}"));
+                }
+                let step = json!([["set", acc, ["add", acc, value]]]);
+                (ty.clone(), json!({"type": ty, "value": 0}), step)
+            }
+            "count" => {
+                let step = json!([["if", value, [["set", acc, ["add", acc, 1]]]]]);
+                ("i64".to_owned(), json!({"type": "i64", "value": 0}), step)
+            }
+            "any" | "all" => {
+                let join = if kind == "any" { "or" } else { "and" };
+                let step = json!([["set", acc, [join, acc, value]]]);
+                ("bool".to_owned(), json!(kind == "all"), step)
+            }
+            "max" | "min" => {
+                let ty = value_ty
+                    .clone()
+                    .or_else(|| hint.filter(|h| is_int(h)).map(str::to_owned))
+                    .unwrap_or_else(|| "i64".into());
+                if !is_int(&ty) {
+                    return fail(
+                        &format!("{at}/4"),
+                        format!("`{kind}` compares integers, not {ty}"),
+                    );
+                }
+                // The per-element value is bound in the loop body, where names
+                // must be identifiers.
+                let seen = self.fresh("-seen");
+                let item = format!("fold_item_{}", self.counter);
+                let better = if kind == "max" { "gt" } else { "lt" };
+                let step = json!([
+                    ["let", item, value],
+                    [
+                        "if",
+                        ["or", ["not", seen], [better, item, acc]],
+                        [["set", acc, item]]
+                    ],
+                    ["set", seen, true]
+                ]);
+                let body = match condition {
+                    Some(c) => json!([["if", c, step]]),
+                    None => step,
+                };
+                let looping = if let Some(items) = list
+                    .as_array()
+                    .filter(|i| i.first().and_then(Value::as_str) == Some("range"))
+                {
+                    json!(["range", x, items.get(1), items.get(2), body])
+                } else {
+                    json!(["for", x, list, body])
+                };
+                let empty = match fallback {
+                    Some(d) => json!(["set", acc, d]),
+                    None => json!(["trap"]),
+                };
+                let statements = [
+                    json!(["var", acc, ty, {"type": ty, "value": 0}]),
+                    json!(["var", seen, "bool", false]),
+                    looping,
+                    json!(["if", ["not", seen], [empty]]),
+                ];
+                self.stmts(&statements, env, at, true)?;
+                let result = env.operand(&acc);
+                env.remove(&acc);
+                env.remove(&seen);
+                return Ok((result, ty));
+            }
+            _ => {
+                return fail(
+                    &format!("{at}/1"),
+                    "a fold is sum, count, any, all, max or min",
+                );
+            }
+        };
+        if kind != "sum" && value_ty.as_deref().is_some_and(|t| t != "bool") {
             return fail(
-                &format!("{at}/1"),
+                &format!("{at}/4"),
                 format!(
-                    "`{var}` is declared outside this loop; the loop variable needs a new name"
+                    "`{kind}` needs a bool, not {}",
+                    value_ty.unwrap_or_default()
                 ),
             );
         }
-        let (vec, vty) = self.expr(list, env, &format!("{at}/2"), None)?;
+        let body = match condition {
+            Some(c) => json!([["if", c, step]]),
+            None => step,
+        };
+        let looping = if let Some(items) = list
+            .as_array()
+            .filter(|i| i.first().and_then(Value::as_str) == Some("range"))
+        {
+            json!(["range", x, items.get(1), items.get(2), body])
+        } else {
+            json!(["for", x, list, body])
+        };
+        let statements = [json!(["var", acc, ty, init]), looping];
+        self.stmts(&statements, env, at, true)?;
+        let result = env.operand(&acc);
+        env.remove(&acc);
+        Ok((result, ty))
+    }
+
+    fn loop_name<'v>(&self, value: &'v Value, env: &Env, at: &str) -> R<&'v str> {
+        let Some(name) = value.as_str().filter(|name| identifier(name)) else {
+            return fail(at, "a loop variable needs an identifier");
+        };
+        if env.get(name).is_some() || self.params.contains_key(name) {
+            return fail(
+                at,
+                format!(
+                    "`{name}` is declared outside this loop; the loop variable needs a new name"
+                ),
+            );
+        }
+        Ok(name)
+    }
+
+    fn range_stmt(&mut self, items: &[Value], env: &mut Env, at: &str) -> R<()> {
+        if items.len() != 5 {
+            return fail(at, "[\"range\", name, start, end, [body...]]");
+        }
+        let var = self.loop_name(&items[1], env, &format!("{at}/1"))?;
+        let Some(body) = items[4].as_array() else {
+            return fail(&format!("{at}/4"), "a range body is a statement list");
+        };
+        let ty = self
+            .static_type(&items[2], env, None)
+            .or_else(|| self.static_type(&items[3], env, None))
+            .unwrap_or_else(|| "i64".into());
+        if !is_int(&ty) {
+            return fail(at, "range bounds must have the same integer type");
+        }
+        let mut keys = Vec::new();
+        // Keep the start across any control flow in the end expression;
+        // both are evaluated once, left to right, even for an empty range.
+        for (index, bound) in items[2..4].iter().enumerate() {
+            let here = format!("{at}/{}", index + 2);
+            let (value, actual) = self.expr(bound, env, &here, Some(&ty))?;
+            if actual != ty {
+                return fail(&here, format!("range bounds mix {ty} and {actual}"));
+            }
+            keys.push(self.hold(env, value, &ty));
+        }
+        let before = env.clone();
+        let (local, header) = self.enter_loop(env, at);
+        let more = self.emit_value(
+            "lt",
+            vec![local.operand(&keys[0]), local.operand(&keys[1])],
+            at,
+        );
+        let (mut inner, exit_env) = self.test_loop(&more, &local, at);
+        inner.set(
+            var,
+            Binding {
+                operand: inner.operand(&keys[0]),
+                ty: ty.clone(),
+                mutable: false,
+            },
+        );
+        let pending = self.pending_exit.take();
+        self.loops.push(LoopCx {
+            exit: pending.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
+            exit_args: local.clone(),
+            header: header.clone(),
+            before: before.clone(),
+            step: Some(keys[0].clone()),
+        });
+        self.depth += 1;
+        let falls = self.stmts(body, &mut inner, &format!("{at}/4"), false)?;
+        self.depth -= 1;
+        self.loops.pop();
+        self.pending_exit = pending;
+        if falls {
+            // Since index < end <= MAX, this checked step cannot overflow.
+            self.advance(&mut inner, &keys[0], at);
+        }
+        self.close_loop(
+            &header,
+            falls.then_some(&inner),
+            &before,
+            &exit_env,
+            env,
+            at,
+        );
+        Self::release(env, &keys);
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn for_stmt(&mut self, items: &[Value], env: &mut Env, at: &str) -> R<()> {
+        let indexed = items[0] == "for-indexed";
+        let offset = usize::from(indexed);
+        let grammar = if indexed {
+            "[\"for-indexed\", index, element, vector, [body...]]"
+        } else {
+            "[\"for\", element, vector, [body...]]"
+        };
+        if items.len() != 4 + offset {
+            return fail(at, grammar);
+        }
+        let var = self.loop_name(&items[1 + offset], env, &format!("{at}/{}", 1 + offset))?;
+        let visible_index = if indexed {
+            let name = self.loop_name(&items[1], env, &format!("{at}/1"))?;
+            if name == var {
+                return fail(&format!("{at}/2"), "index and element need different names");
+            }
+            Some(name)
+        } else {
+            None
+        };
+        let list = &items[2 + offset];
+        let Some(body) = items[3 + offset].as_array() else {
+            return fail(at, grammar);
+        };
+        let (vec, vty) = self.expr(list, env, &format!("{at}/{}", 2 + offset), None)?;
         let Some(elem) = vec_elem(&vty) else {
             return fail(
-                &format!("{at}/2"),
+                &format!("{at}/{}", 2 + offset),
                 format!("`for` iterates a vector, not {vty}"),
             );
         };
@@ -1340,6 +1884,16 @@ impl<'c, 'a> Fn<'c, 'a> {
         let trap = self.trap_block();
         let (current, position) = (inner.operand(&vector), inner.operand(&index));
         let item = self.emit_value(&format!("vec_get?{trap}"), vec![current, position], at);
+        if let Some(name) = visible_index {
+            inner.set(
+                name,
+                Binding {
+                    operand: inner.operand(&index),
+                    ty: "u64".into(),
+                    mutable: false,
+                },
+            );
+        }
         inner.set(
             var,
             Binding {
@@ -1349,25 +1903,20 @@ impl<'c, 'a> Fn<'c, 'a> {
             },
         );
         let pending = self.pending_exit.take();
+        self.loops.push(LoopCx {
+            exit: pending.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
+            exit_args: local.clone(),
+            header: header.clone(),
+            before: before.clone(),
+            step: Some(index.clone()),
+        });
         self.depth += 1;
-        let falls = self.stmts(body, &mut inner, &format!("{at}/3"), false)?;
+        let falls = self.stmts(body, &mut inner, &format!("{at}/{}", 3 + offset), false)?;
         self.depth -= 1;
+        self.loops.pop();
         self.pending_exit = pending;
         if falls {
-            let position = inner.operand(&index);
-            let next = self.emit_value(
-                &format!("add?{trap}"),
-                vec![position, Self::lit(&json!(1), "u64")],
-                at,
-            );
-            inner.set(
-                &index,
-                Binding {
-                    operand: next,
-                    ty: "u64".into(),
-                    mutable: true,
-                },
-            );
+            self.advance(&mut inner, &index, at);
         }
         self.close_loop(
             &header,
@@ -1405,9 +1954,17 @@ impl<'c, 'a> Fn<'c, 'a> {
         }
         let (mut inner, exit_env) = self.test_loop(&c, &local, at);
         let pending = self.pending_exit.take();
+        self.loops.push(LoopCx {
+            exit: pending.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
+            exit_args: local.clone(),
+            header: header.clone(),
+            before: before.clone(),
+            step: None,
+        });
         self.depth += 1;
         let falls = self.stmts(body, &mut inner, &part(2), internal)?;
         self.depth -= 1;
+        self.loops.pop();
         self.pending_exit = pending;
         self.close_loop(
             &header,

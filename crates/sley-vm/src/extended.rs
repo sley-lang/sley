@@ -187,6 +187,18 @@ pub(crate) enum BridgeEntry {
     /// the host hashes those bytes and adds nothing. Not in the frozen
     /// v1 record; admitted in the v2 successor.
     RawHash,
+    /// `raw-blake3-256-large` (`RHW2`, `HOST_ABI_V3`): the same raw
+    /// primitive with the 64 MiB package ceiling.
+    RawHashLarge,
+    /// `raw-sha256` (`RSH2`, `HOST_ABI_V3`): raw SHA-256 over complete
+    /// Sley-built bytes (package and section identities).
+    RawSha256,
+    /// `bytes-concat` (`BCT1`, `HOST_ABI_V3`): byte-unaware concatenation.
+    BytesConcat,
+    /// `bytes-slice` (`BSL1`, `HOST_ABI_V3`): byte-unaware bounded slice.
+    BytesSlice,
+    /// `bytes-length` (`BLN1`, `HOST_ABI_V3`): the length of a `Bytes` value.
+    BytesLength,
 }
 
 /// The frozen `Entity` identity of one bridge entry: twelve ASCII bytes
@@ -208,6 +220,7 @@ pub(crate) fn bridge_entry_id(code: [u8; 4]) -> EntityId {
 }
 
 /// The frozen external adapter identity bytes of one bridge entry.
+#[cfg(test)]
 fn bridge_adapter_id(code: [u8; 4]) -> [u8; 32] {
     *bridge_entry_id(code).as_bytes()
 }
@@ -233,6 +246,11 @@ pub(crate) fn bridge_import(
         BridgeEntry::VectorToBytes => *b"V2B1",
         BridgeEntry::VectorPush => *b"PSH1",
         BridgeEntry::RawHash => *b"RHW1",
+        BridgeEntry::RawHashLarge => *b"RHW2",
+        BridgeEntry::RawSha256 => *b"RSH2",
+        BridgeEntry::BytesConcat => *b"BCT1",
+        BridgeEntry::BytesSlice => *b"BSL1",
+        BridgeEntry::BytesLength => *b"BLN1",
     };
     AdapterImport {
         entity_id: bridge_entry_id(code),
@@ -302,6 +320,37 @@ pub(crate) enum BridgeKind {
     VectorToBytes,
     VectorPush,
     RawHash,
+    RawHashLarge,
+    RawSha256,
+    BytesConcat,
+    BytesSlice,
+    BytesLength,
+}
+
+/// The `HOST_ABI_V3` byte ceiling of the large primitives (`RHW2`, `RSH2`,
+/// `BCT1`, `BSL1`): the execution-package ceiling, so a toolchain can hash
+/// and assemble a complete package.
+pub(crate) const LARGE_BRIDGE_MAX_BYTES: usize = 67_108_864;
+
+/// Fuel of one large-primitive call over `len` bytes: `1 + ceil(len/1024)`,
+/// the `raw_hash_fuel` schedule.
+pub(crate) fn large_bridge_fuel(len: usize) -> u64 {
+    crate::raw_hash::raw_hash_fuel(len)
+}
+
+/// Whether `id` is a vector-push identity: `SLY1/BRIDGE/PSH1`, then a
+/// big-endian `u32` row discriminator in bytes 16..20, then zero bytes.
+/// Discriminator 0 is the frozen v1/v2 identity; nonzero discriminators
+/// give each monomorphized `HOST_ABI_V3` push row its own entity identity.
+pub(crate) fn is_push_identity(id: &EntityId) -> bool {
+    let bytes = id.as_bytes();
+    bytes[..16] == bridge_entry_id(*b"PSH1").as_bytes()[..16] && bytes[20..].iter().all(|b| *b == 0)
+}
+
+/// The discriminator of a push identity.
+pub(crate) fn push_discriminator(id: &EntityId) -> u32 {
+    let bytes = id.as_bytes();
+    u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]])
 }
 
 /// Resolves an `adapter_invoke` immediate against the supplied import
@@ -333,20 +382,24 @@ pub(crate) fn resolve_bridge_entry<'a>(
         BridgeEntry::BytesToVector
     } else if carried.entity_id == bridge_entry_id(*b"V2B1") {
         BridgeEntry::VectorToBytes
-    } else if carried.entity_id == bridge_entry_id(*b"PSH1") {
+    } else if is_push_identity(&carried.entity_id) {
         BridgeEntry::VectorPush
     } else if carried.entity_id == bridge_entry_id(*b"RHW1") {
         BridgeEntry::RawHash
+    } else if carried.entity_id == bridge_entry_id(*b"RHW2") {
+        BridgeEntry::RawHashLarge
+    } else if carried.entity_id == bridge_entry_id(*b"RSH2") {
+        BridgeEntry::RawSha256
+    } else if carried.entity_id == bridge_entry_id(*b"BCT1") {
+        BridgeEntry::BytesConcat
+    } else if carried.entity_id == bridge_entry_id(*b"BSL1") {
+        BridgeEntry::BytesSlice
+    } else if carried.entity_id == bridge_entry_id(*b"BLN1") {
+        BridgeEntry::BytesLength
     } else {
         return None;
     };
-    let code = match entry {
-        BridgeEntry::BytesToVector => *b"B2V1",
-        BridgeEntry::VectorToBytes => *b"V2B1",
-        BridgeEntry::VectorPush => *b"PSH1",
-        BridgeEntry::RawHash => *b"RHW1",
-    };
-    if carried.adapter_id != bridge_adapter_id(code)
+    if carried.adapter_id != *carried.entity_id.as_bytes()
         || carried.abi_version != 1
         || carried.failure_type != TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
         || !carried.effects.is_empty()
@@ -366,23 +419,33 @@ pub(crate) fn resolve_bridge_entry<'a>(
             }
         }
         conversion => {
-            let (request, response) = match conversion {
-                BridgeEntry::BytesToVector => (TypeExpr::Bytes, u8vec_type()),
-                BridgeEntry::VectorToBytes => (u8vec_type(), TypeExpr::Bytes),
-                BridgeEntry::RawHash => (TypeExpr::Bytes, TypeExpr::Bytes),
+            let (request, response, kind) = match conversion {
+                BridgeEntry::BytesToVector => {
+                    (TypeExpr::Bytes, u8vec_type(), BridgeKind::BytesToVector)
+                }
+                BridgeEntry::VectorToBytes => {
+                    (u8vec_type(), TypeExpr::Bytes, BridgeKind::VectorToBytes)
+                }
+                BridgeEntry::RawHash => (TypeExpr::Bytes, TypeExpr::Bytes, BridgeKind::RawHash),
+                BridgeEntry::RawHashLarge => {
+                    (TypeExpr::Bytes, TypeExpr::Bytes, BridgeKind::RawHashLarge)
+                }
+                BridgeEntry::RawSha256 => (TypeExpr::Bytes, TypeExpr::Bytes, BridgeKind::RawSha256),
+                BridgeEntry::BytesConcat => (
+                    TypeExpr::Vector(Box::new(TypeExpr::Bytes)),
+                    TypeExpr::Bytes,
+                    BridgeKind::BytesConcat,
+                ),
+                BridgeEntry::BytesSlice => (
+                    TypeExpr::Tuple(vec![u64_type(), u64_type()]),
+                    TypeExpr::Bytes,
+                    BridgeKind::BytesSlice,
+                ),
+                BridgeEntry::BytesLength => (TypeExpr::Bytes, u64_type(), BridgeKind::BytesLength),
                 BridgeEntry::VectorPush => return None,
             };
             if carried.request_type == request && carried.response_type == response {
-                Some((
-                    if conversion == BridgeEntry::BytesToVector {
-                        BridgeKind::BytesToVector
-                    } else if conversion == BridgeEntry::VectorToBytes {
-                        BridgeKind::VectorToBytes
-                    } else {
-                        BridgeKind::RawHash
-                    },
-                    carried,
-                ))
+                Some((kind, carried))
             } else {
                 None
             }
@@ -396,8 +459,8 @@ pub(crate) fn resolve_bridge_entry<'a>(
 /// request). Schemas beyond the relationship are the caller's per-use
 /// concern, so several monomorphized rows share this predicate.
 fn is_push_row(carried: &AdapterImport) -> bool {
-    carried.entity_id == bridge_entry_id(*b"PSH1")
-        && carried.adapter_id == bridge_adapter_id(*b"PSH1")
+    is_push_identity(&carried.entity_id)
+        && carried.adapter_id == *carried.entity_id.as_bytes()
         && carried.abi_version == 1
         && carried.failure_type == TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
         && carried.effects.is_empty()
@@ -419,12 +482,38 @@ pub(crate) fn resolve_push_row<'a>(
     adapters
         .iter()
         .filter(|carried| {
-            is_push_row(carried)
+            carried.entity_id == bridge_entry_id(*b"PSH1")
+                && is_push_row(carried)
                 && carried.request_type == *request
                 && carried.response_type == *scope
         })
         .map(|carried| (BridgeKind::VectorPush, carried))
         .next()
+}
+
+/// Resolves one push use named by `immediate`. The frozen zero-discriminator
+/// identity keeps the v1/v2 rule (selection among same-identity rows by
+/// exact per-use schemas); a discriminated `HOST_ABI_V3` identity resolves
+/// to exactly the carried row with that identity, whose schemas must equal
+/// the use.
+pub(crate) fn resolve_push_use<'a>(
+    adapters: &'a [AdapterImport],
+    immediate: &EntityId,
+    scope: &TypeExpr,
+    request: &TypeExpr,
+) -> Option<(BridgeKind, &'a AdapterImport)> {
+    if *immediate == bridge_entry_id(*b"PSH1") {
+        return resolve_push_row(adapters, scope, request);
+    }
+    adapters
+        .iter()
+        .find(|carried| carried.entity_id == *immediate)
+        .filter(|carried| {
+            is_push_row(carried)
+                && carried.request_type == *request
+                && carried.response_type == *scope
+        })
+        .map(|carried| (BridgeKind::VectorPush, carried))
 }
 
 /// Whether the carried inventory holds any frozen-field push row.
@@ -467,13 +556,14 @@ pub(crate) fn bridge_fuel_surcharge_borrowed(
     let Immediate::Entity(entry) = immediate else {
         return None;
     };
-    if *entry == bridge_entry_id(*b"PSH1")
+    if is_push_identity(entry)
         && let [scope, request] = operands
     {
         // Push fuel never depends on which monomorphized row serves the
         // use, but the row must exist: selection keeps surcharge aligned
         // with judgment when several rows share the inventory.
-        return resolve_push_row(adapters, &scope.value_type, &request.value_type).map(|_| 1);
+        return resolve_push_use(adapters, entry, &scope.value_type, &request.value_type)
+            .map(|_| 1);
     }
     match resolve_bridge_entry(adapters, entry)?.0 {
         BridgeKind::BytesToVector => match operands {
@@ -497,8 +587,48 @@ pub(crate) fn bridge_fuel_surcharge_borrowed(
             },
             _ => None,
         },
-        BridgeKind::VectorPush => match operands {
+        BridgeKind::VectorPush | BridgeKind::BytesLength => match operands {
             [_, _] => Some(1),
+            _ => None,
+        },
+        BridgeKind::RawHashLarge | BridgeKind::RawSha256 => match operands {
+            [_, request] => match &request.data {
+                ConstData::Bytes(bytes) => Some(large_bridge_fuel(bytes.len())),
+                _ => None,
+            },
+            _ => None,
+        },
+        BridgeKind::BytesConcat => match operands {
+            [_, request] => match &request.data {
+                ConstData::Sequence(items) => {
+                    let mut total = 0_usize;
+                    for item in items {
+                        let ConstData::Bytes(bytes) = &item.data else {
+                            return None;
+                        };
+                        total = total.saturating_add(bytes.len());
+                    }
+                    u64::try_from(items.len())
+                        .ok()?
+                        .checked_add(large_bridge_fuel(total))
+                }
+                _ => None,
+            },
+            _ => None,
+        },
+        BridgeKind::BytesSlice => match operands {
+            [_, request] => match &request.data {
+                ConstData::Sequence(items) => match items.as_slice() {
+                    [_, length] => match length.data {
+                        ConstData::UInt(length) => Some(large_bridge_fuel(
+                            usize::try_from(length).unwrap_or(usize::MAX),
+                        )),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            },
             _ => None,
         },
     }
@@ -631,6 +761,125 @@ fn bridge_execute(
             let digest = crate::raw_hash::raw_blake3_256(bytes).map_err(|_| ExtendedFault)?;
             Ok(done(ConstData::Bytes(digest.to_vec())))
         }
+        BridgeKind::RawHashLarge | BridgeKind::RawSha256 => {
+            // HOST_ABI_V3: the same narrow raw primitives with the package
+            // ceiling. The host hashes exactly the supplied bytes and adds
+            // no domain, prefix, canonicalization, or judgment.
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Unit || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Unit = scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Bytes(bytes) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            if bytes.len() > LARGE_BRIDGE_MAX_BYTES {
+                return Ok(capacity());
+            }
+            let digest: [u8; 32] = if entry == BridgeKind::RawSha256 {
+                use sha2::{Digest as _, Sha256};
+                Sha256::digest(bytes).into()
+            } else {
+                *blake3::hash(bytes).as_bytes()
+            };
+            Ok(done(ConstData::Bytes(digest.to_vec())))
+        }
+        BridgeKind::BytesConcat => {
+            // HOST_ABI_V3: byte-unaware concatenation in vector order.
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Unit || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Unit = scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Sequence(items) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            let mut total = 0_usize;
+            for item in items {
+                let ConstData::Bytes(bytes) = &item.data else {
+                    return Err(ExtendedFault);
+                };
+                total = total.saturating_add(bytes.len());
+            }
+            if total > LARGE_BRIDGE_MAX_BYTES {
+                return Ok(capacity());
+            }
+            let mut joined = Vec::with_capacity(total);
+            for item in items {
+                if let ConstData::Bytes(bytes) = &item.data {
+                    joined.extend_from_slice(bytes);
+                }
+            }
+            Ok(done(ConstData::Bytes(joined)))
+        }
+        BridgeKind::BytesLength => {
+            // HOST_ABI_V3: the byte length; no other inspection.
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Unit || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Unit = scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Bytes(bytes) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            Ok(done(ConstData::UInt(
+                u128::try_from(bytes.len()).map_err(|_| ExtendedFault)?,
+            )))
+        }
+        BridgeKind::BytesSlice => {
+            // HOST_ABI_V3: `scope[start..start+length]`; a range outside the
+            // scope is `Err(Index, 1)`, the out-of-range code.
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Bytes || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Bytes(bytes) = &scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Sequence(range) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            let [start, length] = range.as_slice() else {
+                return Err(ExtendedFault);
+            };
+            let (ConstData::UInt(start), ConstData::UInt(length)) = (&start.data, &length.data)
+            else {
+                return Err(ExtendedFault);
+            };
+            let end = start.checked_add(*length);
+            match (
+                usize::try_from(*start),
+                end.and_then(|end| usize::try_from(end).ok()),
+            ) {
+                (Ok(start), Some(end)) if end <= bytes.len() => {
+                    Ok(done(ConstData::Bytes(bytes[start..end].to_vec())))
+                }
+                _ => Ok(ConstValue {
+                    value_type: result_type.clone(),
+                    data: ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+                        value_type: error.as_ref().clone(),
+                        data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                            kind: BuiltinFailureKind::Index,
+                            code: 1,
+                        }),
+                    }))),
+                }),
+            }
+        }
     }
 }
 
@@ -685,11 +934,11 @@ pub(crate) fn execute_vector_push_owned(
     let Immediate::Entity(entry) = immediate else {
         return Err(ExtendedFault);
     };
-    if *entry != bridge_entry_id(crate::host_abi::BRIDGE_CODE_PSH1) {
+    if !is_push_identity(entry) {
         return Err(ExtendedFault);
     }
-    let (_, carried) =
-        resolve_push_row(adapters, &scope.value_type, &request.value_type).ok_or(ExtendedFault)?;
+    let (_, carried) = resolve_push_use(adapters, entry, &scope.value_type, &request.value_type)
+        .ok_or(ExtendedFault)?;
     bridge_vector_push_owned(carried, scope, request, result_type)
 }
 
@@ -801,7 +1050,7 @@ fn named_definition(value: &TypeExpr) -> Option<EntityId> {
 }
 
 /// The fields of a non-generic record definition, or an immediate failure.
-fn record_fields(
+pub(crate) fn record_fields(
     types: &TypeEnvironment,
     definition: EntityId,
 ) -> Result<&[RecordField], LowerError> {
@@ -1378,18 +1627,27 @@ pub fn judge_extended_operation(
             let Immediate::Entity(entry) = immediate else {
                 return fail(LowerErrorCode::ImmediateMismatch);
             };
-            if *entry == bridge_entry_id(*b"PSH1") {
+            if is_push_identity(entry) {
                 // Push uses resolve by identity plus exact per-use schemas,
                 // so several monomorphized rows share the inventory without
                 // shadowing (RW-070 repair): each concrete element type
                 // binds its own closed row.
-                if !has_push_row(context.adapters) {
+                let approved = if *entry == bridge_entry_id(*b"PSH1") {
+                    has_push_row(context.adapters)
+                } else {
+                    context
+                        .adapters
+                        .iter()
+                        .any(|carried| carried.entity_id == *entry && is_push_row(carried))
+                };
+                if !approved {
                     return fail(LowerErrorCode::OpcodeUnsupported);
                 }
                 let [scope, request] = operands else {
                     return fail(LowerErrorCode::SignatureMismatch);
                 };
-                let Some((_, carried)) = resolve_push_row(context.adapters, scope, request) else {
+                let Some((_, carried)) = resolve_push_use(context.adapters, entry, scope, request)
+                else {
                     // A carried push row exists, so the identity is approved
                     // but no row serves these operand schemas.
                     return fail(LowerErrorCode::SignatureMismatch);
@@ -1434,6 +1692,24 @@ pub fn judge_extended_operation(
                         // on success and a typed capacity refusal past
                         // 1 MiB.
                         if **scope != TypeExpr::Unit || **request != TypeExpr::Bytes {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        TypeExpr::Bytes
+                    }
+                    BridgeKind::RawHashLarge | BridgeKind::RawSha256 | BridgeKind::BytesConcat => {
+                        if **scope != TypeExpr::Unit || **request != carried.request_type {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        TypeExpr::Bytes
+                    }
+                    BridgeKind::BytesLength => {
+                        if **scope != TypeExpr::Unit || **request != TypeExpr::Bytes {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        u64_type()
+                    }
+                    BridgeKind::BytesSlice => {
+                        if **scope != TypeExpr::Bytes || **request != carried.request_type {
                             return fail(LowerErrorCode::SignatureMismatch);
                         }
                         TypeExpr::Bytes
@@ -2249,10 +2525,15 @@ pub(crate) fn execute_extended_instruction_borrowed(
             let Immediate::Entity(entry) = immediate else {
                 return Err(ExtendedFault);
             };
-            let (entry, carried) = if *entry == bridge_entry_id(*b"PSH1")
+            let (entry, carried) = if is_push_identity(entry)
                 && let [scope, request] = operands
             {
-                resolve_push_row(context.adapters, &scope.value_type, &request.value_type)
+                resolve_push_use(
+                    context.adapters,
+                    entry,
+                    &scope.value_type,
+                    &request.value_type,
+                )
             } else {
                 resolve_bridge_entry(context.adapters, entry)
             }
