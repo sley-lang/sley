@@ -161,3 +161,59 @@ current inventory of the installed host. Any installation or update needs a
 reviewed migration that preserves the root measurement authority and exact
 binary pins, followed by fresh live qualification. The local source and tests
 do not waive that gate.
+
+### Ownership-bound cleanup and unknown creation
+
+The launcher alone is not proof that systemd created the requested invocation.
+Before an invocation is observed, cleanup closes its gates and kills/reaps only
+that owned launcher; manager creation remains unknown and the daemon degrades.
+An observed invocation without a live cgroup handle may be accepted as terminal
+only against the same InvocationID, ExecMainPID and monotonic start tuple, with
+zero live PID, empty manager cgroup and confirmed cgroup removal. This retains
+the separately verified fast-OOM diagnostic; missing history is not a pass.
+
+For a live invocation, the supervisor brackets cgroup opening and sampling with
+exact manager invocation checks. It holds root-owned cgroup2 domain directory
+and cgroup.kill descriptors, samples that same directory throughout the phase,
+and kills only through that held control file. It never falls back to killing
+an attempt's unit name, including in Drop. Worker Restart=no is explicitly
+rendered and manager-verified to prevent automatic invocation reuse. The fixed
+launch-profile mapping changes with the pinned binaries; canonical property
+configuration grammar is unchanged.
+
+These checks assume a trusted manager and no concurrent privileged lifecycle,
+process migration, or mount writers. A held object prevents pathname replacement
+from redirecting cleanup; it cannot protect against root repopulating that same
+live cgroup. Fresh settings/start observations are not a causal creation receipt.
+Initial unknown creation always degrades instead of claiming cleanup success.
+
+**Upgrade the supervisor binary and packaged service unit together.** Unknown
+cleanup exits with status 78, paired with RestartPreventExitStatus=78 while
+other unexpected failures retain Restart=on-failure. This prevents an automatic
+restart from entering name-based orphan reconciliation after ambiguous creation.
+An operator/manual restart still explicitly invokes the existing reserved-prefix
+reconciliation policy, which is unchanged. This does not promise preservation
+across manual restarts, root interference or independently altered unit policy.
+Stopping the supervisor still has the intended systemd BindsTo effects on units
+that depend on it. An independent late-occupancy fixture must not declare that
+dependency; exit 78 prevents subsequent broad reconciliation, not every possible
+side effect of supervisor termination on deliberately dependent foreign units.
+
+Per-attempt manager reads share the caller's absolute run deadline, or the one
+stored cleanup deadline after abort. GetUnit, both GetAll calls, listings,
+terminal checks and OOM diagnostics do not start new per-call budgets. Replies
+are read in capped nonblocking chunks with polling; EOF, command exit and JSON
+parsing must all complete before acceptance. The fixed busctl two-second option
+is only an inner backstop. A 20 ms command-cleanup reserve is taken from the
+remaining absolute interval; insufficient time refuses before spawning. Errors
+kill and poll-reap only that owned read-only command child within the same
+interval. Abort and Drop do not manufacture another cleanup budget.
+
+If scheduling or a kernel stall exhausts the interval before that child can be
+confirmed reaped, CommandCleanupUnconfirmed remains explicit. Per-attempt paths,
+including absence preflight before a worker guard exists and OOM diagnostics,
+promote it to cleanup degradation/exit 78; late successful replies never qualify.
+This is not a kernel hard-real-time guarantee. Fixed busctl is a trusted direct
+read-only child; no general descendant supervision contract is introduced.
+Public convenience/startup helpers use a default two-second aggregate budget;
+startup error/reconciliation and exit policy remain separate and unchanged.

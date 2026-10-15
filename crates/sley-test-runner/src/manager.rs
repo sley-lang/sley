@@ -7,9 +7,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{ErrorKind, Read};
+use std::os::fd::AsFd;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, ChildStdout, Command, Stdio};
+
+use nix::errno::Errno;
+use nix::fcntl::{FcntlArg, OFlag, fcntl};
+use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
@@ -28,6 +34,8 @@ pub const MAX_NATIVE_UNITS: usize = 256;
 pub enum ManagerError {
     /// The manager or typed D-Bus response could not be read.
     Unavailable,
+    /// The owned read-only manager command could not be confirmed reaped.
+    CommandCleanupUnconfirmed,
     /// The transient service exists but has not exposed its worker PID yet.
     NotReady,
     /// A required typed property was missing, malformed, or different.
@@ -40,6 +48,7 @@ impl core::fmt::Display for ManagerError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
             Self::Unavailable => "NATIVE_MANAGER_UNAVAILABLE",
+            Self::CommandCleanupUnconfirmed => "NATIVE_MANAGER_COMMAND_CLEANUP_UNCONFIRMED",
             Self::NotReady => "NATIVE_MANAGER_NOT_READY",
             Self::PropertyMismatch => "NATIVE_MANAGER_PROPERTY_MISMATCH",
             Self::UnitOccupied => "NATIVE_MANAGER_UNIT_OCCUPIED",
@@ -56,6 +65,21 @@ pub struct WorkerInvocation {
     id: [u8; 16],
     main_pid: u32,
     started_usec: u64,
+}
+
+impl WorkerInvocation {
+    pub(crate) const fn main_pid(self) -> u32 {
+        self.main_pid
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn fixture() -> Self {
+        Self {
+            id: [1; 16],
+            main_pid: 123,
+            started_usec: 100,
+        }
+    }
 }
 
 /// Reads the same boot-relative microsecond clock as manager start timestamps.
@@ -91,44 +115,59 @@ fn require_absent_unit_listing(value: &Value, unit_name: &str) -> Result<(), Man
 /// # Errors
 /// Refuses occupied names, malformed replies and unavailable manager state.
 pub fn require_system_unit_absent(unit_name: &str) -> Result<(), ManagerError> {
+    require_system_unit_absent_before(unit_name, default_deadline())
+}
+
+pub(crate) fn require_system_unit_absent_before(
+    unit_name: &str,
+    deadline: Instant,
+) -> Result<(), ManagerError> {
     if !valid_native_unit_name(unit_name) {
         return Err(ManagerError::PropertyMismatch);
     }
     let service_name = format!("{unit_name}.service");
-    let listing = busctl(&[
-        "call",
-        SYSTEMD_BUS,
-        SYSTEMD_MANAGER,
-        "org.freedesktop.systemd1.Manager",
-        "ListUnitsByPatterns",
-        "asas",
-        "0",
-        "1",
-        &service_name,
-    ])?;
-    require_absent_unit_listing(&listing, unit_name)
+    let listing = busctl(
+        &[
+            "call",
+            SYSTEMD_BUS,
+            SYSTEMD_MANAGER,
+            "org.freedesktop.systemd1.Manager",
+            "ListUnitsByPatterns",
+            "asas",
+            "0",
+            "1",
+            &service_name,
+        ],
+        deadline,
+    )?;
+    accept_before(require_absent_unit_listing(&listing, unit_name), deadline)
 }
 
 type ManagerProperties = BTreeMap<String, Value>;
 
 fn read_unit_snapshot(
     unit_name: &str,
+    deadline: Instant,
 ) -> Result<(ManagerProperties, ManagerProperties), ManagerError> {
     let service_name = format!("{unit_name}.service");
-    let object = busctl(&[
-        "call",
-        SYSTEMD_BUS,
-        SYSTEMD_MANAGER,
-        "org.freedesktop.systemd1.Manager",
-        "GetUnit",
-        "s",
-        &service_name,
-    ])?;
+    let object = busctl(
+        &[
+            "call",
+            SYSTEMD_BUS,
+            SYSTEMD_MANAGER,
+            "org.freedesktop.systemd1.Manager",
+            "GetUnit",
+            "s",
+            &service_name,
+        ],
+        deadline,
+    )?;
     let path = object_path(&object)?;
-    Ok((
-        get_all(path, "org.freedesktop.systemd1.Unit")?,
-        get_all(path, "org.freedesktop.systemd1.Service")?,
-    ))
+    let snapshot = (
+        get_all(path, "org.freedesktop.systemd1.Unit", deadline)?,
+        get_all(path, "org.freedesktop.systemd1.Service", deadline)?,
+    );
+    accept_before(Ok(snapshot), deadline)
 }
 
 fn invocation_snapshot(
@@ -189,13 +228,32 @@ pub fn verify_launched_invocation(
     worker_input_path: &str,
     launched_after_usec: u64,
 ) -> Result<WorkerInvocation, ManagerError> {
-    let (unit_properties, service) = read_unit_snapshot(&unit.unit_name)?;
-    verify_installed_settings(&unit_properties, &service, unit, config, worker_input_path)?;
-    fresh_invocation_snapshot(
-        &unit_properties,
-        &service,
+    verify_launched_invocation_before(
+        unit,
+        config,
+        worker_input_path,
         launched_after_usec,
-        monotonic_usec()?,
+        default_deadline(),
+    )
+}
+
+pub(crate) fn verify_launched_invocation_before(
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    launched_after_usec: u64,
+    deadline: Instant,
+) -> Result<WorkerInvocation, ManagerError> {
+    let (unit_properties, service) = read_unit_snapshot(&unit.unit_name, deadline)?;
+    verify_installed_settings(&unit_properties, &service, unit, config, worker_input_path)?;
+    accept_before(
+        fresh_invocation_snapshot(
+            &unit_properties,
+            &service,
+            launched_after_usec,
+            monotonic_usec()?,
+        ),
+        deadline,
     )
 }
 /// Manager facts needed to pin live cgroup telemetry to the worker process.
@@ -233,26 +291,96 @@ pub fn verify_system_unit(
     config: &RunnerConfig,
     worker_input_path: &str,
 ) -> Result<InstalledWorker, ManagerError> {
-    let service_name = format!("{}.service", unit.unit_name);
-    let object = busctl(&[
-        "call",
-        SYSTEMD_BUS,
-        SYSTEMD_MANAGER,
-        "org.freedesktop.systemd1.Manager",
-        "GetUnit",
-        "s",
-        &service_name,
-    ])?;
-    let path = object_path(&object)?;
-    let unit_properties = get_all(path, "org.freedesktop.systemd1.Unit")?;
-    let service_properties = get_all(path, "org.freedesktop.systemd1.Service")?;
-    verify_snapshot(
-        &unit_properties,
-        &service_properties,
-        unit,
-        config,
-        worker_input_path,
+    let deadline = default_deadline();
+    let (properties, service) = read_unit_snapshot(&unit.unit_name, deadline)?;
+    accept_before(
+        verify_snapshot(&properties, &service, unit, config, worker_input_path),
+        deadline,
     )
+}
+
+pub(crate) fn verify_live_invocation(
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    expected: WorkerInvocation,
+    deadline: Instant,
+) -> Result<InstalledWorker, ManagerError> {
+    let (properties, service) = read_unit_snapshot(&unit.unit_name, deadline)?;
+    accept_before(
+        verify_live_invocation_snapshot(
+            &properties,
+            &service,
+            unit,
+            config,
+            worker_input_path,
+            expected,
+        ),
+        deadline,
+    )
+}
+
+fn verify_live_invocation_snapshot(
+    properties: &ManagerProperties,
+    service: &ManagerProperties,
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    expected: WorkerInvocation,
+) -> Result<InstalledWorker, ManagerError> {
+    let installed = verify_snapshot(properties, service, unit, config, worker_input_path)?;
+    if invocation_snapshot(properties, service)? != expected
+        || installed.main_pid != expected.main_pid
+    {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    Ok(installed)
+}
+
+fn same_invocation_terminal(
+    properties: &ManagerProperties,
+    service: &ManagerProperties,
+    expected: WorkerInvocation,
+) -> Result<bool, ManagerError> {
+    if invocation_snapshot(properties, service)? != expected {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    let state = property(properties, "ActiveState", "s")?
+        .as_str()
+        .ok_or(ManagerError::PropertyMismatch)?;
+    if !matches!(state, "inactive" | "failed") {
+        return Ok(false);
+    }
+    check(service, "MainPID", "u", &Value::from(0))?;
+    check(service, "ControlGroup", "s", &Value::from(""))?;
+    Ok(true)
+}
+
+/// Missing manager history is acceptable only after a live cgroup was bound.
+/// These sampled facts require a trusted manager and exclusive lifecycle owner.
+pub(crate) fn confirm_invocation_reaped(
+    name: &str,
+    expected: WorkerInvocation,
+    bound_cgroup: bool,
+    deadline: Instant,
+) -> Result<bool, ManagerError> {
+    match require_system_unit_absent_before(name, deadline) {
+        Ok(()) if bound_cgroup => return confirm_system_unit_reaped_before(name, deadline),
+        Ok(()) => return Err(ManagerError::Unavailable),
+        Err(ManagerError::UnitOccupied) => {}
+        Err(error) => return Err(error),
+    }
+    let (properties, service) = read_unit_snapshot(name, deadline)?;
+    check(
+        &properties,
+        "Id",
+        "s",
+        &Value::from(format!("{name}.service")),
+    )?;
+    if !same_invocation_terminal(&properties, &service, expected)? {
+        return Ok(false);
+    }
+    confirm_system_unit_reaped_before(name, deadline)
 }
 
 /// Verifies a failed OOM outcome for the exact rendered worker unit.
@@ -270,19 +398,38 @@ pub fn verify_reaped_oom_unit(
     worker_input_path: &str,
     expected_invocation: WorkerInvocation,
 ) -> Result<ReapedOomWorker, ManagerError> {
+    verify_reaped_oom_unit_before(
+        unit,
+        config,
+        worker_input_path,
+        expected_invocation,
+        default_deadline(),
+    )
+}
+
+pub(crate) fn verify_reaped_oom_unit_before(
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    expected_invocation: WorkerInvocation,
+    deadline: Instant,
+) -> Result<ReapedOomWorker, ManagerError> {
     let service_name = format!("{}.service", unit.unit_name);
-    let object = busctl(&[
-        "call",
-        SYSTEMD_BUS,
-        SYSTEMD_MANAGER,
-        "org.freedesktop.systemd1.Manager",
-        "GetUnit",
-        "s",
-        &service_name,
-    ])?;
+    let object = busctl(
+        &[
+            "call",
+            SYSTEMD_BUS,
+            SYSTEMD_MANAGER,
+            "org.freedesktop.systemd1.Manager",
+            "GetUnit",
+            "s",
+            &service_name,
+        ],
+        deadline,
+    )?;
     let path = object_path(&object)?;
-    let unit_properties = get_all(path, "org.freedesktop.systemd1.Unit")?;
-    let service_properties = get_all(path, "org.freedesktop.systemd1.Service")?;
+    let unit_properties = get_all(path, "org.freedesktop.systemd1.Unit", deadline)?;
+    let service_properties = get_all(path, "org.freedesktop.systemd1.Service", deadline)?;
     let facts = verify_reaped_oom_snapshot(
         &unit_properties,
         &service_properties,
@@ -291,10 +438,10 @@ pub fn verify_reaped_oom_unit(
         worker_input_path,
         expected_invocation,
     )?;
-    if !confirm_system_unit_reaped(&unit.unit_name)? {
+    if !confirm_system_unit_reaped_before(&unit.unit_name, deadline)? {
         return Err(ManagerError::PropertyMismatch);
     }
-    Ok(facts)
+    accept_before(Ok(facts), deadline)
 }
 
 /// Confirms that the manager has no live process or control group for this
@@ -306,21 +453,31 @@ pub fn verify_reaped_oom_unit(
 ///
 /// Refuses malformed names, manager failures, or unreadable cgroup state.
 pub fn confirm_system_unit_reaped(unit_name: &str) -> Result<bool, ManagerError> {
+    confirm_system_unit_reaped_before(unit_name, default_deadline())
+}
+
+pub(crate) fn confirm_system_unit_reaped_before(
+    unit_name: &str,
+    deadline: Instant,
+) -> Result<bool, ManagerError> {
     if !valid_native_unit_name(unit_name) {
         return Err(ManagerError::PropertyMismatch);
     }
     let service_name = format!("{unit_name}.service");
-    let listing = busctl(&[
-        "call",
-        SYSTEMD_BUS,
-        SYSTEMD_MANAGER,
-        "org.freedesktop.systemd1.Manager",
-        "ListUnitsByPatterns",
-        "asas",
-        "0",
-        "1",
-        &service_name,
-    ])?;
+    let listing = busctl(
+        &[
+            "call",
+            SYSTEMD_BUS,
+            SYSTEMD_MANAGER,
+            "org.freedesktop.systemd1.Manager",
+            "ListUnitsByPatterns",
+            "asas",
+            "0",
+            "1",
+            &service_name,
+        ],
+        deadline,
+    )?;
     let entries = listed_units(&listing)?;
     if entries.len() > 1 {
         return Err(ManagerError::PropertyMismatch);
@@ -330,18 +487,21 @@ pub fn confirm_system_unit_reaped(unit_name: &str) -> Result<bool, ManagerError>
         if fields.len() != 10 || fields[0].as_str() != Some(&service_name) {
             return Err(ManagerError::PropertyMismatch);
         }
-        let object = busctl(&[
-            "call",
-            SYSTEMD_BUS,
-            SYSTEMD_MANAGER,
-            "org.freedesktop.systemd1.Manager",
-            "GetUnit",
-            "s",
-            &service_name,
-        ])?;
+        let object = busctl(
+            &[
+                "call",
+                SYSTEMD_BUS,
+                SYSTEMD_MANAGER,
+                "org.freedesktop.systemd1.Manager",
+                "GetUnit",
+                "s",
+                &service_name,
+            ],
+            deadline,
+        )?;
         let path = object_path(&object)?;
-        let unit = get_all(path, "org.freedesktop.systemd1.Unit")?;
-        let service = get_all(path, "org.freedesktop.systemd1.Service")?;
+        let unit = get_all(path, "org.freedesktop.systemd1.Unit", deadline)?;
+        let service = get_all(path, "org.freedesktop.systemd1.Service", deadline)?;
         check(&unit, "Id", "s", &Value::from(service_name.as_str()))?;
         let state = property(&unit, "ActiveState", "s")?
             .as_str()
@@ -358,11 +518,14 @@ pub fn confirm_system_unit_reaped(unit_name: &str) -> Result<bool, ManagerError>
         return Err(ManagerError::Unavailable);
     }
     let cgroup_path = system_slice.join(service_name);
-    match std::fs::symlink_metadata(cgroup_path) {
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(true),
-        Ok(_) => Ok(false),
-        Err(_) => Err(ManagerError::Unavailable),
-    }
+    accept_before(
+        match std::fs::symlink_metadata(cgroup_path) {
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(true),
+            Ok(_) => Ok(false),
+            Err(_) => Err(ManagerError::Unavailable),
+        },
+        deadline,
+    )
 }
 
 /// Exact native transient-unit stem, excluding `.service`.
@@ -411,18 +574,22 @@ fn native_unit_names(value: &Value) -> Result<Vec<String>, ManagerError> {
 ///
 /// Refuses unavailable or malformed manager replies or too many units.
 pub fn list_native_system_units() -> Result<Vec<String>, ManagerError> {
-    let listing = busctl(&[
-        "call",
-        SYSTEMD_BUS,
-        SYSTEMD_MANAGER,
-        "org.freedesktop.systemd1.Manager",
-        "ListUnitsByPatterns",
-        "asas",
-        "0",
-        "1",
-        "sley-native-test-*.service",
-    ])?;
-    native_unit_names(&listing)
+    let deadline = default_deadline();
+    let listing = busctl(
+        &[
+            "call",
+            SYSTEMD_BUS,
+            SYSTEMD_MANAGER,
+            "org.freedesktop.systemd1.Manager",
+            "ListUnitsByPatterns",
+            "asas",
+            "0",
+            "1",
+            "sley-native-test-*.service",
+        ],
+        deadline,
+    )?;
+    accept_before(native_unit_names(&listing), deadline)
 }
 
 fn listed_units(value: &Value) -> Result<&[Value], ManagerError> {
@@ -442,30 +609,156 @@ fn listed_units(value: &Value) -> Result<&[Value], ManagerError> {
         .ok_or(ManagerError::Unavailable)
 }
 
-fn busctl(args: &[&str]) -> Result<Value, ManagerError> {
-    let mut child = Command::new("/usr/bin/busctl")
+fn default_deadline() -> Instant {
+    Instant::now() + Duration::from_secs(2)
+}
+
+fn remaining(deadline: Instant) -> Result<Duration, ManagerError> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|left| !left.is_zero())
+        .ok_or(ManagerError::Unavailable)
+}
+
+fn accept_before<T>(result: Result<T, ManagerError>, deadline: Instant) -> Result<T, ManagerError> {
+    let value = result?;
+    remaining(deadline)?;
+    Ok(value)
+}
+
+fn busctl(args: &[&str], deadline: Instant) -> Result<Value, ManagerError> {
+    let mut command = Command::new("/usr/bin/busctl");
+    command
         .args(["--system", "--json=short", "--timeout=2"])
-        .args(args)
+        .args(args);
+    command_json(&mut command, deadline)
+}
+
+const COMMAND_CLEANUP_RESERVE: Duration = Duration::from_millis(20);
+const COMMAND_POLL: Duration = Duration::from_millis(1);
+
+struct ManagerCommand {
+    child: Child,
+    deadline: Instant,
+    reaped: bool,
+}
+
+impl ManagerCommand {
+    fn stop_and_reap(&mut self) -> Result<(), ManagerError> {
+        if self.reaped {
+            return Ok(());
+        }
+        let _ = self.child.kill();
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(_)) => {
+                    self.reaped = true;
+                    return Ok(());
+                }
+                Err(_) => return Err(ManagerError::CommandCleanupUnconfirmed),
+                Ok(None) => {}
+            }
+            let left =
+                remaining(self.deadline).map_err(|_| ManagerError::CommandCleanupUnconfirmed)?;
+            std::thread::sleep(left.min(COMMAND_POLL));
+        }
+    }
+
+    fn collect(
+        &mut self,
+        stdout: &mut ChildStdout,
+        work_deadline: Instant,
+    ) -> Result<Vec<u8>, ManagerError> {
+        fcntl(&*stdout, FcntlArg::F_SETFL(OFlag::O_NONBLOCK))
+            .map_err(|_| ManagerError::Unavailable)?;
+        let mut bytes = Vec::new();
+        let mut buffer = [0; 4096];
+        let mut eof = false;
+        let mut status = None;
+        loop {
+            let left = remaining(work_deadline)?;
+            if status.is_none() {
+                status = self
+                    .child
+                    .try_wait()
+                    .map_err(|_| ManagerError::Unavailable)?;
+                self.reaped = status.is_some();
+            }
+            if eof {
+                if let Some(status) = status {
+                    if !status.success() {
+                        return Err(ManagerError::Unavailable);
+                    }
+                    return accept_before(Ok(bytes), work_deadline);
+                }
+                std::thread::sleep(left.min(COMMAND_POLL));
+                continue;
+            }
+            let timeout = PollTimeout::try_from(left.as_millis().clamp(1, 20))
+                .map_err(|_| ManagerError::Unavailable)?;
+            let mut fds = [PollFd::new(
+                stdout.as_fd(),
+                PollFlags::POLLIN | PollFlags::POLLHUP | PollFlags::POLLERR,
+            )];
+            match poll(&mut fds, timeout) {
+                Ok(0) | Err(Errno::EINTR) => continue,
+                Err(_) => return Err(ManagerError::Unavailable),
+                Ok(_) => {}
+            }
+            remaining(work_deadline)?;
+            match stdout.read(&mut buffer) {
+                Ok(0) => eof = true,
+                Ok(count) => {
+                    if bytes.len() + count > MAX_BUS_REPLY_BYTES {
+                        return Err(ManagerError::Unavailable);
+                    }
+                    bytes.extend_from_slice(&buffer[..count]);
+                }
+                Err(error)
+                    if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::Interrupted) => {}
+                Err(_) => return Err(ManagerError::Unavailable),
+            }
+        }
+    }
+}
+
+impl Drop for ManagerCommand {
+    fn drop(&mut self) {
+        let _ = self.stop_and_reap();
+    }
+}
+
+fn command_json(command: &mut Command, deadline: Instant) -> Result<Value, ManagerError> {
+    // Reserve cleanup inside the caller's one absolute budget. A short or
+    // expired budget refuses before spawn. Scheduling/kernel stalls can still
+    // exhaust it; that produces explicit unknown cleanup, never late success.
+    let work_deadline = deadline
+        .checked_sub(COMMAND_CLEANUP_RESERVE)
+        .ok_or(ManagerError::Unavailable)?;
+    remaining(work_deadline)?;
+    let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .map_err(|_| ManagerError::Unavailable)?;
-    let stdout = child.stdout.take().ok_or(ManagerError::Unavailable)?;
-    let mut bytes = Vec::new();
-    let read = stdout
-        .take((MAX_BUS_REPLY_BYTES + 1) as u64)
-        .read_to_end(&mut bytes);
-    if read.is_err() || bytes.len() > MAX_BUS_REPLY_BYTES {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(ManagerError::Unavailable);
-    }
-    let status = child.wait().map_err(|_| ManagerError::Unavailable)?;
-    if !status.success() {
-        return Err(ManagerError::Unavailable);
-    }
-    serde_json::from_slice(&bytes).map_err(|_| ManagerError::Unavailable)
+    let mut owned = ManagerCommand {
+        child,
+        deadline,
+        reaped: false,
+    };
+    let read = if let Some(mut stdout) = owned.child.stdout.take() {
+        owned.collect(&mut stdout, work_deadline)
+    } else {
+        Err(ManagerError::Unavailable)
+    };
+    // Even a malformed/oversized/late reply must not leave our child running.
+    owned.stop_and_reap()?;
+    let bytes = read?;
+    accept_before(
+        serde_json::from_slice(&bytes).map_err(|_| ManagerError::Unavailable),
+        deadline,
+    )
 }
 
 fn object_path(value: &Value) -> Result<&str, ManagerError> {
@@ -486,16 +779,23 @@ fn object_path(value: &Value) -> Result<&str, ManagerError> {
     Ok(path)
 }
 
-fn get_all(path: &str, interface: &str) -> Result<BTreeMap<String, Value>, ManagerError> {
-    let value = busctl(&[
-        "call",
-        SYSTEMD_BUS,
-        path,
-        "org.freedesktop.DBus.Properties",
-        "GetAll",
-        "s",
-        interface,
-    ])?;
+fn get_all(
+    path: &str,
+    interface: &str,
+    deadline: Instant,
+) -> Result<BTreeMap<String, Value>, ManagerError> {
+    let value = busctl(
+        &[
+            "call",
+            SYSTEMD_BUS,
+            path,
+            "org.freedesktop.DBus.Properties",
+            "GetAll",
+            "s",
+            interface,
+        ],
+        deadline,
+    )?;
     if value.get("type").and_then(Value::as_str) != Some("a{sv}") {
         return Err(ManagerError::Unavailable);
     }
@@ -506,7 +806,10 @@ fn get_all(path: &str, interface: &str) -> Result<BTreeMap<String, Value>, Manag
     if items.len() != 1 {
         return Err(ManagerError::Unavailable);
     }
-    serde_json::from_value(items[0].clone()).map_err(|_| ManagerError::Unavailable)
+    accept_before(
+        serde_json::from_value(items[0].clone()).map_err(|_| ManagerError::Unavailable),
+        deadline,
+    )
 }
 
 fn property<'a>(
@@ -541,6 +844,8 @@ fn verify_installed_settings(
     worker_input_path: &str,
 ) -> Result<(), ManagerError> {
     use serde_json::json;
+
+    check(service, "Restart", "s", &Value::from("no"))?;
 
     let service_name = format!("{}.service", unit.unit_name);
     check(unit_properties, "Id", "s", &json!(service_name))?;
@@ -697,10 +1002,168 @@ mod tests {
     use super::*;
     use crate::config::{AllowedCaller, default_config};
 
+    #[test]
+    fn manager_command_rejects_success_after_its_absolute_deadline() {
+        let mut command = Command::new("/usr/bin/python3");
+        command.args([
+            "-I",
+            "-B",
+            "-c",
+            "import time; time.sleep(0.04); print('{}')",
+        ]);
+        assert_eq!(
+            command_json(&mut command, Instant::now() + Duration::from_millis(5)),
+            Err(ManagerError::Unavailable),
+            "late successful manager reply must never be accepted",
+        );
+    }
+
+    fn python_command(script: &str) -> Command {
+        let mut command = Command::new("/usr/bin/python3");
+        command.args(["-I", "-B", "-c", script]);
+        command
+    }
+
+    #[test]
+    fn manager_command_requires_bounded_json_and_successful_exit() {
+        assert_eq!(
+            command_json(&mut python_command("print('{}')"), default_deadline()),
+            Ok(json!({}))
+        );
+        for script in [
+            "print('{}'); raise SystemExit(7)",
+            "print('{')",
+            "print('x' * 131073)",
+        ] {
+            assert_eq!(
+                command_json(&mut python_command(script), default_deadline()),
+                Err(ManagerError::Unavailable)
+            );
+        }
+        assert_eq!(
+            accept_before(Ok(json!({})), Instant::now()),
+            Err(ManagerError::Unavailable)
+        );
+    }
+
+    #[test]
+    fn manager_command_reaps_partial_output_and_early_eof_children() {
+        for (index, output) in ["print('{', flush=True)", "os.close(1)"].iter().enumerate() {
+            let marker = std::env::temp_dir()
+                .join(format!("sley-manager-child-{}-{index}", std::process::id()));
+            let script = format!(
+                "import os, sys, time; open(sys.argv[1], 'x').write(str(os.getpid())); {output}; time.sleep(0.5)"
+            );
+            let mut command = python_command(&script);
+            command.arg(&marker);
+            let result = command_json(&mut command, Instant::now() + Duration::from_millis(150));
+            let pid = std::fs::read_to_string(&marker).unwrap();
+            std::fs::remove_file(marker).unwrap();
+            assert_eq!(result, Err(ManagerError::Unavailable));
+            assert!(
+                !Path::new(&format!("/proc/{pid}")).exists(),
+                "owned command must be reaped"
+            );
+        }
+    }
+
+    #[test]
+    fn consecutive_manager_calls_share_the_original_deadline() {
+        let deadline = Instant::now() + Duration::from_millis(500);
+        assert!(command_json(&mut python_command("print('{}')"), deadline).is_ok());
+        std::thread::sleep(
+            remaining(deadline)
+                .unwrap()
+                .saturating_sub(Duration::from_millis(40)),
+        );
+        let second = command_json(
+            &mut python_command("import time; time.sleep(0.08); print('{}')"),
+            deadline,
+        );
+        assert_eq!(second, Err(ManagerError::Unavailable));
+    }
+
     fn insert(map: &mut BTreeMap<String, Value>, name: &str, signature: &str, data: Value) {
         let mut value = json!({"type":signature});
         value["data"] = data;
         map.insert(name.to_owned(), value);
+    }
+
+    #[test]
+    fn terminal_cleanup_requires_the_same_invocation_and_zero_live_state() {
+        let (mut properties, mut service, _, _) = fixture();
+        let expected = WorkerInvocation::fixture();
+        insert(&mut properties, "InvocationID", "ay", json!(vec![1; 16]));
+        insert(&mut service, "ExecMainPID", "u", json!(123));
+        insert(
+            &mut service,
+            "ExecMainStartTimestampMonotonic",
+            "t",
+            json!(100),
+        );
+        assert_eq!(
+            same_invocation_terminal(&properties, &service, expected),
+            Ok(false)
+        );
+        insert(&mut properties, "ActiveState", "s", json!("failed"));
+        insert(&mut service, "MainPID", "u", json!(0));
+        insert(&mut service, "ControlGroup", "s", json!(""));
+        assert_eq!(
+            same_invocation_terminal(&properties, &service, expected),
+            Ok(true)
+        );
+        for (field, signature, changed) in [
+            ("ExecMainPID", "u", json!(124)),
+            ("ExecMainStartTimestampMonotonic", "t", json!(101)),
+        ] {
+            let mut replacement = service.clone();
+            insert(&mut replacement, field, signature, changed);
+            assert_eq!(
+                same_invocation_terminal(&properties, &replacement, expected),
+                Err(ManagerError::PropertyMismatch)
+            );
+        }
+        insert(&mut properties, "InvocationID", "ay", json!(vec![2; 16]));
+        assert_eq!(
+            same_invocation_terminal(&properties, &service, expected),
+            Err(ManagerError::PropertyMismatch)
+        );
+    }
+
+    #[test]
+    fn live_binding_rejects_replacement_invocation_and_worker_restart() {
+        let (mut properties, mut service, unit, config) = fixture();
+        let expected = WorkerInvocation::fixture();
+        insert(&mut properties, "InvocationID", "ay", json!(vec![1; 16]));
+        insert(&mut service, "ExecMainPID", "u", json!(123));
+        insert(
+            &mut service,
+            "ExecMainStartTimestampMonotonic",
+            "t",
+            json!(100),
+        );
+        let read = |properties: &ManagerProperties, service: &ManagerProperties| {
+            verify_live_invocation_snapshot(
+                properties,
+                service,
+                &unit,
+                &config,
+                "/run/sley-test-supervisor/input/abc.bin",
+                expected,
+            )
+        };
+        assert!(read(&properties, &service).is_ok());
+        insert(&mut properties, "InvocationID", "ay", json!(vec![2; 16]));
+        assert_eq!(
+            read(&properties, &service),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut properties, "InvocationID", "ay", json!(vec![1; 16]));
+        insert(&mut service, "Restart", "s", json!("always"));
+        assert_eq!(
+            read(&properties, &service),
+            Err(ManagerError::PropertyMismatch)
+        );
     }
 
     fn fixture_config(worker: &str) -> RunnerConfig {
@@ -771,6 +1234,7 @@ mod tests {
         }
         for (key, value) in [
             ("KillMode", "control-group"),
+            ("Restart", "no"),
             ("ProtectHome", "yes"),
             ("ProtectSystem", "strict"),
             ("Slice", "system.slice"),

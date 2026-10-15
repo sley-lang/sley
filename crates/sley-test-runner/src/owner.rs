@@ -2,8 +2,9 @@
 //!
 //! The unit is rendered afresh from administrator configuration before any
 //! spawn. A process guard keeps best-effort SIGKILL cleanup armed until the
-//! manager and cgroup both confirm no worker remains. Missing confirmation
-//! has its own error so a daemon can degrade rather than sign a result.
+//! manager and cgroup both confirm no worker remains. Cleanup never signals a
+//! unit by name: only a bound cgroup kill descriptor may be written. Missing
+//! confirmation has its own error so a daemon can degrade rather than sign a result.
 //! This module returns host facts; it never signs or admits a native test.
 
 use std::os::unix::net::UnixStream;
@@ -14,10 +15,12 @@ use crate::channel::check_peer_connected;
 use crate::config::{BinaryPinError, RunnerConfig, UNIT_PREFIX};
 use crate::enforce::{REAP_BUDGET_USEC, check_elapsed};
 use crate::manager::{
-    ManagerError, ReapedOomWorker, WorkerInvocation, confirm_system_unit_reaped, monotonic_usec,
-    require_system_unit_absent, verify_launched_invocation, verify_reaped_oom_unit,
+    ManagerError, ReapedOomWorker, WorkerInvocation, confirm_invocation_reaped, monotonic_usec,
+    require_system_unit_absent_before, verify_launched_invocation_before, verify_live_invocation,
+    verify_reaped_oom_unit_before,
 };
 use crate::phase::{GatedWorkerResult, PhaseError, run_system_unit_phase};
+use crate::telemetry::LiveCgroupTelemetry;
 use crate::unit::{TransientUnit, render_transient_unit};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(5);
@@ -123,6 +126,24 @@ fn exact_rendered_unit(
     .is_ok_and(|expected| expected == *unit)
 }
 
+fn manager_owner_error(error: ManagerError) -> OwnerError {
+    if error == ManagerError::CommandCleanupUnconfirmed {
+        OwnerError::CleanupUnconfirmed
+    } else {
+        OwnerError::Phase(PhaseError::Manager(error))
+    }
+}
+
+fn oom_after_cleanup(
+    result: Result<ReapedOomWorker, ManagerError>,
+) -> Result<Option<ReapedOomWorker>, OwnerError> {
+    match result {
+        Ok(facts) => Ok(Some(facts)),
+        Err(ManagerError::CommandCleanupUnconfirmed) => Err(OwnerError::CleanupUnconfirmed),
+        Err(_) => Ok(None),
+    }
+}
+
 fn before(deadline: Instant) -> Result<(), OwnerError> {
     if Instant::now() < deadline {
         Ok(())
@@ -140,11 +161,14 @@ fn observe_current_invocation(
         check_peer_connected(peer).map_err(|_| OwnerError::PeerLost)?;
         before(deadline)?;
         match read() {
-            Ok(invocation) => return Ok(invocation),
+            Ok(invocation) => {
+                before(deadline)?;
+                return Ok(invocation);
+            }
             Err(ManagerError::Unavailable | ManagerError::NotReady) => {
                 std::thread::sleep(POLL_INTERVAL);
             }
-            Err(error) => return Err(OwnerError::Phase(PhaseError::Manager(error))),
+            Err(error) => return Err(manager_owner_error(error)),
         }
     }
 }
@@ -167,36 +191,21 @@ fn wait_child(
     }
 }
 
-fn signal_system_unit(unit_name: &str, deadline: Instant) {
-    let service = format!("{unit_name}.service");
-    let Ok(mut command) = Command::new("/usr/bin/systemctl")
-        .args([
-            "--system",
-            "--no-ask-password",
-            "kill",
-            "--kill-whom=all",
-            "--signal=SIGKILL",
-            &service,
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-    else {
-        return;
-    };
-    if wait_child(&mut command, deadline, None).is_err() {
-        let _ = command.kill();
-        let _ = command.wait();
-    }
-}
-
-fn confirm_reap_before(unit_name: &str, deadline: Instant) -> Result<(), OwnerError> {
+fn confirm_reap_before(
+    name: &str,
+    expected: WorkerInvocation,
+    bound: bool,
+    deadline: Instant,
+) -> Result<(), OwnerError> {
     loop {
         before(deadline)?;
-        match confirm_system_unit_reaped(unit_name) {
-            Ok(true) => return Ok(()),
-            Ok(false) | Err(_) => std::thread::sleep(POLL_INTERVAL),
+        match confirm_invocation_reaped(name, expected, bound, deadline) {
+            Ok(true) => {
+                before(deadline)?;
+                return Ok(());
+            }
+            Ok(false) => std::thread::sleep(POLL_INTERVAL),
+            Err(_) => return Err(OwnerError::CleanupUnconfirmed),
         }
     }
 }
@@ -205,6 +214,10 @@ struct UnitGuard {
     child: Child,
     unit_name: String,
     reaped: bool,
+    invocation: Option<WorkerInvocation>,
+    telemetry: Option<LiveCgroupTelemetry>,
+    cleanup_deadline: Option<Instant>,
+    kill_sent: bool,
 }
 
 impl UnitGuard {
@@ -218,7 +231,7 @@ impl UnitGuard {
         match check_absent(&unit.unit_name) {
             Ok(()) => {}
             Err(ManagerError::UnitOccupied) => return Err(OwnerError::UnitOccupied),
-            Err(error) => return Err(OwnerError::Phase(PhaseError::Manager(error))),
+            Err(error) => return Err(manager_owner_error(error)),
         }
         before(deadline)?;
         let launched_after_usec =
@@ -243,6 +256,10 @@ impl UnitGuard {
             child,
             unit_name: unit.unit_name.clone(),
             reaped: false,
+            invocation: None,
+            telemetry: None,
+            cleanup_deadline: None,
+            kill_sent: false,
         };
         if guard.child.stdin.is_none() || guard.child.stdout.is_none() {
             return Err(OwnerError::LaunchFailure);
@@ -251,19 +268,123 @@ impl UnitGuard {
     }
 
     fn abort(&mut self) -> Result<(), OwnerError> {
-        let deadline = Instant::now()
-            .checked_add(Duration::from_micros(REAP_BUDGET_USEC))
-            .ok_or(OwnerError::CleanupUnconfirmed)?;
-        // Stop the piped launcher before a possibly slow manager kill call.
-        // Its open pipe can otherwise keep the gated worker alive until the
-        // entire confirmation budget has been spent.
+        self.abort_with(
+            |telemetry, _| {
+                let _ = telemetry.kill_owned();
+            },
+            confirm_reap_before,
+        )
+    }
+
+    fn abort_with(
+        &mut self,
+        signal: impl FnOnce(&LiveCgroupTelemetry, Instant),
+        confirm: impl FnOnce(&str, WorkerInvocation, bool, Instant) -> Result<(), OwnerError>,
+    ) -> Result<(), OwnerError> {
+        let deadline = if let Some(deadline) = self.cleanup_deadline {
+            deadline
+        } else {
+            let deadline = Instant::now()
+                .checked_add(Duration::from_micros(REAP_BUDGET_USEC))
+                .ok_or(OwnerError::CleanupUnconfirmed)?;
+            self.cleanup_deadline = Some(deadline);
+            deadline
+        };
+        // Close both gates before stopping and positively reaping our launcher.
+        self.child.stdin.take();
+        self.child.stdout.take();
         let _ = self.child.kill();
-        signal_system_unit(&self.unit_name, deadline);
-        let _ = wait_child(&mut self.child, deadline, None);
-        confirm_reap_before(&self.unit_name, deadline)
-            .map_err(|_| OwnerError::CleanupUnconfirmed)?;
+        wait_child(&mut self.child, deadline, None).map_err(|_| OwnerError::CleanupUnconfirmed)?;
+        let expected = self.invocation.ok_or(OwnerError::CleanupUnconfirmed)?;
+        if !self.kill_sent
+            && let Some(telemetry) = &self.telemetry
+        {
+            self.kill_sent = true;
+            signal(telemetry, deadline);
+        }
+        confirm(
+            &self.unit_name,
+            expected,
+            self.telemetry.is_some(),
+            deadline,
+        )
+        .map_err(|_| OwnerError::CleanupUnconfirmed)?;
+        before(deadline).map_err(|_| OwnerError::CleanupUnconfirmed)?;
         self.reaped = true;
         Ok(())
+    }
+
+    fn bind_live(
+        &mut self,
+        unit: &TransientUnit,
+        config: &RunnerConfig,
+        worker_input_path: &str,
+        peer: &UnixStream,
+        deadline: Instant,
+    ) -> Result<(), PhaseError> {
+        let invocation = self
+            .invocation
+            .ok_or(PhaseError::Manager(ManagerError::PropertyMismatch))?;
+        let installed = loop {
+            before(deadline).map_err(|_| PhaseError::Deadline)?;
+            check_peer_connected(peer).map_err(PhaseError::Channel)?;
+            match verify_live_invocation(unit, config, worker_input_path, invocation, deadline) {
+                Ok(installed) => break installed,
+                Err(ManagerError::Unavailable | ManagerError::NotReady) => {
+                    std::thread::sleep(POLL_INTERVAL);
+                }
+                Err(error) => return Err(PhaseError::Manager(error)),
+            }
+        };
+        let telemetry = LiveCgroupTelemetry::open_system_unit(
+            &unit.unit_name,
+            &installed.control_group,
+            unit.installed_memory,
+        )
+        .map_err(PhaseError::Telemetry)?;
+        telemetry
+            .sample(invocation.main_pid())
+            .map_err(PhaseError::Telemetry)?;
+        let rechecked =
+            verify_live_invocation(unit, config, worker_input_path, invocation, deadline)
+                .map_err(PhaseError::Manager)?;
+        if rechecked != installed {
+            return Err(PhaseError::Manager(ManagerError::PropertyMismatch));
+        }
+        before(deadline).map_err(|_| PhaseError::Deadline)?;
+        check_peer_connected(peer).map_err(PhaseError::Channel)?;
+        self.telemetry = Some(telemetry);
+        Ok(())
+    }
+
+    fn oom_facts(
+        &self,
+        unit: &TransientUnit,
+        config: &RunnerConfig,
+        worker_input_path: &str,
+        started: Instant,
+    ) -> Result<Option<OwnedOomFacts>, OwnerError> {
+        let deadline = self
+            .cleanup_deadline
+            .ok_or(OwnerError::CleanupUnconfirmed)?;
+        let invocation = self.invocation.ok_or(OwnerError::CleanupUnconfirmed)?;
+        let Some(manager) = oom_after_cleanup(verify_reaped_oom_unit_before(
+            unit,
+            config,
+            worker_input_path,
+            invocation,
+            deadline,
+        ))?
+        else {
+            return Ok(None);
+        };
+        let elapsed_ns =
+            u64::try_from(started.elapsed().as_nanos()).map_err(|_| OwnerError::InvalidDeadline)?;
+        before(deadline)?;
+        Ok(Some(OwnedOomFacts {
+            manager,
+            elapsed_ns,
+        }))
     }
 
     fn finish(&mut self, peer: &UnixStream, deadline: Instant) -> Result<(), OwnerError> {
@@ -275,12 +396,19 @@ impl UnitGuard {
         loop {
             check_peer_connected(peer).map_err(|_| OwnerError::PeerLost)?;
             before(deadline)?;
-            match confirm_system_unit_reaped(&self.unit_name) {
+            match confirm_invocation_reaped(
+                &self.unit_name,
+                self.invocation.ok_or(OwnerError::CleanupUnconfirmed)?,
+                self.telemetry.is_some(),
+                deadline,
+            ) {
                 Ok(true) => {
+                    before(deadline)?;
                     self.reaped = true;
                     return Ok(());
                 }
-                Ok(false) | Err(_) => std::thread::sleep(POLL_INTERVAL),
+                Ok(false) => std::thread::sleep(POLL_INTERVAL),
+                Err(_) => return Err(OwnerError::CleanupUnconfirmed),
             }
         }
     }
@@ -326,9 +454,17 @@ pub fn run_owned_system_unit(
         .checked_add(Duration::from_millis(wall_ms))
         .ok_or(OwnerError::InvalidDeadline)?;
     let (mut guard, launched_after_usec) =
-        UnitGuard::spawn_for_available_unit(unit, peer, deadline, require_system_unit_absent)?;
+        UnitGuard::spawn_for_available_unit(unit, peer, deadline, |name| {
+            require_system_unit_absent_before(name, deadline)
+        })?;
     let invocation = match observe_current_invocation(peer, deadline, || {
-        verify_launched_invocation(unit, config, worker_input_path, launched_after_usec)
+        verify_launched_invocation_before(
+            unit,
+            config,
+            worker_input_path,
+            launched_after_usec,
+            deadline,
+        )
     }) {
         Ok(invocation) => invocation,
         Err(error) => {
@@ -339,29 +475,26 @@ pub fn run_owned_system_unit(
             return Err(error);
         }
     };
-    let phase = {
-        let control = guard
-            .child
-            .stdin
-            .as_mut()
-            .ok_or(OwnerError::LaunchFailure)?;
-        let output = guard
-            .child
-            .stdout
-            .as_mut()
-            .ok_or(OwnerError::LaunchFailure)?;
+    guard.invocation = Some(invocation);
+    let phase = (|| {
+        guard.bind_live(unit, config, worker_input_path, peer, deadline)?;
+        let control = guard.child.stdin.as_mut().ok_or(PhaseError::GateWrite)?;
+        let output = guard.child.stdout.as_mut().ok_or(PhaseError::GateWrite)?;
         run_system_unit_phase(
-            unit,
-            config,
-            worker_input_path,
+            guard.telemetry.as_ref().ok_or(PhaseError::GateWrite)?,
+            invocation.main_pid(),
             output,
             control,
             peer,
             deadline,
         )
-    };
+    })();
     let gated = match phase {
         Ok(gated) => gated,
+        Err(PhaseError::Manager(ManagerError::CommandCleanupUnconfirmed)) => {
+            let _ = guard.abort();
+            return Err(OwnerError::CleanupUnconfirmed);
+        }
         Err(PhaseError::MeasuredTimeout(telemetry)) => {
             guard.abort()?;
             let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
@@ -373,27 +506,20 @@ pub fn run_owned_system_unit(
         }
         Err(error) => {
             guard.abort()?;
-            if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, invocation)
-            {
-                let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
-                    .map_err(|_| OwnerError::InvalidDeadline)?;
-                return Err(OwnerError::ManagerOom(OwnedOomFacts {
-                    manager,
-                    elapsed_ns,
-                }));
+            if let Some(facts) = guard.oom_facts(unit, config, worker_input_path, started)? {
+                return Err(OwnerError::ManagerOom(facts));
             }
             return Err(OwnerError::Phase(error));
         }
     };
     if let Err(error) = guard.finish(peer, deadline) {
+        if error == OwnerError::CleanupUnconfirmed {
+            let _ = guard.abort();
+            return Err(error);
+        }
         guard.abort()?;
-        if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, invocation) {
-            let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
-                .map_err(|_| OwnerError::InvalidDeadline)?;
-            return Err(OwnerError::ManagerOom(OwnedOomFacts {
-                manager,
-                elapsed_ns,
-            }));
+        if let Some(facts) = guard.oom_facts(unit, config, worker_input_path, started)? {
+            return Err(OwnerError::ManagerOom(facts));
         }
         return Err(error);
     }
@@ -414,6 +540,206 @@ mod tests {
     use crate::config::{AllowedCaller, default_config};
 
     static NEXT_MARKER: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn prelaunch_manager_child_unknown_preserves_cleanup_degradation() {
+        let unit = TransientUnit {
+            unit_name: format!("{UNIT_PREFIX}{}", "e".repeat(64)),
+            argv: vec!["/unreachable-no-launch".to_owned()],
+            requested_memory: 4096,
+            installed_memory: 4096,
+            runtime_max_usec: 3_000_000,
+        };
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let result = UnitGuard::spawn_for_available_unit(
+            &unit,
+            &peer,
+            Instant::now() + Duration::from_secs(1),
+            |_| Err(ManagerError::CommandCleanupUnconfirmed),
+        );
+        assert!(matches!(result, Err(OwnerError::CleanupUnconfirmed)));
+    }
+
+    #[test]
+    fn oom_diagnostic_cannot_erase_an_unknown_manager_child() {
+        assert_eq!(
+            oom_after_cleanup(Err(ManagerError::CommandCleanupUnconfirmed)),
+            Err(OwnerError::CleanupUnconfirmed)
+        );
+        assert_eq!(oom_after_cleanup(Err(ManagerError::Unavailable)), Ok(None));
+    }
+
+    #[test]
+    fn late_cleanup_confirmation_never_marks_the_guard_reaped() {
+        let mut guard = std::mem::ManuallyDrop::new(harmless_guard());
+        guard.invocation = Some(WorkerInvocation::fixture());
+        guard.cleanup_deadline = Some(Instant::now() + Duration::from_millis(20));
+        let result = guard.abort_with(
+            |_, _| panic!("unbound"),
+            |_, _, _, _| {
+                std::thread::sleep(Duration::from_millis(40));
+                Ok(())
+            },
+        );
+        let claimed_reaped = guard.reaped;
+        guard.reaped = true;
+        drop(std::mem::ManuallyDrop::into_inner(guard));
+        assert_eq!(result, Err(OwnerError::CleanupUnconfirmed));
+        assert!(!claimed_reaped);
+    }
+
+    fn harmless_guard() -> UnitGuard {
+        UnitGuard::spawn(&TransientUnit {
+            unit_name: format!("{UNIT_PREFIX}{}", "d".repeat(64)),
+            argv: vec!["/usr/bin/sleep".to_owned(), "1".to_owned()],
+            requested_memory: 4096,
+            installed_memory: 4096,
+            runtime_max_usec: 3_000_000,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn launcher_only_drop_reaps_child_without_manager_access() {
+        let guard = harmless_guard();
+        let child = guard.child.id();
+        drop(guard);
+        assert!(!std::path::Path::new(&format!("/proc/{child}")).exists());
+    }
+
+    #[test]
+    fn bound_cleanup_writes_held_control_once_and_shares_its_deadline() {
+        let root = std::env::temp_dir().join(format!(
+            "sley-owned-kill-{}-{}",
+            std::process::id(),
+            NEXT_MARKER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut guard = std::mem::ManuallyDrop::new(harmless_guard());
+        let group = format!("/system.slice/{}.service", guard.unit_name);
+        let directory = root.join(group.trim_start_matches('/'));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("cgroup.type"), "domain\n").unwrap();
+        fs::write(directory.join("cgroup.kill"), "0").unwrap();
+        let mut telemetry =
+            LiveCgroupTelemetry::open_from_root(&root, &guard.unit_name, &group, 4096, false)
+                .unwrap();
+        telemetry.arm_fixture_kill().unwrap();
+        guard.invocation = Some(WorkerInvocation::fixture());
+        guard.telemetry = Some(telemetry);
+        let first = guard.abort_with(
+            |held, _| held.kill_owned().unwrap(),
+            |_, _, bound, _| {
+                assert!(bound);
+                Err(OwnerError::CleanupUnconfirmed)
+            },
+        );
+        let deadline = guard.cleanup_deadline;
+        let second = guard.abort_with(
+            |_, _| panic!("cleanup must not send a second kill"),
+            |_, _, bound, actual| {
+                assert!(bound);
+                assert_eq!(Some(actual), deadline);
+                Ok(())
+            },
+        );
+        let reaped = guard.reaped;
+        guard.reaped = true;
+        drop(std::mem::ManuallyDrop::into_inner(guard));
+        assert_eq!(first, Err(OwnerError::CleanupUnconfirmed));
+        assert_eq!(second, Ok(()));
+        assert!(reaped);
+        assert_eq!(fs::read(directory.join("cgroup.kill")).unwrap(), b"1");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn observed_terminal_invocation_needs_no_live_kill_handle() {
+        let mut guard = std::mem::ManuallyDrop::new(harmless_guard());
+        let expected = WorkerInvocation::fixture();
+        guard.invocation = Some(expected);
+        let result = guard.abort_with(
+            |_, _| panic!("no live cgroup may be signalled"),
+            |_, actual, bound, _| {
+                assert_eq!(actual, expected);
+                assert!(!bound);
+                Ok(())
+            },
+        );
+        let reaped = guard.reaped;
+        guard.reaped = true;
+        drop(std::mem::ManuallyDrop::into_inner(guard));
+        assert_eq!(result, Ok(()));
+        assert!(reaped);
+    }
+
+    #[test]
+    fn observed_invocation_with_unknown_or_replaced_terminal_state_stays_unconfirmed() {
+        let mut guard = std::mem::ManuallyDrop::new(harmless_guard());
+        guard.invocation = Some(WorkerInvocation::fixture());
+        let result = guard.abort_with(
+            |_, _| panic!("unbound cleanup cannot signal"),
+            |_, _, _, _| Err(OwnerError::CleanupUnconfirmed),
+        );
+        let reaped = guard.reaped;
+        guard.reaped = true;
+        drop(std::mem::ManuallyDrop::into_inner(guard));
+        assert_eq!(result, Err(OwnerError::CleanupUnconfirmed));
+        assert!(!reaped);
+    }
+
+    #[test]
+    fn rejected_late_occupant_is_never_signalled_or_claimed_reaped() {
+        // The real launcher is harmless, has no descendants, and self-expires
+        // even if this test panics before its explicit kill/wait cleanup.
+        let unit = TransientUnit {
+            unit_name: format!("{UNIT_PREFIX}{}", "c".repeat(64)),
+            argv: vec!["/usr/bin/sleep".to_owned(), "1".to_owned()],
+            requested_memory: 4096,
+            installed_memory: 4096,
+            runtime_max_usec: 3_000_000,
+        };
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let (guard, _) = UnitGuard::spawn_for_available_unit(
+            &unit,
+            &peer,
+            Instant::now() + Duration::from_secs(1),
+            |_| Ok(()),
+        )
+        .expect("absence snapshot permits the harmless owned launcher");
+        // Never run the production Drop fallback against a host manager,
+        // including when a regression assertion panics.
+        let mut guard = std::mem::ManuallyDrop::new(guard);
+        let invocation =
+            observe_current_invocation(&peer, Instant::now() + Duration::from_secs(1), || {
+                Err(ManagerError::PropertyMismatch)
+            });
+        let mut signalled_names = Vec::new();
+        let result = match invocation {
+            Ok(_) => panic!("late independent occupant must not verify"),
+            Err(_) => guard.abort_with(
+                |_, _| signalled_names.push(unit.unit_name.clone()),
+                // The independently owned manager unit remains occupied.
+                |_, _, _, _| Err(OwnerError::CleanupUnconfirmed),
+            ),
+        };
+        let claimed_reaped = guard.reaped;
+        let launcher_reaped = guard.child.try_wait().unwrap().is_some();
+        // This disarms only the test fixture's production Drop fallback,
+        // after retaining its actual cleanup state and reaping our child.
+        guard.reaped = true;
+        drop(std::mem::ManuallyDrop::into_inner(guard));
+
+        assert!(launcher_reaped, "the owned launcher must still be reaped");
+        assert_eq!(result, Err(OwnerError::CleanupUnconfirmed));
+        assert!(
+            !claimed_reaped,
+            "an unknown manager unit is not owned cleanup"
+        );
+        assert!(
+            signalled_names.is_empty(),
+            "cleanup signalled an unowned late occupant: {signalled_names:?}"
+        );
+    }
 
     #[test]
     fn retained_failed_unit_prevents_a_new_launcher_and_cleanup_guard() {

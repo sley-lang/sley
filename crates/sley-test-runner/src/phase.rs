@@ -1,8 +1,9 @@
 //! Ordered worker gate, canonical report, and live cgroup sampling.
 //!
 //! A system unit must already be launched and owned by the caller. The
-//! production entry verifies the manager's installed properties and opens
-//! its exact cgroup before it sends the start byte. The worker remains alive
+//! caller verifies the manager invocation around opening its exact cgroup.
+//! This phase reuses that held telemetry and never resolves the cgroup path.
+//! The worker remains alive
 //! after its report, allowing a final telemetry sample before release. The
 //! caller still owns worker exit, empty-cgroup confirmation, cleanup, and
 //! measurement signing; this phase cannot claim native test admission.
@@ -10,17 +11,15 @@
 use std::io::{Read, Write};
 use std::os::fd::AsFd;
 use std::os::unix::net::UnixStream;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use sley_tests::NativeExecutionReportV1;
 
 use crate::channel::{
     ChannelError, check_peer_connected, read_report_before, require_output_eof_before,
 };
-use crate::config::RunnerConfig;
-use crate::manager::{ManagerError, verify_system_unit};
+use crate::manager::ManagerError;
 use crate::telemetry::{LiveCgroupTelemetry, LiveTelemetrySample, TelemetryError};
-use crate::unit::TransientUnit;
 use crate::worker::{WORKER_RELEASE_GATE, WORKER_START_GATE};
 
 /// Failure before the host attempt can be admitted as measured evidence.
@@ -131,12 +130,12 @@ fn run_gated_phase<Output: AsFd + Read, Control: Write>(
 ///
 /// # Errors
 ///
-/// Refuses a nonroot caller, manager or cgroup mismatch, dirty events, lost
+/// The caller must bind the manager invocation to this held telemetry first.
+/// Refuses a nonroot caller, cgroup mismatch, dirty events, lost
 /// peer, deadline, malformed output, or failed control gate.
 pub fn run_system_unit_phase<Output: AsFd + Read, Control: Write>(
-    unit: &TransientUnit,
-    config: &RunnerConfig,
-    worker_input_path: &str,
+    telemetry: &LiveCgroupTelemetry,
+    main_pid: u32,
     output: &mut Output,
     control: &mut Control,
     peer: &UnixStream,
@@ -147,32 +146,7 @@ pub fn run_system_unit_phase<Output: AsFd + Read, Control: Write>(
     }
     check_deadline(deadline)?;
     check_peer_connected(peer).map_err(PhaseError::Channel)?;
-    let installed = loop {
-        check_deadline(deadline)?;
-        check_peer_connected(peer).map_err(PhaseError::Channel)?;
-        match verify_system_unit(unit, config, worker_input_path) {
-            Ok(installed) => break installed,
-            Err(ManagerError::Unavailable | ManagerError::NotReady) => {
-                std::thread::sleep(Duration::from_millis(5));
-            }
-            Err(error) => return Err(PhaseError::Manager(error)),
-        }
-    };
-    check_deadline(deadline)?;
-    let telemetry = LiveCgroupTelemetry::open_system_unit(
-        &unit.unit_name,
-        &installed.control_group,
-        unit.installed_memory,
-    )
-    .map_err(PhaseError::Telemetry)?;
-    run_gated_phase(
-        &telemetry,
-        installed.main_pid,
-        output,
-        control,
-        peer,
-        deadline,
-    )
+    run_gated_phase(telemetry, main_pid, output, control, peer, deadline)
 }
 
 #[cfg(test)]

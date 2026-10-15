@@ -235,6 +235,7 @@ pub fn render_transient_unit(
     ));
     argv.push("--property=Slice=system.slice".to_owned());
     argv.push("--property=BindsTo=sley-test-supervisor.service".to_owned());
+    argv.push("--property=Restart=no".to_owned());
     argv.push(config.worker_path.clone());
     argv.push("__native-test-worker".to_owned());
     argv.push("--credential".to_owned());
@@ -442,6 +443,7 @@ mod tests {
             "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker",
             "--property=Slice=system.slice",
             "--property=BindsTo=sley-test-supervisor.service",
+            "--property=Restart=no",
             "/usr/lib/sley/sley-native-test-worker",
             "__native-test-worker",
             "--credential",

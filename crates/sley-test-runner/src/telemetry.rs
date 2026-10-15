@@ -5,15 +5,17 @@
 //! exact system.slice scope is checked before a symlink-free cgroup open.
 //! Samples are taken while the worker remains alive after flushing its
 //! report; cgroup files become unreadable when systemd removes the group.
-//! This module reads host facts. It does not launch a unit or sign evidence.
+//! This module reads host facts and holds the exact cleanup control file.
+//! It does not launch a unit, select cleanup targets by name or sign evidence.
 
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
 use nix::fcntl::{OFlag, OpenHow, ResolveFlag, openat2};
+use nix::sys::statfs::{CGROUP2_SUPER_MAGIC, fstatfs};
 use sley_tests::MemoryEvents;
 
 use crate::config::UNIT_PREFIX;
@@ -78,6 +80,7 @@ impl LiveTelemetrySample {
 pub struct LiveCgroupTelemetry {
     directory: File,
     expected_memory_cap: u64,
+    kill: Option<File>,
 }
 
 impl LiveCgroupTelemetry {
@@ -86,19 +89,21 @@ impl LiveCgroupTelemetry {
     /// # Errors
     ///
     /// Refuses a substituted scope, unsafe path, non-root cgroup, or an
-    /// unavailable controller directory.
+    /// unavailable controller directory, cgroup.kill file or domain cgroup2 scope.
     pub fn open_system_unit(
         unit_name: &str,
         control_group: &str,
         expected_memory_cap: u64,
     ) -> Result<Self, TelemetryError> {
-        Self::open_from_root(
+        let mut telemetry = Self::open_from_root(
             Path::new("/sys/fs/cgroup"),
             unit_name,
             control_group,
             expected_memory_cap,
             true,
-        )
+        )?;
+        telemetry.arm_kill(true)?;
+        Ok(telemetry)
     }
 
     pub(crate) fn open_from_root(
@@ -136,7 +141,56 @@ impl LiveCgroupTelemetry {
         Ok(Self {
             directory,
             expected_memory_cap,
+            kill: None,
         })
+    }
+
+    fn arm_kill(&mut self, genuine_cgroup: bool) -> Result<(), TelemetryError> {
+        #[cfg(not(test))]
+        if !genuine_cgroup {
+            return Err(TelemetryError::ScopeMismatch);
+        }
+        if genuine_cgroup {
+            require_cgroup2(&self.directory)?;
+        }
+        if self.read_file("cgroup.type")? != "domain\n" {
+            return Err(TelemetryError::ScopeMismatch);
+        }
+        let how = OpenHow::new()
+            .flags(OFlag::O_WRONLY | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC)
+            .resolve(ResolveFlag::RESOLVE_BENEATH | ResolveFlag::RESOLVE_NO_SYMLINKS);
+        let kill = File::from(
+            openat2(&self.directory, "cgroup.kill", how)
+                .map_err(|_| TelemetryError::Unavailable)?,
+        );
+        let metadata = kill.metadata().map_err(|_| TelemetryError::Unavailable)?;
+        if !metadata.is_file()
+            || (genuine_cgroup && metadata.uid() != 0)
+            || metadata.dev()
+                != self
+                    .directory
+                    .metadata()
+                    .map_err(|_| TelemetryError::Unavailable)?
+                    .dev()
+        {
+            return Err(TelemetryError::Unavailable);
+        }
+        if genuine_cgroup {
+            require_cgroup2(&kill)?;
+        }
+        self.kill = Some(kill);
+        Ok(())
+    }
+
+    pub(crate) fn kill_owned(&self) -> Result<(), TelemetryError> {
+        let mut kill = self.kill.as_ref().ok_or(TelemetryError::Unavailable)?;
+        kill.write_all(b"1")
+            .map_err(|_| TelemetryError::Unavailable)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn arm_fixture_kill(&mut self) -> Result<(), TelemetryError> {
+        self.arm_kill(false)
     }
 
     /// Reads bounded live counters and verifies installed limits and PID.
@@ -197,6 +251,17 @@ impl LiveCgroupTelemetry {
         }
         String::from_utf8(bytes).map_err(|_| TelemetryError::InvalidValue)
     }
+}
+
+fn require_cgroup2(file: &File) -> Result<(), TelemetryError> {
+    if fstatfs(file)
+        .map_err(|_| TelemetryError::Unavailable)?
+        .filesystem_type()
+        != CGROUP2_SUPER_MAGIC
+    {
+        return Err(TelemetryError::ScopeMismatch);
+    }
+    Ok(())
 }
 
 fn parse_decimal(value: &str) -> Result<u64, TelemetryError> {
@@ -272,6 +337,53 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn kill_handle_keeps_its_object_after_directory_and_file_replacement() {
+        let fixture = TestCgroup::new();
+        fixture.set("cgroup.type", "domain\n");
+        fixture.set("cgroup.kill", "0");
+        let mut telemetry = fixture.open().unwrap();
+        // Ordinary files model descriptor identity only, never real cgroup authority.
+        telemetry.arm_kill(false).unwrap();
+        let old = fixture.0.join("retained-original");
+        let path = fixture.0.join(GROUP.trim_start_matches('/'));
+        std::fs::rename(&path, &old).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        std::fs::write(path.join("cgroup.kill"), "replacement").unwrap();
+        telemetry.kill_owned().unwrap();
+        assert_eq!(std::fs::read(old.join("cgroup.kill")).unwrap(), b"1");
+        assert_eq!(
+            std::fs::read(path.join("cgroup.kill")).unwrap(),
+            b"replacement"
+        );
+    }
+
+    #[test]
+    fn ordinary_files_threaded_groups_and_symlink_kill_are_never_armed() {
+        let fixture = TestCgroup::new();
+        fixture.set("cgroup.type", "domain\n");
+        fixture.set("cgroup.kill", "0");
+        let mut telemetry = fixture.open().unwrap();
+        assert_eq!(telemetry.arm_kill(true), Err(TelemetryError::ScopeMismatch));
+        assert_eq!(telemetry.kill_owned(), Err(TelemetryError::Unavailable));
+        fixture.set("cgroup.type", "threaded\n");
+        assert_eq!(
+            telemetry.arm_kill(false),
+            Err(TelemetryError::ScopeMismatch)
+        );
+        fixture.set("cgroup.type", "domain\n");
+        let path = fixture
+            .0
+            .join(GROUP.trim_start_matches('/'))
+            .join("cgroup.kill");
+        std::fs::remove_file(&path).unwrap();
+        std::os::unix::fs::symlink("memory.max", &path).unwrap();
+        assert_eq!(telemetry.arm_kill(false), Err(TelemetryError::Unavailable));
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert_eq!(telemetry.arm_kill(false), Err(TelemetryError::Unavailable));
     }
 
     #[test]

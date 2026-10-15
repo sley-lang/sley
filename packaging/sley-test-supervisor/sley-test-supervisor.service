@@ -10,6 +10,7 @@ RuntimeDirectory=sley-test-supervisor
 RuntimeDirectoryMode=0755
 UMask=0022
 Restart=on-failure
+RestartPreventExitStatus=78
 RestartSec=2s
 
 [Install]
