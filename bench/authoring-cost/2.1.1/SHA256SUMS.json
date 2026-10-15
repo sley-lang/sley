@@ -1,0 +1,8 @@
+{
+  "README.md": "b3fc321c97fdcb60e4579c3ae92f771c3768e4866787b0ec2ecc285ce1c98074",
+  "expected.json": "c6c2f095d6b3d22926f30f5937b8b3158f8b699c9adcaf97c2fe9bf79fa5c4a0",
+  "projection.json": "abba16db2e13d2eb84a280a945a1e044b57e0b1c2e5eba5919f081c19efaad20",
+  "recalculate.py": "9249082a640a13e52f8558d7de10a762bcbc00c6d8fbfed63f046efd91882396",
+  "schema.json": "24eefad933d1b2046c54bf74f25379ea30e71d28f2656048c918ac4e6110db3c",
+  "test_recalculate.py": "5736d08a21f12a1e24cce49a16db763f154ba9fd013fafb1d6f41a7506de7ad7"
+}
