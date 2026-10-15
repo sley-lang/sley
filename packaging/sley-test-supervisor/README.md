@@ -17,7 +17,7 @@ reports and never fabricates missing `memory.events` counters or a native
 receipt; see [its evidence contract](../../docs/status/NATIVE_MANAGER_OOM_DIAGNOSTIC.md).
 Missing, ambiguous, untrusted or dirty evidence remains refused or unknown.
 
-The last recorded greyarch host checks in [issue #24](https://github.com/sley-lang/sley/issues/24)
+The retained greyarch host checks in [issue #24](https://github.com/sley-lang/sley/issues/24)
 used unreleased development core `8752598` on September 28, 2026:
 
 - A real selected native TestCase under a 1 MiB cap returned
@@ -53,8 +53,9 @@ and explicit accepted-root `tests.selected`. The latter receives the complete
 owner-loaded root and object snapshot; its request uses the zero diagnostic
 principal defined by the native plan. An administrator must explicitly grant
 that workspace/principal pair in `allowed_callers` to run it. Neither route
-qualifies this root service or enables native tests on the selected 2.0.1
-release binary.
+qualifies this root service or changes the published 2.1.1 binaries. This
+integration is development source; released-core/tools compatibility and
+installed-package qualification remain separate requirements.
 
 ## Protected administrator configuration
 
@@ -142,7 +143,8 @@ supervised request.
    static `TestCase` validation, a mock
    response, or a pure VM comparison does not grant admission.
 
-The installed greyarch build predates the current source. Any update needs a
+The September 28 records bind older development binaries; they are not a
+current inventory of the installed host. Any installation or update needs a
 reviewed migration that preserves the root measurement authority and exact
 binary pins, followed by fresh live qualification. The local source and tests
 do not waive that gate.
