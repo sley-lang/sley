@@ -43,9 +43,12 @@ installation requires exact reviewed artifacts and fresh host qualification.
 The authenticated refusal-only handler remains available for negative protocol
 tests; the production daemon uses the root handler.
 
-Unsupported caller resource budgets receive an unsigned prelaunch refusal;
-they do not stop the shared service or produce measurement evidence. A loaded
-unit with a reused attempt name also refuses before launch. After launch, the
+Caller budgets that cannot form a valid supervisor configuration, such as
+zero or sub-page memory and unrepresentable deadlines, receive an unsigned
+prelaunch refusal. They do not stop the shared service or produce measurement
+evidence. A supported configuration with a wall budget below 1,000 ms still
+uses the existing signed prelaunch unsupported-wall refusal under its trust
+grant. A loaded unit with a reused attempt name also refuses before launch. After launch, the
 daemon must observe a nonzero manager invocation ID and worker PID whose
 monotonic start time follows this launch boundary. Terminal OOM facts must
 match that exact invocation, PID and start time. A launcher process alone,
