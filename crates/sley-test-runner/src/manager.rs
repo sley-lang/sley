@@ -1061,6 +1061,8 @@ mod tests {
             fresh_invocation_snapshot(&unit_map, &service, 100, 300),
             Err(ManagerError::PropertyMismatch)
         );
+        let old_unit = unit_map.clone();
+        let old_service = service.clone();
         insert(
             &mut service,
             "ExecMainStartTimestampMonotonic",
