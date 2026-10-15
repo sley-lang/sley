@@ -1033,7 +1033,9 @@ mod tests {
     fn reused_nonce_with_changed_request_cannot_reuse_an_old_manager_invocation() {
         use sha2::{Digest, Sha256};
         let old = crate::program::tests::request_with_memory_and_expectation(8192, true);
-        let changed = crate::program::tests::request_with_memory_and_expectation(8192, false);
+        let mut changed = crate::program::tests::request_with_memory_and_expectation(8192, false);
+        // Deliberately reuse this attempt while changing its canonical request.
+        changed.nonce = old.nonce;
         assert!(old.verified_program().is_ok() && changed.verified_program().is_ok());
         assert_eq!(old.nonce, changed.nonce);
         assert_eq!(old.declared_limits, changed.declared_limits);

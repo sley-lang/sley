@@ -558,7 +558,12 @@ pub(crate) mod tests {
         );
         let program =
             PortableTestProgram::build(&plan, &root, &objects, test).expect("canonical program");
-        RunRequest::from_portable_program(&program, 1_000, [17; 32]).expect("canonical request")
+        RunRequest::from_portable_program(
+            &program,
+            1_000,
+            crate::nonce::random_attempt_nonce().expect("OS entropy"),
+        )
+        .expect("canonical request")
     }
 
     fn fixture() -> (
