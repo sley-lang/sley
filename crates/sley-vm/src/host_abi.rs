@@ -49,6 +49,27 @@ pub const HOST_ABI_V2_CONTRACT: &str = "sley2-host-abi-2";
 /// Successor host ABI version.
 pub const HOST_ABI_V2_VERSION: u32 = 2;
 
+/// SH2 successor host ABI identity: v2 plus the large raw primitives
+/// (`RHW2`, `RSH2`), byte concatenation and slicing (`BCT1`, `BSL1`), and
+/// discriminated per-element-type push rows.
+pub const HOST_ABI_V3_IDENTITY: &str = "HOST_ABI_V3";
+/// SH2 successor host ABI contract.
+pub const HOST_ABI_V3_CONTRACT: &str = "sley2-host-abi-3";
+/// SH2 successor host ABI version.
+pub const HOST_ABI_V3_VERSION: u32 = 3;
+/// `HOST_ABI_V3` entry code: `raw-blake3-256-large`.
+pub const BRIDGE_CODE_RHW2: [u8; 4] = *b"RHW2";
+/// `HOST_ABI_V3` entry code: `raw-sha256`.
+pub const BRIDGE_CODE_RSH2: [u8; 4] = *b"RSH2";
+/// `HOST_ABI_V3` entry code: `bytes-concat`.
+pub const BRIDGE_CODE_BCT1: [u8; 4] = *b"BCT1";
+/// `HOST_ABI_V3` entry code: `bytes-slice`.
+pub const BRIDGE_CODE_BSL1: [u8; 4] = *b"BSL1";
+/// `HOST_ABI_V3` entry code: `bytes-length`.
+pub const BRIDGE_CODE_BLN1: [u8; 4] = *b"BLN1";
+/// `HOST_ABI_V3` byte ceiling of the large primitives.
+pub const HOST_ABI_V3_LARGE_MAX_BYTES: usize = 67_108_864;
+
 /// Frozen import-identity prefix: twelve ASCII bytes `SLY1/BRIDGE/`.
 pub const BRIDGE_IDENTITY_PREFIX: &[u8; 12] = b"SLY1/BRIDGE/";
 /// Frozen entry code: `host-bytes-to-u8vector`.

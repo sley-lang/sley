@@ -3,7 +3,8 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews"
+      "council_reviews",
+      "second_host_attestation_operator_lane"
     ],
     "publication_authorized": true,
     "signature_algorithm": null,
@@ -17,14 +18,14 @@
       "buildDefinition": {
         "buildType": "urn:sley2:buildtype:release-candidate/v1",
         "externalParameters": {
-          "artifact_name": "sley-2.0.5-linux-x86_64.tar.gz",
-          "commit": "11258a351b4638b63f204aecbf58b43906e87479",
+          "artifact_name": "sley-2.1.1-linux-x86_64.tar.gz",
+          "commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
           "invocation": "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
           "make_target": "release-candidate-build",
           "working_tree_clean": true
         },
         "internalParameters": {
-          "artifact_size_bytes": 7197527,
+          "artifact_size_bytes": 7413689,
           "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
           "locked": true,
           "member_count": 17,
@@ -39,13 +40,13 @@
         "resolvedDependencies": [
           {
             "digest": {
-              "sha1": "11258a351b4638b63f204aecbf58b43906e87479"
+              "sha1": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee"
             },
             "uri": "urn:sley2:git-commit"
           },
           {
             "digest": {
-              "sha256": "edf7d1aab0087213741fedc9c8eb4258fb18951358d3c5371f59a6358614bae1"
+              "sha256": "ed0cb12a8a36ac1523ccc79f21edd978f70fcafb696f35ed354c21c80dd14ad5"
             },
             "name": "Cargo.lock"
           },
@@ -57,19 +58,19 @@
           },
           {
             "digest": {
-              "sha256": "86ac63e677b04e817f4b8fe6e4f163f01e45b37ab7650d98197f051f23409abb"
+              "sha256": "500560c561deb7abb82e89fc4cec5acc8c4e81b8d8b6dbf94f5b7f632534fddf"
             },
             "name": "evidence/security/T52/pre-release-inventory.json"
           },
           {
             "digest": {
-              "sha256": "8ae20807b454b13f7582398e3b4f037f5fdcd5cee9fa23807a99294ac129b7f4"
+              "sha256": "9d58b41e81edbe5b80d87ea13dbc7fca791245ed1f634b4b60a967bf35140af9"
             },
             "name": "evidence/release/sbom/cyclonedx-1.6.json"
           },
           {
             "digest": {
-              "sha256": "3e3dedf9cabdf50c1c5a36d39521221d055ae5a967f57daa8fa997ef199ad58f"
+              "sha256": "e6294687a8e75ae76b1da409bfb67d82608dd54c4bfbadb26f251449b7097e92"
             },
             "name": "evidence/release/sbom/spdx-2.3.json"
           }
@@ -82,19 +83,19 @@
         "byproducts": [
           {
             "digest": {
-              "sha256": "c90481b212f08849dc214ba5d6907721dc26953d705fcf9a6539c717f98899a0"
+              "sha256": "9016550048346467caa1268adf2cfaf88ffc81f2420890e0ccc01dc4237260c7"
             },
             "name": "evidence/release/reproducibility-report.json"
           },
           {
             "digest": {
-              "sha256": "a88d9470a6c41e5ee69af02200abf6cd5576da300a9e011001af2c438b305549"
+              "sha256": "2292e56b78b05a1323306f18b6b80f63d137ba0f7039051fe62d35ccbcdf8521"
             },
             "name": "evidence/conformance/independent-conformance-report.json"
           }
         ],
         "metadata": {
-          "invocationId": "5c927d62a826d8efead87218cfeee8e90f79f4cd54a702e007759b92e70abdbd"
+          "invocationId": "f4df708aaf959782a2c883501c4e6454f5a960e3dba94aeba7deb2acaa70dfd7"
         }
       }
     },
@@ -102,11 +103,11 @@
     "subject": [
       {
         "digest": {
-          "sha256": "ffe983f644a874f4ba44f4d1ea2f2b377c157222b8a99850ab3108f1d521c6a9"
+          "sha256": "b0898ba7404a1656db2f83f448ea96d2c1175346f35e50b135bedc96e3810bfd"
         },
-        "name": "sley-2.0.5-linux-x86_64.tar.gz"
+        "name": "sley-2.1.1-linux-x86_64.tar.gz"
       }
     ]
   },
-  "statement_digest": "f272356fd2b5aea9018964a938737e5ed138cbdc29c8b40e3125bd8d6e6889e9"
+  "statement_digest": "e3c5bcee4930c32a1ea831e5245077398e43864c9b68efcd539ee18608ec20a1"
 }

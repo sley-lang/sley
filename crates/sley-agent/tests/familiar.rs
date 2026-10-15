@@ -281,7 +281,7 @@ fn scoping_rebinds_in_one_list_and_refuses_redeclaring_an_outer_name() {
 fn unsupported_text_is_refused_and_kept_without_a_candidate() {
     let temp = workspace("refused");
     let text =
-        "fn f(xs: Vec<i64>) -> i64 {\n  var t: i64 = 0\n  for x in xs { t += x }\n  return t\n}\n";
+        "fn f(xs: Vec<i64>) -> i64 {\n  var t: i64 = 0\n  for x in xs { t++ }\n  return t\n}\n";
     let (status, report) = {
         let (status, out) = try_text(&temp.path, text, true);
         (status, serde_json::from_str::<Value>(out.trim()).unwrap())
@@ -290,12 +290,12 @@ fn unsupported_text_is_refused_and_kept_without_a_candidate() {
     assert_eq!(report["state"], "text", "{report:#}");
     let detail = report["detail"].as_str().unwrap();
     assert!(
-        detail.contains("line 3, column 19") && detail.contains("compound assignment"),
+        detail.contains("line 3, column 18") && detail.contains("increment"),
         "{detail}"
     );
     assert_eq!(
         report["obligations"][0]["text"],
-        json!({"line": 3, "column": 19})
+        json!({"line": 3, "column": 18})
     );
     let rev = revision(&temp.path, 1);
     assert_eq!(fs::read_to_string(rev.join("input.txt")).unwrap(), text);
