@@ -13,7 +13,10 @@ use std::time::{Duration, Instant};
 use crate::channel::check_peer_connected;
 use crate::config::{BinaryPinError, RunnerConfig, UNIT_PREFIX};
 use crate::enforce::{REAP_BUDGET_USEC, check_elapsed};
-use crate::manager::{ReapedOomWorker, confirm_system_unit_reaped, verify_reaped_oom_unit};
+use crate::manager::{
+    ManagerError, ReapedOomWorker, WorkerInvocation, confirm_system_unit_reaped, monotonic_usec,
+    require_system_unit_absent, verify_launched_invocation, verify_reaped_oom_unit,
+};
 use crate::phase::{GatedWorkerResult, PhaseError, run_system_unit_phase};
 use crate::unit::{TransientUnit, render_transient_unit};
 
@@ -32,6 +35,8 @@ pub enum OwnerError {
     InvalidDeadline,
     /// The fixed `systemd-run` process could not be spawned or piped.
     LaunchFailure,
+    /// A prior unit owns this request's name; no new launcher was started.
+    UnitOccupied,
     /// The manager, cgroup, gated output, or requesting peer refused.
     Phase(PhaseError),
     /// The deadline was observed with clean live counters, and the launched
@@ -58,6 +63,7 @@ impl core::fmt::Display for OwnerError {
             Self::BinaryPin(_) => "NATIVE_OWNER_BINARY_PIN_REFUSED",
             Self::InvalidDeadline => "NATIVE_OWNER_INVALID_DEADLINE",
             Self::LaunchFailure => "NATIVE_OWNER_LAUNCH_FAILED",
+            Self::UnitOccupied => "NATIVE_OWNER_UNIT_OCCUPIED",
             Self::Phase(_) => "NATIVE_OWNER_PHASE_REFUSED",
             Self::MeasuredTimeout(_) => "NATIVE_OWNER_MEASURED_TIMEOUT",
             Self::ManagerOom(_) => "NATIVE_OWNER_MANAGER_OOM",
@@ -125,6 +131,24 @@ fn before(deadline: Instant) -> Result<(), OwnerError> {
     }
 }
 
+fn observe_current_invocation(
+    peer: &UnixStream,
+    deadline: Instant,
+    mut read: impl FnMut() -> Result<WorkerInvocation, ManagerError>,
+) -> Result<WorkerInvocation, OwnerError> {
+    loop {
+        check_peer_connected(peer).map_err(|_| OwnerError::PeerLost)?;
+        before(deadline)?;
+        match read() {
+            Ok(invocation) => return Ok(invocation),
+            Err(ManagerError::Unavailable | ManagerError::NotReady) => {
+                std::thread::sleep(POLL_INTERVAL);
+            }
+            Err(error) => return Err(OwnerError::Phase(PhaseError::Manager(error))),
+        }
+    }
+}
+
 fn wait_child(
     child: &mut Child,
     deadline: Instant,
@@ -184,6 +208,24 @@ struct UnitGuard {
 }
 
 impl UnitGuard {
+    fn spawn_for_available_unit(
+        unit: &TransientUnit,
+        peer: &UnixStream,
+        deadline: Instant,
+        check_absent: impl FnOnce(&str) -> Result<(), ManagerError>,
+    ) -> Result<(Self, u64), OwnerError> {
+        check_peer_connected(peer).map_err(|_| OwnerError::PeerLost)?;
+        match check_absent(&unit.unit_name) {
+            Ok(()) => {}
+            Err(ManagerError::UnitOccupied) => return Err(OwnerError::UnitOccupied),
+            Err(error) => return Err(OwnerError::Phase(PhaseError::Manager(error))),
+        }
+        before(deadline)?;
+        let launched_after_usec =
+            monotonic_usec().map_err(|error| OwnerError::Phase(PhaseError::Manager(error)))?;
+        Ok((Self::spawn_for_peer(unit, peer)?, launched_after_usec))
+    }
+
     fn spawn_for_peer(unit: &TransientUnit, peer: &UnixStream) -> Result<Self, OwnerError> {
         check_peer_connected(peer).map_err(|_| OwnerError::PeerLost)?;
         Self::spawn(unit)
@@ -283,7 +325,20 @@ pub fn run_owned_system_unit(
     let deadline = started
         .checked_add(Duration::from_millis(wall_ms))
         .ok_or(OwnerError::InvalidDeadline)?;
-    let mut guard = UnitGuard::spawn_for_peer(unit, peer)?;
+    let (mut guard, launched_after_usec) =
+        UnitGuard::spawn_for_available_unit(unit, peer, deadline, require_system_unit_absent)?;
+    let invocation = match observe_current_invocation(peer, deadline, || {
+        verify_launched_invocation(unit, config, worker_input_path, launched_after_usec)
+    }) {
+        Ok(invocation) => invocation,
+        Err(error) => {
+            // A launcher process is not proof that systemd created a worker.
+            // Without a fresh manager invocation, never inspect or sign an
+            // old unit's retained OOM facts, even after confirmed cleanup.
+            guard.abort()?;
+            return Err(error);
+        }
+    };
     let phase = {
         let control = guard
             .child
@@ -318,7 +373,8 @@ pub fn run_owned_system_unit(
         }
         Err(error) => {
             guard.abort()?;
-            if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, None) {
+            if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, invocation)
+            {
                 let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
                     .map_err(|_| OwnerError::InvalidDeadline)?;
                 return Err(OwnerError::ManagerOom(OwnedOomFacts {
@@ -331,7 +387,7 @@ pub fn run_owned_system_unit(
     };
     if let Err(error) = guard.finish(peer, deadline) {
         guard.abort()?;
-        if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, None) {
+        if let Ok(manager) = verify_reaped_oom_unit(unit, config, worker_input_path, invocation) {
             let elapsed_ns = u64::try_from(started.elapsed().as_nanos())
                 .map_err(|_| OwnerError::InvalidDeadline)?;
             return Err(OwnerError::ManagerOom(OwnedOomFacts {
@@ -358,6 +414,56 @@ mod tests {
     use crate::config::{AllowedCaller, default_config};
 
     static NEXT_MARKER: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn retained_failed_unit_prevents_a_new_launcher_and_cleanup_guard() {
+        let marker = std::env::temp_dir().join(format!(
+            "sley-occupied-unit-{}-{}",
+            std::process::id(),
+            NEXT_MARKER.fetch_add(1, Ordering::Relaxed),
+        ));
+        let unit = TransientUnit {
+            unit_name: format!("{UNIT_PREFIX}{}", "b".repeat(64)),
+            argv: vec![
+                "/usr/bin/touch".to_owned(),
+                marker.to_str().unwrap().to_owned(),
+            ],
+            requested_memory: 4096,
+            installed_memory: 4096,
+            runtime_max_usec: 3_000_000,
+        };
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let result = UnitGuard::spawn_for_available_unit(
+            &unit,
+            &peer,
+            Instant::now() + Duration::from_secs(1),
+            |name| {
+                assert_eq!(name, unit.unit_name);
+                Err(ManagerError::UnitOccupied)
+            },
+        );
+        assert!(matches!(result, Err(OwnerError::UnitOccupied)));
+        assert!(!marker.exists());
+    }
+
+    #[test]
+    fn launcher_without_a_fresh_manager_invocation_never_produces_oom_facts() {
+        let (peer, _client) = UnixStream::pair().unwrap();
+        assert_eq!(
+            observe_current_invocation(&peer, Instant::now() + Duration::from_secs(1), || {
+                Err(ManagerError::PropertyMismatch)
+            }),
+            Err(OwnerError::Phase(PhaseError::Manager(
+                ManagerError::PropertyMismatch
+            )))
+        );
+        assert_eq!(
+            observe_current_invocation(&peer, Instant::now() + Duration::from_millis(10), || {
+                Err(ManagerError::Unavailable)
+            }),
+            Err(OwnerError::Deadline)
+        );
+    }
 
     #[test]
     fn disconnected_peer_never_starts_launcher() {

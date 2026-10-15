@@ -14,6 +14,7 @@ use std::io::{self, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use sley_scb1::ScbErrorCode;
 use sley_tests::ROLE_MEASUREMENT;
 
 use crate::attest::{
@@ -40,6 +41,10 @@ pub const RUN_REFUSAL_STAGE_FAILED: u32 = 4;
 /// Stable signed refusal for a wall budget below this systemd profile's
 /// currently supported minimum.
 pub const RUN_REFUSAL_WALL_UNSUPPORTED: u32 = 5;
+/// Unsigned prelaunch refusal when caller limits cannot form a host profile.
+pub const RUN_REFUSAL_RESOURCE_UNSUPPORTED: u32 = 6;
+/// Unsigned prelaunch refusal when this attempt's unit identity is occupied.
+pub const RUN_REFUSAL_UNIT_OCCUPIED: u32 = 7;
 /// This initial systemd profile has only been observed to complete native
 /// tests at a one-second wall budget; shorter requests refuse before launch.
 pub const MIN_SUPPORTED_WALL_MILLIS: u64 = 1_000;
@@ -97,6 +102,16 @@ impl core::fmt::Display for ServiceError {
 
 impl std::error::Error for ServiceError {}
 
+fn unsigned_refusal(code: u32) -> RunResponse {
+    RunResponse {
+        status: RunStatus::Refused,
+        code,
+        evidence: None,
+        no_result: None,
+        manager_oom: None,
+    }
+}
+
 fn write_response(stream: &mut UnixStream, response: &RunResponse) -> Result<(), ServiceError> {
     let frame = response
         .encode_frame()
@@ -130,6 +145,7 @@ fn response_for_owned_result(
     authority: &ProvisionedMeasurementAuthority,
 ) -> Result<RunResponse, ServiceError> {
     match result {
+        Err(OwnerError::UnitOccupied) => Ok(unsigned_refusal(RUN_REFUSAL_UNIT_OCCUPIED)),
         Ok(result) => sign_complete_attempt(
             config,
             authenticated,
@@ -221,9 +237,24 @@ pub fn handle_root_connection(
             },
         );
     }
-    let expected =
-        expected_supervisor_config(config, authenticated.request(), authenticated.caller_uid())
-            .map_err(|error| ServiceError::Attestation(AttestationError::Binding(error.code())))?;
+    let expected = match expected_supervisor_config(
+        config,
+        authenticated.request(),
+        authenticated.caller_uid(),
+    ) {
+        Ok(expected) => expected,
+        Err(error) if error.code() == ScbErrorCode::ResourceLimit => {
+            // The caller cannot form a supported host profile. This is not
+            // an internal signing failure and must not stop the shared daemon.
+            // No profile exists to authorize a signed diagnostic.
+            return write_response(stream, &unsigned_refusal(RUN_REFUSAL_RESOURCE_UNSUPPORTED));
+        }
+        Err(error) => {
+            return Err(ServiceError::Attestation(AttestationError::Binding(
+                error.code(),
+            )));
+        }
+    };
     let now_millis = u64::try_from(
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -601,6 +632,72 @@ mod tests {
             }
         );
         std::fs::remove_file(path).expect("remove socket");
+    }
+
+    #[test]
+    fn unsupported_memory_refuses_only_the_request_and_the_service_keeps_accepting() {
+        let (listener, path) = test_listener();
+        let uid = std::fs::symlink_metadata(&path).unwrap().uid();
+        let mut config = config(uid);
+        let mut requests = [0, 1, config.page_size - 1]
+            .map(crate::program::tests::request_with_memory)
+            .to_vec();
+        let valid = crate::program::tests::request_with_memory(config.page_size);
+        // Bind the real kernel peer to the canonical rebuilt source scope.
+        config.allowed_callers[0].workspace = valid.workspace;
+        config.allowed_callers[0].principal = valid.principal;
+        config.runtime_dir = path
+            .with_extension("absent-runtime")
+            .to_string_lossy()
+            .into_owned();
+        let authority = granted_authority(config, &valid, uid);
+        requests.push(valid.clone());
+        for (index, request) in requests.into_iter().enumerate() {
+            assert!(request.verified_program().is_ok());
+            let client = std::thread::spawn({
+                let path = path.clone();
+                move || {
+                    let mut stream = UnixStream::connect(path).unwrap();
+                    stream.write_all(&request.encode_frame().unwrap()).unwrap();
+                    let mut bytes = Vec::new();
+                    stream.read_to_end(&mut bytes).unwrap();
+                    RunResponse::decode_frame(&bytes).unwrap()
+                }
+            });
+            assert_eq!(
+                serve_one_root(&listener, &authority, Duration::from_secs(1)),
+                Ok(())
+            );
+            let response = client.join().unwrap();
+            if index < 3 {
+                assert_eq!(response, unsigned_refusal(RUN_REFUSAL_RESOURCE_UNSUPPORTED));
+            } else {
+                assert_eq!(response.code, RUN_REFUSAL_STAGE_FAILED);
+                assert!(valid.verified_no_result_evidence(&response, uid).is_ok());
+            }
+        }
+        assert!(!std::path::Path::new(&authority.config().runtime_dir).exists());
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn occupied_unit_is_an_unsigned_request_refusal() {
+        let authority = test_authority(nix::unistd::getuid().as_raw());
+        let request = request();
+        let (mut server, mut client) = UnixStream::pair().unwrap();
+        client.write_all(&request.encode_frame().unwrap()).unwrap();
+        let authenticated =
+            authenticate_request(&mut server, authority.config(), Duration::from_secs(1)).unwrap();
+        assert_eq!(
+            response_for_owned_result(
+                Err(OwnerError::UnitOccupied),
+                authority.config(),
+                &authenticated,
+                &authority
+            )
+            .unwrap(),
+            unsigned_refusal(RUN_REFUSAL_UNIT_OCCUPIED)
+        );
     }
 
     #[test]

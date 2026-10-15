@@ -277,7 +277,7 @@ impl PortableTestProgram {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{
         execution::{evaluate_portable_test, execute_portable_test, report_portable_test},
@@ -427,6 +427,25 @@ mod tests {
         Vec<EntityObject>,
         EntityId,
     ) {
+        fixture_with_resource_limits(
+            observations,
+            expected_value,
+            implementation_limits,
+            limits(),
+        )
+    }
+
+    fn fixture_with_resource_limits(
+        observations: Vec<ExpectedObservation>,
+        expected_value: bool,
+        implementation_limits: NativeImplementationLimits,
+        resource_limits: ResourceLimits,
+    ) -> (
+        NativeTestPlanV1,
+        AcceptedStateRoot,
+        Vec<EntityObject>,
+        EntityId,
+    ) {
         let registry = conformance_registry().expect("root registry");
         let epoch = sley_state_root::conformance_epoch_id().expect("epoch");
         let workspace = WorkspaceId::from_bytes([1; 32]);
@@ -482,7 +501,7 @@ mod tests {
                     effect_environment: EffectEnvironment::Replay(Vec::new()),
                     expected: ExpectedOutcome::Value(bool_value(expected_value)),
                     observations,
-                    resource_limits: limits(),
+                    resource_limits,
                 }),
             ),
         ];
@@ -504,12 +523,12 @@ mod tests {
                 target_function: function,
                 target_object: objects[0].object_id(),
                 declared_limits: NativeDeclaredLimits {
-                    fuel: 100,
-                    memory_bytes: 4_096,
-                    output_bytes: 64,
-                    effect_count: 0,
-                    call_depth: 8,
-                    wall_timeout_millis: 1_000,
+                    fuel: resource_limits.fuel,
+                    memory_bytes: resource_limits.memory_bytes,
+                    output_bytes: resource_limits.output_bytes,
+                    effect_count: resource_limits.effect_count,
+                    call_depth: resource_limits.call_depth,
+                    wall_timeout_millis: resource_limits.wall_timeout_millis,
                 },
             }],
             changed: Vec::new(),
@@ -519,6 +538,27 @@ mod tests {
         })
         .expect("plan");
         (plan, root, objects, test)
+    }
+
+    pub(crate) fn request_with_memory(memory_bytes: u64) -> RunRequest {
+        request_with_memory_and_expectation(memory_bytes, true)
+    }
+
+    pub(crate) fn request_with_memory_and_expectation(
+        memory_bytes: u64,
+        expected: bool,
+    ) -> RunRequest {
+        let mut declared = limits();
+        declared.memory_bytes = memory_bytes;
+        let (plan, root, objects, test) = fixture_with_resource_limits(
+            Vec::new(),
+            expected,
+            NativeImplementationLimits::HARD_MAXIMA,
+            declared,
+        );
+        let program =
+            PortableTestProgram::build(&plan, &root, &objects, test).expect("canonical program");
+        RunRequest::from_portable_program(&program, 1_000, [17; 32]).expect("canonical request")
     }
 
     fn fixture() -> (

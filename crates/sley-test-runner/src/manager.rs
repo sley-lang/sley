@@ -32,6 +32,8 @@ pub enum ManagerError {
     NotReady,
     /// A required typed property was missing, malformed, or different.
     PropertyMismatch,
+    /// Any loaded unit, including an already reaped failure, owns this name.
+    UnitOccupied,
 }
 
 impl core::fmt::Display for ManagerError {
@@ -40,12 +42,162 @@ impl core::fmt::Display for ManagerError {
             Self::Unavailable => "NATIVE_MANAGER_UNAVAILABLE",
             Self::NotReady => "NATIVE_MANAGER_NOT_READY",
             Self::PropertyMismatch => "NATIVE_MANAGER_PROPERTY_MISMATCH",
+            Self::UnitOccupied => "NATIVE_MANAGER_UNIT_OCCUPIED",
         })
     }
 }
 
 impl std::error::Error for ManagerError {}
 
+/// A manager invocation observed to start after the current launch boundary.
+/// Fields stay private so production callers cannot manufacture this proof.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorkerInvocation {
+    id: [u8; 16],
+    main_pid: u32,
+    started_usec: u64,
+}
+
+/// Reads the same boot-relative microsecond clock as manager start timestamps.
+///
+/// # Errors
+/// Refuses an unavailable, negative, or overflowing clock value.
+pub(crate) fn monotonic_usec() -> Result<u64, ManagerError> {
+    let now = nix::time::clock_gettime(nix::time::ClockId::CLOCK_MONOTONIC)
+        .map_err(|_| ManagerError::Unavailable)?;
+    let seconds = u64::try_from(now.tv_sec()).map_err(|_| ManagerError::Unavailable)?;
+    let nanos = u64::try_from(now.tv_nsec()).map_err(|_| ManagerError::Unavailable)?;
+    seconds
+        .checked_mul(1_000_000)
+        .and_then(|value| value.checked_add(nanos / 1_000))
+        .ok_or(ManagerError::Unavailable)
+}
+
+fn require_absent_unit_listing(value: &Value, unit_name: &str) -> Result<(), ManagerError> {
+    if !valid_native_unit_name(unit_name) {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    let names = native_unit_names(value)?;
+    match names.as_slice() {
+        [] => Ok(()),
+        [name] if name == unit_name => Err(ManagerError::UnitOccupied),
+        _ => Err(ManagerError::PropertyMismatch),
+    }
+}
+
+/// Refuses every loaded unit with the requested name before a launcher starts.
+/// Absence alone is not launch proof; a fresh invocation must also be observed.
+///
+/// # Errors
+/// Refuses occupied names, malformed replies and unavailable manager state.
+pub fn require_system_unit_absent(unit_name: &str) -> Result<(), ManagerError> {
+    if !valid_native_unit_name(unit_name) {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    let service_name = format!("{unit_name}.service");
+    let listing = busctl(&[
+        "call",
+        SYSTEMD_BUS,
+        SYSTEMD_MANAGER,
+        "org.freedesktop.systemd1.Manager",
+        "ListUnitsByPatterns",
+        "asas",
+        "0",
+        "1",
+        &service_name,
+    ])?;
+    require_absent_unit_listing(&listing, unit_name)
+}
+
+type ManagerProperties = BTreeMap<String, Value>;
+
+fn read_unit_snapshot(
+    unit_name: &str,
+) -> Result<(ManagerProperties, ManagerProperties), ManagerError> {
+    let service_name = format!("{unit_name}.service");
+    let object = busctl(&[
+        "call",
+        SYSTEMD_BUS,
+        SYSTEMD_MANAGER,
+        "org.freedesktop.systemd1.Manager",
+        "GetUnit",
+        "s",
+        &service_name,
+    ])?;
+    let path = object_path(&object)?;
+    Ok((
+        get_all(path, "org.freedesktop.systemd1.Unit")?,
+        get_all(path, "org.freedesktop.systemd1.Service")?,
+    ))
+}
+
+fn invocation_snapshot(
+    unit: &BTreeMap<String, Value>,
+    service: &BTreeMap<String, Value>,
+) -> Result<WorkerInvocation, ManagerError> {
+    let bytes = property(unit, "InvocationID", "ay")?
+        .as_array()
+        .ok_or(ManagerError::PropertyMismatch)?;
+    let mut id = [0; 16];
+    if bytes.len() != id.len() {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    for (byte, value) in id.iter_mut().zip(bytes) {
+        *byte = value
+            .as_u64()
+            .and_then(|value| u8::try_from(value).ok())
+            .ok_or(ManagerError::PropertyMismatch)?;
+    }
+    let main_pid = property(service, "ExecMainPID", "u")?
+        .as_u64()
+        .and_then(|value| u32::try_from(value).ok())
+        .ok_or(ManagerError::PropertyMismatch)?;
+    let started_usec = property(service, "ExecMainStartTimestampMonotonic", "t")?
+        .as_u64()
+        .ok_or(ManagerError::PropertyMismatch)?;
+    if id == [0; 16] || main_pid == 0 || started_usec == 0 {
+        return Err(ManagerError::NotReady);
+    }
+    Ok(WorkerInvocation {
+        id,
+        main_pid,
+        started_usec,
+    })
+}
+
+fn fresh_invocation_snapshot(
+    unit: &BTreeMap<String, Value>,
+    service: &BTreeMap<String, Value>,
+    launched_after_usec: u64,
+    observed_usec: u64,
+) -> Result<WorkerInvocation, ManagerError> {
+    let invocation = invocation_snapshot(unit, service)?;
+    if invocation.started_usec <= launched_after_usec || invocation.started_usec > observed_usec {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    Ok(invocation)
+}
+
+/// Observes an exact installed invocation created after this launch began.
+/// A fast OOM can supply these facts even before the normal live phase sees it.
+///
+/// # Errors
+/// Refuses old, missing, malformed or inconsistent manager invocation facts.
+pub fn verify_launched_invocation(
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    launched_after_usec: u64,
+) -> Result<WorkerInvocation, ManagerError> {
+    let (unit_properties, service) = read_unit_snapshot(&unit.unit_name)?;
+    verify_installed_settings(&unit_properties, &service, unit, config, worker_input_path)?;
+    fresh_invocation_snapshot(
+        &unit_properties,
+        &service,
+        launched_after_usec,
+        monotonic_usec()?,
+    )
+}
 /// Manager facts needed to pin live cgroup telemetry to the worker process.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InstalledWorker {
@@ -116,7 +268,7 @@ pub fn verify_reaped_oom_unit(
     unit: &TransientUnit,
     config: &RunnerConfig,
     worker_input_path: &str,
-    expected_main_pid: Option<u32>,
+    expected_invocation: WorkerInvocation,
 ) -> Result<ReapedOomWorker, ManagerError> {
     let service_name = format!("{}.service", unit.unit_name);
     let object = busctl(&[
@@ -137,7 +289,7 @@ pub fn verify_reaped_oom_unit(
         unit,
         config,
         worker_input_path,
-        expected_main_pid,
+        expected_invocation,
     )?;
     if !confirm_system_unit_reaped(&unit.unit_name)? {
         return Err(ManagerError::PropertyMismatch);
@@ -505,11 +657,14 @@ fn verify_reaped_oom_snapshot(
     unit: &TransientUnit,
     config: &RunnerConfig,
     worker_input_path: &str,
-    expected_main_pid: Option<u32>,
+    expected_invocation: WorkerInvocation,
 ) -> Result<ReapedOomWorker, ManagerError> {
     use serde_json::json;
 
     verify_installed_settings(unit_properties, service, unit, config, worker_input_path)?;
+    if invocation_snapshot(unit_properties, service)? != expected_invocation {
+        return Err(ManagerError::PropertyMismatch);
+    }
     check(unit_properties, "ActiveState", "s", &json!("failed"))?;
     check(service, "Result", "s", &json!("oom-kill"))?;
     check(service, "MainPID", "u", &json!(0))?;
@@ -521,7 +676,7 @@ fn verify_reaped_oom_snapshot(
         .and_then(|value| u32::try_from(value).ok())
         .filter(|value| *value != 0)
         .ok_or(ManagerError::PropertyMismatch)?;
-    if expected_main_pid.is_some_and(|expected| expected != exec_main_pid) {
+    if expected_invocation.main_pid != exec_main_pid {
         return Err(ManagerError::PropertyMismatch);
     }
     let memory_peak = property(service, "MemoryPeak", "t")?
@@ -674,6 +829,17 @@ mod tests {
             Ok(vec![name.trim_end_matches(".service").to_owned()])
         );
         assert_eq!(
+            require_absent_unit_listing(&listed(&name), name.trim_end_matches(".service")),
+            Err(ManagerError::UnitOccupied)
+        );
+        assert_eq!(
+            require_absent_unit_listing(
+                &json!({"type":"a(ssssssouso)","data":[[]]}),
+                name.trim_end_matches(".service")
+            ),
+            Ok(())
+        );
+        assert_eq!(
             native_unit_names(&listed("sley-native-test-short.service")),
             Err(ManagerError::PropertyMismatch)
         );
@@ -750,10 +916,13 @@ mod tests {
         );
     }
 
-    #[test]
-    fn reaped_oom_requires_exact_manager_result_and_original_unit_settings() {
+    fn oom_fixture() -> (
+        BTreeMap<String, Value>,
+        BTreeMap<String, Value>,
+        TransientUnit,
+        RunnerConfig,
+    ) {
         let (mut unit_map, mut service, unit, config) = fixture();
-        let input = "/run/sley-test-supervisor/input/abc.bin";
         insert(&mut unit_map, "ActiveState", "s", json!("failed"));
         insert(&mut service, "Result", "s", json!("oom-kill"));
         insert(&mut service, "MainPID", "u", json!(0));
@@ -762,50 +931,168 @@ mod tests {
         insert(&mut service, "ExecMainCode", "i", json!(2));
         insert(&mut service, "ExecMainStatus", "i", json!(9));
         insert(&mut service, "MemoryPeak", "t", json!(8192));
+        insert(&mut unit_map, "InvocationID", "ay", json!(vec![1; 16]));
+        insert(
+            &mut service,
+            "ExecMainStartTimestampMonotonic",
+            "t",
+            json!(101),
+        );
+        (unit_map, service, unit, config)
+    }
+
+    #[test]
+    fn reaped_oom_requires_exact_manager_result_and_original_unit_settings() {
+        let (mut unit_map, mut service, unit, config) = oom_fixture();
+        let input = "/run/sley-test-supervisor/input/abc.bin";
+        let invocation = fresh_invocation_snapshot(&unit_map, &service, 100, 200).unwrap();
         let check = |unit_map: &BTreeMap<String, Value>,
                      service: &BTreeMap<String, Value>,
-                     expected_pid| {
-            verify_reaped_oom_snapshot(unit_map, service, &unit, &config, input, expected_pid)
+                     expected_invocation| {
+            verify_reaped_oom_snapshot(
+                unit_map,
+                service,
+                &unit,
+                &config,
+                input,
+                expected_invocation,
+            )
         };
         assert_eq!(
-            check(&unit_map, &service, Some(123)),
+            check(&unit_map, &service, invocation),
             Ok(ReapedOomWorker {
                 exec_main_pid: 123,
                 memory_peak: 8192,
             })
         );
-        assert_eq!(check(&unit_map, &service, None).unwrap().exec_main_pid, 123);
         assert_eq!(
-            check(&unit_map, &service, Some(124)),
+            check(
+                &unit_map,
+                &service,
+                WorkerInvocation {
+                    main_pid: 124,
+                    ..invocation
+                }
+            ),
+            Err(ManagerError::PropertyMismatch)
+        );
+        assert_eq!(
+            check(
+                &unit_map,
+                &service,
+                WorkerInvocation {
+                    id: [2; 16],
+                    ..invocation
+                }
+            ),
+            Err(ManagerError::PropertyMismatch)
+        );
+        assert_eq!(
+            check(
+                &unit_map,
+                &service,
+                WorkerInvocation {
+                    started_usec: 102,
+                    ..invocation
+                }
+            ),
             Err(ManagerError::PropertyMismatch)
         );
         insert(&mut service, "Result", "s", json!("signal"));
         assert_eq!(
-            check(&unit_map, &service, None),
+            check(&unit_map, &service, invocation),
             Err(ManagerError::PropertyMismatch)
         );
         insert(&mut service, "Result", "s", json!("oom-kill"));
         insert(&mut service, "ExecMainStatus", "i", json!(15));
         assert_eq!(
-            check(&unit_map, &service, None),
+            check(&unit_map, &service, invocation),
             Err(ManagerError::PropertyMismatch)
         );
         insert(&mut service, "ExecMainStatus", "i", json!(9));
         insert(&mut service, "MemoryPeak", "t", json!(8193));
         assert_eq!(
-            check(&unit_map, &service, None),
+            check(&unit_map, &service, invocation),
             Err(ManagerError::PropertyMismatch)
         );
         insert(&mut service, "MemoryPeak", "t", json!(8192));
         insert(&mut service, "MemoryMax", "t", json!(8193));
         assert_eq!(
-            check(&unit_map, &service, None),
+            check(&unit_map, &service, invocation),
             Err(ManagerError::PropertyMismatch)
         );
         insert(&mut service, "MemoryMax", "t", json!(8192));
         insert(&mut unit_map, "Transient", "b", json!(false));
         assert_eq!(
-            check(&unit_map, &service, None),
+            check(&unit_map, &service, invocation),
+            Err(ManagerError::PropertyMismatch)
+        );
+    }
+
+    #[test]
+    fn reused_nonce_with_changed_request_cannot_reuse_an_old_manager_invocation() {
+        use sha2::{Digest, Sha256};
+        let old = crate::program::tests::request_with_memory_and_expectation(8192, true);
+        let changed = crate::program::tests::request_with_memory_and_expectation(8192, false);
+        assert!(old.verified_program().is_ok() && changed.verified_program().is_ok());
+        assert_eq!(old.nonce, changed.nonce);
+        assert_eq!(old.declared_limits, changed.declared_limits);
+        assert_ne!(
+            Sha256::digest(old.encode_frame().unwrap()),
+            Sha256::digest(changed.encode_frame().unwrap())
+        );
+
+        let (mut unit_map, mut service, unit, config) = oom_fixture();
+        insert(&mut unit_map, "InvocationID", "ay", json!(vec![3; 16]));
+        insert(&mut service, "ExecMainPID", "u", json!(123));
+        insert(
+            &mut service,
+            "ExecMainStartTimestampMonotonic",
+            "t",
+            json!(100),
+        );
+        // The previous failed invocation predates this request, even if a
+        // launcher exists or a race exposes old properties after preflight.
+        assert_eq!(
+            fresh_invocation_snapshot(&unit_map, &service, 200, 300),
+            Err(ManagerError::PropertyMismatch)
+        );
+        assert_eq!(
+            fresh_invocation_snapshot(&unit_map, &service, 100, 300),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(
+            &mut service,
+            "ExecMainStartTimestampMonotonic",
+            "t",
+            json!(201),
+        );
+        let fresh = fresh_invocation_snapshot(&unit_map, &service, 200, 300).unwrap();
+        let input = "/run/sley-test-supervisor/input/abc.bin";
+        assert_eq!(
+            verify_reaped_oom_snapshot(&old_unit, &old_service, &unit, &config, input, fresh),
+            Err(ManagerError::PropertyMismatch)
+        );
+        assert_eq!(
+            verify_reaped_oom_snapshot(&unit_map, &service, &unit, &config, input, fresh)
+                .unwrap()
+                .exec_main_pid,
+            123
+        );
+        assert_eq!(fresh.main_pid, 123);
+        assert_eq!(fresh.id, [3; 16]);
+        assert_eq!(
+            fresh_invocation_snapshot(&unit_map, &service, 100, 200),
+            Err(ManagerError::PropertyMismatch)
+        );
+        insert(&mut unit_map, "InvocationID", "ay", json!(vec![0; 16]));
+        assert_eq!(
+            fresh_invocation_snapshot(&unit_map, &service, 200, 300),
+            Err(ManagerError::NotReady)
+        );
+        insert(&mut unit_map, "InvocationID", "ay", json!(vec![3; 15]));
+        assert_eq!(
+            fresh_invocation_snapshot(&unit_map, &service, 200, 300),
             Err(ManagerError::PropertyMismatch)
         );
     }

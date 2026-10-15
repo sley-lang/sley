@@ -20,7 +20,7 @@ use sley_tests::supervisor::SUPERVISOR_CLEANUP_MILLIS;
 use sley_tests::{Caller, Property, SupervisorConfigParts, SupervisorConfigV1};
 
 use crate::config::{RunnerConfig, UNIT_PREFIX, valid_admin_path};
-use crate::enforce::{EnforceError, floor_page_cap, runtime_max_usec};
+use crate::enforce::{EnforceError, deadline_ns, floor_page_cap, runtime_max_usec};
 use crate::protocol::RunRequest;
 use crate::worker::WORKER_INPUT_CREDENTIAL;
 
@@ -121,6 +121,7 @@ pub fn configured_supervisor_profile(
         .map_err(|_| ScbError::new(ScbErrorCode::ContractUnknown))?;
     let (_, installed_memory) = floor_page_cap(requested_memory_bytes, config.page_size)
         .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
+    deadline_ns(wall_ms).map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
     let manager_runtime =
         runtime_max_usec(wall_ms).map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
     let mut properties = REQUIRED_PROPERTIES
@@ -205,6 +206,7 @@ pub fn render_transient_unit(
         return Err(EnforceError::InvalidBudget);
     }
     let (requested_memory, installed_memory) = floor_page_cap(requested_memory, config.page_size)?;
+    deadline_ns(wall_ms)?;
     let runtime_max = runtime_max_usec(wall_ms)?;
     let unit_name = format!("{UNIT_PREFIX}{unit_nonce_hex}");
     let mut argv = vec![
@@ -339,6 +341,22 @@ mod tests {
             configured_supervisor_profile(&config, request.declared_limits.memory_bytes, 0)
                 .expect_err("zero wall budget cannot be granted")
                 .code(),
+            ScbErrorCode::ResourceLimit
+        );
+        assert_eq!(
+            configured_supervisor_profile(&config, request.declared_limits.memory_bytes, u64::MAX)
+                .expect_err("overflowing wall budget cannot be granted")
+                .code(),
+            ScbErrorCode::ResourceLimit
+        );
+        assert_eq!(
+            configured_supervisor_profile(
+                &config,
+                request.declared_limits.memory_bytes,
+                u64::MAX / 1_000_000 + 1
+            )
+            .expect_err("overflowing daemon nanosecond deadline cannot be granted")
+            .code(),
             ScbErrorCode::ResourceLimit
         );
         let unit = render_transient_unit(

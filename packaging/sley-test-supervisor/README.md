@@ -43,6 +43,16 @@ installation requires exact reviewed artifacts and fresh host qualification.
 The authenticated refusal-only handler remains available for negative protocol
 tests; the production daemon uses the root handler.
 
+Unsupported caller resource budgets receive an unsigned prelaunch refusal;
+they do not stop the shared service or produce measurement evidence. A loaded
+unit with a reused attempt name also refuses before launch. After launch, the
+daemon must observe a nonzero manager invocation ID and worker PID whose
+monotonic start time follows this launch boundary. Terminal OOM facts must
+match that exact invocation, PID and start time. A launcher process alone,
+an old failed unit, or unavailable freshness evidence cannot authorize a
+signed OOM diagnostic. These source checks require fresh exact-build host
+qualification, including fast OOM and failed-launch cases.
+
 The development `sley serve --protocol-profile v3-capable` command now accepts
 an explicit `--native-authority-config` file for the receiver's separate
 acceptance key and trust manifests. Its file shape and permission checks are
