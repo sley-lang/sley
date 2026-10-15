@@ -5,6 +5,11 @@ inspect a change, identify its exact state, diagnose a failing case, contribute 
 correction and handle a changed base. A Git pull request carries the review
 packet. Merging that Git PR does not itself accept a Sley transaction.
 
+This retained example is pinned to 2.0.6. The current release is
+[2.1.1](release/SLEY-2.1.1.md); start with the [Quickstart](QUICKSTART.md)
+for current onboarding. The packet, executable identity and observations below
+remain evidence for 2.0.6.
+
 The example uses the published **2.0.6 Linux x86_64** `sley-agent` and Python
 3.9 or newer. It creates a program from a new genesis and authoring input,
 then exports that newly built base for separate reviewer and maintainer
