@@ -1,0 +1,446 @@
+{
+  "sizes": {
+    "1": {
+      "samples": 5,
+      "accepted_objects": [
+        3
+      ],
+      "candidate_bytes": [
+        952
+      ],
+      "candidate_operations": [
+        3
+      ],
+      "phase_ns": {
+        "accepted_head_load": {
+          "median": 622010,
+          "min": 464542,
+          "max": 701741
+        },
+        "accepted_program_index": {
+          "median": 9357,
+          "min": 4248,
+          "max": 20499
+        },
+        "candidate_and_authority_load": {
+          "median": 27582,
+          "min": 22652,
+          "max": 51157
+        },
+        "candidate_validation": {
+          "median": 441137,
+          "min": 312633,
+          "max": 553780
+        },
+        "executor_projection_type_and_function_index": {
+          "median": 61386,
+          "min": 50015,
+          "max": 70494
+        },
+        "first_call_after_explicit_lowering": {
+          "median": 11873,
+          "min": 11241,
+          "max": 31980
+        },
+        "first_lower_and_verify": {
+          "median": 73279,
+          "min": 58791,
+          "max": 92705
+        },
+        "name_index": {
+          "median": 6983,
+          "min": 5781,
+          "max": 8096
+        },
+        "name_map_load": {
+          "median": 27983,
+          "min": 24457,
+          "max": 46228
+        },
+        "parameter_type_lookup": {
+          "median": 181,
+          "min": 130,
+          "max": 350
+        },
+        "proposed_program_index": {
+          "median": 5029,
+          "min": 3817,
+          "max": 6703
+        },
+        "typed_input_decode": {
+          "median": 1222,
+          "min": 902,
+          "max": 1983
+        }
+      },
+      "wall_ns": {
+        "empty_process_wall_ns": {
+          "median": 3001124,
+          "min": 2281538,
+          "max": 7410950
+        },
+        "probe_process_wall_ns": {
+          "median": 6334919,
+          "min": 4811228,
+          "max": 8336385
+        },
+        "cli_focused_view_wall_ns": {
+          "median": 4255143,
+          "min": 3567499,
+          "max": 4401902
+        },
+        "cli_call_wall_ns": {
+          "median": 3829956,
+          "min": 3159865,
+          "max": 4536055
+        }
+      },
+      "median_repeated_call_ns": {
+        "median": 2906.0,
+        "min": 2264.0,
+        "max": 2966.0
+      },
+      "rss_after_validation_kib": {
+        "median": 4876,
+        "min": 4848,
+        "max": 4976
+      },
+      "focused_output_bytes": [
+        316
+      ]
+    },
+    "10": {
+      "samples": 5,
+      "accepted_objects": [
+        30
+      ],
+      "candidate_bytes": [
+        952
+      ],
+      "candidate_operations": [
+        3
+      ],
+      "phase_ns": {
+        "accepted_head_load": {
+          "median": 1287262,
+          "min": 927710,
+          "max": 3007316
+        },
+        "accepted_program_index": {
+          "median": 42771,
+          "min": 30047,
+          "max": 68941
+        },
+        "candidate_and_authority_load": {
+          "median": 31159,
+          "min": 29426,
+          "max": 47029
+        },
+        "candidate_validation": {
+          "median": 659721,
+          "min": 525257,
+          "max": 717892
+        },
+        "executor_projection_type_and_function_index": {
+          "median": 84380,
+          "min": 66146,
+          "max": 95612
+        },
+        "first_call_after_explicit_lowering": {
+          "median": 13275,
+          "min": 10490,
+          "max": 14377
+        },
+        "first_lower_and_verify": {
+          "median": 66867,
+          "min": 51708,
+          "max": 75013
+        },
+        "name_index": {
+          "median": 34135,
+          "min": 26971,
+          "max": 38242
+        },
+        "name_map_load": {
+          "median": 57649,
+          "min": 43122,
+          "max": 101884
+        },
+        "parameter_type_lookup": {
+          "median": 250,
+          "min": 200,
+          "max": 301
+        },
+        "proposed_program_index": {
+          "median": 27071,
+          "min": 22362,
+          "max": 30959
+        },
+        "typed_input_decode": {
+          "median": 1353,
+          "min": 1062,
+          "max": 1783
+        }
+      },
+      "wall_ns": {
+        "empty_process_wall_ns": {
+          "median": 3028315,
+          "min": 2418318,
+          "max": 4623732
+        },
+        "probe_process_wall_ns": {
+          "median": 7157318,
+          "min": 6815260,
+          "max": 8590548
+        },
+        "cli_focused_view_wall_ns": {
+          "median": 5107961,
+          "min": 4187725,
+          "max": 7122853
+        },
+        "cli_call_wall_ns": {
+          "median": 5082332,
+          "min": 3946357,
+          "max": 7101754
+        }
+      },
+      "median_repeated_call_ns": {
+        "median": 2745.0,
+        "min": 2265.0,
+        "max": 2955.0
+      },
+      "rss_after_validation_kib": {
+        "median": 5316,
+        "min": 5184,
+        "max": 5332
+      },
+      "focused_output_bytes": [
+        316
+      ]
+    },
+    "100": {
+      "samples": 5,
+      "accepted_objects": [
+        300
+      ],
+      "candidate_bytes": [
+        952
+      ],
+      "candidate_operations": [
+        3
+      ],
+      "phase_ns": {
+        "accepted_head_load": {
+          "median": 9956800,
+          "min": 6231964,
+          "max": 12135995
+        },
+        "accepted_program_index": {
+          "median": 347599,
+          "min": 280062,
+          "max": 440756
+        },
+        "candidate_and_authority_load": {
+          "median": 33333,
+          "min": 25348,
+          "max": 79070
+        },
+        "candidate_validation": {
+          "median": 4211350,
+          "min": 2972569,
+          "max": 5996256
+        },
+        "executor_projection_type_and_function_index": {
+          "median": 348922,
+          "min": 283748,
+          "max": 545786
+        },
+        "first_call_after_explicit_lowering": {
+          "median": 13676,
+          "min": 11552,
+          "max": 14067
+        },
+        "first_lower_and_verify": {
+          "median": 65635,
+          "min": 55656,
+          "max": 125599
+        },
+        "name_index": {
+          "median": 334514,
+          "min": 310960,
+          "max": 440135
+        },
+        "name_map_load": {
+          "median": 501261,
+          "min": 329355,
+          "max": 7482055
+        },
+        "parameter_type_lookup": {
+          "median": 451,
+          "min": 341,
+          "max": 521
+        },
+        "proposed_program_index": {
+          "median": 257057,
+          "min": 204258,
+          "max": 489699
+        },
+        "typed_input_decode": {
+          "median": 1222,
+          "min": 1092,
+          "max": 1523
+        }
+      },
+      "wall_ns": {
+        "empty_process_wall_ns": {
+          "median": 2867099,
+          "min": 2011797,
+          "max": 5371140
+        },
+        "probe_process_wall_ns": {
+          "median": 33642658,
+          "min": 23320604,
+          "max": 34417677
+        },
+        "cli_focused_view_wall_ns": {
+          "median": 13106395,
+          "min": 10946408,
+          "max": 16968923
+        },
+        "cli_call_wall_ns": {
+          "median": 14115059,
+          "min": 11710037,
+          "max": 16176670
+        }
+      },
+      "median_repeated_call_ns": {
+        "median": 2820.0,
+        "min": 2244.0,
+        "max": 3096.0
+      },
+      "rss_after_validation_kib": {
+        "median": 8936,
+        "min": 8872,
+        "max": 9000
+      },
+      "focused_output_bytes": [
+        316
+      ]
+    },
+    "1000": {
+      "samples": 5,
+      "accepted_objects": [
+        3000
+      ],
+      "candidate_bytes": [
+        952
+      ],
+      "candidate_operations": [
+        3
+      ],
+      "phase_ns": {
+        "accepted_head_load": {
+          "median": 88556049,
+          "min": 82456376,
+          "max": 117268081
+        },
+        "accepted_program_index": {
+          "median": 3025981,
+          "min": 2104913,
+          "max": 3843742
+        },
+        "candidate_and_authority_load": {
+          "median": 36289,
+          "min": 34957,
+          "max": 92235
+        },
+        "candidate_validation": {
+          "median": 73341223,
+          "min": 44929430,
+          "max": 74219279
+        },
+        "executor_projection_type_and_function_index": {
+          "median": 4602121,
+          "min": 3285744,
+          "max": 7566235
+        },
+        "first_call_after_explicit_lowering": {
+          "median": 15089,
+          "min": 14127,
+          "max": 41218
+        },
+        "first_lower_and_verify": {
+          "median": 117764,
+          "min": 83809,
+          "max": 136580
+        },
+        "name_index": {
+          "median": 5539971,
+          "min": 3878528,
+          "max": 13000585
+        },
+        "name_map_load": {
+          "median": 5005957,
+          "min": 3866215,
+          "max": 9815973
+        },
+        "parameter_type_lookup": {
+          "median": 2515,
+          "min": 2285,
+          "max": 3957
+        },
+        "proposed_program_index": {
+          "median": 1201750,
+          "min": 950223,
+          "max": 1468125
+        },
+        "typed_input_decode": {
+          "median": 1523,
+          "min": 1152,
+          "max": 2013
+        }
+      },
+      "wall_ns": {
+        "empty_process_wall_ns": {
+          "median": 2829167,
+          "min": 2528417,
+          "max": 16445471
+        },
+        "probe_process_wall_ns": {
+          "median": 304654682,
+          "min": 241950519,
+          "max": 387827948
+        },
+        "cli_focused_view_wall_ns": {
+          "median": 111598465,
+          "min": 93981051,
+          "max": 175669721
+        },
+        "cli_call_wall_ns": {
+          "median": 108669589,
+          "min": 86429525,
+          "max": 160560416
+        }
+      },
+      "median_repeated_call_ns": {
+        "median": 2850.0,
+        "min": 2645.0,
+        "max": 3046.0
+      },
+      "rss_after_validation_kib": {
+        "median": 41012,
+        "min": 40988,
+        "max": 41100
+      },
+      "focused_output_bytes": [
+        316
+      ]
+    }
+  },
+  "load_average_after": [
+    4.212890625,
+    5.1748046875,
+    6.20458984375
+  ],
+  "conclusion_boundary": "20 fresh processes on one shared host; warm OS cache; deterministic simple unrelated functions; raw ranges retained"
+}
