@@ -66,6 +66,8 @@ none alone establishes correctness against user requirements. The
 > toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
 > and Python 3 for the demo.
 
+Install first, then [write and test your first program](#write-and-test-your-first-program).
+
 **1. Get the `sley` binary.** Download `sley-2.1.1-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
@@ -75,7 +77,50 @@ cd sley
 cargo build --release -p sley-cli -p sley-agent   # → target/release/sley, sley-agent
 ```
 
-**2. Say hello.** Every `sley` command prints machine-readable JSON:
+### Write and test your first program
+
+**2. Start with `sley-agent`.** This is the recommended first authoring path.
+It compiles the shipped guide's `area` example into a candidate, validates it,
+and runs three advisory tests. Run these commands in a new directory after
+putting the absolute path of your chosen binary directory on `PATH`: `bin/`
+from the extracted release archive, or `target/release/` from your source
+checkout.
+
+```console
+$ sley-agent init demo && cd demo
+$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../area.json
+$ sley-agent try ../area.json
+c1: Valid (+25 created, 0 replaced, 0 deleted) draft d1@r1
+changed: fn +area; type +ShapeError; const +k_1; test +area_cases_0 +area_cases_1 +area_cases_2
+tests: 3/3 passed [authored 3]
+next: sley-agent submit d1
+$ sley-agent call area 3 4 --on c1
+{"Ok":12}
+$ sley-agent submit d1
+```
+
+Use the candidate and draft handles printed by your own `try` command if
+they differ. `sley-agent submit d1` writes `final_candidate.hex`; it does
+not change the accepted workspace head.
+
+**Released 2.1.1 boundary:** these are advisory test matches. Committing
+this candidate, which changes both code and its targeting tests, refuses
+with `TXN_TEST_EVIDENCE_UNSUPPORTED` until supported native admission is
+available. Validation, advisory execution, submission and authoritative
+commit are separate outcomes.
+
+`sley-agent help` is the full guide (under 8 KiB). The
+[Quickstart authoring section](docs/QUICKSTART.md#7-write-and-test-a-program-with-sley-agent)
+walks through inspection and submission. `sley-agent help python` documents
+the optional typed Python authoring dialect.
+
+### Inspect the protocol and imported fixtures
+
+The following commands explore the lower-level endpoint and a program built
+in advance. They are a separate protocol demonstration from writing the
+new candidate above. Run source-checkout commands from the checkout root.
+
+**3. Explore the protocol.** Every `sley` command prints machine-readable JSON:
 
 ```console
 $ sley version
@@ -92,7 +137,7 @@ $ sley hello --json
 CLI, not a feature the endpoint negotiates
 ([SLEY_CLI_V1](docs/spec/SLEY_CLI_V1.md#2-serve) section 2).
 
-**3. Run the end-to-end demo.** It imports a program into an empty repository,
+**4. Run the prebuilt protocol demo.** It imports a program into an empty repository,
 queries it, executes a function, stores the report, creates a branch, exports
 the repository, clones it into a second empty directory, and checks that the
 clone gives byte-identical answers:
@@ -122,24 +167,6 @@ directory. No source tree is needed.
 The demo imports and executes a program that was built in advance. As
 `explicit_gap` says, it doesn't construct, commit, test-select, or merge a
 candidate through the public builder, which is still proposal-only.
-
-**4. Write a program.** `sley-agent` is the workbench agents use: it renders
-functions as compact listings, compiles a JSON authoring frame into one
-candidate, validates it and runs its tests in one command:
-
-```console
-$ sley-agent init demo && cd demo
-$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../percent.json
-$ sley-agent try ../percent.json      # the guide's first example
-c1: Valid (+27 created, 0 replaced, 0 deleted)
-tests: 3/3 passed
-  ...
-next: sley-agent submit c1
-```
-
-`sley-agent help` is the whole guide (under 8 KiB). The
-[Quickstart](docs/QUICKSTART.md#7-write-and-test-a-program-with-sley-agent)
-walks through it.
 
 ➡️ **The [full Quickstart](docs/QUICKSTART.md)** covers verifying the
 download, driving `sley serve` by hand over JSON lines, exit codes, and the
