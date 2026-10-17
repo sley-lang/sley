@@ -21,19 +21,27 @@ into the new kernel.
 
 Run the smallest meaningful check first: the targeted `cargo test -p <crate>`
 for the crate you changed, then the `scripts/check_*.py` checkers that cover
-the files you touched. Before you open a pull request, run the contributor
-gates. They work in any clone:
+the files you touched. Before you open a pull request, run the combined gate
+from the repository root:
 
 ```sh
-cargo test --workspace --locked   # about 15 to 20 minutes cold
-make conformance                  # needs uv
-make adversarial
-make fuzz-smoke
-make lint                         # rewrites the tracked evidence/build/lint-report.json
+make contributor-check
 ```
 
-`make lint` files its result in `evidence/build/lint-report.json`. Leave that
-change out of your pull request unless the maintainers ask for it. The
+It runs formatting, strict workspace Clippy, all workspace tests,
+conformance, adversarial tests and bounded fuzz smoke sequentially and stops
+on failure. Install the pinned Rust toolchain with rustfmt and Clippy,
+Python 3.12+ and `uv`; the first run may download locked dependencies.
+Only tracked fixtures are required: no master-goal document, generated
+release evidence, credentials or native-supervisor installation. Build/cache
+files are ignored and tracked evidence is left unchanged. This gate validates
+source; it does not certify release artifacts or native host enforcement.
+
+For targeted iteration, the existing `make conformance`, `make adversarial`
+and `make fuzz-smoke` targets remain available. Maintainers use `make lint`
+to record lint evidence; it rewrites `evidence/build/lint-report.json`, unlike
+`make contributor-check`. Leave that record out of your pull request unless
+the maintainers ask for it. The
 [Quickstart](docs/QUICKSTART.md#6-run-the-test-gates) has the details.
 
 `make quick` and `make check-changed` are the maintainers' gates. They don't

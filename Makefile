@@ -141,6 +141,19 @@ quick:
 	cargo check --workspace --locked
 	cargo test --workspace --locked
 
+# Public source gate: only tracked fixtures and locked package dependencies.
+# Keep these as sequential recipes (including under make -j) so broad Cargo
+# suites do not contend with each other. Lint directly to avoid rewriting the
+# maintainer's tracked evidence/build/lint-report.json.
+.PHONY: contributor-check
+contributor-check:
+	cargo fmt --all --check
+	cargo clippy --no-deps --workspace --all-targets --locked -- -D warnings
+	cargo test --workspace --locked
+	$(MAKE) --no-print-directory conformance
+	$(MAKE) --no-print-directory adversarial
+	$(MAKE) --no-print-directory fuzz-smoke
+
 core:
 	cargo test --workspace --locked
 	python3 scripts/check_m1_gate.py core
