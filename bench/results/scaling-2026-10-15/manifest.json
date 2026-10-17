@@ -1,0 +1,57 @@
+{
+  "kind": "sley.scaling-run.v1",
+  "purpose": "Issue21 finding9 source-level phase measurements",
+  "agent_sha256": "1ec70f34bf847be32b3b6732e5541bb68fcf5caaeff025424ec4817b2de5af37",
+  "probe_sha256": "3d15fdf73e9c0c09e527bc0100e5c32ffde7291355e0d9a05ba0380a329884c1",
+  "script_sha256": "7170397a9ca419e6a577f5e1c7c9014cfcddad1dcc24736d4f66eee10ecf60c6",
+  "sizes": [
+    1,
+    10,
+    100,
+    1000
+  ],
+  "samples": 5,
+  "host": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+  "cpu_affinity": [
+    0
+  ],
+  "cache_conditions": "Fresh process each sample; OS page cache warmed by fixture construction; no cache dropping. Probe lowers once then repeats calls in-process.",
+  "started_utc": "2026-10-15T05:46:58Z",
+  "completed_utc": "2026-10-15T05:47:23Z",
+  "completed_samples": 20,
+  "status": "completed",
+  "source_base_commit": "4bc03e2c733255d0c7a744a2691d98691806abab",
+  "cli_source_modified": false,
+  "probe_source_sha256": "357d21df51d16a142eb4d75964a47e6dd890c8e7b19ce116ed8eb3afa183b700",
+  "runner_source_sha256": "7170397a9ca419e6a577f5e1c7c9014cfcddad1dcc24736d4f66eee10ecf60c6",
+  "build_profile": {
+    "profile": "release",
+    "codegen_units": 1,
+    "jobs": 1,
+    "incremental": false,
+    "target": "native GNU (not shipped musl)"
+  },
+  "toolchain": "rustc 1.93.0 (254b59607 2026-01-19)\nbinary: rustc\ncommit-hash: 254b59607d4417e9dffbc307138ae5c86280fe4c\ncommit-date: 2026-01-19\nhost: x86_64-unknown-linux-gnu\nrelease: 1.93.0\nLLVM version: 21.1.8\n",
+  "cpu_model": "AMD Ryzen 5 3600 6-Core Processor",
+  "load_average_before": [
+    5.09228515625,
+    5.3623046875,
+    6.3427734375
+  ],
+  "load_average_after": [
+    4.212890625,
+    5.1748046875,
+    6.20458984375
+  ],
+  "host_conditions": "Shared workstation; other workloads active; one CPU affinity, no exclusive core or frequency control.",
+  "phase_probe_fixture_checks_after_timing": true,
+  "source_harness_not_shipped_release": true,
+  "run_history": "One pilot and a20-sample campaign preceded Clippy style fixes. This full second campaign uses the final source and binary. Earlier runs preserved separately and not pooled; no failed runtime samples.",
+  "toolchain_record_correction": "Initial observer queried Rust outside worktree and saw default1.98.1; actual builds use project-pinned1.93.0. Metadata corrected from worktree rustc/cargo reads.",
+  "process_capture": {
+    "evidence_id": "ev_bf7d9f67928def246682bcb28f66f3871f2103a2843549476dcc4052919786dd",
+    "exit": 0,
+    "owned_group_cleanup": "verified",
+    "census_limit": "Four other process environment reads unavailable; no whole-host coverage claim."
+  }
+}
