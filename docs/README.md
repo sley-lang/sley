@@ -14,6 +14,7 @@ Everything about Sley 2, organized by what you're trying to do.
 |---|---|
 | 🚀 [Quickstart](QUICKSTART.md) | Install `sley`, run the demo, and drive a session by hand |
 | 🧠 [Concepts](CONCEPTS.md) | Understand graphs, identities, the change lifecycle, and the glossary |
+| [Guarantee matrix](GUARANTEES.md) | Distinguish static validity, admission, tested behavior, resource evidence, state identity and application correctness |
 | 🧭 [Architecture walkthrough](https://sleylang.org/tutorial) *(sleylang.org)* | Follow state → proposal → validation → transaction → new state, step by step |
 | 🏗️ [Architecture](../ARCHITECTURE.md) | Learn crate authority, the dependency law, and commit durability order |
 | 🐍 [Example client](examples/smp1_json_client.py) | Copy a working SMP1 JSON-lines client (Python, standard library only) |
