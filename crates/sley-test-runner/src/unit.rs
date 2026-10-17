@@ -13,7 +13,8 @@
 //! supplied by the caller: systemd copies the daemon-owned, root-only input
 //! into a private service credential readable by the dynamic worker UID.
 //! Output goes to a daemon-owned bounded channel, and the unit binds to the
-//! supervisor service lifetime.
+//! supervisor service lifetime. The supervisor runtime directory is hidden
+//! from the worker's mount view; the copied credential remains available.
 
 use sley_scb1::{ScbError, ScbErrorCode};
 use sley_tests::supervisor::SUPERVISOR_CLEANUP_MILLIS;
@@ -233,6 +234,12 @@ pub fn render_transient_unit(
         "--property=BindReadOnlyPaths={}",
         config.worker_path
     ));
+    // Read-only mounts and PrivateNetwork do not block pathname Unix sockets.
+    // The manager copies sley-input outside this directory before worker exec.
+    argv.push(format!(
+        "--property=InaccessiblePaths={}",
+        config.runtime_dir
+    ));
     argv.push("--property=Slice=system.slice".to_owned());
     argv.push("--property=BindsTo=sley-test-supervisor.service".to_owned());
     argv.push("--property=Restart=no".to_owned());
@@ -441,6 +448,7 @@ mod tests {
             "--property=RuntimeMaxSec=3000ms",
             "--property=LoadCredential=sley-input:/run/sley-test-supervisor/input/9f2c.bin",
             "--property=BindReadOnlyPaths=/usr/lib/sley/sley-native-test-worker",
+            "--property=InaccessiblePaths=/run/sley-test-supervisor",
             "--property=Slice=system.slice",
             "--property=BindsTo=sley-test-supervisor.service",
             "--property=Restart=no",
@@ -463,6 +471,30 @@ mod tests {
                 .argv
                 .contains(&"--property=RuntimeMaxSec=3001ms".to_owned())
         );
+    }
+
+    #[test]
+    fn worker_runtime_isolation_hides_socket_without_hiding_copied_credential() {
+        let nonce = "a".repeat(64);
+        for runtime in ["/run/sley-test-supervisor", "/run/sley-private-runtime"] {
+            let mut config = runner_config();
+            config.runtime_dir = runtime.to_owned();
+            let input = format!("{runtime}/input/request.bin");
+            let unit = render_transient_unit(&config, &nonce, &input, 8192, 1000).unwrap();
+            assert!(
+                unit.argv
+                    .contains(&format!("--property=InaccessiblePaths={runtime}"))
+            );
+            assert!(
+                unit.argv
+                    .contains(&format!("--property=LoadCredential=sley-input:{input}"))
+            );
+            assert_eq!(
+                &unit.argv[unit.argv.len() - 2..],
+                ["__native-test-worker", "--credential"]
+            );
+            assert!(unit.argv.contains(&"--pipe".to_owned()));
+        }
     }
 
     #[test]

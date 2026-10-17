@@ -891,6 +891,14 @@ fn verify_installed_settings(
         &json!([[WORKER_INPUT_CREDENTIAL, worker_input_path]]),
     )?;
     check(service, "TemporaryFileSystem", "a(ss)", &json!([]))?;
+    // This fixed path mapping hides the supervisor endpoint, not merely its
+    // directory's write permissions. No ignore-missing prefix or extra mask.
+    check(
+        service,
+        "InaccessiblePaths",
+        "as",
+        &json!([config.runtime_dir]),
+    )?;
     check(
         service,
         "BindReadOnlyPaths",
@@ -1251,6 +1259,12 @@ mod tests {
         insert(&mut service, "TemporaryFileSystem", "a(ss)", json!([]));
         insert(
             &mut service,
+            "InaccessiblePaths",
+            "as",
+            json!([config.runtime_dir]),
+        );
+        insert(
+            &mut service,
             "BindReadOnlyPaths",
             "a(ssbt)",
             json!([[worker, worker, false, 16_384]]),
@@ -1329,6 +1343,49 @@ mod tests {
             verify_snapshot(&unit_map, &service, &unit, &config, input),
             Err(ManagerError::PropertyMismatch)
         );
+    }
+
+    #[test]
+    fn worker_runtime_isolation_requires_exact_installed_mask() {
+        let (unit_map, service, unit, config) = fixture();
+        let input = "/run/sley-test-supervisor/input/abc.bin";
+        verify_installed_settings(&unit_map, &service, &unit, &config, input).unwrap();
+        for bad in [
+            None,
+            Some(json!({"type": "s", "data": "/run/sley-test-supervisor"})),
+            Some(json!({"type": "as", "data": []})),
+            Some(json!({"type": "as", "data": ["/run/other"]})),
+            Some(json!({"type": "as", "data": ["-/run/sley-test-supervisor"]})),
+            Some(json!({"type": "as", "data": ["/run/sley-test-supervisor", "/run/extra"]})),
+            Some(
+                json!({"type": "as", "data": ["/run/sley-test-supervisor", "/run/sley-test-supervisor"]}),
+            ),
+        ] {
+            let mut changed = service.clone();
+            if let Some(value) = bad {
+                changed.insert("InaccessiblePaths".to_owned(), value);
+            } else {
+                changed.remove("InaccessiblePaths");
+            }
+            assert_eq!(
+                verify_installed_settings(&unit_map, &changed, &unit, &config, input),
+                Err(ManagerError::PropertyMismatch)
+            );
+        }
+        let mut relocated = config.clone();
+        relocated.runtime_dir = "/run/sley-private-runtime".to_owned();
+        assert_eq!(
+            verify_installed_settings(&unit_map, &service, &unit, &relocated, input),
+            Err(ManagerError::PropertyMismatch)
+        );
+        let mut matching = service;
+        insert(
+            &mut matching,
+            "InaccessiblePaths",
+            "as",
+            json!([relocated.runtime_dir]),
+        );
+        verify_installed_settings(&unit_map, &matching, &unit, &relocated, input).unwrap();
     }
 
     #[test]

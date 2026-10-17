@@ -162,6 +162,17 @@ reviewed migration that preserves the root measurement authority and exact
 binary pins, followed by fresh live qualification. The local source and tests
 do not waive that gate.
 
+The worker launch hides the configured supervisor runtime directory with an
+exact `InaccessiblePaths` mapping, verified through the manager before the
+worker start gate opens. This blocks access to the supervisor's pathname Unix
+socket; peer authentication remains a separate boundary for authorized host
+clients. The copied `sley-input` credential and private gate/report pipes are
+outside this mask. Qualification of an updated installation must retain the
+actual worker-view socket isolation and credential/pipe behavior; receipts for
+older binary pins do not establish this mapping. A mount mask does not close
+inherited descriptors, so the worker's closed descriptor handoff remains part
+of the isolation boundary.
+
 ### Ownership-bound cleanup and unknown creation
 
 The launcher alone is not proof that systemd created the requested invocation.

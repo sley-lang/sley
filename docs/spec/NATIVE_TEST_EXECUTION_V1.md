@@ -469,6 +469,19 @@ under this profile rather than relying on manager defaults. Services must bind
 to the supervisor unit lifetime; that ownership is launch_profile1, not a
 caller-chosen property. Configuration digest binds each run.
 
+The fixed launch mapping also installs `InaccessiblePaths` for exactly the
+administrator-configured supervisor runtime directory (normally
+`/run/sley-test-supervisor`), without an ignore-missing prefix. Before opening
+the worker start gate, the daemon verifies the manager's typed string-array
+value contains exactly that directory. The mask hides the supervisor socket
+and staged input source from the worker; `ProtectSystem=strict` and
+`PrivateNetwork=yes` alone do not prevent access to pathname Unix sockets.
+The manager-copied `sley-input` credential remains in the worker's separate
+credential directory, and the inherited private gate/report pipes remain its
+transport. This is a path mapping under launch_profile1, like `LoadCredential`
+and `BindReadOnlyPaths`; it does not change the normalized property projection
+or the encoding of historical configuration records.
+
 For launch_profile1, the normalized `CapabilityBoundingSet=empty` value is
 installed using systemd's empty assignment, `CapabilityBoundingSet=`. The
 normalized microsecond duration properties are installed through
