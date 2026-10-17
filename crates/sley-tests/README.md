@@ -14,3 +14,9 @@ provisions no trust. Parsed records never construct protected authority:
 verifying a plan against fresh policy, authenticating measurements and
 admitting commits are the policy, runner and transaction owners' jobs
 (N3–N5). Dependencies point from tests to VM, never the reverse.
+
+The pure source execution path resolves a root-bound `TestCase`, rechecks it
+with the existing static contract/test checker, reserves the complete native
+execution report before invoking the VM, and builds one canonical observed
+report and expectation comparison. This result is diagnostic until the host
+supervisor measures the run and admission verifies every binding.

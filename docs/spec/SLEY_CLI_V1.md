@@ -1,6 +1,6 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 10 (2026-09-23); Council review
+Status: S20-430 contract draft, revision 11 (2026-09-27); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
@@ -22,12 +22,14 @@ section 8) answers the revision 9 round (REVISE x3 on 2b0f1c9): it admits
 the shipped version 3 capable surface (section 9) and the private
 native-test worker entry with its `sley-test-runner` edge (section 10),
 states the worker's argv and exit statuses, and re-pins SMP1 revision 15
-and bridge revision 12. Its new-delta review is pending. An errata note
+and bridge revision 12. Its new-delta review passed in all three lanes. An errata note
 to revision 10 (section 8, 2026-09-25, Sley 2.0.1) records two
 implementation fixes: a command-line word that is not valid Unicode is
 `CLI_USAGE_INVALID`, and the JSON text ceiling is judged before UTF-8
-decoding. It keeps revision 10 and every pin. The
-implementation is `crates/sley-cli`; implementation state is tracked in
+decoding. It keeps revision 10 and every pin. Revision 11 (2026-09-27)
+admits canonical native worker report output and a bounded source-invalid
+refusal under `NATIVE_TEST_EXECUTION_V1.md` revision 4. Its new-delta review
+is pending. The implementation is `crates/sley-cli`; implementation state is tracked in
 the machine summary.
 
 The CLI is a transport endpoint and nothing else, with one bounded
@@ -46,7 +48,7 @@ the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 ## 1. Commands
 
 ```text
-sley serve --repository <path> [--json] [--batch] [--report <path>] [--protocol-profile v2-capable|v3-capable]
+sley serve --repository <path> [--json] [--batch] [--report <path>] [--protocol-profile v2-capable|v3-capable] [--native-authority-config <absolute path>]
 sley frame decode [--protocol-profile v2-capable|v3-capable --expected-version 1|2|3]
                                         # stdin: frames as bytes; stdout: one Frame object per line
 sley frame encode [--protocol-profile v2-capable|v3-capable --expected-version 1|2|3]
@@ -67,7 +69,7 @@ sley version [--protocol-profile v2-capable|v3-capable]
 
 Arguments are exact: an unknown command, a repeated or unknown option, or
 a missing value is `CLI_USAGE_INVALID`. There are no abbreviations, no
-environment variables, no configuration files, and no prose output on any
+environment variables, no implicit configuration files, and no prose output on any
 stream. `--protocol-profile` takes exactly `v2-capable` or `v3-capable`;
 any other value is `CLI_USAGE_INVALID`. On the frame commands the profile
 requires `--expected-version` and `--expected-version` requires the
@@ -77,6 +79,9 @@ offer (3 under `v2-capable`) is `CLI_USAGE_INVALID` with cause
 `--expected-version`. `--expected-version` on any other command is
 `CLI_USAGE_INVALID`. The private `__native-test-worker` entry (section 10)
 is not a user command and is not listed above.
+`--native-authority-config` is the one explicit configuration exception,
+available only with `sley serve --protocol-profile v3-capable` (section 11).
+With legacy or v2 serving it is `CLI_USAGE_INVALID` before any handshake.
 
 ## 2. `serve`
 
@@ -152,6 +157,9 @@ features), derives the selection with the same version-aware negotiation,
 and answers through `Server::new_versioned`. The profile never forces
 selection 3: a version 2 client hello selects 2 and a legacy one selects
 1, each exactly as under `v2-capable` over the same hellos.
+An explicit receiver authority file can provision the v3 native commit
+route as described in section 11. Without it, native commit remains a
+closed `NATIVE_SIGNER_UNAVAILABLE` refusal.
 
 ## 3. Report
 
@@ -226,9 +234,10 @@ answered; a failed answer is not a CLI failure and never changes the exit
 status. A CLI failure is written to standard error as one JSON object
 (`{"code": integer, "symbol": string, "cause": string | null}`) and to the
 report when one was requested; nothing else is ever written to standard
-error. The private worker entry of section 10 is the one exception: its
-statuses (1, 6, 7, 8) are the worker's own, disjoint from this table, and
-it writes nothing to standard error.
+error. The private worker entry of section 10 is the one exception: complete
+output exits 0, while worker refusals use 1, 6, 7, or 8, disjoint from the
+CLI's failure statuses in this table. The worker writes nothing to standard
+error; a later stdout flush failure is the CLI's own status 4.
 
 ## 5. Rules audited mechanically
 
@@ -304,9 +313,11 @@ it writes nothing to standard error.
   rule under `v3-capable`.
 - Worker entry evidence: the transient unit argv rendered by
   `sley_test_runner::unit::render_transient_unit`, run against the real
-  `sley` binary, reaching the unwired refusal (status 6), a malformed
-  input (status 1), and an absent binding (status 7), with any other argv
-  shape a CLI usage failure (status 2).
+  `sley` binary, producing the exact canonical worker vector report (status
+  0), refusing an input-hash substitution (status 6), malformed input
+  (status 1), and an absent or symlinked binding (status 7), with any other
+  argv shape a CLI usage failure (status 2). Runner tests pin the exact
+  refusal values.
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan
   reviews with every report-grade finding closed.
 
@@ -475,6 +486,28 @@ pins are unchanged.
   rest of the line is never read, which is why the input ends rather than
   resynchronising.
 
+### Input-binding erratum to revision 10 (2026-09-27)
+
+The section 10 input binding is a daemon-owned read-only regular file. The
+worker now opens it without following symlinks and with nonblocking open,
+then verifies the opened file descriptor is regular before reading. This
+closes the prior symlink substitution and FIFO stall without changing the
+worker's argv, refusal tag, or exit-status table. An input path that cannot
+meet the regular-file binding returns `NATIVE_WORKER_INPUT_UNREADABLE`.
+
+### Revision 11 (2026-09-27)
+
+- The private worker executes a strictly parsed portable native TestCase and
+  writes one canonical `SLEYNEX1` report on process exit 0. A VM refusal is
+  represented as Rejected evidence inside that report; a source mismatch
+  remains a refusal (status 6, tag 2, `NATIVE_WORKER_SOURCE_INVALID`).
+- The output channel and error precedence belong to Native Test Execution
+  revision 4, section 7.1. The CLI still only forwards the private entry to
+  `sley-test-runner`; the public commands, SMP1 and bridge pins, method table,
+  and ordinary CLI failure codes are unchanged.
+- Revision 10's three-lane PASS remains historical. Revision 11's delta
+  review is pending and the S20-430 status is implementation in progress.
+
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 
 The capable endpoint adopts `--protocol-profile v2-capable` for `hello`,
@@ -537,34 +570,94 @@ metadata is the additive contract `sley2-cli-v3` with `protocol_profile`
 table and the hello's `native_tests` feature key) are the bridge's
 (`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 12, section 11).
 
-## 10. Private native-test worker entry (revision 10)
+## 10. Private native-test worker entry (revision 11)
 
 `sley __native-test-worker <input_path>` exists so the native test
 supervisor (`crates/sley-test-runner`, `docs/spec/NATIVE_TEST_ADMISSION_V1.md`)
 can run its worker from the installed `sley` binary inside a transient
 unit. It is not a user command, not a protocol method, and never appears
 in the method table, the command list of section 1, or any
-report. Its argv is exactly the one `render_transient_unit` renders after
-the worker path: the word `__native-test-worker` and one absolute path to
-the daemon-owned read-only input binding. Any other shape (no operand, a
-relative path, an extra word) is `CLI_USAGE_INVALID` under section 4.
+report. The direct absolute-path operand is retained for local vectors and
+diagnostics. The production transient unit instead uses the exact private
+`sley __native-test-worker --credential` shape: the manager installs the
+daemon-owned source as its `sley-input` credential. Any other shape (no
+operand, a relative path, an extra word) is `CLI_USAGE_INVALID` under
+section 4.
 
-The worker opens the input path, reads exactly one length-delimited
-`SLEYWRK1` request envelope, and answers on standard output with raw
-refusal words: one big-endian `u32` refusal tag followed by the ASCII
-detail code, with no newline and nothing on standard error. Its exit
-status passes through unwrapped:
+The worker opens the input path read-only without following symlinks or
+blocking on non-regular files; an absent, symlinked, or non-regular input
+binding is unreadable. It reads exactly one length-delimited `SLEYWRK1`
+request envelope. The native execution owner contract (`NATIVE_TEST_EXECUTION_V1.md`
+revision 4, section 7.1) defines its output: on complete execution the worker
+writes one raw canonical `SLEYNEX1` report, including VM-owned rejected
+evidence, at most 262,144 bytes. The report is unmeasured and cannot admit a
+test. A refusal writes one big-endian `u32` tag followed by its ASCII detail
+code. Neither form adds a newline or worker stderr. Exit status passes through
+unwrapped:
+
+Under `--credential`, the worker waits for the fixed start byte before it
+opens the manager credential, and waits for the fixed release byte after its
+report is flushed. This lets the daemon verify placement and collect live
+cgroup counters before exit. Missing or wrong bytes refuse; the credential
+is opened without symlinks and is unavailable to the caller.
 
 | Status | Tag | Detail | Meaning |
 |---:|---:|---|---|
-| 1 | 1 | the SCB registry string | malformed envelope |
-| 6 | 2 | `NATIVE_WORKER_EXECUTION_NOT_WIRED` | well-formed envelope; execution is not wired (N5) |
-| 7 | 3 | `NATIVE_WORKER_INPUT_UNREADABLE` | the input binding cannot be opened |
-| 8 | — | — | the refusal words cannot be written |
+| 0 | — | raw `SLEYNEX1` | complete canonical worker report, without host measurement |
+| 1 | 1 | the SCB registry string | malformed envelope or portable artifact |
+| 6 | 2 | `NATIVE_WORKER_SOURCE_INVALID` | decoded envelope but invalid bound source |
+| 7 | 3 | `NATIVE_WORKER_INPUT_UNREADABLE` | the input binding cannot be opened as a regular file |
+| 8 | — | — | report or refusal output could not be written |
 
-These statuses are disjoint from the section 4 statuses (0, 2, 3, 4, 5),
-so the launcher can tell a worker refusal from a CLI failure. A flush
+Worker refusal statuses are disjoint from the section 4 failure statuses
+(2, 3, 4, 5), so the launcher can tell a worker refusal from a CLI failure. A flush
 failure after the worker ran is `CLI_IO_FAILURE` (status 4). The entry
 links `sley-test-runner` (and through it `sley-vm`, `sley-scb1`,
 `sley-tests`, `sley-id`), the one exception to the section 5 dependency
 rule; the rule audit bounds it to this one call and one command word.
+
+## 11. Explicit native commit authority (development revision 12)
+
+Only `sley serve --protocol-profile v3-capable` accepts
+`--native-authority-config <absolute path>`. This adds a receiver-controlled
+native commit authority to the existing v3 server without changing the
+default, v1, or v2 routes. The closed JSON file has exactly these fields:
+
+```json
+{
+  "version": 1,
+  "acceptance_key_path": "/private/path/acceptance.key",
+  "measurement_trust_path": "/private/path/measurement.sleyntr1",
+  "acceptance_trust_path": "/private/path/acceptance.sleyntr1"
+}
+```
+
+The configuration and exact 32-byte Ed25519 acceptance seed must be regular,
+single-link files owned by the serving UID, mode `0400` or `0600`. The two
+canonical `SLEYNTR1` manifests must be regular, single-link files owned by
+that UID or root, without group/world write. Every path is absolute and opened
+without following symlinks; configuration and manifests are bounded to 64 KiB
+and 8 MiB respectively. Duplicate or unknown JSON fields refuse. The
+acceptance manifest must name the loaded key with the acceptance role; the
+measurement manifest must contain a measurement role. Exact workspace,
+profile, signature, and historical-time grants are checked by the native
+commit owner when a run is attempted. No key or trust bytes come from SMP1
+requests or a program package.
+
+Startup loads this authority before reading a client hello. An unavailable or
+unsafe configuration yields `CLI_IO_FAILURE` with a stable `NATIVE_CLI_*`
+cause, writes no protocol stdout, and does not start serving. The configured
+commit executor connects only to
+`/run/sley-test-supervisor/supervisor.sock`; it still requires the separately
+installed, authenticated, qualified root supervisor. The receiver also
+provisions that socket executor for `tests.affected`, which uses the validated
+proposed state, and `tests.selected`, which uses the complete owner-loaded
+accepted root and objects. Neither diagnostic method commits. Explicit-root
+requests carry the plan's zero diagnostic principal, which the administrator
+must grant for the intended workspace/UID in the supervisor's `allowed_callers`.
+The same receiver UID may hold a separate commit-principal grant; each full
+UID/workspace/principal tuple is checked against the request independently.
+Replacing the receiver authority clears any previously configured diagnostic
+executor.
+This development-core addition is not part of the selected 2.0.1 release and
+does not itself demonstrate native test admission.

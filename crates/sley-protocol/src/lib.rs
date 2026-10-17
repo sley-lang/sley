@@ -10,8 +10,10 @@
 // contract text is their documentation.
 #![allow(missing_docs)]
 
+mod native_authority;
 pub mod server;
 pub mod session;
+pub use native_authority::load_native_authority;
 pub use server::*;
 pub use session::*;
 #[cfg(test)]

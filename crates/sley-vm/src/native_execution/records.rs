@@ -389,46 +389,119 @@ impl NativeExecutionObservationV1 {
         if read_field_uvar(&fields[0].1, 32)? != 1 {
             return Err(ScbError::new(ScbErrorCode::VersionUnsupported));
         }
-        let _schema_epoch = SchemaEpochId::from_bytes(read_field_id(&fields[1].1)?);
-        let _field_schema_hash = read_field_id(&fields[2].1)?;
-        let _decoder_limits_hash = read_field_id(&fields[3].1)?;
-        let _state_root = StateRoot::from_bytes(read_field_id(&fields[4].1)?);
-        let _function = EntityId::from_bytes(read_field_id(&fields[5].1)?);
-        let _cache_key = BytecodeCacheKey::from_bytes(read_field_id(&fields[6].1)?);
+        let schema_epoch = SchemaEpochId::from_bytes(read_field_id(&fields[1].1)?);
+        let field_schema_hash = read_field_id(&fields[2].1)?;
+        let decoder_limits_hash = read_field_id(&fields[3].1)?;
+        let state_root = StateRoot::from_bytes(read_field_id(&fields[4].1)?);
+        let function = EntityId::from_bytes(read_field_id(&fields[5].1)?);
+        let cache_key = BytecodeCacheKey::from_bytes(read_field_id(&fields[6].1)?);
         if read_field_id(&fields[7].1)? != *profile_id().as_bytes() {
             return Err(ScbError::new(ScbErrorCode::ContractUnknown));
         }
-        let _input_hashes = read_hash_list(&fields[8].1)?;
-        let _declared = parse_declared_record(&fields[9].1)?;
+        let input_hashes = read_hash_list(&fields[8].1)?;
+        let declared_limits = parse_declared_record(&fields[9].1)?;
         let implementation = parse_implementation_record(&fields[10].1)?;
         if !implementation.within_hard_maxima() {
             return Err(resource_error());
         }
         let termination = parse_termination(&fields[11].1)?;
-        let _instruction_count = read_field_uvar(&fields[12].1, 64)?;
-        let _fuel_used = read_field_uvar(&fields[13].1, 64)?;
-        let _peak_value_units = read_field_uvar(&fields[14].1, 64)?;
-        let _output_bytes_counted = read_field_uvar(&fields[15].1, 64)?;
-        let _peak_call_depth = read_field_uvar(&fields[16].1, 64)?;
+        let instruction_count = read_field_uvar(&fields[12].1, 64)?;
+        let fuel_used = read_field_uvar(&fields[13].1, 64)?;
+        let peak_value_units = read_field_uvar(&fields[14].1, 64)?;
+        let output_bytes_counted = read_field_uvar(&fields[15].1, 64)?;
+        let peak_call_depth = read_field_uvar(&fields[16].1, 64)?;
         if read_field_uvar(&fields[17].1, 64)? != 0 {
             return Err(ScbError::new(ScbErrorCode::ContractUnknown));
         }
-        Ok(ParsedNativeObservation { termination, id })
+        Ok(ParsedNativeObservation {
+            facts: ObservationFacts {
+                schema_epoch,
+                field_schema_hash,
+                decoder_limits_hash,
+                state_root,
+                function,
+                cache_key,
+                input_hashes,
+                declared_limits,
+                implementation_limits: implementation,
+                termination,
+                instruction_count,
+                fuel_used,
+                peak_value_units,
+                output_bytes_counted,
+                peak_call_depth,
+            },
+            id,
+        })
     }
 }
 
 /// Strictly parsed native observation; proves bytes, never runtime execution.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParsedNativeObservation {
-    termination: NativeObservedTermination,
+    facts: ObservationFacts,
     id: NativeObservationId,
 }
 
 impl ParsedNativeObservation {
+    /// Bound schema epoch, for owner-side context verification.
+    #[must_use]
+    pub const fn schema_epoch(&self) -> SchemaEpochId {
+        self.facts.schema_epoch
+    }
+
+    /// Decoded field-schema hash; the owner must compare its expected epoch.
+    #[must_use]
+    pub const fn field_schema_hash(&self) -> &[u8; 32] {
+        &self.facts.field_schema_hash
+    }
+
+    /// Decoded decoder-limits hash; the owner must compare its expected epoch.
+    #[must_use]
+    pub const fn decoder_limits_hash(&self) -> &[u8; 32] {
+        &self.facts.decoder_limits_hash
+    }
+
+    /// Bound proposed state root.
+    #[must_use]
+    pub const fn state_root(&self) -> StateRoot {
+        self.facts.state_root
+    }
+
+    /// Bound target function.
+    #[must_use]
+    pub const fn function(&self) -> EntityId {
+        self.facts.function
+    }
+
+    /// VM-derived cache key carried by the parsed observation.
+    #[must_use]
+    pub const fn cache_key(&self) -> BytecodeCacheKey {
+        self.facts.cache_key
+    }
+
+    /// Ordered input hashes carried by the parsed observation.
+    #[must_use]
+    pub fn input_hashes(&self) -> &[ValueHash] {
+        &self.facts.input_hashes
+    }
+
+    /// Literal test limits carried by the parsed observation.
+    #[must_use]
+    pub const fn declared_limits(&self) -> NativeDeclaredLimits {
+        self.facts.declared_limits
+    }
+
+    /// Implementation ceilings carried by the parsed observation.
+    #[must_use]
+    pub const fn implementation_limits(&self) -> NativeImplementationLimits {
+        self.facts.implementation_limits
+    }
+
     /// Validated hash-only termination projection for test comparison.
     #[must_use]
     pub const fn termination(&self) -> &NativeObservedTermination {
-        &self.termination
+        &self.facts.termination
     }
 
     /// Observation identity verified against the envelope trailer.
@@ -839,6 +912,23 @@ mod tests {
         assert_eq!(observation.native_execution_profile(), profile_id());
         let repeated = NativeExecutionObservationV1::build(golden_facts()).expect("repeat builds");
         assert_eq!(observation, repeated);
+        let parsed = NativeExecutionObservationV1::parse_stored(observation.stored_bytes())
+            .expect("runtime bytes parse");
+        assert_eq!(parsed.schema_epoch(), observation.schema_epoch());
+        assert_eq!(parsed.field_schema_hash(), observation.field_schema_hash());
+        assert_eq!(
+            parsed.decoder_limits_hash(),
+            observation.decoder_limits_hash()
+        );
+        assert_eq!(parsed.state_root(), observation.state_root());
+        assert_eq!(parsed.function(), observation.function());
+        assert_eq!(parsed.cache_key(), observation.cache_key());
+        assert_eq!(parsed.input_hashes(), observation.input_hashes());
+        assert_eq!(parsed.declared_limits(), observation.declared_limits());
+        assert_eq!(
+            parsed.implementation_limits(),
+            observation.implementation_limits()
+        );
     }
 
     #[test]

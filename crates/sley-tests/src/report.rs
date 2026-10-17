@@ -25,7 +25,8 @@ use sley_scb1::{
 use sley_vm::{
     ExecutionError, LoweringError,
     native_execution::{
-        NativeExecutionError, NativeExecutionObservationV1, NativeObservedTermination,
+        NativeDeclaredLimits, NativeExecutionError, NativeExecutionObservationV1,
+        NativeImplementationLimits, NativeObservedTermination, observation_capacity_required,
     },
 };
 
@@ -45,6 +46,43 @@ pub const MAX_EXECUTION_REPORT_STORED: usize = 262_144;
 pub const MAX_TEST_REPORT_ENTRIES: u64 = 256;
 /// Maximum symbol bytes in one rejected-evidence record.
 pub const MAX_SYMBOL_BYTES: usize = 96;
+
+/// Exact maximum stored execution-report bytes for one selected test.
+///
+/// This includes the VM's conservative stored observation reservation, the
+/// observed-evidence union, all six report fields, outer envelope, and digest.
+/// It allocates no observation-sized buffer and must be checked before VM
+/// execution. The actual report may be shorter.
+///
+/// # Errors
+///
+/// Returns `SCB_RESOURCE_LIMIT` if the VM reservation or checked wrapper
+/// arithmetic cannot be represented.
+pub fn execution_report_capacity_required(
+    input_count: usize,
+    declared: NativeDeclaredLimits,
+    implementation: NativeImplementationLimits,
+) -> Result<u64, ScbError> {
+    let observed = observation_capacity_required(input_count, declared, implementation)?;
+    let add = |left: u64, right: u64| {
+        left.checked_add(right)
+            .ok_or_else(|| ScbError::new(ScbErrorCode::ResourceLimit))
+    };
+    let size_len = |value: u64| {
+        u64::try_from(encode_uvar(value).len())
+            .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))
+    };
+    // Evidence = union tag 1 + Sized(complete stored observation).
+    let evidence = add(add(1, size_len(observed)?)?, observed)?;
+    // Record = count 6, version field, four fixed32 fields, evidence field.
+    let fixed32_field = 1 + 1 + 32;
+    let record = add(
+        add(1 + 3 + 4 * fixed32_field, add(1, size_len(evidence)?)?)?,
+        evidence,
+    )?;
+    // Stored = magic8 + version1 + Sized(record) + digest32.
+    add(add(add(8 + 1, size_len(record)?)?, record)?, 32)
+}
 
 /// Rejected type-phase evidence.
 pub const REJECT_PHASE_TYPE: u32 = 1;
@@ -834,6 +872,56 @@ mod tests {
     use sley_ssmc::fingerprint::{FingerprintError, FingerprintErrorCode};
     use sley_vm::native_execution::NativeExecutionProfileError;
     use sley_vm::{ExecutionErrorCode, ExecutionStatusCode, LowerError, LowerErrorCode};
+
+    #[test]
+    fn execution_report_reservation_includes_every_wrapper_byte() {
+        let declared = candidate_plan().selected()[0].declared_limits;
+        let implementation = NativeImplementationLimits::HARD_MAXIMA;
+        for input_count in [0, 1, 127, 128, 1_024] {
+            let observed = observation_capacity_required(input_count, declared, implementation)
+                .expect("observation bound");
+            let placeholder = vec![0; usize::try_from(observed).expect("bounded fixture")];
+            let record = encode_record(&[
+                (1, encode_uvar(RECORD_VERSION)),
+                (2, vec![0; 32]),
+                (3, vec![0; 32]),
+                (4, vec![0; 32]),
+                (5, vec![0; 32]),
+                (6, encode_union(1, &placeholder).expect("union")),
+            ])
+            .expect("report record");
+            let actual = preimage_bytes(EXECUTION_REPORT_MAGIC, &record)
+                .expect("preimage")
+                .len()
+                + 32;
+            assert_eq!(
+                execution_report_capacity_required(input_count, declared, implementation)
+                    .expect("report bound"),
+                actual as u64
+            );
+        }
+    }
+
+    #[test]
+    fn report_preflight_refuses_when_observation_alone_would_fit() {
+        let declared = candidate_plan().selected()[0].declared_limits;
+        let implementation = NativeImplementationLimits::HARD_MAXIMA;
+        let cap = MAX_EXECUTION_REPORT_STORED as u64;
+        let mut fits = 0_usize;
+        let mut exceeds = 65_536_usize;
+        while fits + 1 < exceeds {
+            let middle = fits + (exceeds - fits) / 2;
+            let observed = observation_capacity_required(middle, declared, implementation)
+                .expect("bounded observation count");
+            if observed <= cap {
+                fits = middle;
+            } else {
+                exceeds = middle;
+            }
+        }
+        assert!(observation_capacity_required(fits, declared, implementation).unwrap() <= cap);
+        assert!(execution_report_capacity_required(fits, declared, implementation).unwrap() > cap);
+    }
 
     use crate::policy::NativeResourcePolicyV1;
 

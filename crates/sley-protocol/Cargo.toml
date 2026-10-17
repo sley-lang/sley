@@ -8,6 +8,9 @@ description = "Sley 2 machine protocol (SMP1) frames, negotiation, and identity 
 
 [dependencies]
 blake3 = "=1.8.2"
+nix = { version = "=0.31.3", default-features = false, features = ["fs", "user"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
 sley-id = { path = "../sley-id" }
 sley-mutate = { path = "../sley-mutate" }
 sley-policy = { path = "../sley-policy" }
@@ -20,11 +23,12 @@ sley-schema = { path = "../sley-schema" }
 sley-state-root = { path = "../sley-state-root" }
 sley-store = { path = "../sley-store" }
 sley-tests = { path = "../sley-tests" }
+sley-test-runner = { path = "../sley-test-runner" }
 sley-txn = { path = "../sley-txn" }
 sley-vm = { path = "../sley-vm" }
+zeroize = "=1.9.0"
 
 [dev-dependencies]
-serde_json = "=1.0.145"
 sley-repo = { path = "../sley-repo", features = ["test-support"] }
 sley-ssmc = { path = "../sley-ssmc" }
 

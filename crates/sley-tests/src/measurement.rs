@@ -42,14 +42,14 @@ pub const TERMINATION_ENFORCER_ERROR: u32 = 6;
 /// Maximum attested bindings-adjacent lists are bounded by selection cap.
 pub const MAX_ATTESTATION_LIST: u64 = MAX_SELECTED_ENTRIES;
 
-/// Cgroup memory telemetry: installed ceiling facts and breach events.
+/// Cgroup `memory.events` counters for limit and OOM events.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MemoryEvents {
-    /// Installed page-floor memory cap the run was limited to.
+    /// `memory.events.max`: attempts to cross the installed memory cap.
     pub max: u64,
-    /// Recorded limit-breach events; success requires zero.
+    /// `memory.events.oom`: out-of-memory events; success requires zero.
     pub oom: u64,
-    /// Recorded out-of-memory kills; success requires zero.
+    /// `memory.events.oom_kill`: killed processes; success requires zero.
     pub oom_kill: u64,
 }
 
@@ -233,7 +233,8 @@ impl MeasuredTestAttestationV1 {
     /// Whether this attestation claims a successful measured run.
     ///
     /// Success requires a present execution report, complete termination,
-    /// complete output, confirmed empty cgroup, and zero memory events.
+    /// complete output, confirmed empty cgroup, zero memory events, bounded
+    /// peak and installed cap, and a strict wall deadline.
     /// Whether the VM outcome matches expectations is the comparison
     /// owner's separate judgment, not this shape predicate.
     #[must_use]
@@ -242,8 +243,18 @@ impl MeasuredTestAttestationV1 {
             && self.parts.termination == TERMINATION_COMPLETE
             && self.parts.complete_output
             && self.parts.empty_cgroup_confirmed
+            && self.parts.memory_events.max == 0
             && self.parts.memory_events.oom == 0
             && self.parts.memory_events.oom_kill == 0
+            && self.parts.installed_memory_cap > 0
+            && self.parts.installed_memory_cap <= self.parts.declared_limits.memory_bytes
+            && self.parts.measured_memory_peak <= self.parts.installed_memory_cap
+            && self
+                .parts
+                .declared_limits
+                .wall_timeout_millis
+                .checked_mul(1_000_000)
+                .is_some_and(|deadline_ns| self.parts.elapsed_ns < deadline_ns)
     }
 
     /// Test entity bound indirectly through the approval binding, for
@@ -456,14 +467,14 @@ mod tests {
     }
 
     #[test]
-    fn golden_attestation_parses_with_exact_id_and_success_claim() {
+    fn golden_attestation_parses_with_exact_id_and_dirty_event() {
         let parsed =
             MeasuredTestAttestationV1::parse(&golden("attestation_stored")).expect("golden parses");
         assert_eq!(parsed.record_bytes(), golden("attestation_record"));
         assert_eq!(parsed.stored_bytes(), golden("attestation_stored"));
         assert_eq!(parsed.id().as_bytes().to_vec(), golden("attestation_id"));
         assert_eq!(parsed.parts.termination, TERMINATION_COMPLETE);
-        assert!(parsed.claims_success());
+        assert!(!parsed.claims_success());
         assert_eq!(
             parsed.parts.memory_events,
             MemoryEvents {
@@ -502,7 +513,14 @@ mod tests {
     #[test]
     fn success_claim_requires_every_signal() {
         let base = MeasuredTestAttestationV1::parse(&golden("attestation_stored")).expect("parses");
-        let mut no_report = base.parts.clone();
+        let mut clean = base.parts.clone();
+        clean.memory_events.max = 0;
+        assert!(
+            MeasuredTestAttestationV1::build(clean.clone())
+                .expect("builds")
+                .claims_success()
+        );
+        let mut no_report = clean.clone();
         no_report.execution_report_id = None;
         assert!(
             !MeasuredTestAttestationV1::build(no_report)
@@ -525,8 +543,20 @@ mod tests {
             |parts: &mut MeasuredTestAttestationParts| {
                 parts.memory_events.oom_kill = 1;
             },
+            |parts: &mut MeasuredTestAttestationParts| {
+                parts.memory_events.max = 1;
+            },
+            |parts: &mut MeasuredTestAttestationParts| {
+                parts.measured_memory_peak = parts.installed_memory_cap + 1;
+            },
+            |parts: &mut MeasuredTestAttestationParts| {
+                parts.installed_memory_cap = parts.declared_limits.memory_bytes + 1;
+            },
+            |parts: &mut MeasuredTestAttestationParts| {
+                parts.elapsed_ns = parts.declared_limits.wall_timeout_millis * 1_000_000;
+            },
         ] {
-            let mut parts = base.parts.clone();
+            let mut parts = clean.clone();
             mutate(&mut parts);
             assert!(
                 !MeasuredTestAttestationV1::build(parts)

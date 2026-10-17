@@ -11,6 +11,7 @@ pub mod plan;
 pub mod policy;
 pub mod profile;
 pub mod report;
+pub mod source_execution;
 pub mod statement;
 pub mod supervisor;
 pub mod trust;
@@ -67,7 +68,8 @@ pub use report::{
     NativeExecutionReportV1, NativeExpected, NativeTestEntry, NativeTestReportV1, REJECT_PHASE_CFG,
     REJECT_PHASE_EFFECT, REJECT_PHASE_EXECUTION, REJECT_PHASE_FINGERPRINT, REJECT_PHASE_LOWERING,
     REJECT_PHASE_NATIVE_PROFILE, REJECT_PHASE_TYPE, RejectedEvidence, TEST_REPORT_MAGIC,
-    TestComparison, compare_native_expected, rejected_from_error,
+    TestComparison, compare_native_expected, execution_report_capacity_required,
+    rejected_from_error,
 };
 pub use statement::{
     ADMISSION_SIGNATURE_BYTES, ADMISSION_SIGNATURE_CONTEXT, CommitAdmissionStatementParts,

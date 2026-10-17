@@ -21,6 +21,8 @@ sley-id = { path = "../sley-id" }
 sley-repo = { path = "../sley-repo", features = ["test-support"] }
 sley-scb1 = { path = "../sley-scb1" }
 sley-test-runner = { path = "../sley-test-runner" }
+sley-tests = { path = "../sley-tests" }
+sley-txn = { path = "../sley-txn" }
 sley-vm = { path = "../sley-vm" }
 
 [lints]

@@ -6,6 +6,7 @@ mod diagnostic;
 mod maintenance;
 mod native_codec;
 mod native_commit;
+mod native_executor;
 mod repository;
 
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
@@ -51,11 +52,13 @@ pub use native_commit::{
     Ed25519AcceptanceSigner, ExecutedNativeTest, JOURNAL_MAGIC, JOURNAL_VERSION,
     MAX_COMMIT_WALL_MILLIS, MAX_JOURNAL_BYTES, NativeAcceptanceSigner, NativeAttemptId,
     NativeAttemptScope, NativeCommitError, NativeCommitInput, NativeCommitOutcome,
-    NativeCommitOutput, NativeRejection, NativeTestExecutor, NativeVerifiedRevision, attempt_path,
-    check_execution_coverage, commit_needs_executor, native_receipt_committed_root,
-    verify_acceptance_statement, verify_acceptance_trust, verify_measurement_attestation,
-    verify_measurement_trust,
+    NativeCommitOutput, NativeRejection, NativeTestExecutor, NativeVerifiedRevision,
+    SupervisorEvidenceError, attempt_path, build_candidate_supervisor_request,
+    build_explicit_supervisor_request, check_execution_coverage, commit_needs_executor,
+    native_receipt_committed_root, verified_supervisor_execution, verify_acceptance_statement,
+    verify_acceptance_trust, verify_measurement_attestation, verify_measurement_trust,
 };
+pub use native_executor::SocketNativeCommitExecutor;
 pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,
     RecoveryAncestryHeadReport, RecoveryAncestryReport, RecoveryAncestryRequest, RecoveryReport,
