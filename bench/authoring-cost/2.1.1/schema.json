@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sley authoring-cost numeric projection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "models",
+    "normalization",
+    "runs",
+    "rows"
+  ],
+  "properties": {
+    "schema": {
+      "const": "sley.authoring-cost-numeric-projection.v1"
+    },
+    "normalization": {
+      "const": "one_shared_positive_divisor_per_model_across_all_runs"
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^model_[0-9]{2}$"
+      }
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/run"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    }
+  },
+  "$defs": {
+    "set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "tasks",
+        "languages"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
+        },
+        "tasks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          }
+        },
+        "languages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+          }
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "repetitions",
+        "sets",
+        "declared_trials"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
+        },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "declared_trials": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "sets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/set"
+          }
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run",
+        "model",
+        "set",
+        "language",
+        "task",
+        "rep",
+        "correct",
+        "first_try",
+        "infrastructure_failure",
+        "attempt_count",
+        "tokens",
+        "cost_units"
+      ],
+      "properties": {
+        "run": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
+        },
+        "set": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
+        },
+        "task": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^model_[0-9]{2}$"
+        },
+        "rep": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "correct": {
+          "type": "boolean"
+        },
+        "first_try": {
+          "type": "boolean"
+        },
+        "infrastructure_failure": {
+          "type": "boolean"
+        },
+        "attempt_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000000
+        },
+        "cost_units": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  },
+  "$comment": "Cross-record invariants (grid coverage, unique tuple identity, first_try consistency, normalized model totals) are enforced by recalculate.validate."
+}
