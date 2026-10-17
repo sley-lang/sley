@@ -52,6 +52,15 @@ write the workbench makes to `repo/` outside `commit`.
 | `.sley/submission` | workbench | the handle last submitted |
 | `final_candidate.hex` | workbench | the submission: stored candidate bytes as lowercase hex |
 
+Candidate handles are reserved by publishing the complete `.hex` bytes before
+writing the optional `.json` summary. A metadata-write failure can therefore
+return `AGENT_IO_FAILED` while leaving a complete candidate readable under its
+handle. A later command skips that reserved handle and allocates a new one;
+missing metadata does not stand in for candidate validity. This is not atomic
+two-file publication or a power-loss durability guarantee. If the final `u64`
+handle is occupied, allocation returns `AGENT_IO_FAILED` without wrapping or
+changing existing records.
+
 The authoring principal is the policy root's only grant, or else the first
 grant that allows `CreateEntity` and `ReplaceEntityVersion`.
 
