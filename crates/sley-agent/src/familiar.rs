@@ -2429,12 +2429,35 @@ impl Parser {
                             "=" | "+=" | "-=" | "*=" | "//=" | "%=" | ">>=" | "<<=" | "&=" | ","
                         )
                     });
-                    if at_start
-                        && assigns
-                        && names.contains(&tok.text)
-                        && !found.iter().any(|(name, _)| *name == tok.text)
-                    {
-                        found.push((tok.text.clone(), tok.pos));
+                    if at_start && assigns {
+                        // Every target of the statement: `x = e`, `x += e`,
+                        // or each name of a tuple target `a, b = e1, e2`.
+                        let mut targets = vec![k];
+                        if self.toks[k + 1].text == "," {
+                            let mut j = k;
+                            while self.toks.get(j + 1).is_some_and(|t| t.text == ",")
+                                && self
+                                    .toks
+                                    .get(j + 2)
+                                    .is_some_and(|t| matches!(t.kind, Kind::Name))
+                            {
+                                j += 2;
+                                targets.push(j);
+                            }
+                            if self.toks.get(j + 1).is_none_or(|t| t.text != "=") {
+                                // Not a tuple assignment: only the first
+                                // name keeps the earlier conservative reading.
+                                targets.truncate(1);
+                            }
+                        }
+                        for target in targets {
+                            let tok = &self.toks[target];
+                            if names.contains(&tok.text)
+                                && !found.iter().any(|(name, _)| *name == tok.text)
+                            {
+                                found.push((tok.text.clone(), tok.pos));
+                            }
+                        }
                     }
                 }
                 _ => {}

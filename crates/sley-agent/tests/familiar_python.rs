@@ -497,6 +497,53 @@ def branch_value(n: int) -> int:
 }
 
 #[test]
+fn python_tuple_assignment_reassigns_parameters() {
+    // Regression: a parameter named only after the first target of a tuple
+    // assignment (`b` in `a, b = b, a % b`) was not recognised as assigned,
+    // so the frame used `set b` without a `var` in scope (AGENT_FRAME_INVALID).
+    let temp = workspace("python-tuple-params");
+    let text = "\
+def gcd(a: int, b: int) -> int:
+    while b != 0:
+        a, b = b, a % b
+    return a
+
+def swap_diff(a: int, b: int) -> int:
+    a, b = b, a
+    return a - b
+
+def second_only(a: int, b: int) -> int:
+    c, b = a, b + 1
+    return c * 10 + b
+
+def three(a: int, b: int, c: int) -> int:
+    a, b, c = c, a, b
+    return a * 100 + b * 10 + c
+
+def step(x: int, n: int) -> int:
+    q = 0
+    for i in range(n):
+        q, x = i, x + q
+    return x
+";
+    let h = accepted(&temp.path, text);
+    check(
+        &temp.path,
+        &h,
+        "gcd",
+        &[
+            (json!([48, 18]), json!(6)),
+            (json!([17, 0]), json!(17)),
+            (json!([0, 5]), json!(5)),
+        ],
+    );
+    check(&temp.path, &h, "swap_diff", &[(json!([3, 10]), json!(7))]);
+    check(&temp.path, &h, "second_only", &[(json!([4, 1]), json!(42))]);
+    check(&temp.path, &h, "three", &[(json!([1, 2, 3]), json!(312))]);
+    check(&temp.path, &h, "step", &[(json!([1, 4]), json!(4))]);
+}
+
+#[test]
 fn python_stepped_ranges_shifts_masks_and_distinct_counts() {
     let temp = workspace("python-stepped");
     let text = "\
