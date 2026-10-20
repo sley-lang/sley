@@ -95,5 +95,13 @@ python3 scripts/build_release_candidate.py --require-clean
 sha256sum dist/sley-2.1.2-linux-x86_64.tar.gz
 ```
 
-Checksums, the exact source commit, test results and any host attestations must identify the
-delivered 2.1.2 artifact. Records from earlier releases do not qualify it.
+The Linux x86_64 archive was built from `65dc451ae1933efe008ec2c6aa9ca3692a1dd297`. Two clean
+builds on the primary host produced identical bytes. Cross-host reproducibility is not claimed.
+The archive SHA-256 is `7e1e7d5e1ca12b6c82368ce9755db0005ce9f500126fefcdd2f525c6722862b5`
+(7,652,292 bytes, 17 members). Provenance remains unsigned.
+
+The persistent-fuzz proofs for this release were run at the built commit with nightly-2026-02-27
+and Debian clang 18.1.8 through the fuzz runners' documented toolchain override. Earlier releases
+used the canonical Arch toolchain layout on the maintainer host. The regenerated GA acceptance
+report records the CLI contract package (S20-430) back at contract-draft status since #23, so 22
+criteria are not evidenced (21 at 2.1.1) and 30 review obligations are open (27).
