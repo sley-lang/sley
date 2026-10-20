@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
-  <img alt="Version 2.1.1" src="https://img.shields.io/badge/version-2.1.1-38c8e8?style=flat-square">
+  <img alt="Version 2.1.2" src="https://img.shields.io/badge/version-2.1.2-38c8e8?style=flat-square">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
   <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
   <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
@@ -22,7 +22,7 @@
   <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
-  <a href="docs/release/SLEY-2.1.1.md"><b>Release notes</b></a> ·
+  <a href="docs/release/SLEY-2.1.2.md"><b>Release notes</b></a> ·
   <a href="https://sleylang.org/faq"><b>FAQ</b></a>
 </p>
 
@@ -68,16 +68,16 @@ none alone establishes correctness against user requirements. The
 
 Install first, then [write and test your first program](#write-and-test-your-first-program).
 
-**1. Get the `sley` binary.** Download `sley-2.1.1-linux-x86_64.tar.gz` from
+**1. Get the `sley` binary.** Download `sley-2.1.2-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
 ```sh
-git clone --branch v2.1.1 --depth 1 https://github.com/sley-lang/sley.git
+git clone --branch v2.1.2 --depth 1 https://github.com/sley-lang/sley.git
 cd sley
 cargo build --release -p sley-cli -p sley-agent   # → target/release/sley, sley-agent
 ```
 
-`--branch v2.1.1` builds the released source. `main` carries unreleased work
+`--branch v2.1.2` builds the released source. `main` carries unreleased work
 under the same workspace version, so omit it only when you want that work.
 
 ### Write and test your first program
@@ -96,6 +96,9 @@ $ sley-agent try ../area.json
 c1: Valid (+25 created, 0 replaced, 0 deleted) draft d1@r1
 changed: fn +area; type +ShapeError; const +k_1; test +area_cases_0 +area_cases_1 +area_cases_2
 tests: 3/3 passed [authored 3]
+test execution: advisory value/trap comparison; not admission evidence
+declared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied
+fixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)
 next: sley-agent submit d1
 $ sley-agent call area 3 4 --on c1
 {"Ok":12}
@@ -106,7 +109,7 @@ Use the candidate and draft handles printed by your own `try` command if
 they differ. `sley-agent submit d1` writes `final_candidate.hex`; it does
 not change the accepted workspace head.
 
-**Released 2.1.1 boundary:** these are advisory test matches. Committing
+**Released 2.1.2 boundary:** these are advisory test matches. Committing
 this candidate, which changes both code and its targeting tests, refuses
 with `TXN_TEST_EVIDENCE_UNSUPPORTED` until supported native admission is
 available. Validation, advisory execution, submission and authoritative
@@ -205,6 +208,15 @@ Sley has three canonical layers:
 Read **[Concepts](docs/CONCEPTS.md)** for the full model: identities, state
 roots, the change lifecycle, sessions, and the glossary.
 
+## New in 2.1.2
+
+A point release. The Python dialect now accepts tuple assignment to parameters
+(`a, b = b, a % b`), which 2.1.1 listed but refused. Saving a candidate after the last handle is used now refuses
+cleanly instead of panicking, and existing records are kept. `try` and `test` report which
+declared test limits the advisory runner applies. The native test supervisor ships as source with
+registered diagnostics and documented limits; it is not in the release archive and is not yet
+qualified on an installed host. See the [2.1.2 release notes](docs/release/SLEY-2.1.2.md).
+
 ## New in 2.1.1: write Sley like Python
 
 Agents can now write Sley in a typed Python dialect. `sley-agent try --familiar` compiles it into
@@ -246,7 +258,7 @@ the [2.1.0 release notes](docs/release/SLEY-2.1.0.md).
 - **A reproducible release.** Two clean musl builds compared member by member,
   CycloneDX and SPDX SBOMs, and recorded (unsigned) provenance. Releases
   2.0.0 through 2.0.5 also carried a second-host rebuild attestation
-  (`MULTI_HOST_REPRODUCIBLE`); 2.0.6 through 2.1.1 were reproduced on the
+  (`MULTI_HOST_REPRODUCIBLE`); 2.0.6 through 2.1.2 were reproduced on the
   primary host only (`SINGLE_HOST_REPRODUCIBLE`), so cross-host verification
   of the current release remains open.
 - **Independent conformance.** A separate Python oracle reproduces the Rust
@@ -261,10 +273,12 @@ workbench.
 
 ## Project status
 
-**Sley 2.1.1** adds the Python dialect of the familiar frontend and shorter, more forgiving
-authoring, cutting what it costs an agent to write Sley. Sley 2.1.0 made the toolchain
+**Sley 2.1.2** is a point release: fixes, clearer test-limit reporting and the native test
+supervisor source, with no change to program meaning. Sley 2.1.1 added the Python dialect of the
+familiar frontend and shorter, more forgiving authoring, cutting what it costs an agent to write
+Sley. Sley 2.1.0 made the toolchain
 self-hosted: the semantic toolchain is a Sley program that rebuilds itself to a byte-identical
-fixed point. See the [2.1.1 release notes](docs/release/SLEY-2.1.1.md) and the
+fixed point. See the [2.1.2 release notes](docs/release/SLEY-2.1.2.md) and the
 [self-hosting record](docs/release/SH2_SELF_HOSTING.md). It's a *release*, not a GA claim: the
 [2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
 list every acceptance criterion that wasn't met at 2.0.0 and every open finding.
@@ -277,7 +291,7 @@ and a useful application, while preserving the accepted self-hosting work.
 | Track | State |
 |---|---|
 | **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1 and the agent workbench in 2.0.2. The kernel, repository, protocol, CLI, agent workbench, and reproducible packaging are in place. |
-| **Sley 2.1** | Released as 2.1.0, with the Python dialect in 2.1.1. **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
+| **Sley 2.1** | Released as 2.1.0, with the Python dialect in 2.1.1 and fixes in 2.1.2. **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
 | **Sley 1.x** | Frozen at [v1.2.1](https://github.com/GreyforgeLabs/sley-legacy/tree/v1.2.1), the final 1.x tag, in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
 
@@ -290,7 +304,7 @@ and a useful application, while preserving the accepted self-hosting work.
 | 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
 | 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
 | 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
-| 📦 **[Release notes](docs/release/SLEY-2.1.1.md)** | The current release, how to verify it, and what isn't claimed. [2.1.0](docs/release/SLEY-2.1.0.md) is the self-hosted release; [2.0.0](docs/release/SLEY-2.0.0.md) lists the known limits that still apply. |
+| 📦 **[Release notes](docs/release/SLEY-2.1.2.md)** | The current release, how to verify it, and what isn't claimed. [2.1.0](docs/release/SLEY-2.1.0.md) is the self-hosted release; [2.0.0](docs/release/SLEY-2.0.0.md) lists the known limits that still apply. |
 | 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
 | 🤝 **[Contributing](CONTRIBUTING.md)** | The slice contract, validation gates, and commit discipline |
 
