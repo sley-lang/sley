@@ -178,6 +178,16 @@ impl ProvisionedMeasurementAuthority {
         let signer =
             Ed25519MeasurementSigner::from_key_file(Path::new(&config.measurement_key_path))
                 .map_err(AuthorityLoadError::Key)?;
+        Self::bind(config, trust, signer)
+    }
+
+    /// Binds loaded trust and key only when the manifest grants that exact
+    /// key the measurement role.
+    fn bind(
+        config: RunnerConfig,
+        trust: HistoricalTrustPolicyV1,
+        signer: Ed25519MeasurementSigner,
+    ) -> Result<Self, AuthorityLoadError> {
         let key_id = signer.public_key();
         if !trust
             .entries()
@@ -228,7 +238,7 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use sley_id::{PrincipalId, WorkspaceId};
-    use sley_tests::{HistoricalTrustPolicyParts, ROLE_MEASUREMENT, TrustEntry};
+    use sley_tests::{HistoricalTrustPolicyParts, ROLE_ACCEPTANCE, ROLE_MEASUREMENT, TrustEntry};
 
     use super::*;
     use crate::config::{AllowedCaller, default_config};
@@ -295,5 +305,119 @@ mod tests {
             Err(TrustLoadError::UnsafePath)
         );
         fs::remove_dir_all(directory).expect("cleanup fixture");
+    }
+
+    fn fixture_config(trust_dir: &str) -> RunnerConfig {
+        default_config(
+            "/run/sley-test-supervisor",
+            "/usr/lib/sley/sley-native-test-worker",
+            [7; 32],
+            [8; 32],
+            vec![AllowedCaller {
+                uid: 1_000,
+                workspace: WorkspaceId::from_bytes([1; 32]),
+                principal: PrincipalId::from_bytes([2; 32]),
+            }],
+            "/etc/sley-test-supervisor/measurement.key",
+            trust_dir,
+        )
+        .expect("config")
+    }
+
+    fn policy_granting(key_id: [u8; 32], role: u32) -> HistoricalTrustPolicyV1 {
+        HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [4; 32],
+            entries: vec![TrustEntry {
+                key_id,
+                role,
+                workspaces: vec![[1; 32]],
+                profiles: vec![[2; 32]],
+                valid_from_unix_millis: 0,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .expect("canonical policy")
+    }
+
+    #[test]
+    fn authority_refuses_a_key_the_manifest_does_not_grant_the_measurement_role() {
+        let config = fixture_config("/etc/sley-test-supervisor/trust");
+        let signer = || Ed25519MeasurementSigner::from_secret_bytes([5; 32]);
+        let key_id = signer().public_key();
+        // The exact key granted only the acceptance role is not a measurement
+        // authority.
+        assert!(matches!(
+            ProvisionedMeasurementAuthority::bind(
+                config.clone(),
+                policy_granting(key_id, ROLE_ACCEPTANCE),
+                signer()
+            ),
+            Err(AuthorityLoadError::KeyNotGranted)
+        ));
+        // A measurement grant for another key does not cover this one.
+        let mut other = key_id;
+        other[0] ^= 1;
+        assert!(matches!(
+            ProvisionedMeasurementAuthority::bind(
+                config.clone(),
+                policy_granting(other, ROLE_MEASUREMENT),
+                signer()
+            ),
+            Err(AuthorityLoadError::KeyNotGranted)
+        ));
+        let bound = ProvisionedMeasurementAuthority::bind(
+            config,
+            policy_granting(key_id, ROLE_MEASUREMENT),
+            signer(),
+        )
+        .expect("granted key binds");
+        assert_eq!(bound.signer().public_key(), key_id);
+        assert_eq!(
+            AuthorityLoadError::KeyNotGranted.to_string(),
+            "NATIVE_AUTHORITY_KEY_NOT_GRANTED"
+        );
+    }
+
+    #[test]
+    fn empty_and_oversized_manifests_refuse_before_reading() {
+        let directory = std::env::temp_dir().join(format!(
+            "sley-trust-store-size-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&directory).expect("create trust directory");
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).expect("private dir");
+        let file = directory.join(MEASUREMENT_MANIFEST_FILE);
+        fs::write(&file, b"").expect("write empty manifest");
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).expect("private file");
+        let config = fixture_config(directory.to_str().expect("path"));
+        let uid = nix::unistd::getuid().as_raw();
+        assert_eq!(load_for_owner(&config, uid), Err(TrustLoadError::TooLarge));
+        let handle = fs::OpenOptions::new()
+            .write(true)
+            .open(&file)
+            .expect("open manifest");
+        handle
+            .set_len(MAX_MEASUREMENT_MANIFEST_BYTES + 1)
+            .expect("sparse oversized manifest");
+        drop(handle);
+        assert_eq!(load_for_owner(&config, uid), Err(TrustLoadError::TooLarge));
+        fs::remove_dir_all(directory).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn only_the_root_service_may_select_the_trust_directory() {
+        if nix::unistd::geteuid().is_root() {
+            return;
+        }
+        let config = fixture_config("/etc/sley-test-supervisor/trust");
+        assert_eq!(
+            load_measurement_trust(&config),
+            Err(TrustLoadError::Unprivileged)
+        );
+        assert!(matches!(
+            ProvisionedMeasurementAuthority::load(config),
+            Err(AuthorityLoadError::Trust(TrustLoadError::Unprivileged))
+        ));
     }
 }

@@ -1,7 +1,7 @@
 {
   "contract": "sley2.declared-limits.v1",
-  "declared_limits": 220,
-  "documented_limits": 11,
+  "declared_limits": 232,
+  "documented_limits": 21,
   "result": "PASS",
   "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
   "undocumented": [],
@@ -11,6 +11,31 @@
       "constant": "MAX_BOUND_ARTIFACT_BYTES",
       "initializer": "16 * 1024 * 1024",
       "source": "crates/sley-agent/src/residual/binding.rs"
+    },
+    {
+      "constant": "MAX_INGRESS_TIMEOUT",
+      "initializer": "Duration::from_secs(35)",
+      "source": "crates/sley-test-runner/src/ingress.rs"
+    },
+    {
+      "constant": "MAX_RESPONSE_EVIDENCE_BYTES",
+      "initializer": "MAX_WORKER_OUTPUT_BYTES + MAX_RESPONSE_ATTESTATION_BYTES + MAX_RESPONSE_CONFIG_BYTES + 512",
+      "source": "crates/sley-test-runner/src/response.rs"
+    },
+    {
+      "constant": "MAX_NO_RESULT_EVIDENCE_BYTES",
+      "initializer": "MAX_RESPONSE_ATTESTATION_BYTES + MAX_RESPONSE_CONFIG_BYTES + 256",
+      "source": "crates/sley-test-runner/src/response.rs"
+    },
+    {
+      "constant": "MAX_RESPONSE_FRAME_BYTES",
+      "initializer": "MAX_RESPONSE_EVIDENCE_BYTES + 64",
+      "source": "crates/sley-test-runner/src/response.rs"
+    },
+    {
+      "constant": "MAX_MEASUREMENT_MANIFEST_BYTES",
+      "initializer": "8 * 1024 * 1024",
+      "source": "crates/sley-test-runner/src/trust_store.rs"
     },
     {
       "constant": "MAX_COMMIT_WALL_MILLIS",
@@ -353,6 +378,11 @@
       "constant": "MAX_ENTITY_OBJECT_LABEL_BYTES",
       "source": "crates/sley-mutate/src/object.rs",
       "value": 1024
+    },
+    {
+      "constant": "MAX_SEMANTIC_ENTITIES",
+      "source": "crates/sley-mutate/src/semantic_projection.rs",
+      "value": 65535
     },
     {
       "constant": "MAX_POLICY_PRINCIPAL_GRANTS",
@@ -905,19 +935,24 @@
       "value": 16777216
     },
     {
-      "constant": "MAX_REQUEST_BYTES",
-      "source": "crates/sley-test-runner/src/config.rs",
+      "constant": "MAX_ADMIN_CONFIG_BYTES",
+      "source": "crates/sley-test-runner/src/admin_config.rs",
       "value": 65536
     },
     {
-      "constant": "MAX_WORKER_OUTPUT_BYTES",
+      "constant": "MAX_PINNED_BINARY_BYTES",
       "source": "crates/sley-test-runner/src/config.rs",
-      "value": 262144
+      "value": 134217728
     },
     {
-      "constant": "MAX_WORKER_FRAME",
-      "source": "crates/sley-test-runner/src/worker.rs",
-      "value": 262144
+      "constant": "MAX_NATIVE_UNITS",
+      "source": "crates/sley-test-runner/src/manager.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_RESPONSE_CONFIG_BYTES",
+      "source": "crates/sley-test-runner/src/response.rs",
+      "value": 65536
     },
     {
       "constant": "MAX_BUNDLE_EMBEDDED_BYTES",
@@ -1065,5 +1100,5 @@
       "value": 67108864
     }
   ],
-  "weak_limits": 209
+  "weak_limits": 211
 }

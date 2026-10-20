@@ -302,4 +302,62 @@ mod tests {
         );
         fs::remove_dir_all(directory).expect("cleanup fixture");
     }
+
+    #[test]
+    fn empty_and_oversized_configuration_refuse_before_json_parsing() {
+        assert_eq!(parse_admin_config(b""), Err(AdminConfigError::InvalidSize));
+        // One byte over the bound refuses on size even though the bytes would
+        // otherwise be a valid document followed by JSON whitespace.
+        let mut padded = valid_document();
+        let bound = usize::try_from(MAX_ADMIN_CONFIG_BYTES).expect("bound fits usize");
+        padded.resize(bound + 1, b' ');
+        assert_eq!(
+            parse_admin_config(&padded),
+            Err(AdminConfigError::InvalidSize)
+        );
+        padded.truncate(bound);
+        assert!(
+            parse_admin_config(&padded).is_ok(),
+            "the bound itself is accepted"
+        );
+
+        let directory = std::env::temp_dir().join(format!(
+            "sley-admin-config-size-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&directory).expect("create fixture directory");
+        let path = directory.join("config.json");
+        fs::write(&path, b"").expect("write empty config");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("private file");
+        let uid = nix::unistd::getuid().as_raw();
+        assert_eq!(
+            load_for_owner(&path, uid),
+            Err(AdminConfigError::InvalidSize)
+        );
+        // A sparse file larger than the bound is refused from its metadata,
+        // before any byte is read.
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .expect("open config");
+        file.set_len(MAX_ADMIN_CONFIG_BYTES + 1)
+            .expect("grow config");
+        drop(file);
+        assert_eq!(
+            load_for_owner(&path, uid),
+            Err(AdminConfigError::InvalidSize)
+        );
+        fs::remove_dir_all(directory).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn only_the_root_daemon_may_load_the_fixed_configuration() {
+        if nix::unistd::geteuid().is_root() {
+            // The gate under test is the nonroot refusal; a root test run
+            // would read the host's real configuration instead.
+            return;
+        }
+        assert_eq!(load_admin_config(), Err(AdminConfigError::Unprivileged));
+    }
 }

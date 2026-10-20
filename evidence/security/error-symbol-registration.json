@@ -2,7 +2,7 @@
   "ambiguous_codes": [],
   "contract": "sley2.error-symbol-registration.v1",
   "declared_namespaces": 77,
-  "emitted_symbols": 585,
+  "emitted_symbols": 692,
   "numeric_codes": 324,
   "registered_without_declared_namespace": [],
   "result": "PASS",

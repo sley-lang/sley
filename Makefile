@@ -35,6 +35,7 @@ quick:
 	python3 scripts/generate_smp1_json_bridge_fixtures.py --check
 	python3 scripts/generate_native_test_fixtures.py --check
 	python3 scripts/check_native_test_vectors.py
+	uv run --project oracle/scb1 --frozen python scripts/check_native_worker_vector.py
 	python3 scripts/check_native_test_dependency_graph.py
 	python3 scripts/generate_release_demo_fixtures.py --check
 	python3 scripts/generate_vm_extended_fixtures.py --check
@@ -193,6 +194,7 @@ conformance:
 	uv run --project oracle/scb1 --frozen python scripts/check_smp1_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py
 	python3 scripts/check_native_test_vectors.py
+	uv run --project oracle/scb1 --frozen python scripts/check_native_worker_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_entity_read_vectors.py
 	uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py
 	uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json
