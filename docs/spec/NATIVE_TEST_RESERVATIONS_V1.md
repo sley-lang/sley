@@ -1,6 +1,8 @@
 # Native test profile reservations v1
 
-Status: N0 **reserved, partially implemented**, revision 2 (2026-09-27). This is an
+Status: N0 **reserved, partially implemented**, revision 3 (2026-10-19; revision 3
+classifies the manager OOM claim's Ed25519 signing context, added by the native
+supervisor integration, alongside the two existing contexts). This is an
 additive reservation ledger, not a list of currently admitted contracts. The
 live `IDENTIFIERS_V1.md` registry intentionally continues to match code exactly.
 Promote a reservation into that registry only in the same reviewed change as
@@ -74,6 +76,8 @@ Ed25519 signing contexts, **not BLAKE3 identifier domains**:
 
 * `sley2.native-test-measurement-signature.v1` — measurement unsigned envelope.
 * `sley2.native-test-admission-signature.v1` — acceptance unsigned envelope.
+* `sley2.native-manager-oom.v1` — manager OOM claim (`ManagerOomClaimV1`,
+  `crates/sley-test-runner/src/manager_oom.rs`), classified in revision 3.
 
 When implemented, registry tooling must classify signing contexts separately
 from actual BLAKE3 derives rather than invent phantom identifier domains.

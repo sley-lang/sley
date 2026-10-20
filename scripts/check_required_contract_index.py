@@ -29,6 +29,7 @@ RUST_DOMAIN_LITERAL = re.compile(r'b"(sley2\.[a-z0-9.\-]+)"')
 NON_IDENTIFIER_CONTEXTS = {
     "sley2.native-test-admission-signature.v1",
     "sley2.native-test-measurement-signature.v1",
+    "sley2.native-manager-oom.v1",
 }
 
 
@@ -72,7 +73,7 @@ def iter_crate_sources() -> "object":
 
 def rust_identifier_domains(source: str) -> set[str]:
     """Return domain byte literals from Rust code, excluding comments and
-    the two frozen Ed25519 signing contexts.
+    the frozen Ed25519 signing contexts.
 
     The former whole-source scan treated documentation and signing contexts
     as BLAKE3 domains. Code byte literals fail closed here: every new value is

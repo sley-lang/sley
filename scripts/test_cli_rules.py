@@ -121,11 +121,14 @@ class EncodeCallCases(unittest.TestCase):
 
 
 class WorkerExceptionCases(unittest.TestCase):
-    """The worker exception is bounded to one call and one command word."""
+    """The worker exception is bounded to two calls (one path input, one
+    credential input) and two command words (SLEY_CLI_V1 section 10)."""
 
-    def test_real_source_has_exactly_one_worker_call(self) -> None:
+    def test_real_source_has_exactly_the_two_worker_calls(self) -> None:
         _, counters = audit(REAL_SOURCE)
-        self.assertEqual((counters["worker_calls"], counters["worker_commands"]), (1, 1))
+        self.assertEqual((counters["worker_calls"], counters["worker_commands"]), (2, 2))
+        self.assertEqual(
+            (counters["path_worker_calls"], counters["credential_worker_calls"]), (1, 1))
 
     def test_other_runner_path_refused(self) -> None:
         problems, _ = audit(REAL_SOURCE + "\nfn leak() { sley_test_runner::probe::run(); }\n")
@@ -138,15 +141,15 @@ class WorkerExceptionCases(unittest.TestCase):
     def test_second_worker_call_refused(self) -> None:
         problems, _ = audit(
             REAL_SOURCE + "\nfn again() { sley_test_runner::worker::run_input_path(p, o); }\n")
-        self.assertIn("worker-calls:2", problems)
+        self.assertIn("worker-calls:3", problems)
 
     def test_second_command_word_refused(self) -> None:
         problems, _ = audit(REAL_SOURCE + '\nconst ALIAS: &str = "__native-test-worker";\n')
-        self.assertIn("worker-commands:2", problems)
+        self.assertIn("worker-commands:3", problems)
 
     def test_removed_worker_call_refused(self) -> None:
         problems, _ = audit(REAL_SOURCE.replace(CHECKER.WORKER_CALL, "run_elsewhere("))
-        self.assertIn("worker-calls:0", problems)
+        self.assertIn("worker-calls:1", problems)
 
 
 if __name__ == "__main__":
