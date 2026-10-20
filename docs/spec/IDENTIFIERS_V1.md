@@ -88,8 +88,9 @@ contract. Several were specified and fixtured by their own package but did not
 reach this registry because the first drift check read only `crates/sley-id`,
 while a domain may be derived by any crate that hashes. The registry now carries
 every BLAKE3 domain the crates derive. `scripts/check_required_contract_index.py`
-compares both sets over every crate on every `make quick`, excludes only the two
-exact Ed25519 signing contexts classified in `NATIVE_TEST_RESERVATIONS_V1.md`,
+compares both sets over every crate on every `make quick`, excludes only the
+exact Ed25519 signing contexts classified in `NATIVE_TEST_RESERVATIONS_V1.md`
+(three since 2026-10-19),
 and treats any other new crate-side `sley2.*` byte literal as a domain until its
 owner explicitly classifies it. The deterministic-randomness row grants no
 authority, the test-hook plan domain is compiled out of release builds, and the

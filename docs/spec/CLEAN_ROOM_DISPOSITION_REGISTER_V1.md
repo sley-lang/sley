@@ -12,6 +12,15 @@ local evidence with independent review pending
 revision 4 Status wording stating that no audit has been performed is
 superseded, and §3 now reads as no independent audit claimed. The remaining
 gate is recorded as a remaining gate, not waived (§3).
+Revision 6 (2026-10-19) extends the reference and executable inventories of
+§2 with the public entry-point checker and its tests
+(`scripts/check_public_entrypoints.py`, `scripts/test_public_entrypoints.py`,
+added by sley-lang/sley PR #33). They name the frozen `GreyforgeLabs/sley-legacy`
+repository only to recognize links to it as historical rather than as stale
+current-release claims; they read, import and execute no legacy artifact.
+Revision 6 also lists the user guides (`README.md`, `docs/CONCEPTS.md`,
+`docs/README.md`) that the checker already admitted. Independent review of
+revision 6 is pending.
 
 ## Boundary
 
@@ -225,7 +234,12 @@ entry list, before the implementation lands.
    (`scripts/check_clean_room_boundary.py`,
    `scripts/check_legacy_runner.py`,
    `scripts/check_s20_530_crash_recovery.py`,
-   `scripts/verify_s20_530_accepted_state.py`), and the review transcripts
+   `scripts/verify_s20_530_accepted_state.py`), the public entry-point
+   checker and its tests, which name the frozen 1.x repository only to
+   classify links to it as historical (`scripts/check_public_entrypoints.py`,
+   `scripts/test_public_entrypoints.py`), the user guides that link the
+   frozen 1.x repository for readers (`README.md`, `docs/CONCEPTS.md`,
+   `docs/README.md`), and the review transcripts
    under `machineresearch/sley-2.0/reviews/`, which record reviews, are never
    imported, and are admitted only with non-executable transcript suffixes
    (`.log`, `.json`, `.md`). This is a sentinel search, not a source detector: a
@@ -245,7 +259,8 @@ entry list, before the implementation lands.
    and a stale missing member both fail without freezing an obsolete count.
 3. **Bounded touchpoint, out of process.** The tracked Python files carrying
    a sentinel are exactly the executable inventory (the adapter, its tests,
-   and the boundary scripts named in check 1); anything else executable is a
+   the boundary scripts, and the public entry-point checker and its tests
+   named in check 1); anything else executable is a
    violation. The adapter must import and call `subprocess.Popen` with
    `shell=False`, and must not contain `os.system`, `ctypes`, `dlopen`,
    `os.exec`, `eval(`, or `shell=True`.

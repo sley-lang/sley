@@ -15,11 +15,8 @@ use sley_agent::workspace::{NAMES_FILE, STATE_DIR, Workspace};
 use sley_ssmc::ConstData;
 use sley_vm::ExecutionTermination;
 
-// Match the CLI's allocator. The example otherwise calls the public API only.
-#[path = "../src/allocator.rs"]
-mod allocator;
-#[global_allocator]
-static ALLOCATOR: allocator::SizeClassCache = allocator::SizeClassCache;
+// The example calls the public API only and uses the system allocator:
+// ADR-0052 confines the size-class cache to the binary and the workbench tests.
 
 fn timed<T>(f: impl FnOnce() -> T) -> (T, u128) {
     let start = Instant::now();

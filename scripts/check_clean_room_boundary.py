@@ -66,6 +66,10 @@ SENTINEL_INVENTORY = (
     "scripts/check_legacy_runner.py",
     "scripts/check_s20_530_crash_recovery.py",
     "scripts/verify_s20_530_accepted_state.py",
+    # The public entry-point checker and its tests name the frozen 1.x
+    # repository only to classify links to it as historical (revision 6).
+    "scripts/check_public_entrypoints.py",
+    "scripts/test_public_entrypoints.py",
 )
 TRANSCRIPT_TREE = "machineresearch/sley-2.0/reviews/"
 # Transcripts record reviews and are never imported, but a whole-tree pass
@@ -82,6 +86,8 @@ EXECUTABLE_INVENTORY = (
     "scripts/check_legacy_runner.py",
     "scripts/check_s20_530_crash_recovery.py",
     "scripts/verify_s20_530_accepted_state.py",
+    "scripts/check_public_entrypoints.py",
+    "scripts/test_public_entrypoints.py",
 )
 LEGACY_NAME = re.compile(r"sley1|sley-1|sley_1|legacy")
 ENTRY_TITLE = re.compile(r"^### 1\.(\d+) (.+)$", re.M)

@@ -53,7 +53,12 @@ The probe measures these phases with `Instant`:
 Every call is checked against the independent identity oracle `target(42) = 42`.
 Input clones, oracle checks and memory sampling are outside call timers. Calls
 use ordinary `Executor::run`, not the pre-admitted `PreparedCall` optimization.
-The example includes the CLI's existing allocator module without changing it.
+The example uses the system allocator. ADR-0052 confines the `sley-agent`
+size-class allocator to the binary and the workbench tests, so the example no
+longer includes it. The retained 2026-10-15 samples were taken while the example
+included that allocator; in-process phase timings and memory from later runs of
+the example are not directly comparable with them. CLI wall-time measurements
+run the `sley-agent` binary, which keeps its allocator.
 
 The runner also records end-to-end wall time for a fresh empty probe process,
 the full probe, a focused CLI view, and a CLI call. The empty baseline includes
