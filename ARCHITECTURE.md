@@ -1,7 +1,7 @@
 # Sley 2 Architecture
 
 Status: normative baseline, first written at M1. The crate table and the
-dependency order below describe the workspace as of 2.0.1.
+dependency order below describe the workspace as of 2.1.1.
 
 ## Target state
 
@@ -61,6 +61,8 @@ crate, and nothing in `crates/` depends on it.
 | `sley-test-runner` | host-side native test supervision |
 | `sley-cli` | thin machine wrapper; no semantic rules |
 | `sley-agent` | agent workbench: AV1 views, AF1 frames, advisory dev loop; no semantic rules (ADR-0051) |
+| `sley-selfhost` | SH2 self-hosted toolchain: the C0 seed assembler, the canonical toolchain program, and the bootstrap harness (ADR-0056) |
+| `sley-host` | SH2 pinned native host: runs pinned `EXEC_PACKAGE_V3` packages on staged inputs, with no compiler service |
 
 ## Canonical and derived state
 

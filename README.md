@@ -72,10 +72,13 @@ Install first, then [write and test your first program](#write-and-test-your-fir
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
 ```sh
-git clone https://github.com/sley-lang/sley.git
+git clone --branch v2.1.1 --depth 1 https://github.com/sley-lang/sley.git
 cd sley
 cargo build --release -p sley-cli -p sley-agent   # → target/release/sley, sley-agent
 ```
+
+`--branch v2.1.1` builds the released source. `main` carries unreleased work
+under the same workspace version, so omit it only when you want that work.
 
 ### Write and test your first program
 
@@ -241,8 +244,11 @@ the [2.1.0 release notes](docs/release/SLEY-2.1.0.md).
 - **Policy and capabilities.** Protected policy roots, scoped capability
   tokens, and bounded adapters. There is no arbitrary shell.
 - **A reproducible release.** Two clean musl builds compared member by member,
-  a second-host attestation, CycloneDX and SPDX SBOMs, and recorded
-  provenance.
+  CycloneDX and SPDX SBOMs, and recorded (unsigned) provenance. Releases
+  2.0.0 through 2.0.5 also carried a second-host rebuild attestation
+  (`MULTI_HOST_REPRODUCIBLE`); 2.0.6 through 2.1.1 were reproduced on the
+  primary host only (`SINGLE_HOST_REPRODUCIBLE`), so cross-host verification
+  of the current release remains open.
 - **Independent conformance.** A separate Python oracle reproduces the Rust
   kernel's bytes exactly, backed by persistent fuzz targets across ten
   surfaces.
@@ -273,7 +279,7 @@ and a useful application, while preserving the accepted self-hosting work.
 | **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1 and the agent workbench in 2.0.2. The kernel, repository, protocol, CLI, agent workbench, and reproducible packaging are in place. |
 | **Sley 2.1** | Released as 2.1.0, with the Python dialect in 2.1.1. **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
-| **Sley 1.x** | Frozen at [v1.2.0](https://github.com/GreyforgeLabs/sley-legacy/releases/tag/v1.2.0) in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
+| **Sley 1.x** | Frozen at [v1.2.1](https://github.com/GreyforgeLabs/sley-legacy/tree/v1.2.1), the final 1.x tag, in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
 
 ## Documentation
 
@@ -284,7 +290,7 @@ and a useful application, while preserving the accepted self-hosting work.
 | 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
 | 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
 | 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
-| 📦 **[Release notes](docs/release/SLEY-2.0.0.md)** | What 2.0.0 contains, how to verify it, and what isn't claimed yet. [2.0.1](docs/release/SLEY-2.0.1.md) lists the fixes since, and [2.0.2](docs/release/SLEY-2.0.2.md) the agent workbench. |
+| 📦 **[Release notes](docs/release/SLEY-2.1.1.md)** | The current release, how to verify it, and what isn't claimed. [2.1.0](docs/release/SLEY-2.1.0.md) is the self-hosted release; [2.0.0](docs/release/SLEY-2.0.0.md) lists the known limits that still apply. |
 | 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
 | 🤝 **[Contributing](CONTRIBUTING.md)** | The slice contract, validation gates, and commit discipline |
 
@@ -337,7 +343,7 @@ and two read the Sley 2.0 master goal, which lives outside the repository
 (`SLEY2_MASTER_GOAL` points at it). The
 [Quickstart](docs/QUICKSTART.md#6-run-the-test-gates) has the details.
 
-The repository is a Cargo workspace of 20 crates under [`crates/`](crates/).
+The repository is a Cargo workspace of 23 crates under [`crates/`](crates/).
 Each crate owns exactly one authority, from `sley-scb1` (canonical bytes) to
 `sley-vm` (execution) and `sley-cli` (the thin wrapper). See
 [ARCHITECTURE.md](ARCHITECTURE.md) for the dependency law.

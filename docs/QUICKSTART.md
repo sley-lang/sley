@@ -65,11 +65,14 @@ You need `git`, the Rust toolchain pinned in
 automatically), and Python 3 for the demo.
 
 ```sh
-git clone https://github.com/sley-lang/sley.git
+git clone --branch v2.1.1 --depth 1 https://github.com/sley-lang/sley.git
 cd sley
 cargo build --release -p sley-cli -p sley-agent
 ./target/release/sley version
 ```
+
+`--branch v2.1.1` builds the released source; `main` carries unreleased work
+under the same workspace version.
 
 A release build takes about a minute on a modern machine, plus the time to
 download dependencies on the first run. To put `sley` on your `PATH`:
