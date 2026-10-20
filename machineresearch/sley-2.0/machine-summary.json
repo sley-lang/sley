@@ -2553,7 +2553,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 1127,
       "corpus_file_count": 1127,
@@ -2562,32 +2562,34 @@
       "executed_runs": 2156,
       "coverage": {
         "counters": 1453,
-        "ft_done": 507,
-        "ft_inited": 451,
+        "ft_done": 505,
+        "ft_inited": 452,
         "new_events": true,
-        "seed": 3975114127
+        "seed": 71221727
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 54,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review": "PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2_WITH_P3_P4_FOLLOWUPS",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_5_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_scb1_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 f732858fd7d8c8823d3f97416fd798c23551869bef771c8e5ba681b99656849c) (transcript FIELD line reads vulcan_review_closure). Two of the eight unclaimed P3/P4 findings are verified closed (register field at af9dba84, docs at c5424aa4); four P3 and two P4 remain open because the target and checker are unchanged since b64ab9e and the runner change did not touch the cited lines. The doc closure copied the overstated re-encode-oracle claim into tracked docs, and the b1218578 runner rewrite left the register's last_local_proof bound to a superseded runner while a canonical on-disk proof cites a non-ancestor commit. Checker exit 0 PASS was reproduced but cannot see any of these. Row not closable at this SHA.",
@@ -2626,7 +2628,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 259,
       "corpus_file_count": 259,
@@ -2635,32 +2637,34 @@
       "executed_runs": 515,
       "coverage": {
         "counters": 2812,
-        "ft_done": 493,
+        "ft_done": 494,
         "ft_inited": 491,
         "new_events": true,
-        "seed": 1685762292
+        "seed": 1990046424
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 41,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_4_P3_3_P4",
@@ -2719,23 +2723,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 500,
       "corpus_file_count": 500,
       "executed_runs": 756,
       "coverage": {
-        "counters": 9406,
-        "ft_done": 3731,
+        "counters": 9388,
+        "ft_done": 3733,
         "ft_inited": 3669,
         "new_events": true,
-        "seed": 3782541639
+        "seed": 4162862214
       },
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "runs_floor": 756,
       "owner_lib_sancov": 148,
       "coverage_ok": true,
@@ -2744,10 +2748,10 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "fuzz_toolchain_version": "clang version 18.1.8",
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "retested_regressions": [
         {
           "artifact": "S20-700-PACK-001-input_hex",
@@ -2764,7 +2768,9 @@
         "fuzz/regressions/S20_700_PACK_001.json",
         "fuzz/regressions/S20_700_PACK_002.json"
       ],
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_note": "Qualifying re-review of the c7fec98 fix at a525797 (transcript vulcan_review-c7fec98.md, FIELD vulcan_review, ROUND final): all five classes verified executing (static + seed-0493 probe + 775/775 proof), precedence sets match S20-540 order, no-store exemption intact, verdict field Honest. PASS with 3 P3 + 4 P4. VR-C7-01 (tracked proof still 4c30d1b; reseal_lane still exact-class wording) closes with the standard proof-refresh records commit; VR-C7-02/03 are owner items for the next target round; VR-C7-04..07 are P4 notes. Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_4_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 9f41fe3f93805e0cbe17b4694252f107879a97d7e3b7917609b3e6358edbbced) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-c7fec98.md) was located; of its 3 P3 + 4 P4 findings, VR-C7-01 and VR-C7-04 are verified closed by records commit 1f969f99, while VR-C7-02, VR-C7-03, VR-C7-05, VR-C7-06 and VR-C7-07 remain open because the target and checker are byte-identical to c7fec98 and the owners explicitly deferred the target round. One new P4 record note: the tracked proof is bound to a SHA reachable from no branch and the on-disk canonical-toolchain proof is unfolded. The lane's fix itself remains sound and the checker passes at HEAD, but the row cannot be closed as PRIOR_P3_P4_CLOS",
@@ -2800,7 +2806,7 @@
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 518,
       "corpus_file_count": 518,
@@ -2808,33 +2814,35 @@
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
-        "counters": 42244,
-        "ft_done": 8048,
-        "ft_inited": 7983,
+        "counters": 42253,
+        "ft_done": 8076,
+        "ft_inited": 7994,
         "new_events": true,
-        "seed": 2443662186
+        "seed": 2358309565
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2856,7 +2864,7 @@
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 491,
       "corpus_file_count": 491,
@@ -2865,32 +2873,34 @@
       "executed_runs": 747,
       "coverage": {
         "counters": 8052,
-        "ft_done": 5021,
+        "ft_done": 5253,
         "ft_inited": 4305,
         "new_events": true,
-        "seed": 2683791063
+        "seed": 982208057
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 108,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "fact_lanes": "bits 2/3/4 select facts-from-bytes (bound/entry-points/dependency-roots); kind-8 encode guard loud"
   },
@@ -2912,7 +2922,7 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 330,
       "corpus_file_count": 330,
@@ -2921,32 +2931,34 @@
       "executed_runs": 644,
       "coverage": {
         "counters": 4314,
-        "ft_done": 1885,
+        "ft_done": 1889,
         "ft_inited": 1825,
         "new_events": true,
-        "seed": 791931575
+        "seed": 3777881877
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2968,7 +2980,7 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 319,
       "corpus_file_count": 319,
@@ -2977,32 +2989,34 @@
       "executed_runs": 638,
       "coverage": {
         "counters": 3712,
-        "ft_done": 1376,
+        "ft_done": 1218,
         "ft_inited": 1128,
         "new_events": true,
-        "seed": 1195618108
+        "seed": 1271739002
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_4_P3_0_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 a359ecde4a9c057c954048e8e0eed9ab313b6677d71ab83f16fd79e0a2851911) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-7cf25acd25d2.md) was located and its three P3s enumerated; at 178873d7 F2 is verified closed (audit :28-33 now names the five decoder codes, commit 71232591), F3 is untouched, and F1 is mitigated in code by the b1218578 pin-layout repair with an unoverridden clang 18.1.8 PASS on disk, but that proof is unfiled while the tracked record still carries the clang-22 override run and the \"unproven\" clause. Two new P3s: the tracked proof commit is not in HEAD's lineage and predates the HEAD harness, and the slice checker is marker-only so it cannot reject a stale p",
     "p3_open": [
@@ -3028,7 +3042,7 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 47,
       "corpus_file_count": 47,
@@ -3036,33 +3050,35 @@
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
-        "counters": 38122,
-        "ft_done": 3926,
-        "ft_inited": 3761,
+        "counters": 38390,
+        "ft_done": 4283,
+        "ft_inited": 3759,
         "new_events": true,
-        "seed": 290594454
+        "seed": 3327204255
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
@@ -3083,7 +3099,7 @@
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 480,
       "corpus_file_count": 480,
@@ -3092,32 +3108,34 @@
       "executed_runs": 960,
       "coverage": {
         "counters": 1277,
-        "ft_done": 1239,
+        "ft_done": 1253,
         "ft_inited": 1022,
         "new_events": true,
-        "seed": 2156178043
+        "seed": 1954272670
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 108,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 ac28060f28335665321cfc69695887b309e1f494f7f69edd624c2bcdeed4ecff) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) names three P3s; at 178873d7 one is verified closed (rehash-lane rationale, made true by a069a246's digest-before-inversion reorder at snapshot.rs:743-748, matching spec \u00a75) and two remain open (target oracles only partly narrowed at fuzz/targets/complete_root_snapshot_decoder.rs:28,51-57,68-78; checker still marker-only at scripts/check_complete_root_snapshot_persistent_fuzz_slice.py:18-118, exit 0 despite a stale proof). One new P3 is recorded: the tracked last_local_proof (machine-summary.json:2536-2572) cites non-ancestor d3dee564 that p",
     "p3_open": [
@@ -3150,7 +3168,7 @@
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 971,
       "corpus_file_count": 971,
@@ -3159,32 +3177,34 @@
       "executed_runs": 1942,
       "coverage": {
         "counters": 12289,
-        "ft_done": 6154,
-        "ft_inited": 5102,
+        "ft_done": 6401,
+        "ft_inited": 5101,
         "new_events": true,
-        "seed": 3840477468
+        "seed": 301423278
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 108,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "seed_derivation": "generated synthetically; the fixture contributes contract and class-count drift checks only, no seed bytes"
   },
@@ -3206,7 +3226,7 @@
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 971,
       "corpus_file_count": 971,
@@ -3215,32 +3235,34 @@
       "executed_runs": 1942,
       "coverage": {
         "counters": 12769,
-        "ft_done": 6416,
-        "ft_inited": 5252,
+        "ft_done": 6209,
+        "ft_inited": 5251,
         "new_events": true,
-        "seed": 2700635394
+        "seed": 3228366792
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 108,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -3263,7 +3285,7 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 719,
       "corpus_file_count": 719,
@@ -3272,32 +3294,34 @@
       "executed_runs": 1456,
       "coverage": {
         "counters": 4509,
-        "ft_done": 2540,
+        "ft_done": 2224,
         "ft_inited": 2171,
         "new_events": true,
-        "seed": 1843895381
+        "seed": 1046576340
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
-      "owner_lib_sancov": 120,
+      "owner_lib_sancov_total": 1573,
+      "owner_lib_sancov": 126,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet",
@@ -3336,7 +3360,7 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 645,
       "corpus_file_count": 645,
@@ -3345,32 +3369,34 @@
       "executed_runs": 1286,
       "coverage": {
         "counters": 7138,
-        "ft_done": 4063,
+        "ft_done": 4114,
         "ft_inited": 3968,
         "new_events": true,
-        "seed": 1058918546
+        "seed": 4024105637
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 48,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 4f1f806240e607c0db75d63a4d7340147416a86f12517b77b3d1391e2cac3ed3) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) was located and all eleven P3/P4 findings enumerated; eight are verified closed at 178873d7 by code and audit changes in rounds 7h-7j and the b1218578 pin-layout repair, with the checker passing (exit 0). Two carried P3s (stale \"thirty-one\" count; tautological `known()` oracle) and one carried P4 (unbound checker markers) remain open and untracked, so the row cannot be closed. Two new records defects were found: the durable `last_local_proof` is stale against both runner and governed crate and contradicts the on-disk canonical-layout proof, ",
     "p3_open": [
@@ -3418,10 +3444,10 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "owner_lib_sancov": 120,
       "worktree_dirty": false,
       "runs_requested": 792,
@@ -3431,10 +3457,10 @@
       },
       "problems": [],
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "fuzz_toolchain_version": "clang version 18.1.8",
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "targets": {
         "graph-cfg": {
           "build_result": "PASS",
@@ -3442,10 +3468,10 @@
           "corpus_file_count": 408,
           "coverage": {
             "counters": 5513,
-            "ft_done": 2152,
+            "ft_done": 2205,
             "ft_inited": 1992,
             "new_events": true,
-            "seed": 1691284649
+            "seed": 2879561581
           },
           "coverage_ok": true,
           "crash_artifacts": [],
@@ -3477,10 +3503,10 @@
           "corpus_file_count": 385,
           "coverage": {
             "counters": 3174,
-            "ft_done": 3187,
+            "ft_done": 3140,
             "ft_inited": 2938,
             "new_events": true,
-            "seed": 1584361593
+            "seed": 2813527400
           },
           "coverage_ok": true,
           "crash_artifacts": [],
@@ -3522,7 +3548,9 @@
         "graph-cfg": [],
         "type-checker": []
       },
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_note": "Qualifying round-4 re-review at 5966d83 (transcript vulcan_review-df295d8.md, FIELD vulcan_review, ROUND final): PASS_0_P0_0_P1_0_P2_2_P3_3_P4. Single branch verified exact-or-sound (full per-arm table), multi branch closed by construction (42-entry universe == engine as_str matches), all six falsifying inputs traced to pass, seeds executed, proof binds df295d8 clean. Follow-ups applied post-verdict: arm-22 DOMINANCE removed again (dead in single scope; combos use universe branch), audit counts corrected (406 seeds, 949 proof), VS-R3-004 sentence corrected (closed by regeneration in 56ef0c6 \u2014 the owner wrongly wrote 'refuted'), checker pins tightened (universe-body scope, lib.rs TYPE scan, full seed lists), sixth [9,16] input pinned as seed-0013. Fresh PASS proof 955/955 both targets (override lane). Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_1_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 7b1d268320685a707e7381ee61820da598c5840facb17dd10ba7873c73cfdaba) (transcript FIELD line reads vulcan_review_closure). The round-4 transcript (vulcan_review-df295d8.md) was located and its five P3/P4 findings enumerated; VS-R4-002/003/004/005 are verified closed at HEAD by 634807f8 with the arm-22 derivation, seed-0013 bytes, checker pins, and audit wording independently checked, and the slice checker passes. VS-R4-001 remains half open because the audit's \"945/945 \u2026 fix awaits re-review\" line was never edited despite the commit message and summary note claiming it was. Two new record findings: the tracked PASS proof binds a dirty tree at a rebased-away commit (P3), and the new checker TYPE-scan has a bypassab",
@@ -3562,7 +3590,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 525,
       "corpus_file_count": 525,
@@ -3571,32 +3599,34 @@
       "executed_runs": 1050,
       "coverage": {
         "counters": 4102,
-        "ft_done": 1389,
+        "ft_done": 1375,
         "ft_inited": 1288,
         "new_events": true,
-        "seed": 3144844830
+        "seed": 1880506582
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 108,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_2_P3",
@@ -3663,62 +3693,44 @@
     ],
     "last_local_proof": {
       "build_locked": true,
-      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "cc": "clang-18",
       "corpus_count": 789,
       "corpus_file_count": 789,
       "coverage": {
-        "counters": 21653,
-        "ft_done": 11274,
-        "ft_inited": 11054,
+        "counters": 21654,
+        "ft_done": 11343,
+        "ft_inited": 11059,
         "new_events": true,
-        "seed": 1010919747
+        "seed": 2452259908
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "executed_runs": 1576,
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "new_crash_artifacts": [],
-      "owner_lib_sancov": 142,
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov": 143,
+      "owner_lib_sancov_total": 1573,
       "result": "PASS",
       "retested_prior_crashes": [],
       "rlib_linkage": "cargo-json",
       "runs_floor": 1576,
       "runs_requested": 1576,
       "sancov_scope": "workspace-target-units-via-host-config",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
-      "toolchain_overridden": false,
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "toolchain_overridden": true,
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
       "unexpected_warnings": [],
       "worktree_dirty_files": [],
-      "owner_lib_sancov_symbols": {
-        "libsley_adapter-5a9791b9becaedcf.rlib": 37,
-        "libsley_check-e0bcab03dc605dc7.rlib": 120,
-        "libsley_conformance-509e64346d6d740a.rlib": 14,
-        "libsley_id-8318f51117603534.rlib": 4,
-        "libsley_json_bridge-e7b5d7e32c43b63f.rlib": 48,
-        "libsley_mutate-8f12a5f63b1768dd.rlib": 108,
-        "libsley_policy-dd564349bbb704c0.rlib": 111,
-        "libsley_protocol-b0d9b4db92fc281f.rlib": 120,
-        "libsley_query-195a018cfe33072f.rlib": 108,
-        "libsley_repo-403dce66a5429a4c.rlib": 148,
-        "libsley_scb1-f9052b114f69fe63.rlib": 54,
-        "libsley_schema-ac7e3afbcb8b4055.rlib": 41,
-        "libsley_ssmc-23e14c744297ae72.rlib": 26,
-        "libsley_state_root-1b38319abb817fc4.rlib": 51,
-        "libsley_store-87a5dda1b86676c7.rlib": 53,
-        "libsley_tests-3622fec933655d8c.rlib": 109,
-        "libsley_txn-3512d92822ec271d.rlib": 115,
-        "libsley_vm-10f043ea67ffd6b6.rlib": 142
-      },
+      "owner_lib_sancov_symbols": {},
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "restricted_profile_opcodes": [
       102,
@@ -3811,7 +3823,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 821,
       "corpus_file_count": 821,
@@ -3820,32 +3832,34 @@
       "executed_runs": 1642,
       "coverage": {
         "counters": 7433,
-        "ft_done": 3229,
+        "ft_done": 3205,
         "ft_inited": 3137,
         "new_events": true,
-        "seed": 3866971082
+        "seed": 2769948641
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
+      "owner_lib_sancov_total": 1573,
       "owner_lib_sancov": 37,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "must_reject_classes": [
       "identity-changed (adapter_id)",
@@ -3886,7 +3900,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
       "worktree_dirty_files": [],
       "corpus_count": 32,
       "corpus_file_count": 32,
@@ -3894,33 +3908,35 @@
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
-        "counters": 17716,
-        "ft_done": 2847,
-        "ft_inited": 2512,
+        "counters": 17751,
+        "ft_done": 3204,
+        "ft_inited": 2527,
         "new_events": true,
-        "seed": 1758168826
+        "seed": 956796976
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1409,
-      "owner_lib_sancov": 108,
+      "owner_lib_sancov_total": 1573,
+      "owner_lib_sancov": 110,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 18.1.8",
+        "cc": "Debian clang version 18.1.8 (18+b1)",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "/usr/lib/llvm18/bin/clang-18",
-      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "cc": "clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
-      "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh at af34be33 (Sley 2.1.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
+      "toolchain_overridden": true,
+      "fuzz_toolchain_layout": "override",
+      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_360_candidate_validation": {
