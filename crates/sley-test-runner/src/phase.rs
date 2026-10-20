@@ -336,4 +336,115 @@ mod tests {
         );
         worker.join().unwrap();
     }
+
+    /// Control pipe that accepts a fixed number of gate writes, then fails.
+    struct FailingControl {
+        accepted: usize,
+        written: Vec<u8>,
+    }
+
+    impl std::io::Write for FailingControl {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.accepted == 0 {
+                return Err(std::io::Error::from(ErrorKind::BrokenPipe));
+            }
+            self.accepted -= 1;
+            self.written.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn failed_start_gate_refuses_without_reading_worker_output() {
+        let fixture = Fixture::new();
+        let telemetry = fixture.telemetry();
+        // A complete report is already waiting: a worker that ran before its
+        // start gate must still not yield a result.
+        let (mut output, mut worker_output) = UnixStream::pair().unwrap();
+        worker_output.write_all(REPORT).unwrap();
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let mut control = FailingControl {
+            accepted: 0,
+            written: Vec::new(),
+        };
+        assert_eq!(
+            run_gated_phase(
+                &telemetry,
+                123,
+                &mut output,
+                &mut control,
+                &peer,
+                Instant::now() + Duration::from_secs(1)
+            )
+            .err(),
+            Some(PhaseError::GateWrite)
+        );
+        assert!(control.written.is_empty());
+        output.set_nonblocking(true).unwrap();
+        let mut unread = [0_u8; 8];
+        assert_eq!(output.read(&mut unread).unwrap(), 8, "report left unread");
+    }
+
+    #[test]
+    fn failed_release_gate_refuses_a_complete_report() {
+        let fixture = Fixture::new();
+        let telemetry = fixture.telemetry();
+        let (mut output, mut worker_output) = UnixStream::pair().unwrap();
+        worker_output.write_all(REPORT).unwrap();
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let mut control = FailingControl {
+            accepted: 1,
+            written: Vec::new(),
+        };
+        assert_eq!(
+            run_gated_phase(
+                &telemetry,
+                123,
+                &mut output,
+                &mut control,
+                &peer,
+                Instant::now() + Duration::from_secs(1)
+            )
+            .err(),
+            Some(PhaseError::GateWrite)
+        );
+        assert_eq!(control.written, [WORKER_START_GATE]);
+        assert_eq!(PhaseError::GateWrite.to_string(), "NATIVE_PHASE_GATE_WRITE");
+    }
+
+    #[test]
+    fn production_phase_refuses_a_nonroot_caller_before_any_gate() {
+        if nix::unistd::geteuid().is_root() {
+            return;
+        }
+        let fixture = Fixture::new();
+        let telemetry = fixture.telemetry();
+        let (mut output, mut worker_output) = UnixStream::pair().unwrap();
+        worker_output.write_all(REPORT).unwrap();
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let mut control = FailingControl {
+            accepted: 2,
+            written: Vec::new(),
+        };
+        assert_eq!(
+            run_system_unit_phase(
+                &telemetry,
+                123,
+                &mut output,
+                &mut control,
+                &peer,
+                Instant::now() + Duration::from_secs(1)
+            )
+            .err(),
+            Some(PhaseError::Unprivileged)
+        );
+        assert!(
+            control.written.is_empty(),
+            "no gate byte reaches the worker"
+        );
+    }
 }

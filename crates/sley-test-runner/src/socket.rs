@@ -164,6 +164,23 @@ mod tests {
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
+    fn config_for(runtime: &str) -> RunnerConfig {
+        default_config(
+            runtime,
+            "/usr/lib/sley/sley-native-test-worker",
+            [7; 32],
+            [8; 32],
+            vec![AllowedCaller {
+                uid: 1_000,
+                workspace: WorkspaceId::from_bytes([1; 32]),
+                principal: PrincipalId::from_bytes([2; 32]),
+            }],
+            "/etc/sley-test-supervisor/measurement.key",
+            "/etc/sley-test-supervisor/trust",
+        )
+        .expect("config")
+    }
+
     #[test]
     fn bound_socket_accepts_and_removes_only_its_own_inode() {
         let runtime = std::env::temp_dir().join(format!(
@@ -199,5 +216,64 @@ mod tests {
         drop(bound);
         assert!(!Path::new(&config.socket_path()).exists());
         fs::remove_dir_all(runtime).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn a_failed_bind_in_a_safe_directory_is_bind_failed_and_leaves_no_inode() {
+        let runtime = std::env::temp_dir().join(format!(
+            "sley-supervisor-socket-ro-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&runtime).expect("create runtime");
+        // Owner-only, no group/world write: the directory passes the safety
+        // check, but nobody but root can create the socket inode in it.
+        fs::set_permissions(&runtime, fs::Permissions::from_mode(0o555)).expect("read-only");
+        let config = config_for(runtime.to_str().expect("path"));
+        let uid = nix::unistd::getuid().as_raw();
+        if !nix::unistd::geteuid().is_root() {
+            assert_eq!(
+                bind_for_owner(&config, uid).err(),
+                Some(SocketBindError::BindFailure)
+            );
+            assert!(fs::symlink_metadata(config.socket_path()).is_err());
+        }
+        fs::set_permissions(&runtime, fs::Permissions::from_mode(0o755)).expect("restore");
+        fs::remove_dir_all(runtime).expect("cleanup fixture");
+
+        // A runtime path too long for a Unix socket address cannot bind.
+        let mut long = std::env::temp_dir().join(format!(
+            "sley-supervisor-socket-long-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let top = long.clone();
+        while long.as_os_str().len() < 120 {
+            long.push("a".repeat(40));
+        }
+        fs::create_dir_all(&long).expect("long runtime");
+        let mut ancestor = long.clone();
+        while ancestor != std::env::temp_dir() {
+            fs::set_permissions(&ancestor, fs::Permissions::from_mode(0o755)).expect("mode");
+            ancestor.pop();
+        }
+        let config = config_for(long.to_str().expect("path"));
+        assert_eq!(
+            bind_for_owner(&config, uid).err(),
+            Some(SocketBindError::BindFailure)
+        );
+        fs::remove_dir_all(top).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn only_the_root_daemon_may_bind_the_endpoint() {
+        if nix::unistd::geteuid().is_root() {
+            return;
+        }
+        let config = config_for("/run/sley-test-supervisor");
+        assert_eq!(
+            bind_supervisor_socket(&config).err(),
+            Some(SocketBindError::Unprivileged)
+        );
     }
 }

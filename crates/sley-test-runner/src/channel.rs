@@ -277,6 +277,9 @@ mod tests {
     fn refuses_peer_loss_and_deadline_without_waiting_for_eof() {
         let (mut output, _writer) = UnixStream::pair().unwrap();
         let (peer, client) = UnixStream::pair().unwrap();
+        // Shutdown, not only drop: a concurrent test's fork may briefly hold
+        // a copy of this descriptor until it execs.
+        client.shutdown(Shutdown::Both).unwrap();
         drop(client);
         assert_eq!(check_peer_connected(&peer), Err(ChannelError::PeerLost));
         assert_eq!(
@@ -288,5 +291,57 @@ mod tests {
             read_report_before(&mut output, &client, Instant::now()),
             Err(ChannelError::Deadline)
         );
+    }
+
+    #[test]
+    fn refuses_output_lost_before_a_complete_report() {
+        let (peer, _client) = UnixStream::pair().unwrap();
+        // The worker exits without writing anything.
+        let (mut output, writer) = UnixStream::pair().unwrap();
+        drop(writer);
+        assert_eq!(
+            read_report_before(&mut output, &peer, deadline()),
+            Err(ChannelError::OutputLost)
+        );
+        // The worker dies inside the envelope header, and again one byte short
+        // of the declared total: neither truncation is a report.
+        for cut in [5, REPORT.len() - 1] {
+            let (mut output, mut writer) = UnixStream::pair().unwrap();
+            writer.write_all(&REPORT[..cut]).unwrap();
+            drop(writer);
+            assert_eq!(
+                read_report_before(&mut output, &peer, deadline()),
+                Err(ChannelError::OutputLost),
+                "truncated at {cut}"
+            );
+        }
+    }
+
+    #[test]
+    fn refuses_anything_but_one_canonical_report() {
+        let (peer, _client) = UnixStream::pair().unwrap();
+        let mut corrupted_digest = REPORT.to_vec();
+        let last = corrupted_digest.len() - 1;
+        corrupted_digest[last] ^= 1;
+        let mut corrupted_record = REPORT.to_vec();
+        corrupted_record[20] ^= 1;
+        let cases: [(&str, Vec<u8>); 7] = [
+            ("foreign magic", b"SLEYNTS1\x01\x05".to_vec()),
+            ("magic prefix diverges", b"SLEX".to_vec()),
+            ("unsupported version", b"SLEYNEX1\x02\x05".to_vec()),
+            ("zero record length", b"SLEYNEX1\x01\x00".to_vec()),
+            ("non-minimal length", b"SLEYNEX1\x01\x85\x00".to_vec()),
+            ("digest mismatch", corrupted_digest),
+            ("record damaged under its digest", corrupted_record),
+        ];
+        for (name, bytes) in cases {
+            let (mut output, mut writer) = UnixStream::pair().unwrap();
+            writer.write_all(&bytes).unwrap();
+            assert_eq!(
+                read_report_before(&mut output, &peer, deadline()),
+                Err(ChannelError::MalformedReport),
+                "{name}"
+            );
+        }
     }
 }

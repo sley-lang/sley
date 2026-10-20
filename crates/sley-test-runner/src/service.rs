@@ -138,6 +138,13 @@ fn write_response(stream: &mut UnixStream, response: &RunResponse) -> Result<(),
     Ok(())
 }
 
+/// The staged path as a launch argument. A validated runtime directory is
+/// ASCII, so this refusal is defensive: a non-UTF-8 path is never lossily
+/// converted into a different credential source.
+fn launch_input_path(path: &std::path::Path) -> Result<&str, ServiceError> {
+    path.to_str().ok_or(ServiceError::InputPath)
+}
+
 fn response_for_owned_result(
     result: Result<OwnedWorkerResult, OwnerError>,
     config: &RunnerConfig,
@@ -303,7 +310,7 @@ pub fn handle_root_connection(
         return write_response(stream, &response);
     };
     let unit = staged.render_unit().map_err(ServiceError::Unit)?;
-    let input_path = staged.path().to_str().ok_or(ServiceError::InputPath)?;
+    let input_path = launch_input_path(staged.path())?;
     let result = run_owned_system_unit(
         &unit,
         config,
@@ -778,5 +785,69 @@ mod tests {
         assert_eq!(evidence.attestation().execution_report_id(), None);
         assert_eq!(evidence.attestation().elapsed_ns(), 0);
         std::fs::remove_file(path).expect("remove socket");
+    }
+
+    #[test]
+    fn an_unencodable_response_writes_nothing() {
+        let (mut server, mut client) = UnixStream::pair().expect("pair");
+        // Complete without its evidence triple is not a closed response shape.
+        let invalid = RunResponse {
+            status: RunStatus::Complete,
+            code: 0,
+            evidence: None,
+            no_result: None,
+            manager_oom: None,
+        };
+        assert_eq!(
+            write_response(&mut server, &invalid),
+            Err(ServiceError::ResponseEncoding)
+        );
+        drop(server);
+        let mut bytes = Vec::new();
+        client.read_to_end(&mut bytes).expect("read");
+        assert!(bytes.is_empty(), "no partial frame reaches the peer");
+    }
+
+    #[test]
+    fn a_disconnected_peer_is_a_write_failure() {
+        let (mut server, client) = UnixStream::pair().expect("pair");
+        client.shutdown(std::net::Shutdown::Both).expect("shutdown");
+        drop(client);
+        assert_eq!(
+            write_response(&mut server, &unsigned_refusal(RUN_REFUSAL_UNIT_OCCUPIED)),
+            Err(ServiceError::WriteFailure)
+        );
+    }
+
+    #[test]
+    fn a_failed_accept_is_reported_and_handles_no_connection() {
+        let (listener, path) = test_listener();
+        listener.set_nonblocking(true).expect("nonblocking");
+        let uid = nix::unistd::getuid().as_raw();
+        assert_eq!(
+            serve_one(&listener, &config(uid), Duration::from_secs(1)),
+            Err(ServiceError::AcceptFailure)
+        );
+        let authority = test_authority(uid);
+        assert_eq!(
+            serve_one_root(&listener, &authority, Duration::from_secs(1)),
+            Err(ServiceError::AcceptFailure)
+        );
+        std::fs::remove_file(path).expect("remove socket");
+    }
+
+    #[test]
+    fn a_non_utf8_staged_path_is_never_lossily_launched() {
+        use std::os::unix::ffi::OsStrExt;
+        let path = std::path::Path::new(std::ffi::OsStr::from_bytes(
+            b"/run/sley-test-supervisor/input/\xff.bin",
+        ));
+        assert_eq!(launch_input_path(path), Err(ServiceError::InputPath));
+        assert_eq!(
+            launch_input_path(std::path::Path::new(
+                "/run/sley-test-supervisor/input/a.bin"
+            )),
+            Ok("/run/sley-test-supervisor/input/a.bin")
+        );
     }
 }

@@ -352,6 +352,70 @@ mod tests {
         fs::remove_dir(runtime).expect("remove runtime");
     }
 
+    #[test]
+    fn invalid_configuration_refuses_before_any_directory_is_created() {
+        let (runtime, config, request, uid) = fixture();
+        let mut zero_pin = config.clone();
+        zero_pin.worker_sha256 = [0; 32];
+        let mut traversal = config.clone();
+        traversal.runtime_dir = format!("{}/../elsewhere", config.runtime_dir);
+        let mut page = config;
+        page.page_size = 3_000;
+        for broken in [zero_pin, traversal, page] {
+            assert!(matches!(
+                stage_worker_input_for_uid(&broken, &request, uid),
+                Err(StageError::InvalidConfiguration)
+            ));
+        }
+        assert!(!runtime.join("input").exists());
+        fs::remove_dir(runtime).expect("remove runtime");
+    }
+
+    #[test]
+    fn unwritable_input_directory_is_a_write_failure_without_a_partial_file() {
+        if nix::unistd::geteuid().is_root() {
+            // Root bypasses the directory mode that makes creation fail.
+            return;
+        }
+        let (runtime, config, request, uid) = fixture();
+        let input = runtime.join("input");
+        DirBuilder::new()
+            .mode(0o500)
+            .create(&input)
+            .expect("input dir");
+        assert!(matches!(
+            stage_worker_input_for_uid(&config, &request, uid),
+            Err(StageError::WriteFailure)
+        ));
+        assert_eq!(fs::read_dir(&input).expect("list input").count(), 0);
+        fs::set_permissions(&input, fs::Permissions::from_mode(0o700)).expect("restore");
+        fs::remove_dir(input).expect("remove input dir");
+        fs::remove_dir(runtime).expect("remove runtime");
+    }
+
+    #[test]
+    fn explicit_removal_reports_a_vanished_or_substituted_input() {
+        let (runtime, config, request, uid) = fixture();
+        let staged = stage_worker_input_for_uid(&config, &request, uid).expect("stage");
+        let path = staged.path().to_path_buf();
+        fs::remove_file(&path).expect("external removal");
+        assert!(matches!(staged.remove(), Err(StageError::CleanupFailure)));
+
+        let mut request = fixture_request();
+        request.nonce = crate::nonce::random_attempt_nonce().expect("OS entropy");
+        let staged = stage_worker_input_for_uid(&config, &request, uid).expect("stage again");
+        let path = staged.path().to_path_buf();
+        // A directory substituted at the staged path is never deleted as if
+        // it were the daemon's file, by `remove` or by the drop retry.
+        fs::remove_file(&path).expect("remove staged file");
+        fs::create_dir(&path).expect("substitute directory");
+        assert!(matches!(staged.remove(), Err(StageError::CleanupFailure)));
+        assert!(path.is_dir());
+        fs::remove_dir(&path).expect("remove substitute");
+        fs::remove_dir(runtime.join("input")).expect("remove input dir");
+        fs::remove_dir(runtime).expect("remove runtime");
+    }
+
     fn fixture_request() -> RunRequest {
         let worker = WorkerRequest::decode_frame(include_bytes!(
             "../../../conformance/native-worker/v1/observed-input.bin"

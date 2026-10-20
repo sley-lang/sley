@@ -422,6 +422,26 @@ impl Drop for UnitGuard {
     }
 }
 
+/// Prelaunch gate, in order: root supervisor, the exact frozen unit, then
+/// the installed binary pins. Nothing is spawned before all three pass.
+fn admit_launch(
+    privileged: bool,
+    unit: &TransientUnit,
+    config: &RunnerConfig,
+    worker_input_path: &str,
+    wall_ms: u64,
+) -> Result<(), OwnerError> {
+    if !privileged {
+        return Err(OwnerError::Unprivileged);
+    }
+    if !exact_rendered_unit(unit, config, worker_input_path, wall_ms) {
+        return Err(OwnerError::UnitMismatch);
+    }
+    config
+        .verify_installed_binaries()
+        .map_err(OwnerError::BinaryPin)
+}
+
 /// Owns one system transient unit from launch through confirmed exit/reap.
 ///
 /// This does not stage the request, bind a report to the request, or sign a
@@ -440,15 +460,13 @@ pub fn run_owned_system_unit(
     peer: &UnixStream,
     wall_ms: u64,
 ) -> Result<OwnedWorkerResult, OwnerError> {
-    if !nix::unistd::geteuid().is_root() {
-        return Err(OwnerError::Unprivileged);
-    }
-    if !exact_rendered_unit(unit, config, worker_input_path, wall_ms) {
-        return Err(OwnerError::UnitMismatch);
-    }
-    config
-        .verify_installed_binaries()
-        .map_err(OwnerError::BinaryPin)?;
+    admit_launch(
+        nix::unistd::geteuid().is_root(),
+        unit,
+        config,
+        worker_input_path,
+        wall_ms,
+    )?;
     let started = Instant::now();
     let deadline = started
         .checked_add(Duration::from_millis(wall_ms))
@@ -810,6 +828,10 @@ mod tests {
             runtime_max_usec: 3_000_000,
         };
         let (peer, client) = UnixStream::pair().unwrap();
+        // Shut the socket down rather than only dropping this descriptor: a
+        // concurrent test's fork can briefly hold a copy of it until exec,
+        // which keeps a merely dropped peer connected.
+        client.shutdown(std::net::Shutdown::Both).unwrap();
         drop(client);
         let result = UnitGuard::spawn_for_peer(&unit, &peer);
         let error = match result {
@@ -853,6 +875,115 @@ mod tests {
         assert!(!exact_rendered_unit(&unit, &config, input, 999));
     }
 
+    fn fixture_config() -> RunnerConfig {
+        default_config(
+            "/run/sley-test-supervisor",
+            "/usr/lib/sley/sley-native-test-worker",
+            [1; 32],
+            [2; 32],
+            vec![AllowedCaller {
+                uid: 1000,
+                workspace: WorkspaceId::from_bytes([11; 32]),
+                principal: PrincipalId::from_bytes([12; 32]),
+            }],
+            "/etc/sley-test-supervisor/measurement.key",
+            "/etc/sley-test-supervisor/trust",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn prelaunch_gate_orders_privilege_exact_unit_then_binary_pins() {
+        let config = fixture_config();
+        let input = "/run/sley-test-supervisor/input/a.bin";
+        let unit = render_transient_unit(&config, &"a".repeat(64), input, 8192, 1000).unwrap();
+        assert_eq!(
+            admit_launch(false, &unit, &config, input, 1000),
+            Err(OwnerError::Unprivileged)
+        );
+        // An attacker-shaped unit is refused before any binary is hashed:
+        // an extra property, a substituted input path, and a renamed unit.
+        let mut widened = unit.clone();
+        widened
+            .argv
+            .push("--property=NoNewPrivileges=no".to_owned());
+        let mut renamed = unit.clone();
+        renamed.unit_name = format!("{UNIT_PREFIX}{}", "b".repeat(64));
+        for altered in [&widened, &renamed] {
+            assert_eq!(
+                admit_launch(true, altered, &config, input, 1000),
+                Err(OwnerError::UnitMismatch)
+            );
+        }
+        assert_eq!(
+            admit_launch(
+                true,
+                &unit,
+                &config,
+                "/run/sley-test-supervisor/input/b.bin",
+                1000
+            ),
+            Err(OwnerError::UnitMismatch)
+        );
+        if !nix::unistd::geteuid().is_root() {
+            // The exact unit passes to the pin check, which itself refuses
+            // outside root.
+            assert_eq!(
+                admit_launch(true, &unit, &config, input, 1000),
+                Err(OwnerError::BinaryPin(BinaryPinError::Unprivileged))
+            );
+            let (peer, _client) = UnixStream::pair().unwrap();
+            assert!(matches!(
+                run_owned_system_unit(&unit, &config, input, &peer, 1000),
+                Err(OwnerError::Unprivileged)
+            ));
+        }
+    }
+
+    #[test]
+    fn an_unspawnable_launcher_is_launch_failed() {
+        let unit = TransientUnit {
+            unit_name: format!("{UNIT_PREFIX}{}", "c".repeat(64)),
+            argv: vec!["/nonexistent/sley-systemd-run".to_owned()],
+            requested_memory: 4096,
+            installed_memory: 4096,
+            runtime_max_usec: 3_000_000,
+        };
+        assert!(matches!(
+            UnitGuard::spawn(&unit),
+            Err(OwnerError::LaunchFailure)
+        ));
+        assert_eq!(
+            OwnerError::LaunchFailure.to_string(),
+            "NATIVE_OWNER_LAUNCH_FAILED"
+        );
+    }
+
+    #[test]
+    fn a_nonzero_or_signalled_launcher_exit_is_worker_exit() {
+        for script in ["exit 3", "kill -9 $$"] {
+            let mut guard = std::mem::ManuallyDrop::new(
+                UnitGuard::spawn(&TransientUnit {
+                    unit_name: format!("{UNIT_PREFIX}{}", "f".repeat(64)),
+                    argv: vec!["/bin/sh".to_owned(), "-c".to_owned(), script.to_owned()],
+                    requested_memory: 4096,
+                    installed_memory: 4096,
+                    runtime_max_usec: 3_000_000,
+                })
+                .unwrap(),
+            );
+            guard.invocation = Some(WorkerInvocation::fixture());
+            let (peer, _client) = UnixStream::pair().unwrap();
+            let result = guard.finish(&peer, Instant::now() + Duration::from_secs(5));
+            let reaped = guard.reaped;
+            // The launcher has exited; no manager cleanup is attempted here.
+            guard.reaped = true;
+            drop(std::mem::ManuallyDrop::into_inner(guard));
+            assert_eq!(result, Err(OwnerError::WorkerExit), "{script}");
+            assert!(!reaped, "a failed launcher is never marked reaped");
+        }
+    }
+
     #[test]
     fn child_wait_has_a_strict_deadline_and_peer_watch() {
         let (peer, client) = UnixStream::pair().unwrap();
@@ -861,6 +992,7 @@ mod tests {
             wait_child(&mut child, Instant::now(), Some(&peer)),
             Err(OwnerError::Deadline)
         );
+        client.shutdown(std::net::Shutdown::Both).unwrap();
         drop(client);
         assert_eq!(
             wait_child(

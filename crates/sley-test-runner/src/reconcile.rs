@@ -106,8 +106,18 @@ fn before(deadline: Instant) -> Result<(), ReconcileError> {
     }
 }
 
+const SYSTEMCTL: &str = "/usr/bin/systemctl";
+
 fn signal_all(units: &[String], deadline: Instant) -> Result<(), ReconcileError> {
-    let mut child = Command::new("/usr/bin/systemctl")
+    signal_all_with(Path::new(SYSTEMCTL), units, deadline)
+}
+
+fn signal_all_with(
+    systemctl: &Path,
+    units: &[String],
+    deadline: Instant,
+) -> Result<(), ReconcileError> {
+    let mut child = Command::new(systemctl)
         .args([
             "--system",
             "--no-ask-password",
@@ -212,5 +222,94 @@ mod tests {
             Err(ReconcileError::InvalidCgroup)
         );
         fs::remove_dir_all(root).expect("cleanup fixture");
+    }
+
+    fn fixture_root(label: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "sley-reconcile-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).expect("root");
+        root
+    }
+
+    #[test]
+    fn missing_substituted_or_foreign_slice_is_unavailable() {
+        let uid = nix::unistd::getuid().as_raw();
+        let root = fixture_root("slice");
+        assert_eq!(
+            cgroup_units_under(&root.join("absent"), uid),
+            Err(ReconcileError::CgroupUnavailable)
+        );
+        // A symlink to a real slice directory is not the slice.
+        let real = root.join("real");
+        fs::create_dir(&real).expect("real slice");
+        let linked = root.join("linked");
+        std::os::unix::fs::symlink(&real, &linked).expect("slice symlink");
+        assert_eq!(
+            cgroup_units_under(&linked, uid),
+            Err(ReconcileError::CgroupUnavailable)
+        );
+        let file = root.join("file");
+        fs::write(&file, b"").expect("regular file");
+        assert_eq!(
+            cgroup_units_under(&file, uid),
+            Err(ReconcileError::CgroupUnavailable)
+        );
+        // The slice must belong to the expected owner (root in production).
+        assert_eq!(
+            cgroup_units_under(&real, uid.wrapping_add(1)),
+            Err(ReconcileError::CgroupUnavailable)
+        );
+        assert_eq!(cgroup_units_under(&real, uid), Ok(Vec::new()));
+        fs::remove_dir_all(root).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn more_native_cgroups_than_the_unit_bound_refuse() {
+        let uid = nix::unistd::getuid().as_raw();
+        let root = fixture_root("bound");
+        for index in 0..MAX_NATIVE_UNITS {
+            fs::create_dir(root.join(format!("sley-native-test-{index:064x}.service")))
+                .expect("native cgroup");
+        }
+        assert_eq!(
+            cgroup_units_under(&root, uid).map(|units| units.len()),
+            Ok(MAX_NATIVE_UNITS)
+        );
+        fs::create_dir(root.join(format!("sley-native-test-{MAX_NATIVE_UNITS:064x}.service")))
+            .expect("one more native cgroup");
+        assert_eq!(
+            cgroup_units_under(&root, uid),
+            Err(ReconcileError::TooManyUnits)
+        );
+        fs::remove_dir_all(root).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn an_unspawnable_kill_command_fails_instead_of_skipping_cleanup() {
+        let root = fixture_root("kill");
+        let units = vec![format!("sley-native-test-{}", "a".repeat(64))];
+        let deadline = Instant::now() + Duration::from_secs(5);
+        assert_eq!(
+            signal_all_with(&root.join("absent-systemctl"), &units, deadline),
+            Err(ReconcileError::KillFailed)
+        );
+        let not_executable = root.join("systemctl");
+        fs::write(&not_executable, b"#!/bin/sh\nexit 0\n").expect("script");
+        assert_eq!(
+            signal_all_with(&not_executable, &units, deadline),
+            Err(ReconcileError::KillFailed)
+        );
+        fs::remove_dir_all(root).expect("cleanup fixture");
+    }
+
+    #[test]
+    fn reconciliation_refuses_a_nonroot_daemon() {
+        if nix::unistd::geteuid().is_root() {
+            return;
+        }
+        assert_eq!(reconcile_orphans(), Err(ReconcileError::Unprivileged));
     }
 }

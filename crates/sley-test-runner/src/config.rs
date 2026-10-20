@@ -450,6 +450,58 @@ mod tests {
     }
 
     #[test]
+    fn installed_binary_pin_refuses_empty_oversized_and_hard_linked_files() {
+        let root = std::env::temp_dir().join(format!(
+            "sley-binary-pin-size-{}-{}",
+            std::process::id(),
+            NEXT_BINARY.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("worker");
+        std::fs::write(&path, b"").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let uid = std::fs::metadata(&path).unwrap().uid();
+        // The empty file's digest is pinned, so only the size rule can refuse.
+        assert_eq!(
+            verify_binary_for_owner(&path, sha256_bytes(b""), uid),
+            Err(BinaryPinError::InvalidSize)
+        );
+        // A sparse file one byte over the hash ceiling refuses from metadata
+        // without hashing 128 MiB.
+        let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_len(MAX_PINNED_BINARY_BYTES + 1).unwrap();
+        drop(file);
+        assert_eq!(
+            verify_binary_for_owner(&path, [0; 32], uid),
+            Err(BinaryPinError::InvalidSize)
+        );
+        // A second hard link lets another path rename or replace the pinned
+        // inode, so a link count above one is unsafe metadata.
+        let bytes = b"pinned";
+        std::fs::write(&path, bytes).unwrap();
+        let linked = root.join("hard-link");
+        std::fs::hard_link(&path, &linked).unwrap();
+        assert_eq!(
+            verify_binary_for_owner(&path, sha256_bytes(bytes), uid),
+            Err(BinaryPinError::UnsafeMetadata)
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn installed_binary_pin_refuses_outside_the_root_daemon() {
+        if nix::unistd::geteuid().is_root() {
+            return;
+        }
+        // The refusal precedes validation and any filesystem access, so even
+        // an otherwise valid configuration cannot hash binaries unprivileged.
+        assert_eq!(
+            config().verify_installed_binaries(),
+            Err(BinaryPinError::Unprivileged)
+        );
+    }
+
+    #[test]
     fn config_refusals_keep_stable_tags() {
         assert_eq!(config().validate(), Ok(()));
         let mut relative = config();
