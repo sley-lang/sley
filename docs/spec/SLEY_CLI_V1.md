@@ -646,7 +646,21 @@ requests or a program package.
 
 Startup loads this authority before reading a client hello. An unavailable or
 unsafe configuration yields `CLI_IO_FAILURE` with a stable `NATIVE_CLI_*`
-cause, writes no protocol stdout, and does not start serving. The configured
+cause, writes no protocol stdout, and does not start serving. The causes
+(registered 2026-10-19 as an erratum to revision 11; behavior unchanged) are:
+
+| Cause | Raised when |
+|---|---|
+| `NATIVE_CLI_CONFIG_UNAVAILABLE` | the configuration file is absent, unsafe (owner, mode, link count, type, symlink) or over 64 KiB |
+| `NATIVE_CLI_CONFIG_INVALID` | the configuration is not the closed JSON document, or its `version` is not 1 |
+| `NATIVE_CLI_KEY_UNAVAILABLE` | the acceptance seed file is unavailable or unsafe, or is not exactly 32 bytes |
+| `NATIVE_CLI_MEASUREMENT_TRUST_UNAVAILABLE` | the measurement manifest file is unavailable, unsafe, or over 8 MiB |
+| `NATIVE_CLI_ACCEPTANCE_TRUST_UNAVAILABLE` | the acceptance manifest file is unavailable, unsafe, or over 8 MiB |
+| `NATIVE_CLI_MEASUREMENT_TRUST_INVALID` | the measurement manifest is not canonical `SLEYNTR1` or contains no measurement role |
+| `NATIVE_CLI_ACCEPTANCE_TRUST_INVALID` | the acceptance manifest is not canonical `SLEYNTR1` |
+| `NATIVE_CLI_ACCEPTANCE_KEY_NOT_GRANTED` | the acceptance manifest does not name the loaded key with the acceptance role |
+| `NATIVE_CLI_SOCKET_INVALID` | the fixed supervisor socket path cannot back a native commit executor |
+ The configured
 commit executor connects only to
 `/run/sley-test-supervisor/supervisor.sock`; it still requires the separately
 installed, authenticated, qualified root supervisor. The receiver also

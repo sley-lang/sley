@@ -2,7 +2,9 @@
 
 Status: N0 owner-contract proposal, revision 4 (2026-09-27). Revision 3's
 architecture passed independent design review with zero open issues. Revision
-4 adds the private worker output channel below; its wire delta awaits review.
+4 adds the private worker output channel below; its wire delta awaits review. A
+2026-10-19 registration erratum (§11) names the private supervisor
+diagnostic symbols the implementation already emits; it changes no rule.
 Pure worker execution has no host measurement or native admission authority.
 
 ## 1. Ownership and preservation
@@ -583,3 +585,153 @@ later canonical or hard-bound failures. N2 must test valid exact/over-limit,
 small-cap plus invalid map/depth/collection overlaps, and u64::MAX, verifying
 shared-codec error identity and deterministic OutputEncoding/0 versus
 OutputBytes/cap+1 observations where the preceding VM checks permit sizing.
+
+## 11. Private supervisor diagnostic symbols (registration erratum, 2026-10-19)
+
+This section registers the `NATIVE_*` diagnostic symbols that the root
+supervisor (`crates/sley-test-runner`, binary `sley-test-supervisor`) and the
+source-execution owner (`crates/sley-tests`) emit. It is an erratum to
+revision 4. It names symbols the code already emits and adds no rule, wire
+field, or behavior. Every meaning below is taken from the emitting code
+path. The symbols are numberless and private:
+
+- The supervisor's `RunResponse` refusal frame carries only its numeric
+  code (§7.1, `unsigned_refusal`), never one of these symbols.
+- A symbol reaches an operator only as the supervisor's final standard-error
+  line before it exits. Exit status 78 is `NATIVE_SERVICE_CLEANUP_UNCONFIRMED`
+  and suppresses the packaged automatic restart; every other startup or
+  internal failure exits 1.
+- `NATIVE_SUPERVISOR_READY` is not a failure. It is the one standard-error
+  line printed after startup admission (configuration, binary pins, signing
+  authority, orphan reconciliation and socket bind) has passed and before
+  any request is accepted.
+- An ingress refusal or a failed response write ends only that connection.
+  Any other `NATIVE_SERVICE_*` failure stops the service.
+
+Paths, key bytes and worker standard error are never part of a symbol.
+
+### 11.1 Startup: protected configuration, pins, authority, socket
+
+| Symbol | Raised when |
+|---|---|
+| `NATIVE_ADMIN_CONFIG_UNPRIVILEGED` | a process other than the root daemon tries to select the protected administrator configuration |
+| `NATIVE_ADMIN_CONFIG_UNSAFE_PATH` | the configuration path, owner, mode, link count or file type is unsafe |
+| `NATIVE_ADMIN_CONFIG_UNAVAILABLE` | the configured file is absent, unreadable, or reached through a symlink (the open refuses symlinks), or its length changed while it was read |
+| `NATIVE_ADMIN_CONFIG_INVALID_SIZE` | the configuration file is empty or exceeds its bound |
+| `NATIVE_ADMIN_CONFIG_INVALID_JSON` | JSON syntax, a duplicate or unknown field, or a required type is invalid |
+| `NATIVE_ADMIN_CONFIG_INVALID_FIELD` | the version or a lower-case hex identity is invalid |
+| `NATIVE_ADMIN_CONFIG_INVALID_RUNNER` | the embedded runner configuration fails its own validation |
+| `NATIVE_BINARY_PIN_UNPRIVILEGED` | the installed-binary pin preflight runs outside the root daemon |
+| `NATIVE_BINARY_PIN_UNSAFE_PATH` | a pinned executable path is nonabsolute or ambiguous, or cannot be opened without following a symlink (an absent file also refuses here) |
+| `NATIVE_BINARY_PIN_UNAVAILABLE` | a pinned file cannot be read, its length changed while it was hashed, or the running supervisor's own executable path cannot be determined |
+| `NATIVE_BINARY_PIN_UNSAFE_METADATA` | a pinned executable is not owned by root or is writable by another UID |
+| `NATIVE_BINARY_PIN_INVALID_SIZE` | a pinned file is empty or exceeds the bounded hash ceiling |
+| `NATIVE_BINARY_PIN_DIGEST_MISMATCH` | the installed bytes differ from the administrator's pinned digest |
+| `NATIVE_TRUST_LOAD_UNPRIVILEGED` | a process other than the root service tries to select the configured trust directory |
+| `NATIVE_TRUST_LOAD_UNSAFE_PATH` | the configured trust path or its permissions do not protect authority |
+| `NATIVE_TRUST_LOAD_UNAVAILABLE` | the trust directory or file is absent, unreadable, or reached through a symlink, or the file's length changed while it was read |
+| `NATIVE_TRUST_LOAD_TOO_LARGE` | the trust file is empty or exceeds `MAX_MEASUREMENT_MANIFEST_BYTES` |
+| `NATIVE_TRUST_LOAD_INVALID_MANIFEST` | the trust bytes are not a canonical measurement trust manifest |
+| `NATIVE_AUTHORITY_TRUST_UNAVAILABLE` | the measurement trust manifest could not be loaded (one of the `NATIVE_TRUST_LOAD_*` causes) |
+| `NATIVE_AUTHORITY_KEY_UNAVAILABLE` | the private measurement key could not be loaded |
+| `NATIVE_AUTHORITY_KEY_NOT_GRANTED` | the manifest does not grant the loaded key the measurement role |
+| `NATIVE_RECONCILE_UNPRIVILEGED` | orphan reconciliation of system units runs outside the root daemon |
+| `NATIVE_RECONCILE_CGROUP_UNAVAILABLE` | the `system.slice` cgroup directory is missing or unsafe |
+| `NATIVE_RECONCILE_CGROUP_INVALID` | a reserved-prefix cgroup has a malformed name or an unsafe file type |
+| `NATIVE_RECONCILE_TOO_MANY_UNITS` | more than the bounded number of native worker units exist |
+| `NATIVE_RECONCILE_KILL_FAILED` | the fixed `systemctl` SIGKILL command could not be owned to completion |
+| `NATIVE_RECONCILE_MANAGER_UNAVAILABLE` | the manager could not be queried while reconciling |
+| `NATIVE_RECONCILE_DEADLINE` | cleanup exceeded the single monotonic startup deadline |
+| `NATIVE_SOCKET_BIND_UNPRIVILEGED` | a process other than the root daemon tries to bind the configured endpoint |
+| `NATIVE_SOCKET_BIND_UNSAFE_DIRECTORY` | the configuration is invalid, or the runtime directory is absent, reached through a symlink, not owned by root, or group- or world-writable |
+| `NATIVE_SOCKET_BIND_PATH_OCCUPIED` | a socket or other file already occupies the exact socket path |
+| `NATIVE_SOCKET_BIND_FAILED` | the bind, the permission setup, or the socket metadata check failed |
+
+### 11.2 Per request: staging, launch, phases, telemetry, attestation
+
+| Symbol | Raised when |
+|---|---|
+| `NATIVE_SERVICE_ACCEPT_FAILED` | the listener could not accept a connection |
+| `NATIVE_SERVICE_INGRESS_REFUSED` | the request failed bounded ingress (ends only that connection) |
+| `NATIVE_SERVICE_CLOCK_UNAVAILABLE` | host time could not be used for the trust-interval preflight |
+| `NATIVE_SERVICE_STAGE_FAILED` | the checked worker frame could not be staged or removed |
+| `NATIVE_SERVICE_UNIT_FAILED` | the exact transient unit could not be rendered |
+| `NATIVE_SERVICE_INPUT_PATH_INVALID` | the staged path could not be represented as a launch argument |
+| `NATIVE_SERVICE_OWNER_FAILED` | the owned worker failed, with cleanup confirmed |
+| `NATIVE_SERVICE_CLEANUP_UNCONFIRMED` | a launched worker could not be proven reaped; the daemon degrades and exits 78 |
+| `NATIVE_SERVICE_ATTESTATION_FAILED` | a completed worker attempt could not be safely signed |
+| `NATIVE_SERVICE_RESPONSE_ENCODING_FAILED` | the closed refusal or result frame could not be encoded |
+| `NATIVE_SERVICE_WRITE_FAILED` | the peer disconnected or the response could not be written before its deadline (ends only that connection) |
+| `NATIVE_STAGE_CONFIG_INVALID` | the administrator configuration is invalid for staging |
+| `NATIVE_STAGE_REQUEST_INVALID` | the request's portable Sley program or worker binding is invalid |
+| `NATIVE_STAGE_NONCE_INVALID` | an obviously non-random, all-zero attempt nonce was supplied |
+| `NATIVE_STAGE_DIRECTORY_UNSAFE` | the runtime or input directory fails its owner, mode, type, or symlink-free resolution check |
+| `NATIVE_STAGE_NONCE_COLLISION` | a staged file already exists for this attempt nonce |
+| `NATIVE_STAGE_WRITE_FAILED` | the bounded frame could not be durably staged |
+| `NATIVE_STAGE_CLEANUP_FAILED` | explicit removal of the staged file failed |
+| `NATIVE_OWNER_UNPRIVILEGED` | a process other than the root system supervisor tries to launch a worker |
+| `NATIVE_OWNER_UNIT_MISMATCH` | the caller supplied a unit that differs from the frozen renderer |
+| `NATIVE_OWNER_INVALID_DEADLINE` | the wall budget is zero, overflows, or has already expired |
+| `NATIVE_OWNER_BINARY_PIN_REFUSED` | an installed worker or supervisor binary fails its root-owned digest pin, rechecked before each launch |
+| `NATIVE_OWNER_UNIT_OCCUPIED` | a prior unit owns this request's name; no new launcher was started |
+| `NATIVE_OWNER_LAUNCH_FAILED` | the fixed `systemd-run` process could not be spawned or piped |
+| `NATIVE_OWNER_PHASE_REFUSED` | the manager, cgroup, gated output, or requesting peer refused during a phase |
+| `NATIVE_OWNER_PEER_LOST` | the requesting peer was lost after the gated phase |
+| `NATIVE_OWNER_WORKER_EXIT` | the worker launcher exited nonzero after a complete report |
+| `NATIVE_OWNER_DEADLINE` | launch through confirmed reap reached the strict wall deadline |
+| `NATIVE_OWNER_MEASURED_TIMEOUT` | the deadline was observed with clean live counters, and the unit was killed and confirmed empty |
+| `NATIVE_OWNER_MANAGER_OOM` | the exact installed unit failed with manager-observed OOM and was confirmed empty after cgroup event counters became unavailable |
+| `NATIVE_OWNER_CLEANUP_UNCONFIRMED` | the unit and cgroup could not be confirmed empty after cleanup |
+| `NATIVE_PHASE_UNPRIVILEGED` | a process other than the root system supervisor tries to open the production phase |
+| `NATIVE_PHASE_MANAGER_REFUSED` | the manager refused or could not be read during the phase |
+| `NATIVE_PHASE_TELEMETRY_REFUSED` | the exact live cgroup could not be trusted or read |
+| `NATIVE_PHASE_MEMORY_EVENTS` | a limit, OOM, or group-kill event occurred before or during execution |
+| `NATIVE_PHASE_GATE_WRITE` | the worker's standard-input gate could not be sent |
+| `NATIVE_PHASE_CHANNEL_REFUSED` | worker output or the requesting peer failed the closed channel |
+| `NATIVE_PHASE_MEASURED_TIMEOUT` | the report deadline elapsed while the exact worker PID and clean counters were still observable in its verified cgroup |
+| `NATIVE_PHASE_DEADLINE` | the daemon deadline elapsed before the phase completed |
+| `NATIVE_CHANNEL_DEADLINE` | the daemon's strict monotonic deadline elapsed on the output channel |
+| `NATIVE_CHANNEL_PEER_LOST` | the caller closed the socket while the worker was active |
+| `NATIVE_CHANNEL_OUTPUT_LOST` | the output pipe closed before a complete report, or failed unexpectedly |
+| `NATIVE_CHANNEL_REPORT_MALFORMED` | the worker supplied bytes other than one canonical `SLEYNEX1` report |
+| `NATIVE_CHANNEL_REPORT_OVERSIZED` | the declared or actual report length exceeded the closed output limit |
+| `NATIVE_CHANNEL_TRAILING_OUTPUT` | the worker wrote bytes after its complete report |
+| `NATIVE_MANAGER_UNAVAILABLE` | the manager or a typed D-Bus response could not be read |
+| `NATIVE_MANAGER_PROPERTY_MISMATCH` | a required typed manager property was missing, malformed, or different |
+| `NATIVE_MANAGER_NOT_READY` | the transient service exists but has not yet exposed its worker PID |
+| `NATIVE_MANAGER_UNIT_OCCUPIED` | any loaded unit, including an already reaped failure, owns the requested name |
+| `NATIVE_MANAGER_COMMAND_CLEANUP_UNCONFIRMED` | the owned read-only manager command could not be confirmed reaped |
+| `NATIVE_TELEMETRY_UNAVAILABLE` | the cgroup or a required controller file is missing or unreadable |
+| `NATIVE_TELEMETRY_SCOPE_MISMATCH` | the manager's scope is not the exact unit the daemon launched |
+| `NATIVE_TELEMETRY_PROCESS_MISMATCH` | the live group does not contain exactly the manager's main PID |
+| `NATIVE_TELEMETRY_LIMIT_MISMATCH` | the installed memory or swap ceiling differs from the rendered unit |
+| `NATIVE_TELEMETRY_INVALID_VALUE` | a controller value is malformed, duplicated, or oversized |
+| `NATIVE_ATTESTATION_CLOCK_UNAVAILABLE` | trusted historical time is unavailable or cannot fit the wire type |
+| `NATIVE_ATTESTATION_TRUST_REJECTED` | provisioned trust does not grant this key, workspace, and supervisor |
+| `NATIVE_ATTESTATION_ADMISSION_REFUSED` | the host attempt fails a success-admission predicate |
+| `NATIVE_ATTESTATION_GROUP_KILL` | cgroup group-kill telemetry is nonzero |
+| `NATIVE_ATTESTATION_BINDING_REFUSED` | the request, worker report, or response binding is inconsistent |
+| `NATIVE_ATTESTATION_SIGNING_FAILED` | root-only signing failed |
+
+### 11.3 Source execution (`crates/sley-tests`)
+
+| Symbol | Raised when |
+|---|---|
+| `NATIVE_TEST_SOURCE_MISMATCH` | root bindings, selected identities, or projected inventories disagree before an unmeasured native VM result is returned |
+| `NATIVE_TEST_INPUT_HASH_MISMATCH` | the worker's ordered input hashes differ from the VM-derived hashes |
+
+### 11.4 Supervisor and runner public limits
+
+These are the public `MAX_*` bounds of `crates/sley-test-runner`. Each bound
+is enforced by the module named, and a value beyond it refuses. They restate
+the implementation and change no bound fixed elsewhere in this contract.
+
+| Constant | Value | Bounds |
+|---|---|---|
+| `MAX_REQUEST_BYTES` | 266,240 (`MAX_WORKER_FRAME` + 4,096) | one `RunNativeTest` request on the socket: a complete worker frame plus the fixed outer bindings |
+| `MAX_INGRESS_TIMEOUT` | 35 seconds | reading one request frame, including a slow or stalled peer |
+| `MAX_PROGRAM_BYTES` | 258,048 (`MAX_WORKER_FRAME` − 4,096) | the portable program artifact, leaving room for the surrounding worker frame |
+| `MAX_RESPONSE_EVIDENCE_BYTES` | 332,288 (`MAX_WORKER_OUTPUT_BYTES` + `MAX_RESPONSE_ATTESTATION_BYTES` + `MAX_RESPONSE_CONFIG_BYTES` + 512) | one result evidence record, including its three SCB1 field wrappers |
+| `MAX_NO_RESULT_EVIDENCE_BYTES` | 69,888 (`MAX_RESPONSE_ATTESTATION_BYTES` + `MAX_RESPONSE_CONFIG_BYTES` + 256) | one no-result evidence record, including its two SCB1 field wrappers |
+| `MAX_RESPONSE_FRAME_BYTES` | 332,352 (`MAX_RESPONSE_EVIDENCE_BYTES` + 64) | one complete supervisor response frame |
+| `MAX_MEASUREMENT_MANIFEST_BYTES` | 8,388,608 (8 MiB) | the root-provisioned `measurement.sleyntr1` file, above the largest `SLEYNTR1` entry-set encoding |

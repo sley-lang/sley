@@ -2,7 +2,8 @@
 
 Status: N0 **reserved, partially implemented**, revision 3 (2026-10-19; revision 3
 classifies the manager OOM claim's Ed25519 signing context, added by the native
-supervisor integration, alongside the two existing contexts). This is an
+supervisor integration, alongside the two existing contexts, and registers the
+numberless commit-boundary symbol `NATIVE_TEST_RESOURCE_REFUSED`). This is an
 additive reservation ledger, not a list of currently admitted contracts. The
 live `IDENTIFIERS_V1.md` registry intentionally continues to match code exactly.
 Promote a reservation into that registry only in the same reviewed change as
@@ -152,6 +153,10 @@ none may be substituted for a 29200--29225 failure:
 - `NATIVE_WORKER_MALFORMED_ENVELOPE`
 - `NATIVE_WORKER_SOURCE_INVALID` (revision 4 worker channel; the earlier
   `NATIVE_WORKER_EXECUTION_NOT_WIRED` refusal is retired from the live worker)
+- `NATIVE_TEST_RESOURCE_REFUSED` (commit boundary, registered in revision 3): the
+  trusted measurement says a resource bound ended the worker (a signed manager
+  OOM, a signed prelaunch refusal of an unsupported wall budget, or a signed
+  timeout), teardown was confirmed, and there is no native test result to admit
 
 Unknown attempt0 is an attempt-status result, not a retry-safe error. Native
 resource limit is a failure status, never expected TrapCode. Use strict
