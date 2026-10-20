@@ -304,7 +304,10 @@ fn tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
             let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
             let after = &rest[digits..];
             if after.starts_with('.') && after[1..].starts_with(|c: char| c.is_ascii_digit()) {
-                return refuse(pos, "Sley has no floating-point numbers");
+                return refuse(
+                    pos,
+                    "familiar text has no floating-point literals (f32/f64 need an AF1 frame: help types)",
+                );
             }
             let suffix_len = after
                 .bytes()
@@ -2109,7 +2112,10 @@ fn py_tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
                 if spelled.contains('.')
                     || spelled.contains(['e', 'E']) && !spelled.starts_with("0x")
                 {
-                    return refuse(pos, "Sley has no floating-point numbers: ints only");
+                    return refuse(
+                        pos,
+                        "the Python dialect has no floating-point numbers: ints only (f32/f64 need an AF1 frame: help types)",
+                    );
                 }
                 if spelled.len() > 1
                     && spelled.starts_with('0')
@@ -2479,7 +2485,12 @@ impl Parser {
                 self.expect_op("]")?;
                 format!("Vec<{inner}>")
             }
-            "float" => return refuse(pos, "Sley has no floating-point numbers: use int"),
+            "float" => {
+                return refuse(
+                    pos,
+                    "the Python dialect has no floating-point numbers: use int (f32/f64 need an AF1 frame: help types)",
+                );
+            }
             "dict" | "Dict" | "set" | "Set" | "tuple" | "Tuple" | "Optional" | "None" => {
                 return refuse(
                     pos,

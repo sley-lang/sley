@@ -9,4 +9,5 @@ return e, or end with a bare value; a Result fn returns ok(e) or err(Case) (Ok/E
 sum(e for x in xs if c)  count(c for x in xs)  any(..)  all(..)  max(..)  min(..)
 len(xs) and indexes are u64; to(T, x) converts integers; types never mix, literals adapt
 "text" == compares exactly; r.field
-No break/continue, floats, methods, slices or tuples.
+break and continue leave or advance the innermost loop.
+No floats (f32/f64 are AF1-frame types: help types), methods, slices or tuples.

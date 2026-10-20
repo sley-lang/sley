@@ -20,7 +20,7 @@ Expressions:
   len(xs) is u64; xs[i] takes a u64 index; record.field; helper(args); "text" (== compares exactly); 7u64 typed literal
 Types: i8..i128, u8..u128, bool, text, Vec<T>, Result<T,E>, records. Integer types never mix; a literal takes
 the other operand's type, else i64. A nested block cannot redeclare a name declared outside it.
-Comments: # to end of line, or a line starting with //. Other constructs (methods, inclusive ranges, break, ++, floats,
+Comments: # to end of line, or a line starting with //. Other constructs (methods, inclusive ranges, ++, floats,
 slices, tuples) are refused with their line and column. This is Sley, not Python: fixed-width integers,
 no implicit conversions.
 Example:
