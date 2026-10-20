@@ -18,10 +18,22 @@ enum Atom<'a> {
     Borrowed(&'a ConstValue),
     Unit,
     Bool(bool),
-    Signed(i128),
-    Unsigned(u128),
+    Signed(S128),
+    Unsigned(U128),
     Failure(u16),
 }
+
+// 128-bit integers stored with 8-byte alignment. With the native 16-byte
+// alignment a register (`Option<Value>`) is 48 bytes, most of it padding, and
+// moving one through block edges dominated the loop profiles; packed, it is
+// 32 bytes. The values and arithmetic are unchanged.
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed(8))]
+struct S128(i128);
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed(8))]
+struct U128(u128);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Shape {
@@ -107,8 +119,8 @@ impl<'a> Value<'a> {
             }
             (TypeExpr::Unit, ConstData::Unit) => Atom::Unit,
             (TypeExpr::Bool, ConstData::Bool(v)) => Atom::Bool(*v),
-            (TypeExpr::SInt(_), ConstData::SInt(v)) => Atom::Signed(*v),
-            (TypeExpr::UInt(_), ConstData::UInt(v)) => Atom::Unsigned(*v),
+            (TypeExpr::SInt(_), ConstData::SInt(v)) => Atom::Signed(S128(*v)),
+            (TypeExpr::UInt(_), ConstData::UInt(v)) => Atom::Unsigned(U128(*v)),
             (
                 TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic),
                 ConstData::BuiltinFailure(v),
@@ -123,8 +135,8 @@ impl<'a> Value<'a> {
             Atom::Borrowed(v) => v.data.clone(),
             Atom::Unit => ConstData::Unit,
             Atom::Bool(v) => ConstData::Bool(v),
-            Atom::Signed(v) => ConstData::SInt(v),
-            Atom::Unsigned(v) => ConstData::UInt(v),
+            Atom::Signed(v) => ConstData::SInt(v.0),
+            Atom::Unsigned(v) => ConstData::UInt(v.0),
             Atom::Failure(code) => ConstData::BuiltinFailure(BuiltinFailureValue {
                 kind: BuiltinFailureKind::Arithmetic,
                 code,
@@ -169,6 +181,9 @@ struct Step {
     dynamic: bool,
     wrapper_units: u64,
     field: Option<sley_ssmc::MemberId>,
+    /// The first operand's integer signedness and width, read once here
+    /// instead of from the register types on every checked operation.
+    width: Option<(bool, u16)>,
 }
 
 impl Step {
@@ -192,6 +207,10 @@ struct Argument {
 struct Edge {
     target: usize,
     args: Vec<Argument>,
+    /// No argument reads a register the target's parameters write, so the
+    /// arguments can be moved straight into the parameters: a sequential
+    /// move then equals the parallel one, and no scratch copy is needed.
+    direct: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -404,6 +423,9 @@ impl Plan {
         })
     }
 
+    // The direct and parallel edge moves are written out inline: factoring
+    // them into a helper measured 1.7x slower on loop benchmarks.
+    #[allow(clippy::too_many_lines)]
     fn run<'v>(
         &self,
         runtime: &mut Runtime,
@@ -427,7 +449,7 @@ impl Plan {
                 }
                 let value = match step.constant {
                     Some(index) => constants[index],
-                    None => evaluate(step, code, &registers)?,
+                    None => evaluate(step, &registers)?,
                 };
                 if !charge_value(runtime, step.value_units(value), limits.max_value_units) {
                     return Ok(ExecutionTermination::ResourceLimit(
@@ -483,6 +505,27 @@ impl Plan {
                     Err(termination) => return Ok(termination),
                 },
             };
+            if edge.direct {
+                let parameters = &self.blocks[edge.target].parameters;
+                for (arg, &r) in edge.args.iter().zip(parameters) {
+                    if let Some(end) = charge_action(runtime, limits, None) {
+                        return Ok(end);
+                    }
+                    let value = match arg.register {
+                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
+                        Some(r) => get(&registers, r)?,
+                        None => {
+                            if let Some(end) = charge_action(runtime, limits, None) {
+                                return Ok(end);
+                            }
+                            payload.ok_or(RuntimeFault)?
+                        }
+                    };
+                    registers[r] = Some(value);
+                }
+                runtime.block = edge.target;
+                continue;
+            }
             scratch.clear();
             for arg in &edge.args {
                 if let Some(end) = charge_action(runtime, limits, None) {
@@ -655,6 +698,7 @@ fn compile_step(
             Immediate::Field(id) => Some(id),
             _ => None,
         },
+        width: types.first().and_then(|ty| integer(ty)),
     })
 }
 
@@ -695,7 +739,19 @@ fn compile_edge(
             }),
         });
     }
-    Some(Edge { target, args })
+    let direct = args.iter().all(|arg| {
+        arg.register.is_none_or(|r| {
+            !dest
+                .parameter_registers
+                .iter()
+                .any(|p| usize::try_from(*p).ok() == Some(r))
+        })
+    });
+    Some(Edge {
+        target,
+        args,
+        direct,
+    })
 }
 
 // A selected edge or a charged resource termination; malformed state uses RuntimeFault.
@@ -827,11 +883,7 @@ fn sample(ty: &TypeExpr) -> Option<ConstValue> {
     })
 }
 
-fn evaluate<'v>(
-    step: &Step,
-    code: &crate::BytecodeFunction,
-    registers: &[Option<Value<'v>>],
-) -> RuntimeResult<Value<'v>> {
+fn evaluate<'v>(step: &Step, registers: &[Option<Value<'v>>]) -> RuntimeResult<Value<'v>> {
     let a = get(registers, step.args[0])?;
     let b = if step.args.len() == 2 {
         Some(get(registers, step.args[1])?)
@@ -875,8 +927,8 @@ fn evaluate<'v>(
         | Opcode::GreaterThan
         | Opcode::GreaterEqual => {
             let order = match (a.atom, b.ok_or(RuntimeFault)?.atom) {
-                (Atom::Signed(a), Atom::Signed(b)) => a.cmp(&b),
-                (Atom::Unsigned(a), Atom::Unsigned(b)) => a.cmp(&b),
+                (Atom::Signed(a), Atom::Signed(b)) => { a.0 }.cmp(&{ b.0 }),
+                (Atom::Unsigned(a), Atom::Unsigned(b)) => { a.0 }.cmp(&{ b.0 }),
                 (Atom::Bool(a), Atom::Bool(b)) => a.cmp(&b),
                 (Atom::Unit, Atom::Unit) => core::cmp::Ordering::Equal,
                 (Atom::Failure(a), Atom::Failure(b)) => a.cmp(&b),
@@ -901,21 +953,20 @@ fn evaluate<'v>(
                 _ => order.is_ge(),
             })
         }
-        _ => checked(step, code, a, b)?,
+        _ => checked(step, a, b)?,
     })
 }
 
-fn checked<'v>(
-    step: &Step,
-    code: &crate::BytecodeFunction,
-    a: Value<'v>,
-    b: Option<Value<'v>>,
-) -> RuntimeResult<Value<'v>> {
-    let ty = &code.register_types[step.args[0]];
-    let (signed, bits) = integer(ty).ok_or(RuntimeFault)?;
+fn checked<'v>(step: &Step, a: Value<'v>, b: Option<Value<'v>>) -> RuntimeResult<Value<'v>> {
+    let (signed, bits) = step.width.ok_or(RuntimeFault)?;
+    if bits == 64
+        && let Some(value) = checked_word(step.opcode, signed, a.atom, b.map(|b| b.atom))?
+    {
+        return Ok(value);
+    }
     let data = |value: Value<'_>| match value.atom {
-        Atom::Signed(v) => Ok(ConstData::SInt(v)),
-        Atom::Unsigned(v) => Ok(ConstData::UInt(v)),
+        Atom::Signed(v) => Ok(ConstData::SInt(v.0)),
+        Atom::Unsigned(v) => Ok(ConstData::UInt(v.0)),
         _ => Err(RuntimeFault),
     };
     let a = data(a)?;
@@ -934,9 +985,9 @@ fn checked<'v>(
         {
             crate::extended::Checked::Value(s, u) => Value {
                 atom: if signed {
-                    Atom::Signed(s)
+                    Atom::Signed(S128(s))
                 } else {
-                    Atom::Unsigned(u)
+                    Atom::Unsigned(U128(u))
                 },
                 shape: Shape::Ok,
             },
@@ -946,6 +997,83 @@ fn checked<'v>(
             },
         },
     )
+}
+
+/// The 64-bit `add sub mul div rem` fast path: native `i64`/`u64` arithmetic
+/// with the answers, failure codes and faults of
+/// `extended::checked_integer_data` (the differential test below holds the
+/// two together). Other opcodes answer `None` and take the general path.
+fn checked_word<'v>(
+    opcode: Opcode,
+    signed: bool,
+    a: Atom<'v>,
+    b: Option<Atom<'v>>,
+) -> RuntimeResult<Option<Value<'v>>> {
+    use crate::extended::{ARITHMETIC_DIVIDE_BY_ZERO, ARITHMETIC_OVERFLOW};
+    let Some(b) = b else {
+        return Ok(None);
+    };
+    if !matches!(
+        opcode,
+        Opcode::IntAddChecked
+            | Opcode::IntSubChecked
+            | Opcode::IntMulChecked
+            | Opcode::IntDivChecked
+            | Opcode::IntRemChecked
+    ) {
+        return Ok(None);
+    }
+    let answer = if signed {
+        // An operand outside the width faults, as `checked_integer_data` does.
+        let word = |atom: Atom<'_>| match atom {
+            Atom::Signed(v) => i64::try_from(v.0).map_err(|_| RuntimeFault),
+            _ => Err(RuntimeFault),
+        };
+        let (x, y) = (word(a)?, word(b)?);
+        let value = match opcode {
+            Opcode::IntAddChecked => x.checked_add(y).ok_or(ARITHMETIC_OVERFLOW),
+            Opcode::IntSubChecked => x.checked_sub(y).ok_or(ARITHMETIC_OVERFLOW),
+            Opcode::IntMulChecked => x.checked_mul(y).ok_or(ARITHMETIC_OVERFLOW),
+            Opcode::IntDivChecked | Opcode::IntRemChecked if y == 0 => {
+                Err(ARITHMETIC_DIVIDE_BY_ZERO)
+            }
+            Opcode::IntDivChecked | Opcode::IntRemChecked if y == -1 && x == i64::MIN => {
+                Err(ARITHMETIC_OVERFLOW)
+            }
+            Opcode::IntDivChecked => Ok(x / y),
+            Opcode::IntRemChecked => Ok(x % y),
+            _ => return Ok(None),
+        };
+        value.map(|v| Atom::Signed(S128(i128::from(v))))
+    } else {
+        let word = |atom: Atom<'_>| match atom {
+            Atom::Unsigned(v) => u64::try_from(v.0).map_err(|_| RuntimeFault),
+            _ => Err(RuntimeFault),
+        };
+        let (x, y) = (word(a)?, word(b)?);
+        let value = match opcode {
+            Opcode::IntAddChecked => x.checked_add(y).ok_or(ARITHMETIC_OVERFLOW),
+            Opcode::IntSubChecked => x.checked_sub(y).ok_or(ARITHMETIC_OVERFLOW),
+            Opcode::IntMulChecked => x.checked_mul(y).ok_or(ARITHMETIC_OVERFLOW),
+            Opcode::IntDivChecked | Opcode::IntRemChecked if y == 0 => {
+                Err(ARITHMETIC_DIVIDE_BY_ZERO)
+            }
+            Opcode::IntDivChecked => Ok(x / y),
+            Opcode::IntRemChecked => Ok(x % y),
+            _ => return Ok(None),
+        };
+        value.map(|v| Atom::Unsigned(U128(u128::from(v))))
+    };
+    Ok(Some(match answer {
+        Ok(atom) => Value {
+            atom,
+            shape: Shape::Ok,
+        },
+        Err(code) => Value {
+            atom: Atom::Failure(code),
+            shape: Shape::Err,
+        },
+    }))
 }
 
 fn project<'v>(step: &Step, a: Value<'v>, b: Option<Value<'v>>) -> RuntimeResult<Value<'v>> {
@@ -959,7 +1087,7 @@ fn project<'v>(step: &Step, a: Value<'v>, b: Option<Value<'v>>) -> RuntimeResult
                 return Err(RuntimeFault);
             };
             Value {
-                atom: Atom::Unsigned(items.len() as u128),
+                atom: Atom::Unsigned(U128(items.len() as u128)),
                 shape: Shape::Plain,
             }
         }
@@ -974,7 +1102,7 @@ fn project<'v>(step: &Step, a: Value<'v>, b: Option<Value<'v>>) -> RuntimeResult
             let Atom::Unsigned(index) = b.ok_or(RuntimeFault)?.atom else {
                 return Err(RuntimeFault);
             };
-            match usize::try_from(index)
+            match usize::try_from(index.0)
                 .ok()
                 .and_then(|index| items.get(index))
             {
@@ -1276,6 +1404,313 @@ mod tests {
                     "n={n} limits={limits:?}"
                 );
             }
+        }
+    }
+
+    /// The 64-bit fast path answers exactly what the extended kernel answers:
+    /// values, failure codes, and faults for operands outside the width.
+    #[test]
+    fn word_arithmetic_matches_the_extended_kernel() {
+        let ops = [
+            Opcode::IntAddChecked,
+            Opcode::IntSubChecked,
+            Opcode::IntMulChecked,
+            Opcode::IntDivChecked,
+            Opcode::IntRemChecked,
+        ];
+        let describe = |r: RuntimeResult<Option<Value<'_>>>| -> Result<(i128, u128, u16), ()> {
+            match r {
+                Ok(Some(Value { atom, shape })) => Ok(match (atom, shape) {
+                    (Atom::Signed(v), Shape::Ok) => (v.0, 0, 0),
+                    (Atom::Unsigned(v), Shape::Ok) => (0, v.0, 0),
+                    (Atom::Failure(code), Shape::Err) => (0, 0, code),
+                    other => panic!("unexpected {other:?}"),
+                }),
+                Ok(None) => panic!("the fast path declined a word operation"),
+                Err(RuntimeFault) => Err(()),
+            }
+        };
+        let kernel = |op, signed, a: &ConstData, b: &ConstData| -> Result<(i128, u128, u16), ()> {
+            match crate::extended::checked_integer_data(op, signed, 64, &[a, b]) {
+                Ok(crate::extended::Checked::Value(s, u)) => Ok((s, u, 0)),
+                Ok(crate::extended::Checked::Failure(code)) => Ok((0, 0, code)),
+                Err(_) => Err(()),
+            }
+        };
+        let min = i128::from(i64::MIN);
+        let max = i128::from(i64::MAX);
+        let signed = [
+            min,
+            min + 1,
+            -3_037_000_500,
+            -7,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            7,
+            3_037_000_500,
+            max - 1,
+            max,
+            max + 1, // outside the width: both fault
+            min - 1,
+        ];
+        for op in ops {
+            for &x in &signed {
+                for &y in &signed {
+                    let fast =
+                        checked_word(op, true, Atom::Signed(S128(x)), Some(Atom::Signed(S128(y))));
+                    assert_eq!(
+                        describe(fast),
+                        kernel(op, true, &ConstData::SInt(x), &ConstData::SInt(y)),
+                        "{op:?} {x} {y}"
+                    );
+                }
+            }
+        }
+        let umax = u128::from(u64::MAX);
+        let unsigned = [0, 1, 2, 7, u128::from(u32::MAX), umax - 1, umax, umax + 1];
+        for op in ops {
+            for &x in &unsigned {
+                for &y in &unsigned {
+                    let fast = checked_word(
+                        op,
+                        false,
+                        Atom::Unsigned(U128(x)),
+                        Some(Atom::Unsigned(U128(y))),
+                    );
+                    assert_eq!(
+                        describe(fast),
+                        kernel(op, false, &ConstData::UInt(x), &ConstData::UInt(y)),
+                        "{op:?} {x} {y}"
+                    );
+                }
+            }
+        }
+        // A mismatched operand form faults like the kernel's width check.
+        assert!(
+            checked_word(
+                Opcode::IntAddChecked,
+                true,
+                Atom::Unsigned(U128(1)),
+                Some(Atom::Signed(S128(1)))
+            )
+            .is_err()
+        );
+        // Shifts (a u32 amount) and negation keep the general path.
+        for (op, b) in [
+            (Opcode::IntShlChecked, Some(Atom::Unsigned(U128(1)))),
+            (Opcode::IntShrChecked, Some(Atom::Unsigned(U128(1)))),
+            (Opcode::IntNegChecked, None),
+        ] {
+            assert!(matches!(
+                checked_word(op, true, Atom::Signed(S128(5)), b),
+                Ok(None)
+            ));
+        }
+    }
+
+    /// An edge whose arguments read the target's own parameter registers
+    /// (here a swap back into the loop head) keeps the parallel move; edges
+    /// into disjoint registers move directly. Both agree with the reference.
+    #[test]
+    #[allow(clippy::too_many_lines)] // The fixture is spelled out beside its checks.
+    fn edges_that_read_their_target_parameters_move_in_parallel() {
+        let ty = TypeExpr::SInt(IntegerWidth::from_bits(64));
+        let failure = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        let checked = TypeExpr::Result {
+            ok: Box::new(ty.clone()),
+            error: Box::new(failure.clone()),
+        };
+        let instruction = |opcode: Opcode, operands, output, immediate| Instruction {
+            opcode: opcode.tag(),
+            operands,
+            results: vec![output],
+            immediate,
+        };
+        let block = |slot, parameters, instructions, terminator| BytecodeBlock {
+            slot,
+            parameter_registers: parameters,
+            instructions,
+            terminator,
+            reachability: 1,
+        };
+        let edge = |target, arguments| BytecodeTargetEdge { target, arguments };
+        let one = EntityId::from_bytes([1; 32]);
+        let zero = EntityId::from_bytes([2; 32]);
+        // a, b = 0, 1; while k > 0: a, b = b, a; k -= 1; return a
+        let bytecode = BytecodeFunction {
+            function: EntityId::from_bytes([9; 32]),
+            parameter_registers: vec![0],
+            register_types: vec![
+                ty.clone(),
+                ty.clone(),
+                ty.clone(),
+                ty.clone(),
+                ty.clone(),
+                ty.clone(),
+                TypeExpr::Bool,
+                checked,
+                failure,
+                ty.clone(),
+            ],
+            result_type: ty.clone(),
+            entry_block: 0,
+            blocks: vec![
+                block(
+                    0,
+                    vec![],
+                    vec![
+                        instruction(Opcode::ConstantRef, vec![], 1, Immediate::Entity(zero)),
+                        instruction(Opcode::ConstantRef, vec![], 2, Immediate::Entity(one)),
+                    ],
+                    BytecodeTerminator::Branch(edge(1, vec![1, 2, 0])),
+                ),
+                block(
+                    1,
+                    vec![3, 4, 5],
+                    vec![instruction(
+                        Opcode::LessEqual,
+                        vec![5, 1],
+                        6,
+                        Immediate::None,
+                    )],
+                    BytecodeTerminator::CondBranch {
+                        condition: 6,
+                        if_true: edge(3, vec![3]),
+                        if_false: edge(2, vec![]),
+                    },
+                ),
+                block(
+                    2,
+                    vec![],
+                    vec![instruction(
+                        Opcode::IntSubChecked,
+                        vec![5, 2],
+                        7,
+                        Immediate::None,
+                    )],
+                    BytecodeTerminator::VariantSwitch {
+                        value: 7,
+                        cases: vec![
+                            BytecodeSwitchCase {
+                                case_key: CaseKey::Builtin(BuiltinCase::Ok),
+                                edge: BytecodeSwitchEdge {
+                                    target: 1,
+                                    arguments: vec![
+                                        BytecodeSwitchArgument::Value(4),
+                                        BytecodeSwitchArgument::Value(3),
+                                        BytecodeSwitchArgument::CasePayload,
+                                    ],
+                                },
+                            },
+                            BytecodeSwitchCase {
+                                case_key: CaseKey::Builtin(BuiltinCase::Err),
+                                edge: BytecodeSwitchEdge {
+                                    target: 4,
+                                    arguments: vec![BytecodeSwitchArgument::CasePayload],
+                                },
+                            },
+                        ],
+                    },
+                ),
+                block(3, vec![9], vec![], BytecodeTerminator::Return(9)),
+                block(
+                    4,
+                    vec![8],
+                    vec![],
+                    BytecodeTerminator::Trap {
+                        code: 7,
+                        payload: Some(8),
+                    },
+                ),
+            ],
+        };
+        let plan = Plan::compile(&bytecode).unwrap();
+        let direct: Vec<bool> = plan
+            .blocks
+            .iter()
+            .map(|b| match &b.exit {
+                Exit::Branch(e) => e.direct,
+                Exit::Cond(_, yes, no) => yes.direct && no.direct,
+                Exit::Switch { cases, .. } => cases.iter().all(|(_, e)| e.direct),
+                Exit::Return(_) | Exit::Trap(..) => true,
+            })
+            .collect();
+        assert_eq!(direct, [true, true, false, true, true]);
+        let epoch = SchemaEpochId::from_bytes([8; 32]);
+        let root = StateRoot::from_bytes([7; 32]);
+        let types = TypeEnvironment::new(Vec::new()).unwrap();
+        let value = |n| ConstValue {
+            value_type: ty.clone(),
+            data: ConstData::SInt(n),
+        };
+        let constants = [
+            ConstantDefinition {
+                entity_id: one,
+                value: value(1),
+            },
+            ConstantDefinition {
+                entity_id: zero,
+                value: value(0),
+            },
+        ];
+        let source = ExecutionSource {
+            types: &types,
+            constants: &constants,
+            globals: &[],
+            contracts: &[],
+            adapters: &[],
+            schema_epoch: epoch,
+            state_root: root,
+            profile: CacheProfile::EXTENDED_V1,
+            function: bytecode.function,
+        };
+        let key = crate::derive_cache_key(epoch, root, bytecode.function, source.profile).unwrap();
+        let lowered = LoweredFunction {
+            bytecode,
+            bytes: vec![0; 64],
+            cache_key: key,
+            lowering_work: 0,
+            callees: vec![],
+        };
+        let limits = ExecutionLimits {
+            max_instructions: 10_000,
+            max_fuel: 10_000,
+            max_value_units: 100_000,
+            max_output_units: 1000,
+            cancel_at_fuel: None,
+        };
+        for n in [0, 1, 2, 3, 6, 7] {
+            let inputs = vec![value(n)];
+            let validated = ValidatedInputs {
+                hashes: vec![hash_validated_value(epoch, &inputs[0]).unwrap()],
+                value_units: value_units_const(&inputs[0]),
+            };
+            let request = ExecutionRequest { inputs, limits };
+            let reference = run_core(
+                &source,
+                &lowered,
+                &validated,
+                request.clone(),
+                MAX_CALL_DEPTH,
+            );
+            let actual = plan
+                .execute(&source, &lowered, &validated, &request)
+                .unwrap();
+            assert_eq!(
+                actual.termination,
+                ExecutionTermination::Success(value(n % 2)),
+                "n={n}"
+            );
+            assert_eq!(actual.termination, reference.termination, "n={n}");
+            assert_eq!(actual.fuel_used, reference.fuel_used, "n={n}");
+            assert_eq!(
+                actual.instruction_count, reference.instruction_count,
+                "n={n}"
+            );
+            assert_eq!(actual.peak_value_units, reference.peak_value_units, "n={n}");
         }
     }
 }

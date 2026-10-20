@@ -1847,7 +1847,7 @@ fn compare_data(left: &ConstData, right: &ConstData) -> Result<core::cmp::Orderi
 
 /// Arithmetic failure codes (S20-210 closed set).
 pub(crate) const ARITHMETIC_OVERFLOW: u16 = 1;
-const ARITHMETIC_DIVIDE_BY_ZERO: u16 = 2;
+pub(crate) const ARITHMETIC_DIVIDE_BY_ZERO: u16 = 2;
 const ARITHMETIC_INVALID_SHIFT: u16 = 3;
 
 /// One checked-integer outcome: the exact value or the arithmetic code.
