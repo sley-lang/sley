@@ -109,6 +109,12 @@
       "version": "v1"
     },
     {
+      "family": "native-worker",
+      "rejections": 0,
+      "vectors": 0,
+      "version": "v1"
+    },
+    {
       "family": "raw-hash",
       "rejections": 0,
       "vectors": 0,
@@ -202,7 +208,7 @@
   "conformance_rejections": 285,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "f94b86fde8dfe1e063e78719f277c5d6290d5b91fc3c52a79d184690e79b238b",
+  "inventory_digest": "6aed704c78d29fdab4eb60aa91c2fd7cd8dd59d3691a977e01fbcf555b593bfa",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -291,7 +297,7 @@
     {
       "crate": "sley-agent",
       "ignored": 0,
-      "tests": 979
+      "tests": 986
     },
     {
       "crate": "sley-check",
@@ -301,7 +307,7 @@
     {
       "crate": "sley-cli",
       "ignored": 0,
-      "tests": 46
+      "tests": 50
     },
     {
       "crate": "sley-conformance",
@@ -326,12 +332,12 @@
     {
       "crate": "sley-policy",
       "ignored": 2,
-      "tests": 93
+      "tests": 94
     },
     {
       "crate": "sley-protocol",
       "ignored": 4,
-      "tests": 129
+      "tests": 134
     },
     {
       "crate": "sley-query",
@@ -376,17 +382,17 @@
     {
       "crate": "sley-test-runner",
       "ignored": 0,
-      "tests": 24
+      "tests": 150
     },
     {
       "crate": "sley-tests",
       "ignored": 0,
-      "tests": 44
+      "tests": 47
     },
     {
       "crate": "sley-txn",
       "ignored": 1,
-      "tests": 249
+      "tests": 265
     },
     {
       "crate": "sley-vm",
@@ -395,7 +401,7 @@
     }
   ],
   "rust_ignored_emitters": 44,
-  "rust_unit_tests": 3071,
+  "rust_unit_tests": 3233,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

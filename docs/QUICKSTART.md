@@ -24,19 +24,19 @@ tests and submits a program with `sley-agent`, the workbench agents use.
 
 ## 1. Install
 
-Sley 2.1.1 supports **Linux x86_64**. The release binary is statically linked
+Sley 2.1.2 supports **Linux x86_64**. The release binary is statically linked
 (musl), so it has no runtime dependencies.
 
 ### Option A: the release archive
 
-Download `sley-2.1.1-linux-x86_64.tar.gz` from
+Download `sley-2.1.2-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), then verify and unpack
 it:
 
 ```sh
-sha256sum sley-2.1.1-linux-x86_64.tar.gz     # compare with the published SHA-256
-tar xzf sley-2.1.1-linux-x86_64.tar.gz
-cd sley-2.1.1-linux-x86_64
+sha256sum sley-2.1.2-linux-x86_64.tar.gz     # compare with the published SHA-256
+tar xzf sley-2.1.2-linux-x86_64.tar.gz
+cd sley-2.1.2-linux-x86_64
 ./bin/sley version
 ```
 
@@ -54,8 +54,8 @@ The archive contains:
 | `THIRD_PARTY_LICENSES` | The license texts and copyright notices of the third-party crates compiled into the binary (new in 2.0.1) |
 
 Two clean builds on the primary host produced identical release archives.
-Sley 2.1.1 has not been independently rebuilt on a second host. The
-[release notes](release/SLEY-2.1.1.md#candidate-packaging) show how to reproduce
+Sley 2.1.2 has not been independently rebuilt on a second host. The
+[release notes](release/SLEY-2.1.2.md#candidate-packaging) show how to reproduce
 the local build and checks.
 
 ### Option B: build from source
@@ -65,13 +65,13 @@ You need `git`, the Rust toolchain pinned in
 automatically), and Python 3 for the demo.
 
 ```sh
-git clone --branch v2.1.1 --depth 1 https://github.com/sley-lang/sley.git
+git clone --branch v2.1.2 --depth 1 https://github.com/sley-lang/sley.git
 cd sley
 cargo build --release -p sley-cli -p sley-agent
 ./target/release/sley version
 ```
 
-`--branch v2.1.1` builds the released source; `main` carries unreleased work
+`--branch v2.1.2` builds the released source; `main` carries unreleased work
 under the same workspace version.
 
 A release build takes about a minute on a modern machine, plus the time to
@@ -428,7 +428,7 @@ locked dependency first:
 rustup target add x86_64-unknown-linux-musl
 cargo fetch --locked              # needed on a fresh cargo cache, harmless otherwise
 make release-candidate-smoke      # two clean musl builds, compared member by member, then verified
-sha256sum dist/sley-2.1.1-linux-x86_64.tar.gz
+sha256sum dist/sley-2.1.2-linux-x86_64.tar.gz
 ```
 
 The build refuses a dirty working tree, so if you ran `make lint`, commit or
@@ -472,6 +472,9 @@ $ sley-agent try ../area.json
 c1: Valid (+25 created, 0 replaced, 0 deleted) draft d1@r1
 changed: fn +area; type +ShapeError; const +k_1; test +area_cases_0 +area_cases_1 +area_cases_2
 tests: 3/3 passed [authored 3]
+test execution: advisory value/trap comparison; not admission evidence
+declared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied
+fixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)
 next: sley-agent submit d1
 ```
 
@@ -499,7 +502,7 @@ latest revision when valid. Submission does not change the workspace's accepted
 head.
 
 `Valid` reports candidate validation, and `3/3 passed` reports advisory test
-matches. In 2.1.1, `sley-agent commit c1` exits with code 2 and refuses this example with
+matches. In 2.1.2, `sley-agent commit c1` exits with code 2 and refuses this example with
 `TXN_TEST_EVIDENCE_UNSUPPORTED`: its code-and-test candidate selects TestCases,
 and authoritative native test evidence is not available. These advisory
 matches are not commit-admission evidence. Keep candidate validation, test
