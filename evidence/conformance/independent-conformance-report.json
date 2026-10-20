@@ -13,6 +13,7 @@
       "conformance/mutation-candidate/v1",
       "conformance/mutation-value/v1",
       "conformance/native-test/v1",
+      "conformance/native-worker/v1",
       "conformance/raw-hash/v1",
       "conformance/release-demo/v1",
       "conformance/repository-exchange/v1",
@@ -33,7 +34,7 @@
       "conformance/semantic-comparison/v1"
     ]
   },
-  "fixture_directories": 27,
+  "fixture_directories": 28,
   "fixtures": [
     {
       "claim": null,
@@ -937,6 +938,46 @@
     },
     {
       "claim": null,
+      "contract": null,
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_native_worker_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/native-worker/v1",
+      "files": [
+        {
+          "bytes": 1739,
+          "name": "README.md",
+          "sha256": "52a4e252ede0da739e9971382fc8c08fe466e0d1373db740ed58c7e8de10cfa8"
+        },
+        {
+          "bytes": 0,
+          "name": "SHA256SUMS",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2370,
+          "name": "observed-input.bin",
+          "sha256": "4c769be0547685d0ae2115953fd0f52eb50acb215236ba87cd0d3c7c02c2e357"
+        },
+        {
+          "bytes": 618,
+          "name": "observed-report.bin",
+          "sha256": "66bb48b34f1686730599a5412cdd1d195b0b6eb307f3cec7a8f3cf23efd7274c"
+        }
+      ],
+      "shape": {},
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": null,
       "contract": "sley2-raw-hash-1",
       "coverage": {
         "command": "python3 scripts/check_exec_package_v1.py",
@@ -1529,7 +1570,7 @@
       ]
     }
   ],
-  "independently_checked": 27,
+  "independently_checked": 28,
   "make_target": "conformance",
   "native_only": [],
   "oracle_independence": {
@@ -1549,10 +1590,10 @@
       "popen"
     ],
     "problems": [],
-    "python_sources": 30
+    "python_sources": 31
   },
-  "report_digest": "653e0378414559b02d9f6608dc829d0c94fab8f8a52326d218153aaa917782fc",
+  "report_digest": "5b88022efa97a3ab7d7dcfb435f0f3d81f2840835ed6bdaf96c3e53ba79ace4b",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
-  "tracked_corpus_directories": 33,
+  "tracked_corpus_directories": 34,
   "work_package": "S20-730"
 }
