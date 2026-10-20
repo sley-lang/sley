@@ -1,6 +1,7 @@
 //! Headerless proposals inherit their signature from the exact accepted graph.
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{Value, json};
 use sley_agent::{genesis, workspace::Workspace};
@@ -8,13 +9,17 @@ use sley_agent::{genesis, workspace::Workspace};
 struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {
+        // Tests in one binary run in parallel and share the process id; the
+        // counter keeps two directories apart when the clock reads the same.
+        static NEXT: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
-            "sley-scope-{}-{}",
+            "sley-scope-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT.fetch_add(1, Ordering::Relaxed),
         ));
         fs::create_dir_all(&path).unwrap();
         genesis::init(&path, Some([7; 32]), genesis::INIT_CEILINGS).unwrap();
