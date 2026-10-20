@@ -116,7 +116,7 @@
     {
       "acceptance_evidence": "core/conformance pass with network disabled",
       "anti_goal": "network-dependent core tests",
-      "detail": "networking crates in the lock: none; the lock holds 63 crates in total",
+      "detail": "networking crates in the lock: none; the lock holds 70 crates in total",
       "state": "HOLDS",
       "surface": "network-isolated gate"
     },
@@ -172,14 +172,14 @@
     {
       "acceptance_evidence": "no tag, upload, or deploy action outside the operator's recorded publication decision (`scripts/publication_authority.py`)",
       "anti_goal": "unauthorized publication/deploy/spend",
-      "detail": "git tags: 8; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
+      "detail": "git tags: 9; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
       "state": "HOLDS",
       "surface": "repo metadata and operator gate"
     }
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "98782c9728c35cf1b612233eb5b19921bac8a48632bf462d0103e7612f82bd12",
+  "report_digest": "41e2afdd7a5089ce4b72ce33a574f511a023a80363acdaeea88c9c2a2e7ad910",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

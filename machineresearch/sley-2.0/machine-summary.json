@@ -22,8 +22,8 @@
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
-    "final_commit_note": "the official Sley 2.1.1 release, built from commit af34be33 of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
+    "final_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+    "final_commit_note": "the official Sley 2.1.2 release, built from commit 65dc451a of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
     "master_goal_checks_waiver": "Operator decision 2026-10-19 (Magister): for Sley 2.1.2, scripts/check_candidate_result_contract.py and scripts/check_transaction_contract.py are not run because the Sley 2.0 master goal (SLEY2_MASTER_GOAL) is unavailable off the maintainer host. This waives the two checks for this release only and is not a pass; both passed at v2.1.1 on the maintainer host.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
@@ -4956,8 +4956,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "b0898ba7404a1656db2f83f448ea96d2c1175346f35e50b135bedc96e3810bfd",
-    "candidate_artifact_size_bytes": 7413689,
+    "candidate_artifact_sha256": "7e1e7d5e1ca12b6c82368ce9755db0005ce9f500126fefcdd2f525c6722862b5",
+    "candidate_artifact_size_bytes": 7652292,
     "candidate_member_count": 17,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4965,15 +4965,15 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "f4df708aaf959782a2c883501c4e6454f5a960e3dba94aeba7deb2acaa70dfd7",
-    "candidate_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+    "candidate_manifest_digest": "1b6a24489ef7e053d7039ff355a061b58749e419838f887d377bc593f18444d1",
+    "candidate_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.1.1 release, built from commit af34be33 of sley-lang/sley: two clean static musl builds on the primary host produced the same archive. Secondary-host work stays excluded, as for 2.0.6, 2.0.7 and 2.1.0; cross-host reproducibility is not claimed and earlier attestations remain historical evidence only.",
+    "candidate_evidence_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.1.2 release, built from commit 65dc451a of sley-lang/sley: two clean static musl builds on the primary host produced the same archive. Secondary-host work stays excluded, as for 2.0.6, 2.0.7, 2.1.0 and 2.1.1; cross-host reproducibility is not claimed and earlier attestations remain historical evidence only.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -6339,7 +6339,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "af34be33eb1ae913dddd92aa7f4f275aac0e45ee",
+    "attested_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -7163,6 +7163,12 @@
         "hosts": [
           "primary"
         ]
+      },
+      {
+        "commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+        "hosts": [
+          "primary"
+        ]
       }
     ],
     "vulcan_surface_review_revision_11": "REVISE_0_P0_0_P1_0_P2_2_P3_6_P4",
@@ -7595,8 +7601,8 @@
     "spdx_version": "SPDX-2.3",
     "statement_type": "https://in-toto.io/Statement/v1",
     "predicate_type": "https://slsa.dev/provenance/v1",
-    "components": 66,
-    "dependency_relationships": 205,
+    "components": 73,
+    "dependency_relationships": 233,
     "license_disposition_blocked_components": 0,
     "signed": false,
     "transparency_log": false,
@@ -8048,10 +8054,10 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 548,
-    "open_reviews": 27,
+    "open_reviews": 30,
     "deferred_reviews": 0,
     "unclassified_dispositions": 0,
-    "complete_packages": 37,
+    "complete_packages": 36,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",
     "new_stable_error_codes": 4,
@@ -8102,7 +8108,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "21 GA acceptance criteria are not evidenced",
-      "27 review obligations are open",
+      "30 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",

@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "control map for all 56 threats; coverage measured here; independent review pending",
-  "report_digest": "63165229a9c2502636dba7a20f24bb540dcb64705749fb0c4011f2e8e9c90f07",
+  "report_digest": "256e2d1db5546b14ff8f3061d8d1957ca3477fa78bb17e6ab4bdae01c21e7a82",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -26,17 +26,17 @@
   "threats": [
     {
       "exercised_in": [
+        "crates/sley-cli/tests/cli.rs",
         "crates/sley-policy/src/candidate_validation.rs#tests",
         "crates/sley-policy/src/lib.rs#tests",
         "crates/sley-repo/src/compare.rs#tests",
         "crates/sley-repo/src/lib.rs#tests",
-        "crates/sley-repo/src/native_exchange.rs#tests",
-        "crates/sley-repo/src/refs.rs#tests"
+        "crates/sley-repo/src/native_exchange.rs#tests"
       ],
-      "exercised_source_count": 50,
+      "exercised_source_count": 51,
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
-      "located_file_count": 57,
+      "located_file_count": 58,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -48,10 +48,10 @@
           "bench/live/succ_witness_dead.py"
         ],
         "implementation": [
+          "crates/sley-cli/tests/cli.rs",
           "crates/sley-mutate/src/codec/adversarial_tests.rs",
           "crates/sley-policy/src/candidate_validation.rs",
-          "crates/sley-policy/src/lib.rs",
-          "crates/sley-repo/src/compare.rs"
+          "crates/sley-policy/src/lib.rs"
         ],
         "oracle": [
           "oracle/scb1/generate_s20_350_fixtures.py",
@@ -435,7 +435,7 @@
       "exercised_source_count": 1,
       "expected_failure_code": "CFG_RESOURCE_LIMIT",
       "id": "T11",
-      "located_file_count": 7,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py"
@@ -445,9 +445,9 @@
         ],
         "implementation": [
           "crates/sley-check/src/cfg.rs",
+          "crates/sley-mutate/src/semantic_projection.rs",
           "crates/sley-policy/src/candidate_program.rs",
-          "crates/sley-policy/src/candidate_validation.rs",
-          "crates/sley-protocol/src/server.rs"
+          "crates/sley-policy/src/candidate_validation.rs"
         ]
       },
       "owner": "sley-check",
@@ -624,7 +624,7 @@
       "exercised_source_count": 23,
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 48,
+      "located_file_count": 50,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
@@ -638,8 +638,8 @@
         "implementation": [
           "crates/sley-check/src/cfg.rs",
           "crates/sley-mutate/src/codec/adversarial_tests.rs",
-          "crates/sley-policy/src/candidate_program.rs",
-          "crates/sley-policy/src/candidate_result.rs"
+          "crates/sley-mutate/src/semantic_projection.rs",
+          "crates/sley-policy/src/candidate_program.rs"
         ],
         "oracle": [
           "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
@@ -1098,13 +1098,14 @@
     },
     {
       "exercised_in": [
+        "crates/sley-test-runner/src/program.rs#tests",
         "crates/sley-tests/src/report.rs#tests",
         "crates/sley-vm/src/execute.rs#tests"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 3,
       "expected_failure_code": "VM_OUTPUT_LIMIT",
       "id": "T30",
-      "located_file_count": 7,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py"
@@ -1112,8 +1113,8 @@
         "implementation": [
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
-          "crates/sley-tests/src/report.rs",
-          "crates/sley-vm/src/execute.rs"
+          "crates/sley-test-runner/src/program.rs",
+          "crates/sley-tests/src/report.rs"
         ]
       },
       "owner": "sley-vm",
@@ -1166,14 +1167,15 @@
     {
       "exercised_in": [
         "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-test-runner/src/program.rs#tests",
         "crates/sley-tests/src/report.rs#tests",
         "crates/sley-vm/src/lib.rs#tests",
         "crates/sley-vm/tests/rw080_lower_scaffold.rs"
       ],
-      "exercised_source_count": 4,
+      "exercised_source_count": 5,
       "expected_failure_code": "VM_RESOURCE_LIMIT",
       "id": "T32",
-      "located_file_count": 11,
+      "located_file_count": 12,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py",
