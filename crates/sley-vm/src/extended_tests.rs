@@ -5878,3 +5878,99 @@ fn e8_bridge_program_bytes_cross_as_vectors_only() {
 
 #[path = "native_execution/tests.rs"]
 mod native_tests;
+
+fn checked_u64() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(u64_type()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
+    }
+}
+
+/// Function 41: `(a, b) -> a + b`, checked.
+fn adding_callee() -> Fixture {
+    Fixture::with_base(
+        40,
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::IntAddChecked,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            checked_u64(),
+        )],
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+/// Function 81: `(a, b) -> adding_callee(b, a)`.
+fn adding_relay() -> Fixture {
+    Fixture::with_base(
+        80,
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(1), Arg::P(0)],
+            call(41),
+            checked_u64(),
+        )],
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+/// Direct calls run in the compact plan with the reference's charges at
+/// every fuel, instruction, cancellation, value-unit and output cut: the call
+/// action, argument units, the returned value's units, the instruction that
+/// lands on return, and the depth ceiling under unbounded self-recursion.
+#[test]
+fn scalar_plan_runs_direct_calls_with_reference_charges() {
+    let entry = Fixture::new(
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(1), Arg::P(0)],
+            call(41),
+            checked_u64(),
+        )],
+        Vec::new(),
+    )
+    .with_callee(adding_callee());
+    assert_compact_budget_parity(&entry, vec![uint(3), uint(4)]);
+    assert_compact_budget_parity(&entry, vec![uint(u128::from(u64::MAX)), uint(1)]);
+
+    let nested = Fixture::new(
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(0), Arg::P(1)],
+            call(81),
+            checked_u64(),
+        )],
+        Vec::new(),
+    )
+    .with_callee(adding_callee())
+    .with_callee(adding_relay());
+    assert_compact_budget_parity(&nested, vec![uint(5), uint(6)]);
+
+    let recursive = Fixture::new(
+        &[u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(0)],
+            call(1),
+            u64_type(),
+        )],
+        Vec::new(),
+    )
+    .with_self();
+    assert_eq!(
+        run_extended(&recursive, vec![uint(1)]),
+        ExecutionTermination::ResourceLimit(ResourceKind::CallDepth)
+    );
+    assert_compact_budget_parity(&recursive, vec![uint(1)]);
+
+    // One callee the plan cannot run keeps the whole execution on the
+    // reference path.
+    let (image, ..) = loaded_fixture(&calling_entry(41).with_callee(second_of_two()));
+    assert!(!image.has_scalar_plan());
+}
