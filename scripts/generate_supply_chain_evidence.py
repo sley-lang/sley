@@ -68,6 +68,13 @@ PERMISSIVE_CARGO_LICENSES = {
     "BSD-3-Clause",
     "Apache-2.0 OR MIT",
     "MIT OR Apache-2.0 OR BSD-1-Clause",
+    # Native supervisor dependencies (reviewed 2026-10-19): nix, memoffset and
+    # cfg_aliases are MIT alone. r-efi is a UEFI-only dependency of getrandom
+    # that no Linux target compiles; its disjunction is taken under MIT, and
+    # the LGPL alternative is never elected. cargo audit with the RustSec
+    # database of 2026-10-17 reports no advisory for any of them.
+    "MIT",
+    "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
 }
 
 SECRET_PATTERNS = {
