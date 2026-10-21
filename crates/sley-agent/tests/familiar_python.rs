@@ -85,6 +85,40 @@ fn inline_tests(dir: &Path, text: &str, on: Option<&str>) -> (i32, Value) {
 }
 
 #[test]
+fn python_raises_matches_builtin_ancestors_and_aliases() {
+    let temp = workspace("raises-inheritance");
+    for (raised, expected, prefix) in [
+        ("IndexError", "LookupError", ""),
+        ("ZeroDivisionError", "ArithmeticError", ""),
+        ("ConnectionResetError", "OSError", ""),
+        ("IOError", "EnvironmentError", ""),
+        (
+            "BadIndex",
+            "LookupError",
+            "class BadIndex(IndexError):\n    pass\n\n",
+        ),
+    ] {
+        let text = format!(
+            "{prefix}def fail(x: int) -> int:\n    raise {raised}(\"boom\")\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+        );
+        let (status, report) = inline_tests(&temp.path, &text, None);
+        assert_eq!(status, 0, "{raised} -> {expected}: {report:#}");
+        assert_eq!(report["tests"].as_array().unwrap().len(), 1, "{report:#}");
+        assert_eq!(report["tests"][0]["pass"], true, "{report:#}");
+    }
+    let text = "def fail(x: int) -> int:\n    raise IndexError(\"boom\")\n\ndef test_failure():\n    with pytest.raises(ArithmeticError):\n        fail(0)\n";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 2, "{report:#}");
+    assert!(
+        report["detail"]
+            .as_str()
+            .unwrap()
+            .contains("cannot raise ArithmeticError")
+    );
+    assert_eq!(report["obligations"][0]["text"]["line"], 5, "{report:#}");
+}
+
+#[test]
 fn python_bare_assertions_use_truthiness() {
     let temp = workspace("truthiness");
     let text = "\
@@ -823,6 +857,40 @@ def distinct(xs: list[str]) -> int:
 }
 
 #[test]
+fn python_layered_failures_use_current_authored_test_lines() {
+    for reference in ["c1", "d1"] {
+        let temp = workspace("python-layered-test-lines");
+        let path = temp.path.join("layered.py");
+        let file = path.display().to_string();
+        fs::write(
+            &path,
+            "def value(x: int) -> int:\n    return x\n\ndef test_old():\n    assert value(1) == 2\n\ndef test_kept():\n    assert value(3) == 4\n",
+        )
+        .unwrap();
+        let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
+        assert_eq!(status, 1, "{out}");
+        fs::write(
+            &path,
+            "\n\n\n\n\ndef test_new():\n    assert value(2) == 3\n\ndef test_old():\n    assert value(4) == 5\n",
+        )
+        .unwrap();
+        let (status, out) = run(&temp.path, &["try", "--on", reference, "--familiar", &file]);
+        assert_eq!(status, 1, "{reference}: {out}");
+        assert!(out.contains("tests: 0/3 passed"), "{out}");
+        for expected in [
+            "  FAIL test_new_0 (value): expected 3, got 2 (line 7)",
+            "  FAIL test_old_0 (value): expected 5, got 4 (line 10)",
+            "  FAIL test_kept_0 (value): expected 4, got 3",
+        ] {
+            assert!(
+                out.lines().any(|line| line == expected),
+                "{reference}: {out}"
+            );
+        }
+    }
+}
+
+#[test]
 fn python_tests_and_record_classes_run_in_one_try() {
     let temp = workspace("python-inline-tests");
     let text = "\
@@ -867,7 +935,7 @@ def test_manhattan():
     );
     assert!(out.contains("tests: 4/5 passed [authored 5]"), "{out}");
     assert!(
-        out.contains("FAIL test_manhattan_1 (manhattan): expected 1, got 0"),
+        out.contains("FAIL test_manhattan_1 (manhattan): expected 1, got 0 (line 23)\n"),
         "{out}"
     );
     assert!(
@@ -881,5 +949,8 @@ def test_manhattan():
     .unwrap();
     let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
     assert_eq!(status, 0, "{out}");
-    assert!(out.contains("tests: 5/5 passed"), "{out}");
+    assert_eq!(
+        out,
+        "c2: Valid; tests: 5/5 passed [authored 5] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+    );
 }

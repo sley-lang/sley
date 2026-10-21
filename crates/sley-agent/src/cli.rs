@@ -735,6 +735,25 @@ fn familiar_locate(_positions: &FamiliarPositions, _pointer: &str) -> Option<(us
     None
 }
 
+fn familiar_test_lines(
+    frame: Option<&Value>,
+    positions: Option<&FamiliarPositions>,
+) -> BTreeMap<String, usize> {
+    match (frame, positions) {
+        (Some(frame), Some(positions)) => frame["tests"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .filter_map(|(index, test)| {
+                let name = test["name"].as_str()?.to_owned();
+                familiar_locate(positions, &format!("/tests/{index}")).map(|(line, _)| (name, line))
+            })
+            .collect(),
+        _ => BTreeMap::new(),
+    }
+}
+
 /// Adds the familiar text position of each obligation's pointer (`text`:
 /// line and column, diagnostic only) and returns one line per located
 /// obligation.
@@ -858,6 +877,9 @@ struct Proposal {
     /// With `try --familiar`: where the frame's pointers came from in the
     /// text, for diagnostics.
     familiar: Option<FamiliarPositions>,
+    /// Current input's test names and lines, captured before layering can
+    /// replace or reorder tests from an earlier frame.
+    familiar_test_lines: BTreeMap<String, usize>,
     scope: Option<scope::Guard>,
     body: Option<body::Target>,
 }
@@ -887,6 +909,7 @@ impl Proposal {
             residual: None,
             artifacts: Vec::new(),
             familiar: None,
+            familiar_test_lines: BTreeMap::new(),
             scope: None,
             body: None,
         }
@@ -1088,6 +1111,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     let guard = scope::Guard::parse(&words, &head)?;
     let body = body::Target::select(&words, &workspace, &head)?;
     let (input, parsed, positions) = trial_input(global, frame_argument, familiar, body.as_ref())?;
+    let familiar_test_lines = familiar_test_lines(parsed.as_ref().ok(), positions.as_ref());
     if let (Some(guard), Ok(frame)) = (&guard, &parsed) {
         guard.check_frame(frame)?;
     }
@@ -1164,6 +1188,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     };
     let mut proposal = proposal;
     proposal.familiar = positions;
+    proposal.familiar_test_lines = familiar_test_lines;
     proposal.scope = guard;
     if body.is_some() {
         proposal.origin = Origin::Draft;
@@ -2980,6 +3005,38 @@ fn run_trial(
         let at = details.find("  hint:").unwrap_or(details.len());
         details.insert_str(at, &line);
     }
+    let provenance_line = provenance_text(&provenance);
+    let public_lines = public_text(&public);
+    // A Valid candidate whose tests all pass, with nothing else to say: one
+    // line and the next step (`--verbose` and `--json` give the detail).
+    if !options.verbose
+        && verdict.valid
+        && failed == 0
+        && !tests.is_empty()
+        && details.is_empty()
+        && notes.is_empty()
+        && also.is_empty()
+        && raw.is_none()
+        && public_lines.is_empty()
+        && public_refusal.is_none()
+        && !changes.iter().any(|change| change.exported)
+    {
+        let mut text = format!(
+            "{candidate_handle}: Valid; tests: {}/{} passed{provenance_line} (advisory); draft {reference}\n",
+            tests.len(),
+            tests.len()
+        );
+        // What it replaces or deletes is still said; what it creates is in
+        // `--verbose`.
+        if changes.iter().any(|change| change.mark != '+') {
+            text.push_str(&changes_text(&changes));
+        }
+        if let Some(next) = &next {
+            let _ = writeln!(text, "next: {next}");
+        }
+        write_text(out, &text)?;
+        return Ok(exit);
+    }
     let mut text = format!(
         "{candidate_handle}: {} (+{} created, {} replaced, {} deleted) draft {reference}\n{details}",
         verdict.headline(),
@@ -2994,11 +3051,24 @@ fn run_trial(
         let _ = writeln!(text, "  also: {finding}");
     }
     text.push_str(&changes_text(&changes));
-    let provenance = provenance_text(&provenance);
+    let provenance = provenance_line;
     if !tests.is_empty() {
         let passed = tests.iter().filter(|t| t.passed()).count();
         let _ = writeln!(text, "tests: {passed}/{} passed{provenance}", tests.len());
-        text.push_str(&test_lines(&tests, &after_names, options.verbose));
+        for line in test_lines(&tests, &after_names, options.verbose).lines() {
+            let at = line
+                .strip_prefix("  FAIL ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|name| proposal.familiar_test_lines.get(name));
+            match at {
+                Some(at) => {
+                    let _ = writeln!(text, "{line} (line {at})");
+                }
+                None => {
+                    let _ = writeln!(text, "{line}");
+                }
+            }
+        }
         if options.verbose {
             text.push_str(&test_execution_policy_text());
         } else {
@@ -3015,7 +3085,7 @@ fn run_trial(
             "tests: 0 ran (no TestCase in this candidate targets a function it changes){provenance}"
         );
     }
-    text.push_str(&public_text(&public));
+    text.push_str(&public_lines);
     if let Some(error) = &public_refusal {
         // The recorded revision and its tests are above; the public cases
         // did not run, so no next step is proposed.

@@ -642,6 +642,72 @@ struct Declared {
     records: Vec<(String, Vec<String>, Value, Pos)>,
     /// `TestCase` entities in file order.
     tests: Vec<(Value, Pos)>,
+    /// `pytest.raises(E)` tests: the function called, `E`, and where.
+    raises: Vec<(String, String, Pos)>,
+    /// What each function's text can raise: explicit `raise` classes, and
+    /// whether it divides, indexes, asserts or calls.
+    facts: BTreeMap<String, Facts>,
+    /// Class bases, for `raise Sub` matching `pytest.raises(Base)`.
+    bases: BTreeMap<String, Vec<String>>,
+}
+
+/// What a Python-dialect function's text can raise.
+#[derive(Default)]
+struct Facts {
+    raises: Vec<String>,
+    divides: bool,
+    indexes: bool,
+    asserts: bool,
+    calls: Vec<String>,
+}
+
+fn py_exception_alias(name: &str) -> &str {
+    match name {
+        "IOError" | "EnvironmentError" => "OSError",
+        _ => name,
+    }
+}
+
+/// Public Python builtin exception ancestry, used only by the static raises
+/// check. Runtime failures still lower to the existing trap outcome.
+fn py_exception_bases(name: &str) -> &'static [&'static str] {
+    match name {
+        "Exception" | "BaseExceptionGroup" | "GeneratorExit" | "KeyboardInterrupt"
+        | "SystemExit" => &["BaseException"],
+        "ExceptionGroup" => &["BaseExceptionGroup", "Exception"],
+        "ArithmeticError" | "AssertionError" | "AttributeError" | "BufferError" | "EOFError"
+        | "ImportError" | "LookupError" | "MemoryError" | "NameError" | "OSError"
+        | "ReferenceError" | "RuntimeError" | "StopAsyncIteration" | "StopIteration"
+        | "SyntaxError" | "SystemError" | "TypeError" | "ValueError" | "Warning" => &["Exception"],
+        "FloatingPointError" | "OverflowError" | "ZeroDivisionError" => &["ArithmeticError"],
+        "IndexError" | "KeyError" => &["LookupError"],
+        "ModuleNotFoundError" => &["ImportError"],
+        "NotImplementedError" | "PythonFinalizationError" | "RecursionError" => &["RuntimeError"],
+        "UnboundLocalError" => &["NameError"],
+        "IndentationError" => &["SyntaxError"],
+        "TabError" => &["IndentationError"],
+        "UnicodeError" => &["ValueError"],
+        "UnicodeDecodeError" | "UnicodeEncodeError" | "UnicodeTranslateError" => &["UnicodeError"],
+        "BlockingIOError" | "ChildProcessError" | "ConnectionError" | "FileExistsError"
+        | "FileNotFoundError" | "InterruptedError" | "IsADirectoryError" | "NotADirectoryError"
+        | "PermissionError" | "ProcessLookupError" | "TimeoutError" => &["OSError"],
+        "BrokenPipeError"
+        | "ConnectionAbortedError"
+        | "ConnectionRefusedError"
+        | "ConnectionResetError" => &["ConnectionError"],
+        "BytesWarning"
+        | "DeprecationWarning"
+        | "EncodingWarning"
+        | "FutureWarning"
+        | "ImportWarning"
+        | "PendingDeprecationWarning"
+        | "ResourceWarning"
+        | "RuntimeWarning"
+        | "SyntaxWarning"
+        | "UnicodeWarning"
+        | "UserWarning" => &["Warning"],
+        _ => &[],
+    }
 }
 
 type P<T> = Result<T, FamiliarError>;
@@ -2333,6 +2399,21 @@ impl Parser {
                 // other class is skipped (its record comes from the program,
                 // and a field it lacks is refused where it is used).
                 let start = self.k;
+                if self.peek_at(1).kind == Kind::Name && self.peek_at(2).text == "(" {
+                    let name = self.peek_at(1).text.clone();
+                    let mut bases = Vec::new();
+                    let mut k = start + 3;
+                    while let Some(tok) = self.toks.get(k) {
+                        if tok.text == ")" || tok.kind == Kind::Newline {
+                            break;
+                        }
+                        if tok.kind == Kind::Name {
+                            bases.push(tok.text.clone());
+                        }
+                        k += 1;
+                    }
+                    self.declared.bases.insert(name, bases);
+                }
                 if let Some(record) = self.py_record_class() {
                     self.declared.records.push(record);
                     continue;
@@ -2380,6 +2461,17 @@ impl Parser {
         }
         if functions.is_empty() && self.declared.tests.is_empty() {
             return refuse(self.peek().pos, "expected at least one def");
+        }
+        for (function, exception, pos) in &self.declared.raises {
+            if self.declared.facts.contains_key(function) && !self.py_can_raise(function, exception)
+            {
+                return refuse(
+                    *pos,
+                    format!(
+                        "`{function}` cannot raise {exception}: pytest.raises names an exception the function or a function it calls raises (raise {exception}, // or % for ZeroDivisionError, an index for IndexError, assert for AssertionError)"
+                    ),
+                );
+            }
         }
         Ok(functions)
     }
@@ -2540,6 +2632,19 @@ impl Parser {
                 self.bump();
                 self.bump();
                 self.expect_op("(")?;
+                let exception = match self.peek() {
+                    tok if tok.kind == Kind::Name
+                        && matches!(self.peek_at(1).text.as_str(), ")" | ",") =>
+                    {
+                        tok.text.clone()
+                    }
+                    tok => {
+                        return refuse(
+                            tok.pos,
+                            "name one exception class: with pytest.raises(ValueError):",
+                        );
+                    }
+                };
                 let mut depth = 1_usize;
                 while depth > 0 {
                     match self.peek().kind {
@@ -2573,6 +2678,9 @@ impl Parser {
                     }
                     self.bump();
                 }
+                self.declared
+                    .raises
+                    .push((function.clone(), exception.clone(), tok.pos));
                 (function, args, json!({"expect": {"trap": "unreachable"}}))
             } else {
                 return refuse(
@@ -2721,6 +2829,107 @@ impl Parser {
     }
 
     fn py_function(&mut self) -> P<Function> {
+        let start = self.k;
+        let function = self.py_function_body()?;
+        let facts = self.py_facts(start, self.k);
+        self.declared.facts.insert(function.name.clone(), facts);
+        Ok(function)
+    }
+
+    /// What the tokens of one function (`start..end`) can raise.
+    fn py_facts(&self, start: usize, end: usize) -> Facts {
+        let mut facts = Facts::default();
+        let toks = &self.toks[start..end.min(self.toks.len())];
+        for (i, tok) in toks.iter().enumerate() {
+            let next = toks.get(i + 1);
+            let previous = i.checked_sub(1).map(|j| &toks[j]);
+            match (tok.kind, tok.text.as_str()) {
+                (Kind::Name, "raise") => {
+                    if let Some(name) = next.filter(|t| t.kind == Kind::Name) {
+                        facts.raises.push(name.text.clone());
+                    }
+                }
+                (Kind::Name, "assert") => facts.asserts = true,
+                (Kind::Name, "divmod") | (Kind::Op, "//" | "%" | "//=" | "%=") => {
+                    facts.divides = true;
+                }
+                (Kind::Op, "[") => {
+                    let after_value = previous.is_some_and(|p| {
+                        (p.kind == Kind::Name && !matches!(p.text.as_str(), "list" | "List"))
+                            || (p.kind == Kind::Op && matches!(p.text.as_str(), ")" | "]"))
+                            || p.kind == Kind::Str
+                    });
+                    facts.indexes |= after_value;
+                }
+                (Kind::Name, name) if next.is_some_and(|t| t.text == "(") => {
+                    facts.calls.push(name.to_owned());
+                }
+                _ => {}
+            }
+        }
+        facts
+    }
+
+    /// Whether `function` (or a function it calls) can raise `exception`:
+    /// a `raise` of it or of a subclass, a division for
+    /// `ZeroDivisionError`/`ArithmeticError`, an index for
+    /// `IndexError`/`LookupError`, an `assert` for `AssertionError`; any
+    /// raise or check for `Exception`/`BaseException`.
+    fn py_can_raise(&self, function: &str, exception: &str) -> bool {
+        let is_a = |class: &str| {
+            let expected = if self.declared.bases.contains_key(exception) {
+                exception
+            } else {
+                py_exception_alias(exception)
+            };
+            let mut seen = Vec::new();
+            let mut todo = vec![class.to_owned()];
+            while let Some(c) = todo.pop() {
+                let c = if self.declared.bases.contains_key(&c) {
+                    c
+                } else {
+                    py_exception_alias(&c).to_owned()
+                };
+                if c == expected {
+                    return true;
+                }
+                if seen.contains(&c) {
+                    continue;
+                }
+                if let Some(bases) = self.declared.bases.get(&c) {
+                    todo.extend(bases.iter().cloned());
+                } else {
+                    todo.extend(py_exception_bases(&c).iter().map(|base| (*base).to_owned()));
+                }
+                seen.push(c);
+            }
+            false
+        };
+        let any = matches!(exception, "Exception" | "BaseException");
+        let mut seen: Vec<&str> = Vec::new();
+        let mut todo = vec![function];
+        while let Some(f) = todo.pop() {
+            if seen.contains(&f) {
+                continue;
+            }
+            seen.push(f);
+            let Some(facts) = self.declared.facts.get(f) else {
+                continue;
+            };
+            if facts.raises.iter().any(|r| any || is_a(r))
+                || (facts.divides
+                    && (any || matches!(exception, "ZeroDivisionError" | "ArithmeticError")))
+                || (facts.indexes && (any || matches!(exception, "IndexError" | "LookupError")))
+                || (facts.asserts && (any || exception == "AssertionError"))
+            {
+                return true;
+            }
+            todo.extend(facts.calls.iter().map(String::as_str));
+        }
+        false
+    }
+
+    fn py_function_body(&mut self) -> P<Function> {
         let pos = self.expect_word("def")?.pos;
         let (name, _) = self.ident("a function name")?;
         if RESERVED_CALLS.contains(&name.as_str()) || PY_BUILTINS.contains(&name.as_str()) {
@@ -4008,7 +4217,7 @@ mod tests {
 
     #[test]
     fn python_record_classes_and_tests_join_the_frame() {
-        let text = "import pytest\nfrom dataclasses import dataclass\n\n@dataclass\nclass Point:\n    \"\"\"A point.\"\"\"\n    x: int\n    y: int\n\nclass Helper:\n    def run(self) -> int:\n        return 1\n\ndef dist(a: Point, b: Point) -> int:\n    return abs(a.x - b.x) + abs(a.y - b.y)\n\ndef test_dist() -> None:\n    assert dist(Point(1, 2), Point(x=4, y=-2)) == 7, \"seven\"\n    assert not dist(Point(0, 0), Point(0, 0))\n    with pytest.raises(ValueError):\n        dist(Point(0, 0), Point(0, 1))\n";
+        let text = "import pytest\nfrom dataclasses import dataclass\n\n@dataclass\nclass Point:\n    \"\"\"A point.\"\"\"\n    x: int\n    y: int\n\nclass Helper:\n    def run(self) -> int:\n        return 1\n\ndef dist(a: Point, b: Point) -> int:\n    if a.x == b.x and a.y != b.y:\n        raise ValueError(\"vertical\")\n    return abs(a.x - b.x) + abs(a.y - b.y)\n\ndef test_dist() -> None:\n    assert dist(Point(1, 2), Point(x=4, y=-2)) == 7, \"seven\"\n    assert not dist(Point(0, 0), Point(0, 0))\n    with pytest.raises(ValueError):\n        dist(Point(0, 0), Point(0, 1))\n";
         let parsed = parse(text).unwrap();
         let frame = &parsed.frame;
         assert_eq!(
@@ -4025,7 +4234,94 @@ mod tests {
         );
         assert_eq!(frame["fns"].as_array().unwrap().len(), 1);
         assert_eq!(parsed.positions.entries()["/types/0"].line, 5);
-        assert_eq!(parsed.positions.entries()["/tests/2"].line, 20);
+        assert_eq!(parsed.positions.entries()["/tests/2"].line, 22);
+    }
+
+    #[test]
+    fn python_raises_names_an_exception_the_function_can_raise() {
+        let head = "class AppError(ValueError):\n    pass\n\ndef inner(a: int) -> int:\n    if a < 0:\n        raise AppError(\"neg\")\n    return a\n\ndef outer(a: int, xs: list[int]) -> int:\n    return inner(a) + xs[0] + 10 // a\n\ndef plain(a: int) -> int:\n    return a + 1\n\n";
+        for exception in [
+            "AppError",
+            "ValueError",
+            "Exception",
+            "ZeroDivisionError",
+            "ArithmeticError",
+            "IndexError",
+            "LookupError",
+        ] {
+            let text = format!(
+                "{head}def test_x():\n    with pytest.raises({exception}):\n        outer(-1, [1])\n"
+            );
+            assert!(parse(&text).is_ok(), "{exception}");
+        }
+        for (call, exception) in [
+            ("outer(-1, [1])", "KeyError"),
+            ("outer(-1, [1])", "AssertionError"),
+            ("plain(1)", "ValueError"),
+            ("plain(1)", "Exception"),
+        ] {
+            let text = format!(
+                "{head}def test_x():\n    with pytest.raises({exception}):\n        {call}\n"
+            );
+            let error = refused(&text);
+            assert!(
+                error.message.contains(&format!("cannot raise {exception}")),
+                "{}",
+                error.message
+            );
+            assert_eq!(error.at.line, 16);
+        }
+        assert!(refused(&format!("{head}def test_x():\n    with pytest.raises((ValueError, KeyError)):\n        plain(1)\n")).message.contains("name one exception class"));
+    }
+
+    #[test]
+    fn python_raises_follows_builtin_exception_ancestry() {
+        for (raised, expected) in [
+            ("IndexError", "LookupError"),
+            ("KeyError", "LookupError"),
+            ("ZeroDivisionError", "ArithmeticError"),
+            ("OverflowError", "ArithmeticError"),
+            ("FloatingPointError", "ArithmeticError"),
+            ("TabError", "SyntaxError"),
+            ("ConnectionResetError", "OSError"),
+            ("UnboundLocalError", "NameError"),
+            ("ModuleNotFoundError", "ImportError"),
+            ("RecursionError", "RuntimeError"),
+            ("UnicodeDecodeError", "ValueError"),
+            ("UserWarning", "Warning"),
+            ("ExceptionGroup", "BaseExceptionGroup"),
+            ("IOError", "OSError"),
+            ("OSError", "EnvironmentError"),
+            ("IOError", "EnvironmentError"),
+        ] {
+            let body = format!(
+                "def fail(x: int) -> int:\n    raise {raised}\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+            );
+            assert!(parse(&body).is_ok(), "{raised} is a subclass of {expected}");
+            let custom = format!(
+                "class BadValue({raised}):\n    pass\n\n{}",
+                body.replace(&format!("raise {raised}"), "raise BadValue")
+            );
+            assert!(
+                parse(&custom).is_ok(),
+                "BadValue({raised}) is a subclass of {expected}"
+            );
+        }
+        for (raised, expected) in [
+            ("IndexError", "ArithmeticError"),
+            ("TabError", "RuntimeError"),
+        ] {
+            let body = format!(
+                "def fail(x: int) -> int:\n    raise {raised}\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+            );
+            let error = refused(&body);
+            assert!(error.message.contains(&format!("cannot raise {expected}")));
+            assert_eq!(error.at.line, 5);
+        }
+        // A source declaration takes precedence over the builtin alias.
+        let shadow = "class IOError(ValueError):\n    pass\n\ndef fail(x: int) -> int:\n    raise IOError\n\ndef test_failure():\n    with pytest.raises(OSError):\n        fail(0)\n";
+        assert!(refused(shadow).message.contains("cannot raise OSError"));
+        assert!(parse(&shadow.replace("raises(OSError)", "raises(ValueError)")).is_ok());
     }
 
     #[test]

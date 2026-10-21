@@ -31,8 +31,11 @@ generated private predicate that calls the target and applies structured
 refused. Arguments, names and limits are preserved; limits cover the predicate
 and its call. This is authoring shorthand, not a new TestCase comparison mode.
 
-`try` runs the tests its candidate touches and prints failures in full
-(`--verbose` also lists passing tests). `sley-agent test c1` runs every
+`try` runs the tests its candidate touches and prints failures in full,
+with the familiar text line of each failing test authored in the current input.
+Tests inherited through `--on` are not assigned lines from the new input. When every test passes
+it prints one `cN: Valid; tests: n/n passed (advisory)` line and the next
+step (`--verbose` and `--json` give the full report and list passing tests). `sley-agent test c1` runs every
 TestCase in the candidate's state, and `--public cases.json` also runs
 `[{"name", "function", "args", "expect"}]` cases. `sley-agent import
 cases.json --on d1` adds such cases to a draft as TestCases, recording the
