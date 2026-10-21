@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"gcd\", \"params\": [[\"a0\", \"i64\"], [\"b0\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"a\", \"i64\", \"a0\"], [\"var\", \"b\", \"i64\", \"b0\"], [\"while\", [\"ne\", \"b\", 0], [[\"let\", \"t\", [\"rem\", \"a\", \"b\"]], [\"set\", \"a\", \"b\"], [\"set\", \"b\", \"t\"]]], [\"return\", \"a\"]]}, {\"fn\": \"gcdsum\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"s\", \"i64\", 0], [\"range\", \"i\", 1, \"n\", [[\"range\", \"j\", 1, \"n\", [[\"set\", \"s\", [\"add\", \"s\", [\"call\", \"gcd\", \"i\", \"j\"]]]]]]], [\"return\", \"s\"]]}], \"test_tables\": [{\"name\": \"gcdsum_cases\", \"fn\": \"gcdsum\", \"cases\": [{\"args\": [5], \"expect\": 24}, {\"args\": [10], \"expect\": 145}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try gcdsum.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+90 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +gcd +gcdsum; const +k_0 +k_1; test +gcdsum_cases_0 +gcdsum_cases_1\ntests: 2/2 passed [authored 2]\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: sley-agent submit d1\n"
+ ]
+]

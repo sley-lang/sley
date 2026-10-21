@@ -1,0 +1,1 @@
+{"af1": 1, "afx": 1, "fns": [{"fn": "fib", "params": [["n", "i64"]], "returns": "i64", "body": [["if", ["lt", "n", 2], [["return", "n"]]], ["return", ["add", ["call", "fib", ["sub", "n", 1]], ["call", "fib", ["sub", "n", 2]]]]]}]}

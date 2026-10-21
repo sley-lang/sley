@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"primes\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"count\", \"i64\", 0], [\"range\", \"k\", 2, \"n\", [[\"var\", \"d\", \"i64\", 2], [\"var\", \"is_p\", \"bool\", true], [\"while\", [\"and\", [\"lt\", [\"mul\", \"d\", \"d\"], \"k\"], \"is_p\"], [[\"if\", [\"eq\", [\"rem\", \"k\", \"d\"], 0], [[\"set\", \"is_p\", false]]], [\"set\", \"d\", [\"add\", \"d\", 1]]]], [\"if\", \"is_p\", [[\"set\", \"count\", [\"add\", \"count\", 1]]]]]], [\"return\", \"count\"]]}], \"test_tables\": [{\"name\": \"primes_cases\", \"fn\": \"primes\", \"cases\": [{\"args\": [10], \"expect\": 4}, {\"args\": [100], \"expect\": 25}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try primes.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+138 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +primes; const +5; test +primes_cases_0 +primes_cases_1\ntests: 0/2 passed [authored 2]\n  FAIL primes_cases_0 (primes): expected 4, got 6\n  FAIL primes_cases_1 (primes): expected 25, got 29\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"lt\", [\"mul\", \"d\", \"d\"], \"k\"]\n[\"le\", [\"mul\", \"d\", \"d\"], \"k\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try primes.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+138 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +primes; const +5; test +primes_cases_0 +primes_cases_1\ntests: 2/2 passed [authored 2]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

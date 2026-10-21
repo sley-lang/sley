@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"WithdrawError\", \"variant\": [\"NotPositive\", \"Insufficient\"]}], \"fns\": [{\"fn\": \"withdraw\", \"params\": [[\"balance\", \"i64\"], [\"amount\", \"i64\"]], \"returns\": \"Result<i64,WithdrawError>\", \"body\": [[\"if\", [\"le\", \"amount\", 0], [[\"fail\", \"NotPositive\"]]], [\"if\", [\"gt\", \"amount\", \"balance\"], [[\"fail\", \"Insufficient\"]]], [\"ok\", [\"sub\", \"balance\", \"amout\"]]]}], \"test_tables\": [{\"name\": \"errors_cases\", \"fn\": \"withdraw\", \"cases\": [{\"args\": [100, 30], \"expect\": {\"Ok\": 70}}, {\"args\": [50, 50], \"expect\": {\"Ok\": 0}}, {\"args\": [100, 0], \"expect\": {\"Err\": \"NotPositive\"}}, {\"args\": [10, 30], \"expect\": {\"Err\": \"Insufficient\"}}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try errors.json"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/2/1/2: unknown name `amout`\n  fix: edit errors.json in place at those pointers (no need to rewrite it) and run try again\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/0/body/2/1/2\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"sub\", \"balance\", \"amout\"]\n[\"sub\", \"balance\", \"amount\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try errors.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+30 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +withdraw; type +WithdrawError; const +k_0; test +errors_cases_0..3\ntests: 4/4 passed [authored 4]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

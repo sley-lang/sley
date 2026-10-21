@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def loopsum(n: int) -> int:\n    s = 0\n    for i in range(n):\n        s = (s + j * i) % 1000000007\n    return s\n\n\ndef test_loopsum():\n    assert loopsum(0) == 0\n    assert loopsum(10) == 285\n    assert loopsum(1000) == 332833500\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/1/4/0/2/1/2/1: unknown name `j`\n  /fns/0/body/1/4/0/2/1/2/1 is line 4, column 18 of the familiar text\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r1/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "s + j * i\ns + i * i"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+90 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +loopsum; const +3; test +test_loopsum_0..2\ntests: 3/3 passed [authored 3]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

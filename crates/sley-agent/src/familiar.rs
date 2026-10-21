@@ -107,6 +107,7 @@ pub struct Parsed {
 ///
 /// The first unsupported, ambiguous or malformed construct, at its position.
 pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
+    let mut declared = Declared::default();
     let functions = if is_python(text) {
         let mut parser = Parser {
             toks: py_tokenize(text)?,
@@ -115,8 +116,11 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             scopes: Vec::new(),
             hoisted: Vec::new(),
             fresh: 0,
+            declared: Declared::default(),
         };
-        parser.py_program()?
+        let functions = parser.py_program()?;
+        declared = std::mem::take(&mut parser.declared);
+        functions
     } else {
         let mut parser = Parser {
             toks: tokenize(text)?,
@@ -125,6 +129,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             scopes: Vec::new(),
             hoisted: Vec::new(),
             fresh: 0,
+            declared: Declared::default(),
         };
         parser.program()?
     };
@@ -147,8 +152,25 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
         object.insert("body".into(), f.body.value());
         fns.push(Value::Object(object));
     }
+    let mut frame = json!({"af1": 1, "afx": 1, "fns": fns});
+    if !declared.records.is_empty() {
+        let mut types = Vec::with_capacity(declared.records.len());
+        for (index, (_, _, entry, pos)) in declared.records.into_iter().enumerate() {
+            positions.insert(format!("/types/{index}"), pos);
+            types.push(entry);
+        }
+        frame["types"] = Value::Array(types);
+    }
+    if !declared.tests.is_empty() {
+        let mut tests = Vec::with_capacity(declared.tests.len());
+        for (index, (case, pos)) in declared.tests.into_iter().enumerate() {
+            positions.insert(format!("/tests/{index}"), pos);
+            tests.push(case);
+        }
+        frame["tests"] = Value::Array(tests);
+    }
     Ok(Parsed {
-        frame: json!({"af1": 1, "afx": 1, "fns": fns}),
+        frame,
         positions: Positions(positions),
     })
 }
@@ -169,6 +191,7 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         scopes: Vec::new(),
         hoisted: Vec::new(),
         fresh: 0,
+        declared: Declared::default(),
     };
     let pos = parser.peek().pos;
     let mut statements = Vec::new();
@@ -606,6 +629,19 @@ struct Parser {
     hoisted: Vec<Function>,
     /// Python dialect: a counter for the dialect's own temporary names.
     fresh: usize,
+    /// Python dialect: record classes and pytest-style tests in the file.
+    declared: Declared,
+}
+
+/// What a Python-dialect file declares besides its functions: record
+/// classes (`types`) and `def test_*()` functions (`tests`), each with the
+/// position it came from.
+#[derive(Default)]
+struct Declared {
+    /// Record classes in file order: name, field names, AF1 type entry.
+    records: Vec<(String, Vec<String>, Value, Pos)>,
+    /// `TestCase` entities in file order.
+    tests: Vec<(Value, Pos)>,
 }
 
 type P<T> = Result<T, FamiliarError>;
@@ -2293,8 +2329,15 @@ impl Parser {
                 continue;
             }
             if self.at_word("class") {
-                // A class describes a record; records come from the program
-                // (a field it lacks is refused where it is used).
+                // A class of annotated fields declares a record type; any
+                // other class is skipped (its record comes from the program,
+                // and a field it lacks is refused where it is used).
+                let start = self.k;
+                if let Some(record) = self.py_record_class() {
+                    self.declared.records.push(record);
+                    continue;
+                }
+                self.k = start;
                 while !matches!(self.peek().kind, Kind::Newline | Kind::Eof) {
                     self.bump();
                 }
@@ -2328,13 +2371,353 @@ impl Parser {
                     format!("expected def, found {}", Self::found(&tok)),
                 );
             }
+            if self.at_py_test() {
+                self.py_test()?;
+                continue;
+            }
             functions.push(self.py_function()?);
             functions.append(&mut self.hoisted);
         }
-        if functions.is_empty() {
+        if functions.is_empty() && self.declared.tests.is_empty() {
             return refuse(self.peek().pos, "expected at least one def");
         }
         Ok(functions)
+    }
+
+    /// `class Name:` (bases ignored) whose body is only `field: type` lines,
+    /// a docstring or `pass`: the record it declares. `None` (and the caller
+    /// skips the class) for anything else.
+    fn py_record_class(&mut self) -> Option<(String, Vec<String>, Value, Pos)> {
+        let pos = self.expect_word("class").ok()?.pos;
+        let (name, _) = self.ident("a class name").ok()?;
+        if self.at_op("(") {
+            while !self.at_op(")") {
+                if matches!(self.peek().kind, Kind::Newline | Kind::Eof) {
+                    return None;
+                }
+                self.bump();
+            }
+            self.bump();
+        }
+        self.expect_op(":").ok()?;
+        if self.peek().kind != Kind::Newline {
+            return None;
+        }
+        self.bump();
+        if self.peek().kind != Kind::Indent {
+            return None;
+        }
+        self.bump();
+        let mut names = Vec::new();
+        let mut fields = Vec::new();
+        loop {
+            match self.peek().kind {
+                Kind::Dedent => {
+                    self.bump();
+                    break;
+                }
+                Kind::Eof => break,
+                Kind::Newline => {
+                    self.bump();
+                    continue;
+                }
+                Kind::Str => {
+                    self.bump();
+                }
+                _ if self.at_word("pass") => {
+                    self.bump();
+                }
+                _ => {
+                    let (field, _) = self.ident("a field name").ok()?;
+                    self.expect_op(":").ok()?;
+                    let (ty, _) = self.py_type().ok()?;
+                    if names.contains(&field) {
+                        return None;
+                    }
+                    fields.push(json!([field.clone(), ty]));
+                    names.push(field);
+                }
+            }
+            match self.peek().kind {
+                Kind::Newline => {
+                    self.bump();
+                }
+                Kind::Dedent | Kind::Eof => {}
+                _ => return None,
+            }
+        }
+        if fields.is_empty() {
+            return None;
+        }
+        let entry = json!({"name": name.clone(), "record": fields});
+        Some((name, names, entry, pos))
+    }
+
+    /// `def test_...()`: a pytest-style test function.
+    fn at_py_test(&self) -> bool {
+        self.at_word("def")
+            && (self.peek_at(1).text == "test" || self.peek_at(1).text.starts_with("test_"))
+            && self.peek_at(2).text == "("
+            && self.peek_at(3).text == ")"
+    }
+
+    /// `def test_x():` whose body holds `assert f(...) == value`,
+    /// `assert f(...)`, `assert not f(...)` and
+    /// `with pytest.raises(E): f(...)` lines; each becomes a `TestCase` named
+    /// `test_x_<n>`. `pytest.raises` expects a trap: the dialect lowers every
+    /// exception (`raise`, a failed check) to one.
+    #[allow(clippy::too_many_lines)]
+    fn py_test(&mut self) -> P<()> {
+        self.expect_word("def")?;
+        let (name, _) = self.ident("a test name")?;
+        self.expect_op("(")?;
+        self.expect_op(")")?;
+        if self.at_op("->") {
+            self.bump();
+            self.expect_word("None")?;
+        }
+        self.expect_op(":")?;
+        if self.peek().kind != Kind::Newline {
+            return refuse(self.peek().pos, "write the test body on its own lines");
+        }
+        self.bump();
+        if self.peek().kind != Kind::Indent {
+            return refuse(self.peek().pos, "expected an indented block");
+        }
+        self.bump();
+        let mut count = 0_usize;
+        loop {
+            let tok = self.peek().clone();
+            match tok.kind {
+                Kind::Dedent => {
+                    self.bump();
+                    break;
+                }
+                Kind::Eof => break,
+                Kind::Newline => {
+                    self.bump();
+                    continue;
+                }
+                Kind::Str => {
+                    self.bump();
+                    self.py_end_of_statement()?;
+                    continue;
+                }
+                _ => {}
+            }
+            let (function, args, expectation) = if self.at_word("assert") {
+                self.bump();
+                let negated = self.at_word("not");
+                if negated {
+                    self.bump();
+                }
+                let (function, args) = self.py_test_call()?;
+                let expectation = if !negated && self.at_op("==") {
+                    self.bump();
+                    json!({"expect": self.py_test_value()?})
+                } else {
+                    json!({"truthy": !negated})
+                };
+                if self.at_op(",") {
+                    // The assertion message.
+                    self.bump();
+                    if self.peek().kind != Kind::Str {
+                        return refuse(self.peek().pos, "an assertion message is a string");
+                    }
+                    self.bump();
+                }
+                self.py_end_of_statement()?;
+                (function, args, expectation)
+            } else if self.at_word("with") {
+                self.bump();
+                if !(self.at_word("pytest")
+                    && self.peek_at(1).text == "."
+                    && self.peek_at(2).text == "raises")
+                {
+                    return refuse(tok.pos, "a test's with block is with pytest.raises(...):");
+                }
+                self.bump();
+                self.bump();
+                self.bump();
+                self.expect_op("(")?;
+                let mut depth = 1_usize;
+                while depth > 0 {
+                    match self.peek().kind {
+                        Kind::Newline | Kind::Eof => {
+                            return refuse(self.peek().pos, "expected `)`");
+                        }
+                        _ if self.at_op("(") => depth += 1,
+                        _ if self.at_op(")") => depth -= 1,
+                        _ => {}
+                    }
+                    self.bump();
+                }
+                if self.at_word("as") {
+                    self.bump();
+                    self.ident("a name")?;
+                }
+                self.expect_op(":")?;
+                let inline = self.peek().kind != Kind::Newline;
+                if !inline {
+                    self.bump();
+                    if self.peek().kind != Kind::Indent {
+                        return refuse(self.peek().pos, "expected an indented block");
+                    }
+                    self.bump();
+                }
+                let (function, args) = self.py_test_call()?;
+                self.py_end_of_statement()?;
+                if !inline {
+                    if self.peek().kind != Kind::Dedent {
+                        return refuse(self.peek().pos, "a pytest.raises block holds one call");
+                    }
+                    self.bump();
+                }
+                (function, args, json!({"expect": {"trap": "unreachable"}}))
+            } else {
+                return refuse(
+                    tok.pos,
+                    "a test function holds assert f(...) == value and with pytest.raises(...): f(...) lines",
+                );
+            };
+            let mut test = expectation;
+            test["name"] = Value::String(format!("{name}_{count}"));
+            test["fn"] = Value::String(function);
+            test["args"] = Value::Array(args);
+            self.declared.tests.push((test, tok.pos));
+            count += 1;
+        }
+        if count == 0 {
+            return refuse(self.previous().pos, format!("`{name}` holds no assertion"));
+        }
+        Ok(())
+    }
+
+    /// `f(value, ...)` in a test: the function and its argument values.
+    fn py_test_call(&mut self) -> P<(String, Vec<Value>)> {
+        let (function, _) = self.ident("the function a test calls")?;
+        self.expect_op("(")?;
+        let mut args = Vec::new();
+        while !self.at_op(")") {
+            args.push(self.py_test_value()?);
+            if !self.at_op(")") {
+                self.expect_op(",")?;
+            }
+        }
+        self.expect_op(")")?;
+        Ok((function, args))
+    }
+
+    /// A literal value in a test: an int, True/False, a string, a list of
+    /// values, or a record class built positionally or by field name.
+    fn py_test_value(&mut self) -> P<Value> {
+        let tok = self.peek().clone();
+        match tok.kind {
+            Kind::Num => {
+                self.bump();
+                return Ok(Self::literal(&tok, None)?.value());
+            }
+            Kind::Op if tok.text == "-" && self.peek_at(1).kind == Kind::Num => {
+                self.bump();
+                let number = self.bump();
+                return Ok(Self::literal(&number, Some(tok.pos))?.value());
+            }
+            Kind::Str => {
+                self.bump();
+                let text: String = serde_json::from_str(&tok.text).unwrap_or_default();
+                return Ok(Value::String(text));
+            }
+            Kind::Op if tok.text == "[" => {
+                self.bump();
+                let mut items = Vec::new();
+                while !self.at_op("]") {
+                    items.push(self.py_test_value()?);
+                    if !self.at_op("]") {
+                        self.expect_op(",")?;
+                    }
+                }
+                self.bump();
+                return Ok(Value::Array(items));
+            }
+            Kind::Name if tok.text == "True" || tok.text == "False" => {
+                self.bump();
+                return Ok(Value::Bool(tok.text == "True"));
+            }
+            Kind::Name => {}
+            _ => {
+                return refuse(
+                    tok.pos,
+                    format!("expected a literal value, found {}", Self::found(&tok)),
+                );
+            }
+        }
+        self.py_test_record(&tok)
+    }
+
+    fn py_test_record(&mut self, tok: &Tok) -> P<Value> {
+        let Some(fields) = self
+            .declared
+            .records
+            .iter()
+            .find(|(name, ..)| *name == tok.text)
+            .map(|(_, fields, ..)| fields.clone())
+        else {
+            return refuse(
+                tok.pos,
+                format!(
+                    "a test argument is a literal or a record class declared above; `{}` is neither",
+                    tok.text
+                ),
+            );
+        };
+        self.bump();
+        self.expect_op("(")?;
+        let mut record = Map::new();
+        let mut k = 0_usize;
+        let mut seen_keyword = false;
+        while !self.at_op(")") {
+            let argument_pos = self.peek().pos;
+            let field = if self.peek().kind == Kind::Name && self.peek_at(1).text == "=" {
+                seen_keyword = true;
+                let (field, pos) = self.ident("a field name")?;
+                self.bump();
+                if !fields.contains(&field) {
+                    return refuse(pos, format!("`{}` has no field `{field}`", tok.text));
+                }
+                field
+            } else {
+                if seen_keyword {
+                    return refuse(
+                        argument_pos,
+                        "record positional arguments must precede keyword arguments",
+                    );
+                }
+                let Some(field) = fields.get(k) else {
+                    return refuse(
+                        self.peek().pos,
+                        format!("`{}` has {} fields", tok.text, fields.len()),
+                    );
+                };
+                field.clone()
+            };
+            if record.contains_key(&field) {
+                return refuse(
+                    argument_pos,
+                    format!("`{}` gives field `{field}` more than once", tok.text),
+                );
+            }
+            let value = self.py_test_value()?;
+            record.insert(field, value);
+            k += 1;
+            if !self.at_op(")") {
+                self.expect_op(",")?;
+            }
+        }
+        self.expect_op(")")?;
+        if record.len() != fields.len() {
+            return refuse(tok.pos, format!("give every field of `{}`", tok.text));
+        }
+        Ok(Value::Object(record))
     }
 
     fn py_function(&mut self) -> P<Function> {
@@ -3621,6 +4004,102 @@ mod tests {
 
     fn refused(text: &str) -> FamiliarError {
         parse(text).expect_err("refused")
+    }
+
+    #[test]
+    fn python_record_classes_and_tests_join_the_frame() {
+        let text = "import pytest\nfrom dataclasses import dataclass\n\n@dataclass\nclass Point:\n    \"\"\"A point.\"\"\"\n    x: int\n    y: int\n\nclass Helper:\n    def run(self) -> int:\n        return 1\n\ndef dist(a: Point, b: Point) -> int:\n    return abs(a.x - b.x) + abs(a.y - b.y)\n\ndef test_dist() -> None:\n    assert dist(Point(1, 2), Point(x=4, y=-2)) == 7, \"seven\"\n    assert not dist(Point(0, 0), Point(0, 0))\n    with pytest.raises(ValueError):\n        dist(Point(0, 0), Point(0, 1))\n";
+        let parsed = parse(text).unwrap();
+        let frame = &parsed.frame;
+        assert_eq!(
+            frame["types"],
+            json!([{"name": "Point", "record": [["x", "i64"], ["y", "i64"]]}])
+        );
+        assert_eq!(
+            frame["tests"],
+            json!([
+                {"name": "test_dist_0", "fn": "dist", "args": [{"x": 1, "y": 2}, {"x": 4, "y": -2}], "expect": 7},
+                {"name": "test_dist_1", "fn": "dist", "args": [{"x": 0, "y": 0}, {"x": 0, "y": 0}], "truthy": false},
+                {"name": "test_dist_2", "fn": "dist", "args": [{"x": 0, "y": 0}, {"x": 0, "y": 1}], "expect": {"trap": "unreachable"}}
+            ])
+        );
+        assert_eq!(frame["fns"].as_array().unwrap().len(), 1);
+        assert_eq!(parsed.positions.entries()["/types/0"].line, 5);
+        assert_eq!(parsed.positions.entries()["/tests/2"].line, 20);
+    }
+
+    #[test]
+    fn python_test_records_refuse_duplicate_or_misordered_arguments() {
+        let head = "class P:\n    x: int\n    y: int\n\ndef f(p: P) -> int:\n    return p.x\n\n";
+        for (call, offending, message) in [
+            ("P(x=1, x=2, y=3)", "x=2", "field `x` more than once"),
+            ("P(1, 2, x=3)", "x=3", "field `x` more than once"),
+            ("P(x=1, 2)", "2", "positional arguments must precede"),
+        ] {
+            let line = format!("    assert f({call}) == 1");
+            let error = refused(&format!("{head}def test_f():\n{line}\n"));
+            assert!(error.message.contains(message), "{call}: {}", error.message);
+            assert_eq!(error.at.line, head.lines().count() + 2, "{call}");
+            assert_eq!(error.at.column, line.find(offending).unwrap() + 1, "{call}");
+        }
+    }
+
+    #[test]
+    fn python_test_record_arguments_preserve_valid_order_and_nesting() {
+        let head = "class P:\n    x: int\n    y: int\n\nclass Box:\n    p: P\n\ndef f(p: P) -> int:\n    return p.x\n\ndef g(b: Box) -> int:\n    return b.p.x\n\n";
+        for call in ["P(1, 2)", "P(y=2, x=1)", "P(1, y=2)", "P(1, y=2,)"] {
+            let frame = parse(&format!("{head}def test_f():\n    assert f({call}) == 1\n"))
+                .unwrap()
+                .frame;
+            assert_eq!(
+                frame["tests"][0]["args"],
+                json!([{"x": 1, "y": 2}]),
+                "{call}"
+            );
+        }
+        for call in ["Box(p=P(1, y=2))", "Box(P(y=2, x=1))"] {
+            let frame = parse(&format!("{head}def test_g():\n    assert g({call}) == 1\n"))
+                .unwrap()
+                .frame;
+            assert_eq!(
+                frame["tests"][0]["args"],
+                json!([{"p": {"x": 1, "y": 2}}]),
+                "{call}"
+            );
+        }
+    }
+
+    #[test]
+    fn python_tests_refuse_what_they_cannot_state() {
+        let head = "class P:\n    x: int\n\ndef f(a: int) -> int:\n    return a\n\n";
+        for (test, message) in [
+            ("def test_f():\n    x = 1\n", "a test function holds"),
+            ("def test_f():\n    assert f(g(1)) == 1\n", "neither"),
+            (
+                "def test_f():\n    assert f(P(1, 2)) == 1\n",
+                "has 1 fields",
+            ),
+            ("def test_f():\n    assert f(P(z=1)) == 1\n", "no field `z`"),
+            (
+                "def test_f():\n    with open(1):\n        f(1)\n",
+                "pytest.raises",
+            ),
+            (
+                "def test_f():\n    \"\"\"Nothing.\"\"\"\n",
+                "holds no assertion",
+            ),
+        ] {
+            let error = refused(&format!("{head}{test}"));
+            assert!(error.message.contains(message), "{test}: {}", error.message);
+        }
+        // A test helper with parameters is an ordinary function.
+        let frame = parse(&format!(
+            "{head}def test_helper(a: int) -> int:\n    return a\n"
+        ))
+        .unwrap()
+        .frame;
+        assert_eq!(frame["fns"][1]["fn"], "test_helper");
+        assert!(frame.get("tests").is_none());
     }
 
     #[test]

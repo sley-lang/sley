@@ -1,0 +1,1 @@
+{"af1": 1, "afx": 1, "types": [{"name": "Point", "record": [["x", "i64"], ["y", "i64"]]}], "fns": [{"fn": "manhattan", "params": [["a", "Point"], ["b", "Point"]], "returns": "i64", "body": [["return", ["add", ["abs", ["sub", ["field", "a", "x"], ["field", "b", "x"]]], ["abs", ["sub", ["field", "a", "y"], ["field", "b", "y"]]]]]]}]}

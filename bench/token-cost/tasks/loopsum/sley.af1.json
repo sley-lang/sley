@@ -1,0 +1,1 @@
+{"af1": 1, "afx": 1, "fns": [{"fn": "loopsum", "params": [["n", "i64"]], "returns": "i64", "body": [["var", "s", "i64", 0], ["range", "i", 0, "n", [["set", "s", ["rem", ["add", "s", ["mul", "i", "i"]], 1000000007]]]], ["return", "s"]]}]}

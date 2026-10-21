@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def loopsum(n: int) -> int:\n    s = 0\n    for i in range(n):\n        s = (s + j * i) % 1000000007\n    return s\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom loopsum import loopsum\n\n\ndef test_loopsum():\n    assert loopsum(0) == 0\n    assert loopsum(10) == 285\n    assert loopsum(1000) == 332833500\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________________________________ test_loopsum _________________________________\n\n    def test_loopsum():\n        assert loopsum(0) == 0\n>       assert loopsum(10) == 285\n               ^^^^^^^^^^^\n\ntest_loopsum.py:8: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nn = 10\n\n    def loopsum(n: int) -> int:\n        s = 0\n        for i in range(n):\n>           s = (s + j * i) % 1000000007\n                     ^\nE           NameError: name 'j' is not defined\n\nloopsum.py:4: NameError\n=========================== short test summary info ============================\nFAILED test_loopsum.py::test_loopsum - NameError: name 'j' is not defined\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "s + j * i\ns + i * i"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

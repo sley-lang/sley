@@ -54,6 +54,8 @@ use crate::afx::{Context, Obligation};
 use crate::error::AgentErrorCode;
 use crate::types::TypeNames;
 
+mod truth_tests;
+
 const INTS: [&str; 10] = [
     "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
 ];
@@ -68,14 +70,17 @@ pub(crate) struct Lowered {
     pub(crate) origins: Vec<(String, String)>,
 }
 
-/// Whether any function of the frame uses a structured body.
+/// Whether the frame needs structured bodies or truth assertions lowered.
 pub(crate) fn uses_bodies(frame: &Map<String, Value>) -> bool {
     ["fns", "functions", "patch"].iter().any(|key| {
         frame
             .get(*key)
             .and_then(Value::as_array)
             .is_some_and(|list| list.iter().any(|f| f.get("body").is_some()))
-    })
+    }) || frame
+        .get("tests")
+        .and_then(Value::as_array)
+        .is_some_and(|tests| tests.iter().any(|test| test.get("truthy").is_some()))
 }
 
 /// Lowers every `body` function of the frame.
@@ -88,8 +93,10 @@ pub(crate) fn lower(
     cx: &Context<'_>,
     frame: &Map<String, Value>,
 ) -> Result<Lowered, Vec<Obligation>> {
+    let prepared = truth_tests::lower(cx, frame)?;
+    let frame = &prepared.frame;
     let mut out = frame.clone();
-    let mut origins = Vec::new();
+    let mut origins = prepared.origins.clone();
     let mut problems = Vec::new();
     let signatures = frame_signatures(frame);
     let records = frame_records(frame);
@@ -125,13 +132,16 @@ pub(crate) fn lower(
                     object.insert("blocks".to_owned(), Value::Array(blocks));
                     lowered.push(Value::Object(object));
                     for ((block, part), where_) in fn_origins {
-                        origins.push((format!("{at}/blocks/{block}/{part}"), where_));
+                        origins.push((
+                            format!("{at}/blocks/{block}/{part}"),
+                            authored(&prepared.origins, &where_),
+                        ));
                     }
                 }
                 Err(failure) => {
                     problems.push(Obligation::new(
                         AgentErrorCode::FrameInvalid,
-                        &failure.at,
+                        &authored(&prepared.origins, &failure.at),
                         failure.message,
                     ));
                     lowered.push(decl.clone());
