@@ -1,24 +1,13 @@
 {
   "clippy_clean": true,
   "clippy_warnings": 0,
-  "commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+  "commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
   "contract": "sley2.lint-report.v1",
   "dirty_lint_inputs": [],
-  "dirty_paths": [
-    "evidence/release/candidate-content-checks.json",
-    "evidence/release/decision-dossier.json",
-    "evidence/release/ga-acceptance-report.json",
-    "evidence/release/provenance.json",
-    "evidence/release/reproducibility-report.json",
-    "evidence/release/sbom/cyclonedx-1.6.json",
-    "evidence/release/sbom/spdx-2.3.json",
-    "evidence/review/finding-register.json",
-    "evidence/security/T54/secret-scan.json",
-    "machineresearch/sley-2.0/machine-summary.json"
-  ],
+  "dirty_paths": [],
   "fmt_clean": true,
   "fmt_detail": "",
   "lint_inputs_clean": true,
   "result": "PASS",
-  "working_tree_clean": false
+  "working_tree_clean": true
 }
