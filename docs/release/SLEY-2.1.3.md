@@ -73,7 +73,8 @@ PyPy. The Lua, LuaJIT, Node and Ruby versions are ports of the same algorithms. 
 cloud VM (Linux 6.12, Debian 13) with hyperfine 1.19.0, on 2026-10-20. One shared VM is a noisy
 host: see the ranges. `sley-agent call` has a fixed 100,000,000-fuel ceiling, which keeps the
 inputs small. The Python dialect lowers `gcdsum`'s Euclid helper to the builtin `gcd`
-expression, so that program makes no calls.
+expression, so that program makes no calls. The raw hyperfine and `vm_micros` records are in
+[`evidence/bench/runtime`](../../evidence/bench/runtime).
 
 Where the remaining gap is: the scalar plan is still an interpreter over 32-byte tagged
 registers, with per-instruction fuel and value-unit accounting. CPython's specializing

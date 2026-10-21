@@ -18,5 +18,4 @@ typical workloads.
 include process start. `fib 1` is the startup row. The Python dialect lowers the Euclid helper in
 `gcdsum.py` to the builtin `gcd` expression, so that benchmark makes no calls.
 
-Results for each release are in its release notes ([2.1.3](../../docs/release/SLEY-2.1.3.md#benchmarks)); the raw
-hyperfine and `vm_micros` records are in `results/<version>/`.
+Results for each release are in its release notes ([2.1.3](../../docs/release/SLEY-2.1.3.md#benchmarks)).
