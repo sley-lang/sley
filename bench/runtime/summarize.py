@@ -3,7 +3,7 @@
 import json, sys, glob, os, statistics as st
 d = sys.argv[1]
 order = ["fib_30", "loopsum_1000000", "collatz_5000", "primes_30000", "gcdsum_400", "fib_1"]
-langs = ["sley", "python3", "pypy3", "lua5.4", "luajit", "node", "ruby"]
+langs = ["sley", "python3", "pypy3", "lua5.4", "luajit", "node", "ruby", "c", "rust", "rust_checked"]
 rows = []
 hdr = "| benchmark | " + " | ".join(f"{l} median ms [min-max]" for l in langs) + " | Sley in-VM ms (median) |"
 print(hdr); print("|" + "---|" * (len(langs) + 2))
