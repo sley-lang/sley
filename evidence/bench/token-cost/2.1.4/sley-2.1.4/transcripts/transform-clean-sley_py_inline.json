@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "def transform(xs: list[int], lo: int, hi: int) -> int:\n    return sum(min(max(x * 2 if x % 2 else x, lo), hi) for x in xs)\n\n\ndef test_transform():\n    assert transform([1, 2, 3, -4], 0, 5) == 9\n    assert transform([], 0, 1) == 0\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar transform.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d1@r1\nnext: sley-agent submit d1\n"
+ ]
+]

@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"primes\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"count\", \"i64\", 0], [\"range\", \"k\", 2, \"n\", [[\"var\", \"d\", \"i64\", 2], [\"var\", \"is_p\", \"bool\", true], [\"while\", [\"and\", [\"le\", [\"mul\", \"d\", \"d\"], \"k\"], \"is_p\"], [[\"if\", [\"eq\", [\"rem\", \"k\", \"d\"], 0], [[\"set\", \"is_p\", false]]], [\"set\", \"d\", [\"add\", \"d\", 1]]]], [\"if\", \"is_p\", [[\"set\", \"count\", [\"add\", \"count\", 1]]]]]], [\"return\", \"count\"]]}], \"test_tables\": [{\"name\": \"primes_cases\", \"fn\": \"primes\", \"cases\": [{\"args\": [10], \"expect\": 4}, {\"args\": [100], \"expect\": 25}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try primes.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d1@r1\nnext: sley-agent submit d1\n"
+ ]
+]

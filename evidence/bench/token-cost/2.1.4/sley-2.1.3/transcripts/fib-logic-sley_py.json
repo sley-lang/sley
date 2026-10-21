@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "def fib(n: int) -> int:\n    if n < 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+24 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +fib; const +k_1 +k_2\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"fib_cases\", \"fn\": \"fib\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [1], \"expect\": 1}, {\"args\": [10], \"expect\": 55}, {\"args\": [20], \"expect\": 6765}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+28 created, 0 replaced, 0 deleted) draft d1@r2\nchanged: fn +fib; const +k_1 +k_2; test +fib_cases_0 +fib_cases_1 +fib_cases_2 +fib_cases_3\ntests: 1/4 passed [authored 4]\n  FAIL fib_cases_1 (fib): expected 1, got -1\n  FAIL fib_cases_2 (fib): expected 55, got -55\n  FAIL fib_cases_3 (fib): expected 6765, got -6765\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "n < 1\nn < 2"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "c3: Valid (+28 created, 0 replaced, 0 deleted) draft d1@r3\nchanged: fn +fib; const +k_1 +k_2; test +fib_cases_0 +fib_cases_1 +fib_cases_2 +fib_cases_3\ntests: 4/4 passed [authored 4]\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: sley-agent submit d1\n"
+ ]
+]
