@@ -318,6 +318,62 @@ struct Block {
     exit: Exit,
     /// The prepaid runs that start at step 0 and after each call.
     batches: Vec<Batch>,
+    /// The blocks this one runs straight into on its usual path, when the
+    /// whole chain can be charged at once (see `Chain`).
+    chain: Option<Chain>,
+}
+
+/// A run of whole blocks joined by their usual exits: a `Branch`, or the
+/// `Ok` case of a `Switch` (a checked operation's success). When the budgets
+/// hold the chain's worst case, its blocks run one after the other without
+/// returning to the dispatch loop; a `Switch` that takes another case leaves
+/// the chain at that block, whose exit then runs as usual, prepaid. Charges
+/// are counted in the same order as block by block.
+#[derive(Clone, Debug)]
+struct Chain {
+    /// Block indices, the first being the block itself.
+    links: Vec<usize>,
+    /// The whole chain's steps, fuel (every exit at its worst) and units.
+    batch: Batch,
+}
+
+/// The most blocks one chain joins.
+const CHAIN_LINKS: usize = 16;
+
+impl Chain {
+    fn of(blocks: &[Block], first: usize) -> Option<Self> {
+        let whole = |b: &Block| {
+            b.batches
+                .first()
+                .filter(|batch| batch.start == 0 && batch.exit && batch.steps == b.steps.len())
+                .copied()
+        };
+        let mut batch = whole(&blocks[first])?;
+        let mut links = vec![first];
+        let mut at = first;
+        while links.len() < CHAIN_LINKS {
+            let next = match &blocks[at].exit {
+                Exit::Branch(edge) => edge.target,
+                Exit::Switch { cases, shapes, .. } => {
+                    let ok = shapes.iter().position(|shape| *shape == Some(Shape::Ok))?;
+                    cases[ok].1.target
+                }
+                _ => break,
+            };
+            if links.contains(&next) {
+                break;
+            }
+            let Some(more) = blocks.get(next).and_then(whole) else {
+                break;
+            };
+            batch.steps += more.steps;
+            batch.fuel = batch.fuel.saturating_add(more.fuel);
+            batch.units = batch.units.saturating_add(more.units);
+            links.push(next);
+            at = next;
+        }
+        (links.len() > 1).then_some(Self { links, batch })
+    }
 }
 
 /// The leading run of a block that can be charged at once: its steps before
@@ -500,6 +556,7 @@ impl Plan {
                     .map(|r| reg(*r))
                     .collect::<Option<_>>()?,
                 batches: Batch::segments(&steps, &exit),
+                chain: None,
                 steps,
                 exit,
             });
@@ -522,6 +579,10 @@ impl Plan {
         let parameters: Vec<_> = blocks.iter().map(|b| b.parameters.clone()).collect();
         for block in &mut blocks {
             block.exit.place_moves(&parameters);
+        }
+        let chains: Vec<_> = (0..blocks.len()).map(|b| Chain::of(&blocks, b)).collect();
+        for (block, chain) in blocks.iter_mut().zip(chains) {
+            block.chain = chain;
         }
         Some(Self {
             blocks,
@@ -722,14 +783,11 @@ fn run<'p, 'v>(
     for (&r, value) in plan.parameters.iter().zip(inputs) {
         *registers.get_mut(r).ok_or(RuntimeFault)? = Some(value);
     }
-    'frames: loop {
-        let block = plan.blocks.get(runtime.block).ok_or(RuntimeFault)?;
-        // Every charge of a prepaid run passes; `charge!` then only counts.
-        let mut prepaid_exit = false;
-        if let Some(batch) = block.batches.iter().find(|batch| batch.start == pc)
-            && prepaid(runtime, limits, batch)
-        {
-            let run = &block.steps[pc..pc + batch.steps];
+    // A prepaid run of steps: the exact fuel, instruction and value-unit
+    // totals, added in order; a fault charges the faulting step's action.
+    macro_rules! prepaid_steps {
+        ($run:expr) => {{
+            let run = $run;
             let mut units: u64 = 0;
             for (done, step) in run.iter().enumerate() {
                 let value = match step_value(step, constants, &registers) {
@@ -752,7 +810,99 @@ fn run<'p, 'v>(
             runtime.instruction_count += count;
             runtime.live_value_units += units;
             runtime.peak_value_units = runtime.peak_value_units.max(runtime.live_value_units);
-            pc += run.len();
+            run.len()
+        }};
+    }
+    // A prepaid edge: arguments already in their parameter's slot stay.
+    macro_rules! prepaid_moves {
+        ($edge:expr, $payload:expr) => {{
+            let edge = $edge;
+            let payload: Option<Value<'v>> = $payload;
+            if edge.moves_direct {
+                for (arg, slot) in &edge.moves {
+                    let value = match arg.register {
+                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
+                        Some(r) => get(&registers, r)?,
+                        None => payload.ok_or(RuntimeFault)?,
+                    };
+                    registers[*slot] = Some(value);
+                }
+            } else {
+                scratch.clear();
+                for (arg, _) in &edge.moves {
+                    scratch.push(match arg.register {
+                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
+                        Some(r) => get(&registers, r)?,
+                        None => payload.ok_or(RuntimeFault)?,
+                    });
+                }
+                for ((_, slot), &v) in edge.moves.iter().zip(&scratch) {
+                    registers[*slot] = Some(v);
+                }
+            }
+        }};
+    }
+    'frames: loop {
+        let mut block = plan.blocks.get(runtime.block).ok_or(RuntimeFault)?;
+        // Every charge of a prepaid run passes; `charge!` then only counts.
+        let mut prepaid_exit = false;
+        if pc == 0
+            && let Some(chain) = &block.chain
+            && prepaid(runtime, limits, &chain.batch)
+        {
+            let last = chain.links.len() - 1;
+            for (index, &at) in chain.links.iter().enumerate() {
+                block = &plan.blocks[at];
+                runtime.block = at;
+                pc = prepaid_steps!(&block.steps[..]);
+                if index == last {
+                    break;
+                }
+                // The exit the chain follows, counted as the prepaid exit
+                // would count it; any other case leaves the chain here.
+                let (edge, payload) = match &block.exit {
+                    Exit::Branch(edge) => {
+                        runtime.fuel_used += 1;
+                        (edge, None)
+                    }
+                    Exit::Switch {
+                        register,
+                        take,
+                        cases,
+                        shapes,
+                    } => {
+                        let value = get(&registers, *register)?;
+                        if value.shape != Shape::Ok {
+                            break;
+                        }
+                        let Some(position) =
+                            shapes.iter().position(|shape| *shape == Some(Shape::Ok))
+                        else {
+                            break;
+                        };
+                        if *take {
+                            registers[*register] = None;
+                        }
+                        runtime.fuel_used += 1 + position as u64 + 1;
+                        (
+                            &cases[position].1,
+                            Some(Value {
+                                atom: value.atom,
+                                shape: Shape::Plain,
+                            }),
+                        )
+                    }
+                    _ => break,
+                };
+                runtime.fuel_used += edge.fuel;
+                prepaid_moves!(edge, payload);
+                pc = 0;
+            }
+            prepaid_exit = true;
+        } else if let Some(batch) = block.batches.iter().find(|batch| batch.start == pc)
+            && prepaid(runtime, limits, batch)
+        {
+            pc += prepaid_steps!(&block.steps[pc..pc + batch.steps]);
             prepaid_exit = batch.exit;
         }
         macro_rules! charge {
@@ -936,28 +1086,7 @@ fn run<'p, 'v>(
             // Arguments already in their parameter's slot stay; the edge's
             // charges are counted at once.
             runtime.fuel_used += edge.fuel;
-            if edge.moves_direct {
-                for (arg, slot) in &edge.moves {
-                    let value = match arg.register {
-                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
-                        Some(r) => get(&registers, r)?,
-                        None => payload.ok_or(RuntimeFault)?,
-                    };
-                    registers[*slot] = Some(value);
-                }
-            } else {
-                scratch.clear();
-                for (arg, _) in &edge.moves {
-                    scratch.push(match arg.register {
-                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
-                        Some(r) => get(&registers, r)?,
-                        None => payload.ok_or(RuntimeFault)?,
-                    });
-                }
-                for ((_, slot), &v) in edge.moves.iter().zip(&scratch) {
-                    registers[*slot] = Some(v);
-                }
-            }
+            prepaid_moves!(edge, payload);
             runtime.block = edge.target;
             continue;
         }
@@ -2174,6 +2303,9 @@ mod tests {
         // runs coalesced moves and every prepaid run against the reference.
         assert!(plan.slots < lowered.bytecode.register_types.len());
         assert!(plan.blocks.iter().any(|b| b.batches.iter().any(|r| r.exit)));
+        // And a checked operation's Ok case joins its block to the next, so
+        // budget cuts land inside chains too.
+        assert!(plan.blocks.iter().any(|b| b.chain.is_some()));
         let limits = ExecutionLimits {
             max_instructions: 10_000,
             max_fuel: 10_000,
