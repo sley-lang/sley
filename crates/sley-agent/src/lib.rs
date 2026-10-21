@@ -19,6 +19,10 @@
 //! - The optional familiar frontend (cargo feature `familiar`, ADR-0055): a
 //!   textual proposal syntax parsed into structured bodies at the authoring
 //!   boundary, then handled like any JSON frame ([`familiar`]).
+//! - The embed API (with `familiar`): compile a familiar program in memory
+//!   through the `try --familiar` path and call its functions under an
+//!   exact fuel limit, with every input of nondeterminism supplied by the
+//!   host ([`embed`], `docs/EMBEDDING.md`).
 //!
 //! The cargo feature `native` (default) adds the file-system layer:
 //! workspaces, repositories, drafts, search and the CLI. Without it the
@@ -44,6 +48,8 @@ pub mod catalog;
 pub mod cli;
 #[cfg(feature = "native")]
 pub mod draft;
+#[cfg(feature = "familiar")]
+pub mod embed;
 pub mod error;
 #[cfg(feature = "native")]
 pub mod events;
