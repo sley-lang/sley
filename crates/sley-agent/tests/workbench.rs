@@ -1417,8 +1417,19 @@ fn advisory_resource_policy_is_visible_for_passing_tests_in_every_result_view() 
         );
         assert_eq!(result["tests"][0]["pass"], true);
     }
+    // `try` states the policy on one line; `--verbose`, `test` and
+    // `status` state it in full.
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains(
+            "advisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\n"
+        ),
+        "{text}"
+    );
+    assert!(!text.contains("declared limits:"), "{text}");
     for args in [
-        vec!["try", &frame.to_string()],
+        vec!["try", "--verbose", &frame.to_string()],
         vec!["test", "c2"],
         vec!["status"],
     ] {

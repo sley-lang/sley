@@ -2062,7 +2062,15 @@ fn changes_text(changes: &[Change]) -> String {
     }
     let body: Vec<String> = groups
         .iter()
-        .map(|(kind, items)| format!("{} {}", crate::names::kind_prefix(*kind), items.join(" ")))
+        .map(|(kind, items)| {
+            let prefix = crate::names::kind_prefix(*kind);
+            let items = match prefix {
+                "const" if items.len() > 2 => mark_counts(items),
+                "test" if items.len() > 2 => numbered_runs(items),
+                _ => items.clone(),
+            };
+            format!("{prefix} {}", items.join(" "))
+        })
         .collect();
     let mut text = format!("changed: {}\n", body.join("; "));
     let exported: Vec<String> = changes
@@ -2074,6 +2082,71 @@ fn changes_text(changes: &[Change]) -> String {
         let _ = writeln!(text, "exported: {}", exported.join(" "));
     }
     text
+}
+
+/// Many constants (most are literals the lowering names): `+5 ~1` counts
+/// per mark instead of names; `--json` lists them.
+fn mark_counts(items: &[String]) -> Vec<String> {
+    let mut counts: Vec<(char, usize)> = Vec::new();
+    for item in items {
+        let mark = item.chars().next().unwrap_or('~');
+        match counts.iter_mut().find(|(m, _)| *m == mark) {
+            Some((_, n)) => *n += 1,
+            None => counts.push((mark, 1)),
+        }
+    }
+    counts
+        .into_iter()
+        .map(|(mark, n)| format!("{mark}{n}"))
+        .collect()
+}
+
+/// Test names that run `name_0` .. `name_k` (one mark, contiguous numbers,
+/// three or more) as `+name_0..k`; other names as they are.
+fn numbered_runs(items: &[String]) -> Vec<String> {
+    let split = |item: &str| -> Option<(String, u64)> {
+        let (stem, number) = item.rsplit_once('_')?;
+        if number.is_empty() || !number.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        if number.len() > 1 && number.starts_with('0') {
+            return None;
+        }
+        Some((stem.to_owned(), number.parse().ok()?))
+    };
+    let mut runs: Vec<(String, Vec<u64>)> = Vec::new();
+    for item in items {
+        if let Some((stem, number)) = split(item) {
+            match runs.iter_mut().find(|(s, _)| *s == stem) {
+                Some((_, numbers)) => numbers.push(number),
+                None => runs.push((stem, vec![number])),
+            }
+        }
+    }
+    let mut collapsed: Vec<(String, String)> = Vec::new();
+    for (stem, mut numbers) in runs {
+        numbers.sort_unstable();
+        let contiguous = numbers.windows(2).all(|w| w[1] == w[0] + 1);
+        if numbers.len() >= 3 && contiguous {
+            collapsed.push((
+                stem.clone(),
+                format!("{stem}_{}..{}", numbers[0], numbers[numbers.len() - 1]),
+            ));
+        }
+    }
+    let mut out: Vec<String> = Vec::new();
+    for item in items {
+        let run = split(item).and_then(|(stem, _)| collapsed.iter().find(|(s, _)| *s == stem));
+        match run {
+            Some((_, text)) => {
+                if !out.iter().any(|o| o == text) {
+                    out.push(text.clone());
+                }
+            }
+            None => out.push(item.clone()),
+        }
+    }
+    out
 }
 
 /// ` [authored 2, imported 1, provided 3]` (non-zero counts only), and the
@@ -2511,16 +2584,15 @@ fn run_trial(
                     status: &status,
                 },
             )?;
+            // Familiar text located at its lines is fixed in the text: the
+            // next step says so instead of a frame fill.
+            let text_located = located.as_ref().is_some_and(|lines| !lines.is_empty());
             let error = match located {
                 // Pointers index the structured frame the text parsed to
                 // (the draft's frame.json); the text positions locate them.
                 Some(lines) if !lines.is_empty() => AgentError::new(
                     error.code(),
-                    format!(
-                        "{}\n  {}\n  pointers refer to the structured frame built from the familiar text ({frame_path}); fix the text and run try --familiar again",
-                        error.detail(),
-                        lines.join("\n  ")
-                    ),
+                    format!("{}\n  {}", error.detail(), lines.join("\n  ")),
                 ),
                 _ if obligations.iter().any(|record| record["at"].is_string()) => {
                     pointer_hint(error, &proposal.origin, &frame_path, &handle)
@@ -2532,7 +2604,13 @@ fn run_trial(
                 draft::obligation_count(&obligations),
                 draft::obligation_symbols(&obligations)
             );
-            let next = repair_hint(&obligations, &handle, revision, None);
+            let next = if text_located {
+                format!(
+                    "next: fix the text and run try --familiar again (pointers index the frame built from it, {frame_path})"
+                )
+            } else {
+                repair_hint(&obligations, &handle, revision, None)
+            };
             return unfinished(
                 global,
                 out,
@@ -2853,6 +2931,9 @@ fn run_trial(
         })
     } else if failed == 0 {
         Some(format!("sley-agent submit {handle}"))
+    } else if proposal.familiar.is_some() {
+        // Familiar text is fixed in the text, then tried again.
+        Some("fix the text and run try --familiar again".to_owned())
     } else if layerable {
         Some(format!(
             "fix only what failed on top of {handle}: sley-agent try --on {handle} '{{{envelope}, \"edit\": [...]}}' (or \"patch\", \"tests\")"
@@ -2918,7 +2999,11 @@ fn run_trial(
         let passed = tests.iter().filter(|t| t.passed()).count();
         let _ = writeln!(text, "tests: {passed}/{} passed{provenance}", tests.len());
         text.push_str(&test_lines(&tests, &after_names, options.verbose));
-        text.push_str(&test_execution_policy_text());
+        if options.verbose {
+            text.push_str(&test_execution_policy_text());
+        } else {
+            text.push_str(TEST_EXECUTION_POLICY_SHORT);
+        }
     }
     if let Some(raw) = &raw {
         let _ = writeln!(text, "stored: {raw}");
@@ -3273,6 +3358,10 @@ fn test_execution_policy(tests: &[TestOutcome]) -> Value {
         },
     })
 }
+
+/// `try`'s one-line form of [`test_execution_policy_text`] (`--verbose`
+/// and `--json` give the full policy).
+const TEST_EXECUTION_POLICY_SHORT: &str = "advisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\n";
 
 fn test_execution_policy_text() -> String {
     let limits = exec::call_limits();

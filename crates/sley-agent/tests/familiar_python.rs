@@ -714,3 +714,65 @@ def distinct(xs: list[str]) -> int:
         ],
     );
 }
+
+#[test]
+fn python_tests_and_record_classes_run_in_one_try() {
+    let temp = workspace("python-inline-tests");
+    let text = "\
+import pytest
+from dataclasses import dataclass
+
+
+@dataclass
+class Point:
+    x: int
+    y: int
+
+
+def manhattan(a: Point, b: Point) -> int:
+    if a.x < 0:
+        raise ValueError(\"negative\")
+    return abs(a.x - b.x) + abs(a.y - b.y)
+
+
+def scale(x: int) -> int:
+    return x * 3 + 7 - 11
+
+
+def test_manhattan():
+    assert manhattan(Point(1, 2), Point(4, -2)) == 7
+    assert manhattan(Point(0, 0), Point(0, 0)) == 1
+    assert manhattan(Point(2, 0), Point(0, 0)) == 2
+    assert manhattan(Point(0, 3), Point(0, 0)) == 3
+    with pytest.raises(ValueError):
+        manhattan(Point(-1, 0), Point(0, 0))
+";
+    let path = temp.path.join("records.py");
+    fs::write(&path, text).unwrap();
+    let file = path.display().to_string();
+    let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
+    assert_eq!(status, 1, "{out}");
+    assert!(
+        out.contains(
+            "changed: fn +manhattan +scale; type +Point; const +4; test +test_manhattan_0..4\n"
+        ),
+        "{out}"
+    );
+    assert!(out.contains("tests: 4/5 passed [authored 5]"), "{out}");
+    assert!(
+        out.contains("FAIL test_manhattan_1 (manhattan): expected 1, got 0"),
+        "{out}"
+    );
+    assert!(
+        out.contains("next: fix the text and run try --familiar again"),
+        "{out}"
+    );
+    fs::write(
+        &path,
+        text.replace("Point(0, 0)) == 1", "Point(0, 0)) == 0"),
+    )
+    .unwrap();
+    let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains("tests: 5/5 passed"), "{out}");
+}
