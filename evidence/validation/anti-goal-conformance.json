@@ -172,14 +172,14 @@
     {
       "acceptance_evidence": "no tag, upload, or deploy action outside the operator's recorded publication decision (`scripts/publication_authority.py`)",
       "anti_goal": "unauthorized publication/deploy/spend",
-      "detail": "git tags: 9; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
+      "detail": "git tags: 10; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
       "state": "HOLDS",
       "surface": "repo metadata and operator gate"
     }
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "41e2afdd7a5089ce4b72ce33a574f511a023a80363acdaeea88c9c2a2e7ad910",
+  "report_digest": "779f34ade2a7859602a7663def6954d94a0928f3c3f616d69df3bc4c6858af86",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

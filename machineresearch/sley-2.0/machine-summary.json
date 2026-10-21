@@ -22,9 +22,9 @@
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
-    "final_commit_note": "the official Sley 2.1.2 release, built from commit 65dc451a of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
-    "master_goal_checks_waiver": "Operator decision 2026-10-19 (Magister): for Sley 2.1.2, scripts/check_candidate_result_contract.py and scripts/check_transaction_contract.py are not run because the Sley 2.0 master goal (SLEY2_MASTER_GOAL) is unavailable off the maintainer host. This waives the two checks for this release only and is not a pass; both passed at v2.1.1 on the maintainer host.",
+    "final_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
+    "final_commit_note": "the official Sley 2.1.3 release, built from commit 03387499 of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
+    "master_goal_checks_waiver": "Operator decision 2026-10-20 (Magister), carried forward from the 2.1.2 waiver of 2026-10-19: for Sley 2.1.3, scripts/check_candidate_result_contract.py and scripts/check_transaction_contract.py are not run because the Sley 2.0 master goal (SLEY2_MASTER_GOAL) is unavailable off the maintainer host. This waives the two checks for this release only and is not a pass; both passed at v2.1.1 on the maintainer host.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
       "AWAITS_REVIEW": 17,
@@ -197,7 +197,8 @@
       "Sley 2.0.7 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-05 to release the shippable runtime and agent changes now and continue the cost research separately; no GA, model-cost or economic-parity claim.",
       "Sley 2.1.0 release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-12 to release the SH2 self-hosted toolchain (the Sley-written toolchain rebuilding itself to a byte-identical fixed point without the seed compiler); no GA, model-cost or economic-parity claim.",
       "Sley 2.1.1 release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-13 to make the next release Sley 2.1.1 and work toward cost parity with other languages (the familiar frontend's Python dialect and authoring ergonomics, measured across hosted models); no GA claim.",
-      "Sley 2.1.2 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-19 to cut 2.1.2 so the Python-dialect parameter tuple-assignment fix ships, together with the work merged since 2.1.1; no GA claim."
+      "Sley 2.1.2 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-19 to cut 2.1.2 so the Python-dialect parameter tuple-assignment fix ships, together with the work merged since 2.1.1; no GA claim.",
+      "Sley 2.1.3 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-20 to merge the VM and Python-dialect performance work (#44, #45, #46) and cut 2.1.3; program meaning and resource accounting unchanged; no GA or performance-parity claim."
     ],
     "authorized_tags": [
       "v2.0.0",
@@ -209,7 +210,8 @@
       "v2.0.7",
       "v2.1.0",
       "v2.1.1",
-      "v2.1.2"
+      "v2.1.2",
+      "v2.1.3"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry.",
@@ -217,7 +219,8 @@
     "decided_2_0_7": "2026-10-05",
     "decided_2_1_0": "2026-10-12",
     "decided_2_1_1": "2026-10-13",
-    "decided_2_1_2": "2026-10-19"
+    "decided_2_1_2": "2026-10-19",
+    "decided_2_1_3": "2026-10-20"
   },
   "scb1": {
     "status": "S20_100_SPEC_S20_120_CODEC_S20_130_ORACLE_COMPLETE",
@@ -2553,19 +2556,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 1127,
-      "corpus_file_count": 1127,
+      "corpus_file_count": 1162,
       "runs_requested": 2156,
       "runs_floor": 2156,
       "executed_runs": 2156,
       "coverage": {
         "counters": 1453,
-        "ft_done": 505,
-        "ft_inited": 452,
+        "ft_done": 540,
+        "ft_inited": 505,
         "new_events": true,
-        "seed": 71221727
+        "seed": 2507577865
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2589,7 +2592,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review": "PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2_WITH_P3_P4_FOLLOWUPS",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_5_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_scb1_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 f732858fd7d8c8823d3f97416fd798c23551869bef771c8e5ba681b99656849c) (transcript FIELD line reads vulcan_review_closure). Two of the eight unclaimed P3/P4 findings are verified closed (register field at af9dba84, docs at c5424aa4); four P3 and two P4 remain open because the target and checker are unchanged since b64ab9e and the runner change did not touch the cited lines. The doc closure copied the overstated re-encode-oracle claim into tracked docs, and the b1218578 runner rewrite left the register's last_local_proof bound to a superseded runner while a canonical on-disk proof cites a non-ancestor commit. Checker exit 0 PASS was reproduced but cannot see any of these. Row not closable at this SHA.",
@@ -2628,19 +2631,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 259,
-      "corpus_file_count": 259,
+      "corpus_file_count": 262,
       "runs_requested": 510,
-      "runs_floor": 515,
-      "executed_runs": 515,
+      "runs_floor": 518,
+      "executed_runs": 518,
       "coverage": {
         "counters": 2812,
-        "ft_done": 494,
-        "ft_inited": 491,
+        "ft_done": 496,
+        "ft_inited": 494,
         "new_events": true,
-        "seed": 1990046424
+        "seed": 453540869
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2664,7 +2667,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_4_P3_3_P4",
@@ -2723,24 +2726,24 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 500,
-      "corpus_file_count": 500,
-      "executed_runs": 756,
+      "corpus_file_count": 508,
+      "executed_runs": 764,
       "coverage": {
         "counters": 9388,
-        "ft_done": 3733,
-        "ft_inited": 3669,
+        "ft_done": 3758,
+        "ft_inited": 3733,
         "new_events": true,
-        "seed": 4162862214
+        "seed": 2435626427
       },
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "cc": "clang-18",
       "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "runs_floor": 756,
+      "runs_floor": 764,
       "owner_lib_sancov": 148,
       "coverage_ok": true,
       "worktree_dirty": false,
@@ -2770,7 +2773,7 @@
       ],
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_note": "Qualifying re-review of the c7fec98 fix at a525797 (transcript vulcan_review-c7fec98.md, FIELD vulcan_review, ROUND final): all five classes verified executing (static + seed-0493 probe + 775/775 proof), precedence sets match S20-540 order, no-store exemption intact, verdict field Honest. PASS with 3 P3 + 4 P4. VR-C7-01 (tracked proof still 4c30d1b; reseal_lane still exact-class wording) closes with the standard proof-refresh records commit; VR-C7-02/03 are owner items for the next target round; VR-C7-04..07 are P4 notes. Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_4_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 9f41fe3f93805e0cbe17b4694252f107879a97d7e3b7917609b3e6358edbbced) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-c7fec98.md) was located; of its 3 P3 + 4 P4 findings, VR-C7-01 and VR-C7-04 are verified closed by records commit 1f969f99, while VR-C7-02, VR-C7-03, VR-C7-05, VR-C7-06 and VR-C7-07 remain open because the target and checker are byte-identical to c7fec98 and the owners explicitly deferred the target round. One new P4 record note: the tracked proof is bound to a SHA reachable from no branch and the on-disk canonical-toolchain proof is unfolded. The lane's fix itself remains sound and the checker passes at HEAD, but the row cannot be closed as PRIOR_P3_P4_CLOS",
@@ -2806,19 +2809,19 @@
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 518,
-      "corpus_file_count": 518,
+      "corpus_file_count": 532,
       "runs_requested": 1036,
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
-        "counters": 42253,
-        "ft_done": 8076,
-        "ft_inited": 7994,
+        "counters": 42234,
+        "ft_done": 8081,
+        "ft_inited": 8076,
         "new_events": true,
-        "seed": 2358309565
+        "seed": 507725366
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2842,7 +2845,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2864,19 +2867,19 @@
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 491,
-      "corpus_file_count": 491,
+      "corpus_file_count": 604,
       "runs_requested": 512,
-      "runs_floor": 747,
-      "executed_runs": 747,
+      "runs_floor": 860,
+      "executed_runs": 860,
       "coverage": {
         "counters": 8052,
-        "ft_done": 5253,
-        "ft_inited": 4305,
+        "ft_done": 5527,
+        "ft_inited": 5253,
         "new_events": true,
-        "seed": 982208057
+        "seed": 3206012523
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2900,7 +2903,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "fact_lanes": "bits 2/3/4 select facts-from-bytes (bound/entry-points/dependency-roots); kind-8 encode guard loud"
   },
@@ -2922,19 +2925,19 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 330,
-      "corpus_file_count": 330,
+      "corpus_file_count": 340,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
         "counters": 4314,
-        "ft_done": 1889,
-        "ft_inited": 1825,
+        "ft_done": 1899,
+        "ft_inited": 1889,
         "new_events": true,
-        "seed": 3777881877
+        "seed": 1496316923
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2958,7 +2961,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2980,19 +2983,19 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 319,
-      "corpus_file_count": 319,
+      "corpus_file_count": 334,
       "runs_requested": 638,
       "runs_floor": 638,
       "executed_runs": 638,
       "coverage": {
         "counters": 3712,
-        "ft_done": 1218,
-        "ft_inited": 1128,
+        "ft_done": 1465,
+        "ft_inited": 1218,
         "new_events": true,
-        "seed": 1271739002
+        "seed": 3682988389
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3016,7 +3019,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_4_P3_0_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 a359ecde4a9c057c954048e8e0eed9ab313b6677d71ab83f16fd79e0a2851911) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-7cf25acd25d2.md) was located and its three P3s enumerated; at 178873d7 F2 is verified closed (audit :28-33 now names the five decoder codes, commit 71232591), F3 is untouched, and F1 is mitigated in code by the b1218578 pin-layout repair with an unoverridden clang 18.1.8 PASS on disk, but that proof is unfiled while the tracked record still carries the clang-22 override run and the \"unproven\" clause. Two new P3s: the tracked proof commit is not in HEAD's lineage and predates the HEAD harness, and the slice checker is marker-only so it cannot reject a stale p",
     "p3_open": [
@@ -3042,19 +3045,19 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 47,
-      "corpus_file_count": 47,
+      "corpus_file_count": 124,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
-        "counters": 38390,
-        "ft_done": 4283,
-        "ft_inited": 3759,
+        "counters": 38079,
+        "ft_done": 4385,
+        "ft_inited": 4283,
         "new_events": true,
-        "seed": 3327204255
+        "seed": 1708069632
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3078,7 +3081,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
@@ -3099,19 +3102,19 @@
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 480,
-      "corpus_file_count": 480,
+      "corpus_file_count": 507,
       "runs_requested": 960,
       "runs_floor": 960,
       "executed_runs": 960,
       "coverage": {
         "counters": 1277,
-        "ft_done": 1253,
-        "ft_inited": 1022,
+        "ft_done": 1268,
+        "ft_inited": 1253,
         "new_events": true,
-        "seed": 1954272670
+        "seed": 3755804161
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3135,7 +3138,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 ac28060f28335665321cfc69695887b309e1f494f7f69edd624c2bcdeed4ecff) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) names three P3s; at 178873d7 one is verified closed (rehash-lane rationale, made true by a069a246's digest-before-inversion reorder at snapshot.rs:743-748, matching spec \u00a75) and two remain open (target oracles only partly narrowed at fuzz/targets/complete_root_snapshot_decoder.rs:28,51-57,68-78; checker still marker-only at scripts/check_complete_root_snapshot_persistent_fuzz_slice.py:18-118, exit 0 despite a stale proof). One new P3 is recorded: the tracked last_local_proof (machine-summary.json:2536-2572) cites non-ancestor d3dee564 that p",
     "p3_open": [
@@ -3168,19 +3171,19 @@
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 971,
-      "corpus_file_count": 971,
+      "corpus_file_count": 1124,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 12289,
-        "ft_done": 6401,
-        "ft_inited": 5101,
+        "ft_done": 6691,
+        "ft_inited": 6401,
         "new_events": true,
-        "seed": 301423278
+        "seed": 1760040116
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3204,7 +3207,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "seed_derivation": "generated synthetically; the fixture contributes contract and class-count drift checks only, no seed bytes"
   },
@@ -3226,19 +3229,19 @@
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 971,
-      "corpus_file_count": 971,
+      "corpus_file_count": 1136,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 12769,
-        "ft_done": 6209,
-        "ft_inited": 5251,
+        "ft_done": 6752,
+        "ft_inited": 6209,
         "new_events": true,
-        "seed": 3228366792
+        "seed": 4173947230
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3262,7 +3265,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -3285,19 +3288,19 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 719,
-      "corpus_file_count": 719,
+      "corpus_file_count": 740,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 4509,
-        "ft_done": 2224,
-        "ft_inited": 2171,
+        "ft_done": 2240,
+        "ft_inited": 2224,
         "new_events": true,
-        "seed": 1046576340
+        "seed": 2260414999
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3321,7 +3324,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet",
@@ -3360,19 +3363,19 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 645,
-      "corpus_file_count": 645,
+      "corpus_file_count": 677,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
         "counters": 7138,
-        "ft_done": 4114,
-        "ft_inited": 3968,
+        "ft_done": 4180,
+        "ft_inited": 4114,
         "new_events": true,
-        "seed": 4024105637
+        "seed": 3938347212
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3396,7 +3399,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 4f1f806240e607c0db75d63a4d7340147416a86f12517b77b3d1391e2cac3ed3) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) was located and all eleven P3/P4 findings enumerated; eight are verified closed at 178873d7 by code and audit changes in rounds 7h-7j and the b1218578 pin-layout repair, with the checker passing (exit 0). Two carried P3s (stale \"thirty-one\" count; tautological `known()` oracle) and one carried P4 (unbound checker markers) remain open and untracked, so the row cannot be closed. Two new records defects were found: the durable `last_local_proof` is stale against both runner and governed crate and contradicts the on-disk canonical-layout proof, ",
     "p3_open": [
@@ -3444,7 +3447,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "cc": "clang-18",
       "libfuzzer_runtime": "/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
@@ -3465,13 +3468,13 @@
         "graph-cfg": {
           "build_result": "PASS",
           "corpus_count": 408,
-          "corpus_file_count": 408,
+          "corpus_file_count": 454,
           "coverage": {
             "counters": 5513,
-            "ft_done": 2205,
-            "ft_inited": 1992,
+            "ft_done": 2282,
+            "ft_inited": 2206,
             "new_events": true,
-            "seed": 2879561581
+            "seed": 1503605156
           },
           "coverage_ok": true,
           "crash_artifacts": [],
@@ -3500,13 +3503,13 @@
         "type-checker": {
           "build_result": "PASS",
           "corpus_count": 385,
-          "corpus_file_count": 385,
+          "corpus_file_count": 452,
           "coverage": {
             "counters": 3174,
-            "ft_done": 3140,
-            "ft_inited": 2938,
+            "ft_done": 3298,
+            "ft_inited": 3140,
             "new_events": true,
-            "seed": 2813527400
+            "seed": 1435712965
           },
           "coverage_ok": true,
           "crash_artifacts": [],
@@ -3550,7 +3553,7 @@
       },
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_note": "Qualifying round-4 re-review at 5966d83 (transcript vulcan_review-df295d8.md, FIELD vulcan_review, ROUND final): PASS_0_P0_0_P1_0_P2_2_P3_3_P4. Single branch verified exact-or-sound (full per-arm table), multi branch closed by construction (42-entry universe == engine as_str matches), all six falsifying inputs traced to pass, seeds executed, proof binds df295d8 clean. Follow-ups applied post-verdict: arm-22 DOMINANCE removed again (dead in single scope; combos use universe branch), audit counts corrected (406 seeds, 949 proof), VS-R3-004 sentence corrected (closed by regeneration in 56ef0c6 \u2014 the owner wrongly wrote 'refuted'), checker pins tightened (universe-body scope, lib.rs TYPE scan, full seed lists), sixth [9,16] input pinned as seed-0013. Fresh PASS proof 955/955 both targets (override lane). Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_1_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 7b1d268320685a707e7381ee61820da598c5840facb17dd10ba7873c73cfdaba) (transcript FIELD line reads vulcan_review_closure). The round-4 transcript (vulcan_review-df295d8.md) was located and its five P3/P4 findings enumerated; VS-R4-002/003/004/005 are verified closed at HEAD by 634807f8 with the arm-22 derivation, seed-0013 bytes, checker pins, and audit wording independently checked, and the slice checker passes. VS-R4-001 remains half open because the audit's \"945/945 \u2026 fix awaits re-review\" line was never edited despite the commit message and summary note claiming it was. Two new record findings: the tracked PASS proof binds a dirty tree at a rebased-away commit (P3), and the new checker TYPE-scan has a bypassab",
@@ -3590,19 +3593,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 525,
-      "corpus_file_count": 525,
+      "corpus_file_count": 543,
       "runs_requested": 1050,
       "runs_floor": 1050,
       "executed_runs": 1050,
       "coverage": {
         "counters": 4102,
-        "ft_done": 1375,
-        "ft_inited": 1288,
+        "ft_done": 1388,
+        "ft_inited": 1375,
         "new_events": true,
-        "seed": 1880506582
+        "seed": 3471101615
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3626,7 +3629,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_2_P3",
@@ -3695,13 +3698,13 @@
       "build_locked": true,
       "cc": "clang-18",
       "corpus_count": 789,
-      "corpus_file_count": 789,
+      "corpus_file_count": 841,
       "coverage": {
-        "counters": 21654,
-        "ft_done": 11343,
-        "ft_inited": 11059,
+        "counters": 21673,
+        "ft_done": 11419,
+        "ft_inited": 11333,
         "new_events": true,
-        "seed": 2452259908
+        "seed": 1810406191
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3716,7 +3719,7 @@
       "runs_floor": 1576,
       "runs_requested": 1576,
       "sancov_scope": "workspace-target-units-via-host-config",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "toolchain_overridden": true,
       "toolchain_versions": {
         "cc": "Debian clang version 18.1.8 (18+b1)",
@@ -3730,7 +3733,7 @@
       "problems": [],
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "restricted_profile_opcodes": [
       102,
@@ -3823,19 +3826,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 821,
-      "corpus_file_count": 821,
+      "corpus_file_count": 856,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
-        "counters": 7433,
-        "ft_done": 3205,
-        "ft_inited": 3137,
+        "counters": 7432,
+        "ft_done": 3242,
+        "ft_inited": 3204,
         "new_events": true,
-        "seed": 2769948641
+        "seed": 587913107
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3859,7 +3862,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     },
     "must_reject_classes": [
       "identity-changed (adapter_id)",
@@ -3900,19 +3903,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+      "source_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
       "worktree_dirty_files": [],
       "corpus_count": 32,
-      "corpus_file_count": 32,
+      "corpus_file_count": 71,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 17751,
-        "ft_done": 3204,
-        "ft_inited": 2527,
+        "ft_done": 3437,
+        "ft_inited": 3204,
         "new_events": true,
-        "seed": 956796976
+        "seed": 2379600044
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3936,7 +3939,7 @@
       "fuzz_toolchain_version": "Debian clang version 18.1.8 (18+b1)",
       "toolchain_overridden": true,
       "fuzz_toolchain_layout": "override",
-      "note": "persistent-fuzz smoke refresh at 65dc451a (Sley 2.1.2; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
+      "note": "persistent-fuzz smoke refresh at 03387499 (Sley 2.1.3; clean detached worktree of the source commit); checker-verified in the records-only descendant. Toolchain: nightly-2026-02-27 with Debian clang 18.1.8 and its libFuzzer runtime through the runner's documented SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override (layout \"override\", noncanonical): the canonical Debian layout's version check expects the banner \"clang version 18.1.8\", and Debian's clang-18 prints \"Debian clang version 18.1.8\". Earlier proofs used the canonical Arch layout on the maintainer host."
     }
   },
   "s20_360_candidate_validation": {
@@ -4902,7 +4905,7 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
-    "cargo_lock_sha256": "4b0dcc986e1987504026e95d7d7e2db27a8963265d6ae15242fb1fa93777325c",
+    "cargo_lock_sha256": "8c6a0083d44281e1c87e6cf7154f3aa6e9a0bc000c7fa9bd0ef26b51e1476c8c",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 23,
     "cargo_registry_packages": 47,
@@ -4945,7 +4948,7 @@
     "contract_revision": 9,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.1.2-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.1.3-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
@@ -4972,8 +4975,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "7e1e7d5e1ca12b6c82368ce9755db0005ce9f500126fefcdd2f525c6722862b5",
-    "candidate_artifact_size_bytes": 7652292,
+    "candidate_artifact_sha256": "6fd18c3c19b5a4891fbcb2e9703130af52b0fe54e777d3e449d0d375dc43c9ae",
+    "candidate_artifact_size_bytes": 7656373,
     "candidate_member_count": 17,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4981,15 +4984,15 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "1b6a24489ef7e053d7039ff355a061b58749e419838f887d377bc593f18444d1",
-    "candidate_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+    "candidate_manifest_digest": "8c176da9003ac8a45b5db6b4a538a6f89ece805cd5981a888b96e7929f47d8af",
+    "candidate_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.1.2 release, built from commit 65dc451a of sley-lang/sley: two clean static musl builds on the primary host produced the same archive. Secondary-host work stays excluded, as for 2.0.6, 2.0.7, 2.1.0 and 2.1.1; cross-host reproducibility is not claimed and earlier attestations remain historical evidence only.",
+    "candidate_evidence_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
+    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.1.3 release, built from commit 03387499 of sley-lang/sley: two clean static musl builds on the primary host produced the same archive. Secondary-host work stays excluded, as for 2.0.6, 2.0.7, 2.1.0, 2.1.1 and 2.1.2; cross-host reproducibility is not claimed and earlier attestations remain historical evidence only.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -6355,7 +6358,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+    "attested_commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -7182,6 +7185,12 @@
       },
       {
         "commit": "65dc451ae1933efe008ec2c6aa9ca3692a1dd297",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "03387499cacb33c9fee2f97abdc09a3e5574f7e2",
         "hosts": [
           "primary"
         ]
