@@ -835,7 +835,9 @@ impl VerifiedImage {
         // runner and the observation see exactly the key it would.
         Ok(Self {
             scalar: match mode {
-                ExecutionMode::Auto => scalar::Plan::compile(&loaded.entry),
+                ExecutionMode::Auto => {
+                    scalar::Plan::compile_program(&loaded.entry, &loaded.callees)
+                }
                 ExecutionMode::Reference => None,
             },
             lowered: LoweredFunction {

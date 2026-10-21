@@ -35,7 +35,12 @@ struct S128(i128);
 #[repr(C, packed(8))]
 struct U128(u128);
 
+// Word-sized so a `Value` is 24 bytes of atom and 8 of shape with no padding.
+// With a one-byte shape the compiler copied the 7 padding bytes as two
+// overlapping 4-byte moves, and the reload of those moves stalled on store
+// forwarding: the hottest instructions in loop profiles.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u64)]
 enum Shape {
     Plain,
     Ok,
@@ -184,6 +189,60 @@ struct Step {
     /// The first operand's integer signedness and width, read once here
     /// instead of from the register types on every checked operation.
     width: Option<(bool, u16)>,
+    /// A `call_direct` step: the callee's index in the program's function
+    /// table (0 is the entry function) and each argument's unit rule.
+    call: Option<Box<Call>>,
+}
+
+#[derive(Clone, Debug)]
+struct Call {
+    function: usize,
+    arguments: Vec<Units>,
+}
+
+/// How many value units a value of one register type carries: the shared
+/// accounting's samples for fixed-size types, the value itself otherwise.
+#[derive(Clone, Copy, Debug)]
+struct Units {
+    fixed: [u64; 2],
+    dynamic: bool,
+    wrapper: u64,
+}
+
+impl Units {
+    fn of(ty: &TypeExpr) -> Option<Self> {
+        let (normal, failure) = unit_samples(ty)?;
+        Some(Self {
+            fixed: [value_units_const(&normal), value_units_const(&failure)],
+            dynamic: !fixed_units(ty),
+            wrapper: match &normal.data {
+                ConstData::Option(Some(v)) => value_units_const(&normal) - value_units_const(v),
+                _ => 0,
+            },
+        })
+    }
+
+    fn value(self, value: Value<'_>) -> u64 {
+        match value.atom {
+            Atom::Borrowed(v) if self.dynamic => value_units_const(v).saturating_add(self.wrapper),
+            _ => self.fixed[usize::from(matches!(value.shape, Shape::Err | Shape::None))],
+        }
+    }
+}
+
+/// How one function's run ended: its return value, or a termination of the
+/// whole execution (a trap or limit inside a callee ends every frame).
+enum Ended<'v> {
+    Returned(Value<'v>),
+    Stopped(ExecutionTermination),
+}
+
+/// The per-execution tables every frame shares: each function's plan and
+/// bytecode (index 0 is the entry) and its bound constants.
+struct Program<'p, 'v> {
+    plans: Vec<&'p Plan>,
+    codes: Vec<&'p crate::BytecodeFunction>,
+    constants: Vec<Vec<Value<'v>>>,
 }
 
 impl Step {
@@ -253,10 +312,44 @@ pub(super) struct Plan {
     records: Vec<EntityId>,
     constants: Vec<ConstantBinding>,
     fields: Vec<FieldBinding>,
+    result: Units,
+    /// The plans of `LoweredFunction::callees`, in that order (entry only).
+    callees: Vec<Plan>,
 }
 
 impl Plan {
+    /// Compiles the entry function and every transitive callee. A program
+    /// with any function the plan cannot run keeps the reference path.
+    pub(super) fn compile_program(
+        entry: &crate::BytecodeFunction,
+        callees: &[crate::BytecodeFunction],
+    ) -> Option<Self> {
+        // The reference's resolution: the first callee with the id, else the
+        // entry itself (direct recursion), else a fault.
+        let resolve = |function: EntityId| -> Option<(usize, &crate::BytecodeFunction)> {
+            callees
+                .iter()
+                .position(|callee| callee.function == function)
+                .map(|position| (position + 1, &callees[position]))
+                .or_else(|| (entry.function == function).then_some((0, entry)))
+        };
+        let mut plan = Self::compile_with(entry, &resolve)?;
+        plan.callees = callees
+            .iter()
+            .map(|callee| Self::compile_with(callee, &resolve))
+            .collect::<Option<_>>()?;
+        Some(plan)
+    }
+
+    #[cfg(test)]
     pub(super) fn compile(code: &crate::BytecodeFunction) -> Option<Self> {
+        Self::compile_program(code, &[])
+    }
+
+    fn compile_with<'f>(
+        code: &crate::BytecodeFunction,
+        resolve: &dyn Fn(EntityId) -> Option<(usize, &'f crate::BytecodeFunction)>,
+    ) -> Option<Self> {
         if !code.register_types.iter().all(supported) || !supported(&code.result_type) {
             return None;
         }
@@ -273,7 +366,9 @@ impl Plan {
             let steps = source
                 .instructions
                 .iter()
-                .map(|instruction| compile_step(code, instruction, &mut constants, &mut fields))
+                .map(|instruction| {
+                    compile_step(code, instruction, &mut constants, &mut fields, resolve)
+                })
                 .collect::<Option<Vec<_>>>()?;
             let exit = compile_exit(code, source)?;
             let edge_size = |edge: &Edge| edge.args.len();
@@ -312,6 +407,8 @@ impl Plan {
             records,
             constants,
             fields,
+            result: Units::of(&code.result_type)?,
+            callees: Vec::new(),
         })
     }
 
@@ -342,211 +439,338 @@ impl Plan {
         let termination = if initial > request.limits.max_value_units {
             ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits)
         } else {
-            for id in &self.records {
-                let definition = source.types.definition(*id).ok()?;
-                if !definition.type_parameters.is_empty()
-                    || !matches!(definition.form, sley_ssmc::TypeDefForm::Record(_))
-                {
-                    return None;
-                }
-            }
-            for binding in &self.fields {
-                let sley_ssmc::TypeDefForm::Record(fields) =
-                    &source.types.definition(binding.definition).ok()?.form
-                else {
-                    return None;
-                };
-                let field = fields.iter().find(|f| f.member_id == binding.member)?;
-                if field.value_type != lowered.bytecode.register_types[binding.register] {
-                    return None;
-                }
-            }
-            // Bind the current inventory on every call. The compiled list has
-            // one slot per constant reference, independent of block/step count.
-            // A changed or unsupported inventory still takes the reference path.
-            // Large projected inventories are normally in strict entity order.
-            // Check that condition on the current slice before binary lookup;
-            // unsorted/duplicate inventories retain the reference's first-match
-            // behavior. This allocates no index and caches no mutable binding.
-            let ordered = self.constants.len() >= 16
-                && source.constants.len() >= 16
-                && source
-                    .constants
-                    .windows(2)
-                    .all(|pair| pair[0].entity_id < pair[1].entity_id);
-            let constants = self
-                .constants
+            let mut plans = vec![self];
+            plans.extend(self.callees.iter());
+            let mut codes = vec![&lowered.bytecode];
+            codes.extend(lowered.callees.iter());
+            let constants = plans
                 .iter()
-                .map(|binding| {
-                    let constant = if ordered {
-                        let index = source
-                            .constants
-                            .binary_search_by_key(&binding.entity, |v| v.entity_id)
-                            .ok()?;
-                        &source.constants[index]
-                    } else {
-                        source
-                            .constants
-                            .iter()
-                            .find(|v| v.entity_id == binding.entity)?
-                    };
-                    let value = &constant.value;
-                    if value.value_type != lowered.bytecode.register_types[binding.register] {
-                        return None;
-                    }
-                    if !fixed_units(&value.value_type) {
-                        source.types.check_constant(value).ok()?;
-                    }
-                    Value::from_const(value)
-                })
+                .zip(&codes)
+                .map(|(plan, code)| plan.bind(source, code))
                 .collect::<Option<Vec<_>>>()?;
+            let program = Program {
+                plans,
+                codes,
+                constants,
+            };
             let values = request
                 .inputs
                 .iter()
                 .map(Value::from_const)
                 .collect::<Option<Vec<_>>>()?;
-            self.run(
-                &mut runtime,
-                &lowered.bytecode,
-                &request.limits,
-                values,
-                &constants,
-            )
-            .unwrap_or(ExecutionTermination::InternalInvariant)
+            match run(&program, &mut runtime, &request.limits, values) {
+                Ok(Ended::Returned(value)) => {
+                    let value = value.to_const(&lowered.bytecode.result_type);
+                    if value_units_const(&value) > request.limits.max_output_units {
+                        ExecutionTermination::ResourceLimit(ResourceKind::OutputUnits)
+                    } else {
+                        ExecutionTermination::Success(value)
+                    }
+                }
+                Ok(Ended::Stopped(termination)) => termination,
+                Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
+            }
         };
         Some(CoreOutcome {
             termination,
             instruction_count: runtime.instruction_count,
             fuel_used: runtime.fuel_used,
             peak_value_units: runtime.peak_value_units,
-            peak_call_depth: 1,
+            peak_call_depth: runtime.peak_call_depth,
         })
     }
 
-    // The direct and parallel edge moves are written out inline: factoring
-    // them into a helper measured 1.7x slower on loop benchmarks.
-    #[allow(clippy::too_many_lines)]
-    fn run<'v>(
+    /// Checks this function's record shapes against the current types and
+    /// binds its constant references, or declines (the reference path then
+    /// runs the whole execution).
+    fn bind<'v>(
         &self,
-        runtime: &mut Runtime,
+        source: &ExecutionSource<'v>,
         code: &crate::BytecodeFunction,
-        limits: &ExecutionLimits,
-        inputs: Vec<Value<'v>>,
-        constants: &[Value<'v>],
-    ) -> RuntimeResult<ExecutionTermination> {
-        let mut registers = vec![None; code.register_types.len()];
-        let mut scratch = Vec::with_capacity(self.scratch);
-        for (r, value) in code.parameter_registers.iter().zip(inputs) {
-            *registers
-                .get_mut(usize::try_from(*r).map_err(|_| RuntimeFault)?)
-                .ok_or(RuntimeFault)? = Some(value);
+    ) -> Option<Vec<Value<'v>>> {
+        for id in &self.records {
+            let definition = source.types.definition(*id).ok()?;
+            if !definition.type_parameters.is_empty()
+                || !matches!(definition.form, sley_ssmc::TypeDefForm::Record(_))
+            {
+                return None;
+            }
         }
-        loop {
-            let block = self.blocks.get(runtime.block).ok_or(RuntimeFault)?;
-            for step in &block.steps {
-                if let Some(end) = charge_action(runtime, limits, Some(ResourceKind::Instruction)) {
-                    return Ok(end);
-                }
-                let value = match step.constant {
-                    Some(index) => constants[index],
-                    None => evaluate(step, &registers)?,
+        for binding in &self.fields {
+            let sley_ssmc::TypeDefForm::Record(fields) =
+                &source.types.definition(binding.definition).ok()?.form
+            else {
+                return None;
+            };
+            let field = fields.iter().find(|f| f.member_id == binding.member)?;
+            if field.value_type != code.register_types[binding.register] {
+                return None;
+            }
+        }
+        // Bind the current inventory on every call. The compiled list has
+        // one slot per constant reference, independent of block/step count.
+        // A changed or unsupported inventory still takes the reference path.
+        // Large projected inventories are normally in strict entity order.
+        // Check that condition on the current slice before binary lookup;
+        // unsorted/duplicate inventories retain the reference's first-match
+        // behavior. This allocates no index and caches no mutable binding.
+        let ordered = self.constants.len() >= 16
+            && source.constants.len() >= 16
+            && source
+                .constants
+                .windows(2)
+                .all(|pair| pair[0].entity_id < pair[1].entity_id);
+        self.constants
+            .iter()
+            .map(|binding| {
+                let constant = if ordered {
+                    let index = source
+                        .constants
+                        .binary_search_by_key(&binding.entity, |v| v.entity_id)
+                        .ok()?;
+                    &source.constants[index]
+                } else {
+                    source
+                        .constants
+                        .iter()
+                        .find(|v| v.entity_id == binding.entity)?
                 };
-                if !charge_value(runtime, step.value_units(value), limits.max_value_units) {
-                    return Ok(ExecutionTermination::ResourceLimit(
+                let value = &constant.value;
+                if value.value_type != code.register_types[binding.register] {
+                    return None;
+                }
+                if !fixed_units(&value.value_type) {
+                    source.types.check_constant(value).ok()?;
+                }
+                Value::from_const(value)
+            })
+            .collect()
+    }
+}
+
+/// A suspended caller: its function, registers and resume point, and the
+/// `call_direct` step whose result the callee's return writes.
+struct Frame<'p, 'v> {
+    function: usize,
+    registers: Vec<Option<Value<'v>>>,
+    block: usize,
+    pc: usize,
+    step: &'p Step,
+}
+
+/// Runs the entry function (`program` index 0) to its return value or to a
+/// termination. Calls use an explicit frame stack, never host recursion, so
+/// the 256-frame ceiling costs no native stack.
+///
+/// `call_direct` follows contract E6 as the reference runs it: refuse a frame
+/// beyond the depth ceiling, charge one action, charge each argument's units,
+/// then run the callee in a fresh register file sharing every budget. A
+/// callee's return is measured against the output limit like every frame's;
+/// the caller then charges the returned value's units and counts the call
+/// instruction. The entry's own answer is converted and measured by the
+/// caller of `run`.
+//
+// The direct and parallel edge moves are written out inline: factoring them
+// into a helper measured 1.7x slower on loop benchmarks. The loop stays its
+// own function so its codegen does not depend on what it is inlined into.
+#[allow(clippy::too_many_lines)]
+#[inline(never)]
+fn run<'p, 'v>(
+    program: &Program<'p, 'v>,
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    inputs: Vec<Value<'v>>,
+) -> RuntimeResult<Ended<'v>> {
+    let mut function = 0;
+    let mut plan = program.plans[0];
+    let mut code = program.codes[0];
+    let mut constants = &program.constants[0];
+    let mut registers = vec![None; code.register_types.len()];
+    let mut scratch = Vec::with_capacity(plan.scratch);
+    let mut stack: Vec<Frame<'p, 'v>> = Vec::new();
+    // Register files of returned frames, reused by the next call.
+    let mut spare: Vec<Vec<Option<Value<'v>>>> = Vec::new();
+    let mut pc = 0;
+    for (r, value) in code.parameter_registers.iter().zip(inputs) {
+        *registers
+            .get_mut(usize::try_from(*r).map_err(|_| RuntimeFault)?)
+            .ok_or(RuntimeFault)? = Some(value);
+    }
+    'frames: loop {
+        let block = plan.blocks.get(runtime.block).ok_or(RuntimeFault)?;
+        while let Some(step) = block.steps.get(pc) {
+            pc += 1;
+            if let Some(end) = charge_action(runtime, limits, Some(ResourceKind::Instruction)) {
+                return Ok(Ended::Stopped(end));
+            }
+            let value = match (step.constant, &step.call) {
+                (Some(index), _) => constants[index],
+                (None, Some(call)) => {
+                    let depth = stack.len().saturating_add(1);
+                    if depth.saturating_add(1) > runtime.max_call_depth {
+                        return Ok(Ended::Stopped(ExecutionTermination::ResourceLimit(
+                            ResourceKind::CallDepth,
+                        )));
+                    }
+                    if let Some(end) = charge_action(runtime, limits, None) {
+                        return Ok(Ended::Stopped(end));
+                    }
+                    runtime.peak_call_depth = runtime.peak_call_depth.max(depth.saturating_add(1));
+                    let callee = program.codes[call.function];
+                    let mut callee_registers = spare.pop().unwrap_or_default();
+                    callee_registers.clear();
+                    callee_registers.resize(callee.register_types.len(), None);
+                    for ((&r, units), parameter) in step
+                        .args
+                        .iter()
+                        .zip(&call.arguments)
+                        .zip(&callee.parameter_registers)
+                    {
+                        let value = get(&registers, r)?;
+                        if !charge_value(runtime, units.value(value), limits.max_value_units) {
+                            return Ok(Ended::Stopped(ExecutionTermination::ResourceLimit(
+                                ResourceKind::ValueUnits,
+                            )));
+                        }
+                        *callee_registers
+                            .get_mut(usize::try_from(*parameter).map_err(|_| RuntimeFault)?)
+                            .ok_or(RuntimeFault)? = Some(value);
+                    }
+                    stack.push(Frame {
+                        function,
+                        registers: core::mem::replace(&mut registers, callee_registers),
+                        block: runtime.block,
+                        pc,
+                        step,
+                    });
+                    function = call.function;
+                    plan = program.plans[function];
+                    code = callee;
+                    constants = &program.constants[function];
+                    runtime.block = usize::try_from(code.entry_block).map_err(|_| RuntimeFault)?;
+                    pc = 0;
+                    continue 'frames;
+                }
+                (None, None) => evaluate(step, &registers)?,
+            };
+            if !charge_value(runtime, step.value_units(value), limits.max_value_units) {
+                return Ok(Ended::Stopped(ExecutionTermination::ResourceLimit(
+                    ResourceKind::ValueUnits,
+                )));
+            }
+            runtime.instruction_count = runtime.instruction_count.saturating_add(1);
+            registers[step.output] = Some(value);
+        }
+        if let Some(end) = charge_action(runtime, limits, None) {
+            return Ok(Ended::Stopped(end));
+        }
+        let (edge, payload) = match &block.exit {
+            Exit::Return(r) => {
+                let value = get(&registers, *r)?;
+                let Some(caller) = stack.pop() else {
+                    return Ok(Ended::Returned(value));
+                };
+                if plan.result.value(value) > limits.max_output_units {
+                    return Ok(Ended::Stopped(ExecutionTermination::ResourceLimit(
+                        ResourceKind::OutputUnits,
+                    )));
+                }
+                function = caller.function;
+                plan = program.plans[function];
+                code = program.codes[function];
+                constants = &program.constants[function];
+                spare.push(core::mem::replace(&mut registers, caller.registers));
+                runtime.block = caller.block;
+                pc = caller.pc;
+                if !charge_value(
+                    runtime,
+                    caller.step.value_units(value),
+                    limits.max_value_units,
+                ) {
+                    return Ok(Ended::Stopped(ExecutionTermination::ResourceLimit(
                         ResourceKind::ValueUnits,
-                    ));
+                    )));
                 }
                 runtime.instruction_count = runtime.instruction_count.saturating_add(1);
-                registers[step.output] = Some(value);
+                registers[caller.step.output] = Some(value);
+                continue 'frames;
             }
-            if let Some(end) = charge_action(runtime, limits, None) {
-                return Ok(end);
-            }
-            let (edge, payload) = match &block.exit {
-                Exit::Return(r) => {
-                    let value = get(&registers, *r)?.to_const(&code.result_type);
-                    return Ok(if value_units_const(&value) > limits.max_output_units {
+            Exit::Trap(tag, payload) => {
+                let payload = payload
+                    .map(|r| get(&registers, r).map(|v| v.to_const(&code.register_types[r])))
+                    .transpose()?;
+                return Ok(Ended::Stopped(
+                    if payload
+                        .as_ref()
+                        .is_some_and(|v| value_units_const(v) > limits.max_output_units)
+                    {
                         ExecutionTermination::ResourceLimit(ResourceKind::OutputUnits)
                     } else {
-                        ExecutionTermination::Success(value)
-                    });
-                }
-                Exit::Trap(tag, payload) => {
-                    let payload = payload
-                        .map(|r| get(&registers, r).map(|v| v.to_const(&code.register_types[r])))
-                        .transpose()?;
-                    return Ok(
-                        if payload
-                            .as_ref()
-                            .is_some_and(|v| value_units_const(v) > limits.max_output_units)
-                        {
-                            ExecutionTermination::ResourceLimit(ResourceKind::OutputUnits)
-                        } else {
-                            ExecutionTermination::Trap {
-                                trap_tag: *tag,
-                                payload,
-                            }
-                        },
-                    );
-                }
-                Exit::Branch(edge) => (edge, None),
-                Exit::Cond(r, yes, no) => {
-                    let Atom::Bool(value) = get(&registers, *r)?.atom else {
-                        return Err(RuntimeFault);
-                    };
-                    (if value { yes } else { no }, None)
-                }
-                Exit::Switch {
-                    register,
-                    take,
-                    cases,
-                } => match select_case(runtime, limits, &mut registers, *register, *take, cases)? {
-                    Ok(selected) => selected,
-                    Err(termination) => return Ok(termination),
-                },
-            };
-            if edge.direct {
-                let parameters = &self.blocks[edge.target].parameters;
-                for (arg, &r) in edge.args.iter().zip(parameters) {
-                    if let Some(end) = charge_action(runtime, limits, None) {
-                        return Ok(end);
-                    }
-                    let value = match arg.register {
-                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
-                        Some(r) => get(&registers, r)?,
-                        None => {
-                            if let Some(end) = charge_action(runtime, limits, None) {
-                                return Ok(end);
-                            }
-                            payload.ok_or(RuntimeFault)?
+                        ExecutionTermination::Trap {
+                            trap_tag: *tag,
+                            payload,
                         }
-                    };
-                    registers[r] = Some(value);
-                }
-                runtime.block = edge.target;
-                continue;
+                    },
+                ));
             }
-            scratch.clear();
-            for arg in &edge.args {
+            Exit::Branch(edge) => (edge, None),
+            Exit::Cond(r, yes, no) => {
+                let Atom::Bool(value) = get(&registers, *r)?.atom else {
+                    return Err(RuntimeFault);
+                };
+                (if value { yes } else { no }, None)
+            }
+            Exit::Switch {
+                register,
+                take,
+                cases,
+            } => match select_case(runtime, limits, &mut registers, *register, *take, cases)? {
+                Ok(selected) => selected,
+                Err(termination) => return Ok(Ended::Stopped(termination)),
+            },
+        };
+        pc = 0;
+        if edge.direct {
+            let parameters = &plan.blocks[edge.target].parameters;
+            for (arg, &r) in edge.args.iter().zip(parameters) {
                 if let Some(end) = charge_action(runtime, limits, None) {
-                    return Ok(end);
+                    return Ok(Ended::Stopped(end));
                 }
-                scratch.push(match arg.register {
+                let value = match arg.register {
                     Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
                     Some(r) => get(&registers, r)?,
                     None => {
                         if let Some(end) = charge_action(runtime, limits, None) {
-                            return Ok(end);
+                            return Ok(Ended::Stopped(end));
                         }
                         payload.ok_or(RuntimeFault)?
                     }
-                });
-            }
-            for (&r, &v) in self.blocks[edge.target].parameters.iter().zip(&scratch) {
-                registers[r] = Some(v);
+                };
+                registers[r] = Some(value);
             }
             runtime.block = edge.target;
+            continue;
         }
+        scratch.clear();
+        for arg in &edge.args {
+            if let Some(end) = charge_action(runtime, limits, None) {
+                return Ok(Ended::Stopped(end));
+            }
+            scratch.push(match arg.register {
+                Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
+                Some(r) => get(&registers, r)?,
+                None => {
+                    if let Some(end) = charge_action(runtime, limits, None) {
+                        return Ok(Ended::Stopped(end));
+                    }
+                    payload.ok_or(RuntimeFault)?
+                }
+            });
+        }
+        for (&r, &v) in plan.blocks[edge.target].parameters.iter().zip(&scratch) {
+            registers[r] = Some(v);
+        }
+        runtime.block = edge.target;
     }
 }
 
@@ -635,11 +859,12 @@ fn compile_exit(code: &crate::BytecodeFunction, source: &crate::BytecodeBlock) -
     Some(exit)
 }
 
-fn compile_step(
+fn compile_step<'f>(
     code: &crate::BytecodeFunction,
     instruction: &crate::Instruction,
     constants: &mut Vec<ConstantBinding>,
     fields: &mut Vec<FieldBinding>,
+    resolve: &dyn Fn(EntityId) -> Option<(usize, &'f crate::BytecodeFunction)>,
 ) -> Option<Step> {
     let [result] = instruction.results.as_slice() else {
         return None;
@@ -658,6 +883,7 @@ fn compile_step(
     let opcode = Opcode::from_tag(instruction.opcode)?;
     let types: Vec<_> = args.iter().map(|&r| &code.register_types[r]).collect();
     let result_type = &code.register_types[output];
+    let mut call = None;
     let constant = match (&opcode, &instruction.immediate) {
         (Opcode::ConstantRef, Immediate::Entity(id)) if args.is_empty() => {
             let index = constants.len();
@@ -676,6 +902,23 @@ fn compile_step(
                 member: *member,
                 register: output,
             });
+            None
+        }
+        (Opcode::CallDirect, Immediate::Function(reference))
+            if reference.type_arguments.is_empty() =>
+        {
+            let (function, callee) = resolve(reference.function)?;
+            if callee.result_type != *result_type || callee.parameter_registers.len() != args.len()
+            {
+                return None;
+            }
+            call = Some(Box::new(Call {
+                function,
+                arguments: types
+                    .iter()
+                    .map(|ty| Units::of(ty))
+                    .collect::<Option<_>>()?,
+            }));
             None
         }
         (_, Immediate::None) if valid_step(opcode, &types, result_type) => None,
@@ -699,6 +942,7 @@ fn compile_step(
             _ => None,
         },
         width: types.first().and_then(|ty| integer(ty)),
+        call,
     })
 }
 
