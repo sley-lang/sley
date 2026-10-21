@@ -213,9 +213,9 @@ roots, the change lifecycle, sessions, and the glossary.
 A performance point release. The VM's compact scalar plan now runs `call_direct`, so recursive and
 call-heavy programs no longer fall back to the general reference interpreter. Its 64-bit integer
 arithmetic, block-edge moves and register layout are faster, and the Python dialect computes
-`%` and `//` with one remainder instead of up to three. `fib(30)` runs about 10x faster than in 2.1.2,
-and loop benchmarks run about 3x faster. Sley is still 2.7-4.8x slower than CPython 3.13 on the
-measured loops. Fuel and instruction accounting are unchanged. See the
+`%` and `//` with one remainder instead of up to three. `fib(30)` runs about 13x faster than in 2.1.2,
+and loop benchmarks run about 3x faster. Sley is still 2.7-4.6x slower than CPython 3.13 on the
+measured programs. Fuel and instruction accounting are unchanged. See the
 [2.1.3 release notes](docs/release/SLEY-2.1.3.md#benchmarks) for the table and how it was measured.
 
 ## New in 2.1.2
