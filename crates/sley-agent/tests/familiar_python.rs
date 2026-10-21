@@ -72,6 +72,113 @@ fn accepted(dir: &Path, text: &str) -> String {
     report["handle"].as_str().unwrap().to_owned()
 }
 
+fn inline_tests(dir: &Path, text: &str, on: Option<&str>) -> (i32, Value) {
+    let path = dir.join("truthiness.py");
+    fs::write(&path, text).unwrap();
+    let path = path.display().to_string();
+    let mut args = vec!["--json", "try", "--familiar", path.as_str()];
+    if let Some(handle) = on {
+        args.extend(["--on", handle]);
+    }
+    let (status, output) = run(dir, &args);
+    (status, serde_json::from_str(output.trim()).unwrap())
+}
+
+#[test]
+fn python_bare_assertions_use_truthiness() {
+    let temp = workspace("truthiness");
+    let text = "\
+def number(x: int) -> int:
+    return x
+
+def word(x: str) -> str:
+    return x
+
+def items(x: list[int]) -> list[int]:
+    return x
+
+def flag(x: int) -> bool:
+    return x > 0
+
+def test_truth():
+    assert number(7)
+    assert not number(0)
+    assert word(\"hello\")
+    assert not word(\"\")
+    assert items([1])
+    assert not items([])
+    assert flag(7)
+    assert not flag(0)
+";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 0, "{report:#}");
+    let tests = report["tests"].as_array().unwrap();
+    assert_eq!(tests.len(), 8);
+    assert!(tests.iter().all(|test| test["pass"] == true), "{report:#}");
+
+    let false_assertion = text.replace("assert number(7)", "assert number(0)");
+    let (status, report) = inline_tests(&temp.path, &false_assertion, None);
+    assert_eq!(status, 1, "{report:#}");
+    assert_eq!(report["verdict"]["valid"], true, "{report:#}");
+    assert_eq!(report["tests"][0]["pass"], false, "{report:#}");
+}
+
+#[test]
+fn python_bare_assertions_can_test_existing_functions() {
+    let temp = workspace("truthiness-existing");
+    let handle = accepted(
+        &temp.path,
+        "def number(x: int) -> int:\n    return x\n\ndef flag(x: int) -> bool:\n    return x > 0\n\ndef _sley_assert_0() -> int:\n    return 42\n",
+    );
+    let text = "def test_existing():\n    assert number(7)\n    assert not number(0)\n    assert flag(7)\n    assert not flag(0)\n";
+    let (status, report) = inline_tests(&temp.path, text, Some(&handle));
+    assert_eq!(status, 0, "{report:#}");
+    let tests = report["tests"].as_array().unwrap();
+    assert_eq!(tests.len(), 4);
+    assert!(tests.iter().all(|test| test["pass"] == true), "{report:#}");
+    // Candidate-on-candidate reports include the inherited functions. Commit
+    // the code-only base to check which functions the assertions themselves add.
+    let (status, output) = run(&temp.path, &["commit", &handle]);
+    assert_eq!(status, 0, "{output}");
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 0, "{report:#}");
+    let mut added = 0;
+    for change in report["changed"].as_array().unwrap() {
+        if change["kind"] == "fn" {
+            added += 1;
+            assert_eq!(change["visibility"], "private", "{report:#}");
+            assert_ne!(change["name"], "number");
+            assert_ne!(change["name"], "flag");
+            assert_ne!(change["name"], "_sley_assert_0");
+        }
+    }
+    assert_eq!(added, 1, "positive and negative cases share a predicate");
+    let handle = report["handle"].as_str().unwrap();
+    assert_eq!(call(&temp.path, handle, "_sley_assert_0", &[]), json!(42));
+}
+
+#[test]
+fn python_bare_assertions_preserve_traps_and_error_locations() {
+    let temp = workspace("truthiness-errors");
+    let text = "def divide(x: int) -> int:\n    return 1 // x\n\ndef test_divide():\n    assert not divide(0)\n";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 1, "{report:#}");
+    assert_eq!(report["verdict"]["valid"], true, "{report:#}");
+    assert_eq!(report["tests"][0]["pass"], false, "{report:#}");
+
+    let text = "class R:\n    x: int\n\ndef record(r: R) -> R:\n    return r\n\ndef test_record():\n    assert record(R(1))\n";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 2, "{report:#}");
+    assert!(
+        report["detail"]
+            .as_str()
+            .unwrap()
+            .contains("no truth value")
+    );
+    assert_eq!(report["obligations"][0]["text"]["line"], 8, "{report:#}");
+    assert_eq!(report["obligations"][0]["text"]["column"], 5, "{report:#}");
+}
+
 fn call(dir: &Path, handle: &str, name: &str, args: &[Value]) -> Value {
     let mut words: Vec<String> = vec!["--json".into(), "call".into(), name.into()];
     words.extend(args.iter().map(Value::to_string));
