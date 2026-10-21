@@ -261,6 +261,110 @@ def between(a: int, b: int, c: int) -> bool:
     );
 }
 
+/// Python's `//` and `%` compute the truncating remainder once and reuse it;
+/// a literal divisor's sign is folded into the correction test. The answers
+/// (Python's, recorded from `CPython` 3.13) and the traps are unchanged.
+#[test]
+fn python_floor_operations_compute_one_remainder() {
+    let temp = workspace("python-floor-once");
+    let text = "\
+def d3(a: int) -> int:
+    return a // 3
+
+def m3(a: int) -> int:
+    return a % 3
+
+def dn3(a: int) -> int:
+    return a // -3
+
+def mn3(a: int) -> int:
+    return a % -3
+
+def mp(a: int) -> int:
+    return a % 1000000007
+
+def dv(a: int, b: int) -> int:
+    return a // b
+
+def mv(a: int, b: int) -> int:
+    return a % b
+";
+    let h = accepted(&temp.path, text);
+    let min = i64::MIN;
+    let max = i64::MAX;
+    // (a, a // 3, a % 3, a // -3, a % -3, a % 1000000007), from `CPython` 3.13.
+    let rows: [(i64, i64, i64, i64, i64, i64); 9] = [
+        (-7, -3, 2, 2, -1, 1_000_000_000),
+        (-6, -2, 0, 2, 0, 1_000_000_001),
+        (-1, -1, 2, 0, -1, 1_000_000_006),
+        (0, 0, 0, 0, 0, 0),
+        (1, 0, 1, -1, -2, 1),
+        (5, 1, 2, -2, -1, 5),
+        (7, 2, 1, -3, -2, 7),
+        (
+            min,
+            -3_074_457_345_618_258_603,
+            1,
+            3_074_457_345_618_258_602,
+            -2,
+            708_828_003,
+        ),
+        (
+            max,
+            3_074_457_345_618_258_602,
+            1,
+            -3_074_457_345_618_258_603,
+            -2,
+            291_172_003,
+        ),
+    ];
+    for (a, d3, m3, dn3, mn3, mp) in rows {
+        for (name, want) in [
+            ("d3", d3),
+            ("m3", m3),
+            ("dn3", dn3),
+            ("mn3", mn3),
+            ("mp", mp),
+        ] {
+            assert_eq!(
+                call(&temp.path, &h, name, &[json!(a)]),
+                json!(want),
+                "{name}({a})"
+            );
+        }
+        for (b, d, m) in [(3, d3, m3), (-3, dn3, mn3)] {
+            assert_eq!(
+                call(&temp.path, &h, "dv", &[json!(a), json!(b)]),
+                json!(d),
+                "{a} // {b}"
+            );
+            assert_eq!(
+                call(&temp.path, &h, "mv", &[json!(a), json!(b)]),
+                json!(m),
+                "{a} % {b}"
+            );
+        }
+    }
+    for name in ["dv", "mv"] {
+        assert!(
+            traps(&call(&temp.path, &h, name, &[json!(1), json!(0)])),
+            "{name} by 0"
+        );
+        assert!(
+            traps(&call(&temp.path, &h, name, &[json!(min), json!(-1)])),
+            "{name} MIN, -1"
+        );
+    }
+    let (status, out) = run(&temp.path, &["commit", h.as_str()]);
+    assert_eq!(status, 0, "{out}");
+    for name in ["d3", "m3", "dn3", "mn3", "mp", "dv", "mv"] {
+        let (status, view) = run(&temp.path, &["view", name]);
+        assert_eq!(status, 0, "{view}");
+        let remainders = view.lines().filter(|l| l.contains(" = rem ")).count();
+        assert_eq!(remainders, 1, "{name} computes one remainder:\n{view}");
+    }
+}
+
 #[test]
 fn python_loops_views_and_generators() {
     let temp = workspace("python-loops");

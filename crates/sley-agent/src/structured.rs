@@ -805,19 +805,34 @@ impl<'c, 'a> Fn<'c, 'a> {
                 // Python's floor division and modulo: the truncating quotient
                 // and remainder, corrected when the remainder is nonzero and its
                 // sign differs from the divisor's.
+                // The remainder is computed once and reused: the operands are
+                // plain values, so a second `rem` could only repeat the first
+                // one's answer (or its failure, which already happened). When
+                // the divisor is an integer literal its sign is known, so the
+                // test reduces to the remainder's sign alone.
                 let suffix = &word[base.len()..];
+                let divisor_sign = vals[1]
+                    .get("value")
+                    .and_then(Value::as_i64)
+                    .map(i64::signum);
                 let a = self.hold(env, vals[0].clone(), &ty);
                 let b = self.hold(env, vals[1].clone(), &ty);
-                let rem = json!([format!("rem{suffix}"), a, b]);
-                let adjust = json!(["and", ["ne", rem, 0], ["ne", ["lt", rem, 0], ["lt", b, 0]]]);
+                let (remainder, _) =
+                    self.expr(&json!([format!("rem{suffix}"), a, b]), env, at, Some(&ty))?;
+                let r = self.hold(env, remainder, &ty);
+                let adjust = match divisor_sign {
+                    Some(1) => json!(["lt", r, 0]),
+                    Some(-1) => json!(["gt", r, 0]),
+                    _ => json!(["and", ["ne", r, 0], ["ne", ["lt", r, 0], ["lt", b, 0]]]),
+                };
                 let lowered = if base == "floordiv" {
                     let quotient = json!([format!("div{suffix}"), a, b]);
                     json!(["if", adjust, ["sub", quotient, 1], quotient])
                 } else {
-                    json!(["if", adjust, ["add", rem, b], rem])
+                    json!(["if", adjust, ["add", r, b], r])
                 };
                 let result = self.expr(&lowered, env, at, Some(&ty));
-                Self::release(env, &[a, b]);
+                Self::release(env, &[a, b, r]);
                 result
             }
             "not" => {
