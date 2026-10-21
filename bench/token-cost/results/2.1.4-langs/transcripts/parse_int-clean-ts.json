@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "export function parseInteger(chars: number[]): number {\n  if (chars.length === 0) {\n    throw new RangeError(\"empty\");\n  }\n  let sign = 1;\n  let start = 0;\n  if (chars[0] === 45) {\n    sign = -1;\n    start = 1;\n    if (chars.length === 1) {\n      throw new RangeError(\"lone minus\");\n    }\n  }\n  let value = 0;\n  for (const c of chars.slice(start)) {\n    if (c < 48 || c > 57) {\n      throw new RangeError(\"not a digit\");\n    }\n    value = value * 10 + (c - 48);\n  }\n  return sign * value;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { parseInteger } from \"./parse_int.js\";\n\ntest(\"parseInteger\", () => {\n  assert.equal(parseInteger([49, 50, 51]), 123);\n  assert.equal(parseInteger([45, 55]), -7);\n  assert.throws(() => parseInteger([]), RangeError);\n  assert.throws(() => parseInteger([45]), RangeError);\n  assert.throws(() => parseInteger([49, 120]), RangeError);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

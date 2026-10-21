@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"Point\", \"record\": [[\"x\", \"i64\"], [\"y\", \"i64\"]]}], \"fns\": [{\"fn\": \"manhattan\", \"params\": [[\"a\", \"Point\"], [\"b\", \"Point\"]], \"returns\": \"i64\", \"body\": [[\"return\", [\"add\", [\"abs\", [\"sub\", [\"field\", \"a\", \"x\"], [\"field\", \"c\", \"x\"]]], [\"abs\", [\"sub\", [\"field\", \"a\", \"y\"], [\"field\", \"b\", \"y\"]]]]]]}], \"test_tables\": [{\"name\": \"records_cases\", \"fn\": \"manhattan\", \"cases\": [{\"args\": [{\"x\": 1, \"y\": 2}, {\"x\": 4, \"y\": -2}], \"expect\": 7}, {\"args\": [{\"x\": 0, \"y\": 0}, {\"x\": 0, \"y\": 0}], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try records.json"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/0/1/1/1/2/1: unknown name `c`\n  fix: edit records.json in place at those pointers (no need to rewrite it) and run try again\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/0/body/0/1/1/1/2/1\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"sub\", [\"field\", \"a\", \"x\"], [\"field\", \"c\", \"x\"]]\n[\"sub\", [\"field\", \"a\", \"x\"], [\"field\", \"b\", \"x\"]]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try records.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 2 passed (advisory) d2@r1\n"
+ ]
+]

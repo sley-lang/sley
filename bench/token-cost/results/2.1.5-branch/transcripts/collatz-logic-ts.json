@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function collatz(limit: number): number {\n  let best = 0;\n  let bestN = 0;\n  for (let n = 1; n < limit; n++) {\n    let x = n;\n    let steps = 0;\n    while (x !== 1) {\n      x = x % 2 === 0 ? x / 2 : 3 * x + 1;\n      steps++;\n    }\n    if (steps > best) {\n      best = steps;\n      bestN = steps;\n    }\n  }\n  return bestN;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { collatz } from \"./collatz.js\";\n\ntest(\"collatz\", () => {\n  assert.equal(collatz(10), 9);\n  assert.equal(collatz(100), 97);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 collatz (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  19 !== 9\n  \n      at TestContext.<anonymous> (file:///work/dist/collatz.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 19,\n    expected: 9,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "bestN = steps\nbestN = n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

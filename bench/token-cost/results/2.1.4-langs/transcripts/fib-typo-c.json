@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long fib(long long n) {\n    if (n < 2)\n        return n;\n    return fib(n - 1) + fib(m - 2);\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"fib.c\"\n\nint main(void) {\n    assert(fib(0) == 0);\n    assert(fib(1) == 1);\n    assert(fib(10) == 55);\n    assert(fib(20) == 6765);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_fib test_fib.c && ./test_fib"
+ ],
+ [
+  "read",
+  "output",
+  "In file included from test_fib.c:2:\nfib.c: In function \u2018fib\u2019:\nfib.c:4:29: error: \u2018m\u2019 undeclared (first use in this function)\n    4 |     return fib(n - 1) + fib(m - 2);\n      |                             ^\nfib.c:4:29: note: each undeclared identifier is reported only once for each function it appears in\nfib.c:5:1: warning: control reaches end of non-void function [-Wreturn-type]\n    5 | }\n      | ^\n"
+ ],
+ [
+  "write",
+  "edit",
+  "fib(m - 2)\nfib(n - 2)"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_fib test_fib.c && ./test_fib"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

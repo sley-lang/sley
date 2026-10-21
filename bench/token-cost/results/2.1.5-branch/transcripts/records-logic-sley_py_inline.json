@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "from dataclasses import dataclass\n\n\n@dataclass\nclass Point:\n    x: int\n    y: int\n\n\ndef manhattan(a: Point, b: Point) -> int:\n    return abs(a.x - b.x) + abs(a.y - b.x)\n\n\ndef test_records():\n    assert manhattan(Point(1, 2), Point(4, -2)) == 7\n    assert manhattan(Point(0, 0), Point(0, 0)) == 0\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar records.py"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL test_records_0 (manhattan): expected 7, got 5 (line 15)\nc1: 1 failed, 1 passed (advisory) d1@r1\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.y - b.x\na.y - b.y"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar records.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 2 passed (advisory) d2@r1\n"
+ ]
+]

@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn gcd(mut a: i64, mut b: i64) -> i64 {\n    while b != 0 {\n        (a, b) = (b, a % b);\n    }\n    a\n}\n\npub fn gcdsum(n: i64) -> i64 {\n    let mut s = 0;\n    for i in 1..n {\n        for j in 1..n {\n            s += gcd(i, k);\n        }\n    }\n    s\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_gcdsum() {\n        assert_eq!(gcdsum(5), 24);\n        assert_eq!(gcdsum(10), 145);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "error[E0425]: cannot find value `k` in this scope\n  --> src/lib.rs:12:25\n   |\n12 |             s += gcd(i, k);\n   |                         ^\n   |\n  --> /rustc/6a979b3e32522049d0acb4a47f7ae44b7c8abfd5/library/core/src/result.rs:561:4\n   |\n   = note: similarly named tuple variant `Ok` defined here\nhelp: a tuple variant with a similar name exists\n   |\n12 |             s += gcd(i, Ok);\n   |                         +\n\nFor more information about this error, try `rustc --explain E0425`.\nerror: could not compile `calc` (lib) due to 1 previous error\nerror: could not compile `calc` (lib test) due to 1 previous error\n"
+ ],
+ [
+  "write",
+  "edit",
+  "gcd(i, k)\ngcd(i, j)"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

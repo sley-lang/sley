@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc collatz(limit int64) int64 {\n\tvar best, bestN int64\n\tfor n := int64(1); n < limit; n++ {\n\t\tx, steps := n, int64(0)\n\t\tfor x != 1 {\n\t\t\tif x%2 == 0 {\n\t\t\t\tx /= 2\n\t\t\t} else {\n\t\t\t\tx = 3*x + 1\n\t\t\t}\n\t\t\tsteps++\n\t\t}\n\t\tif steps > best {\n\t\t\tbest, bestN = steps, n\n\t\t}\n\t}\n\treturn bestN\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestCollatz(t *testing.T) {\n\tif got := collatz(10); got != 9 {\n\t\tt.Errorf(\"collatz(10) = %d, want 9\", got)\n\t}\n\tif got := collatz(100); got != 97 {\n\t\tt.Errorf(\"collatz(100) = %d, want 97\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

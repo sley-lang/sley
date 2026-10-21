@@ -63,3 +63,42 @@ A passing `try` prints one line plus `next:`. Failing tests name the source line
 | typo | 3934 | **2873 (0.73x)** | 4395 (1.12x) | 4819 (1.22x) | 4237 (1.08x) |
 
 In this snapshot, `help python` was 322 tokens, read once.
+
+## 2.1.5 branch vs 2.1.4, and other languages (`results/2.1.4-langs/`, `results/2.1.5-branch/`)
+
+**What changed on the branch.**
+
+- A valid `try` whose tests ran prints only the failures and one count line, for example `c1: 4 passed (advisory) d1@r1`.
+- Familiar text refused at a source position prints `path:line:col: message`, the source line and a caret.
+- Familiar syntax declares `struct` and `enum` types inline. This is the new `sley_fam_decl` form, which needs no AF1 `types` frame.
+
+**Other languages.**
+
+- Same tasks, semantics and test cases in C, Rust, Go and TypeScript (`tasks/*/{c.c,rust.rs,go.go,ts.ts}`), written idiomatically. The tests use each language's usual runner, with the real toolchain output read back verbatim:
+  - C: `gcc -O2 -Wall` with an `assert` test file. Note that C's `assert` stops at the first failure, so its logic-bug output is short.
+  - Rust: `cargo test -q`.
+  - Go: `go test`.
+  - TypeScript: `tsc && node --test --test-reporter=dot`. This is a quiet reporter, matching `pytest -q`.
+- Toolchain setup (`cargo init`, `go mod init`, the tsconfig) is not counted.
+- Timings and thread ids in the output are normalized.
+- Toolchains: gcc 14.2.0, rustc 1.95.0-nightly, go 1.27.2, node 20.19.2, tsc 5.9.3.
+
+**Run:** `NODE_MODULES=<dir with typescript and @types/node> PYTEST_PYTHON=<python with pytest> FORMS="python sley_py sley_py_inline sley_fam sley_fam_decl sley_af1 c rust go ts" python run_loop.py <sley-agent> <out>`, then `DECL=1 PY_TYPES=0 python summarize.py <sley-agent> <out>`.
+
+Agent-loop totals over 9 tasks, o200k_base. cl100k_base is within 2%.
+
+| scenario | Python | dialect inline 2.1.4 → 2.1.5 | dialect layered 2.1.4 → 2.1.5 | familiar 2.1.4 → 2.1.5 (decl) | AF1-X 2.1.4 → 2.1.5 | C | Rust | Go | TS |
+|---|---|---|---|---|---|---|---|---|---|
+| clean | 1338 | 1473 → **1275 (0.95x)** | 2991 → 2793 | 3406 → 2806 | 2705 → 2507 | 1735 (1.30x) | 2216 (1.66x) | 2228 (1.67x) | 1612 (1.20x) |
+| logic bug | 2690 | 2916 → **1997 (0.74x)** | 4691 → 4493 | 5131 → 4531 | 4452 → 4254 | 2327 (0.87x) | 3646 (1.36x) | 2959 (1.10x) | 3667 (1.36x) |
+| typo | 3932 | 2873 → **1796 (0.46x)** | 4395 → 3318 | 4819 → 3345 | 4237 → 4039 | 2951 (0.75x) | 3754 (0.95x) | 2569 (0.65x) | 1989 (0.51x) |
+
+Program text alone, 9 tasks, o200k_base:
+
+| Python | Sley dialect | familiar with struct/enum | C | Rust | Go | TS |
+|---|---|---|---|---|---|---|
+| 636 | 636 (1.00x) | 765 (1.20x) | 883 (1.39x) | 798 (1.25x) | 822 (1.29x) | 765 (1.20x) |
+
+In this scripted loop, the dialect with inline tests now uses the fewest tokens of any form or language in all three scenarios. The program text is the same size as Python's. The savings come from what the agent reads back.
+
+The one-time guide is not included in these totals: `help python` is 407 tokens. A model already knows the other languages.

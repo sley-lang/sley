@@ -2,7 +2,7 @@
 """Token tables: static program sizes, guide sizes, read-back views, agent-loop totals.
 Usage: summarize.py <sley-agent> <results-dir>  (results-dir holds loop.json from run_loop.py)"""
 import json, pathlib, subprocess, sys, tempfile, statistics
-import tiktoken, spec
+import tiktoken, spec, langs
 SLEY, RES = sys.argv[1], pathlib.Path(sys.argv[2])
 T = pathlib.Path(__file__).resolve().parent / "tasks"
 ENCS = ["o200k_base", "cl100k_base"]
@@ -15,6 +15,15 @@ PY_TYPES = os.environ.get("PY_TYPES", "1") == "1"
 def needs_types(form, task):
     return task in spec.TYPES and (form == "sley_fam" or (form == "sley_py" and task == "records" and PY_TYPES))
 SRC = {"python": "python.py", "sley_py": "sley.py", "sley_fam": "sley.fam", "sley_af1": "sley.af1.json"}
+def declarations(task):
+    """The task's types as familiar struct/enum declarations (2.1.5)."""
+    if task not in spec.TYPES: return ""
+    out = []
+    for t in json.loads((T / task / "sley.types.json").read_text())["types"]:
+        if "record" in t: out.append(f"struct {t['name']} {{ " + ", ".join(f"{f}: {ty}" for f, ty in t["record"]) + " }")
+        else: out.append(f"enum {t['name']} {{ " + ", ".join(t["variant"]) + " }")
+    return "\n".join(out) + "\n\n"
+DECL = os.environ.get("DECL", "0") == "1"
 out = []
 def p(s=""): out.append(s)
 def run(args, cwd=None):
@@ -41,6 +50,25 @@ for enc in ENCS:
     p(f"| **total** | {tot['python']} | {tot['sley_py']} | {tot['sley_fam']} | {tot['sley_af1']} | {tot['sley_py']/tot['python']:.2f} | {tot['sley_fam']/tot['python']:.2f} | {tot['sley_af1']/tot['python']:.2f} |")
 p("\n\\* includes the AF1 `types` frame the form needs (familiar syntax has no type declarations; the 2.1.3 Python dialect skips classes, so records need one there; the dialect lowers raise to a trap and needs none for errors).")
 
+# 1b. program text in other languages
+p("\n## Program text vs other languages (correct program only, no tests)")
+for enc in ENCS:
+    p(f"\n### {enc}\n")
+    cols = ["python", "sley_py"] + (["sley_fam_decl"] if DECL else ["sley_fam"]) + ["c", "rust", "go", "ts"]
+    p("| task | " + " | ".join(cols) + " |"); p("|---|" + "---|" * len(cols))
+    tot = {c: 0 for c in cols}
+    for task in spec.CASES:
+        row = {}
+        for c in cols:
+            src = langs.SRC.get(c) or SRC.get(c, "sley.fam")
+            text = (T / task / src).read_text()
+            if c == "sley_fam_decl": text = declarations(task) + text
+            k = n(text, enc)
+            if needs_types(c, task): k += n(json.dumps(json.loads((T / task / "sley.types.json").read_text())), enc)
+            row[c] = k; tot[c] += k
+        p(f"| {task} | " + " | ".join(str(row[c]) for c in cols) + " |")
+    p("| **total** | " + " | ".join(f"{tot[c]} ({tot[c]/tot['python']:.2f}x)" for c in cols) + " |")
+
 # 2. guides
 p("\n## One-time guide an agent reads to write each form")
 p("| form | guide | o200k | cl100k |"); p("|---|---|---|---|")
@@ -66,7 +94,7 @@ for task in spec.CASES:
 
 # 4. agent loop
 rows = json.loads((RES / "loop.json").read_text())
-FORMS = [f for f in ["python", "sley_py", "sley_py_inline", "sley_fam", "sley_af1"] if any(r["form"] == f for r in rows)]
+FORMS = [f for f in ["python", "sley_py", "sley_py_inline", "sley_fam", "sley_fam_decl", "sley_af1", "c", "rust", "go", "ts"] if any(r["form"] == f for r in rows)]
 for enc in ENCS:
     p(f"\n## Agent loop totals ({enc}): write program+tests, run, read, fix, run, read")
     p("| scenario | form | tokens written | tokens read | total | vs Python | tool calls |"); p("|---|---|---|---|---|---|---|")

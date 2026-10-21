@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function transform(xs: number[], lo: number, hi: number): number {\n  return xs\n    .map((x) => Math.min(Math.max(x % 2 !== 0 ? x * 3 : x, lo), hi))\n    .reduce((a, b) => a + b, 0);\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { transform } from \"./transform.js\";\n\ntest(\"transform\", () => {\n  assert.equal(transform([1, 2, 3, -4], 0, 5), 9);\n  assert.equal(transform([], 0, 1), 0);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 transform (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  10 !== 9\n  \n      at TestContext.<anonymous> (file:///work/dist/transform.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 10,\n    expected: 9,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x * 3\nx * 2"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

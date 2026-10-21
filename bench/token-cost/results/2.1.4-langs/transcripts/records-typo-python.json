@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "from dataclasses import dataclass\n\n\n@dataclass\nclass Point:\n    x: int\n    y: int\n\n\ndef manhattan(a: Point, b: Point) -> int:\n    return abs(a.x - c.x) + abs(a.y - b.y)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom records import manhattan, Point\n\n\ndef test_records():\n    assert manhattan(Point(1, 2), Point(4, -2)) == 7\n    assert manhattan(Point(0, 0), Point(0, 0)) == 0\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_records.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________________________________ test_records _________________________________\n\n    def test_records():\n>       assert manhattan(Point(1, 2), Point(4, -2)) == 7\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntest_records.py:7: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\na = Point(x=1, y=2), b = Point(x=4, y=-2)\n\n    def manhattan(a: Point, b: Point) -> int:\n>       return abs(a.x - c.x) + abs(a.y - b.y)\n                         ^\nE       NameError: name 'c' is not defined\n\nrecords.py:11: NameError\n=========================== short test summary info ============================\nFAILED test_records.py::test_records - NameError: name 'c' is not defined\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.x - c.x\na.x - b.x"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_records.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

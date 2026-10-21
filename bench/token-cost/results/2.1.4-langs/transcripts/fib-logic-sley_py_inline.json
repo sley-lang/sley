@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def fib(n: int) -> int:\n    if n < 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\n\ndef test_fib():\n    assert fib(0) == 0\n    assert fib(1) == 1\n    assert fib(10) == 55\n    assert fib(20) == 6765\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+28 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +fib; const +k_1 +k_2; test +test_fib_0..3\ntests: 1/4 passed [authored 4]\n  FAIL test_fib_1 (fib): expected 1, got -1 (line 9)\n  FAIL test_fib_2 (fib): expected 55, got -55 (line 10)\n  FAIL test_fib_3 (fib): expected 6765, got -6765 (line 11)\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix the text and run try --familiar again\n"
+ ],
+ [
+  "write",
+  "edit",
+  "n < 1\nn < 2"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid; tests: 4/4 passed [authored 4] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

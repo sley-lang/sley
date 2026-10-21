@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc transform(xs []int64, lo, hi int64) int64 {\n\tvar s int64\n\tfor _, x := range xs {\n\t\tif x%2 != 0 {\n\t\t\tx *= 3\n\t\t}\n\t\ts += min(max(x, lo), hi)\n\t}\n\treturn s\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestTransform(t *testing.T) {\n\tif got := transform([]int64{1, 2, 3, -4}, 0, 5); got != 9 {\n\t\tt.Errorf(\"transform([]int64{1, 2, 3, -4}, 0, 5) = %d, want 9\", got)\n\t}\n\tif got := transform(nil, 0, 1); got != 0 {\n\t\tt.Errorf(\"transform(nil, 0, 1) = %d, want 0\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "--- FAIL: TestTransform (0.00s)\n    calc_test.go:7: transform([]int64{1, 2, 3, -4}, 0, 5) = 10, want 9\nFAIL\nexit status 1\nFAIL\tcalc\t0.001s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x *= 3\nx *= 2"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

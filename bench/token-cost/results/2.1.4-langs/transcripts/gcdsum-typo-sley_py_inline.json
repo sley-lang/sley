@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def gcd(a: int, b: int) -> int:\n    while b != 0:\n        a, b = b, a % b\n    return a\n\n\ndef gcdsum(n: int) -> int:\n    s = 0\n    for i in range(1, n):\n        for j in range(1, n):\n            s += gcd(i, k)\n    return s\n\n\ndef test_gcdsum():\n    assert gcdsum(5) == 24\n    assert gcdsum(10) == 145\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/1/body/1/4/0/4/0/2/2/2: unknown name `k` (1 of 2 problems)\n  /fns/0: missing \"blocks\"\n  /fns/1/body/1/4/0/4/0/2/2/2 is line 11, column 25 of the familiar text\n  /fns/0 is line 1, column 1 of the familiar text\ndraft d1@r1: incomplete, 2 obligation(s) (AGENT_FRAME_INVALID 2); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r1/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "s += gcd(i, k)\ns += gcd(i, j)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function transform(xs: number[], lo: number, hi: number): number {\n  return xs\n    .map((x) => Math.min(Math.max(x % 2 !== 0 ? x * 2 : x, lo), hl))\n    .reduce((a, b) => a + b, 0);\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { transform } from \"./transform.js\";\n\ntest(\"transform\", () => {\n  assert.equal(transform([1, 2, 3, -4], 0, 5), 9);\n  assert.equal(transform([], 0, 1), 0);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "transform.ts(3,65): error TS2304: Cannot find name 'hl'.\n"
+ ],
+ [
+  "write",
+  "edit",
+  "lo), hl)\nlo), hi)"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

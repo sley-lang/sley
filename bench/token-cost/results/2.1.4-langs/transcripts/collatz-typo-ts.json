@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function collatz(limit: number): number {\n  let best = 0;\n  let bestN = 0;\n  for (let n = 1; n < limit; n++) {\n    let x = n;\n    let steps = 0;\n    while (x !== 1) {\n      x = x % 2 === 0 ? x / 2 : 3 * x + 1;\n      steps++;\n    }\n    if (steps > bets) {\n      best = steps;\n      bestN = n;\n    }\n  }\n  return bestN;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { collatz } from \"./collatz.js\";\n\ntest(\"collatz\", () => {\n  assert.equal(collatz(10), 9);\n  assert.equal(collatz(100), 97);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "collatz.ts(11,17): error TS2304: Cannot find name 'bets'.\n"
+ ],
+ [
+  "write",
+  "edit",
+  "steps > bets\nsteps > best"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

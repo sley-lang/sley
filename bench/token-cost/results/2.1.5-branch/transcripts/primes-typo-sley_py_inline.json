@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def primes(n: int) -> int:\n    count = 0\n    for k in range(2, n):\n        d = 2\n        is_p = True\n        while d * d <= k:\n            if k % b == 0:\n                is_p = False\n                break\n            d += 1\n        if is_p:\n            count += 1\n    return count\n\n\ndef test_primes():\n    assert primes(10) == 4\n    assert primes(100) == 25\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar primes.py"
+ ],
+ [
+  "read",
+  "output",
+  "primes.py:7:20: unknown name `b`\n            if k % b == 0:\n                   ^\ndraft d1@r1: incomplete\n"
+ ],
+ [
+  "write",
+  "edit",
+  "k % b == 0\nk % d == 0"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar primes.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 2 passed (advisory) d2@r1\n"
+ ]
+]
