@@ -760,7 +760,7 @@ def test_manhattan():
     );
     assert!(out.contains("tests: 4/5 passed [authored 5]"), "{out}");
     assert!(
-        out.contains("FAIL test_manhattan_1 (manhattan): expected 1, got 0"),
+        out.contains("FAIL test_manhattan_1 (manhattan): expected 1, got 0 (line 23)\n"),
         "{out}"
     );
     assert!(
@@ -774,5 +774,8 @@ def test_manhattan():
     .unwrap();
     let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
     assert_eq!(status, 0, "{out}");
-    assert!(out.contains("tests: 5/5 passed"), "{out}");
+    assert_eq!(
+        out,
+        "c2: Valid; tests: 5/5 passed [authored 5] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+    );
 }

@@ -1316,7 +1316,14 @@ fn a_follow_up_layering_refuses_is_kept() {
     let add = json!({"set": [{"at": "", "value": {"af1": 1, "tests": [{"name": "k", "fn": "neg", "args": [1], "expect": false}]}}]});
     let (status, text) = run(
         &temp.path,
-        &["fill", "d2", &add.to_string(), "--revision", "2"],
+        &[
+            "fill",
+            "d2",
+            &add.to_string(),
+            "--revision",
+            "2",
+            "--verbose",
+        ],
     );
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("test +k +t_0"), "{text}");
@@ -1449,7 +1456,7 @@ fn an_identical_restatement_counts_once() {
     assert_eq!(run(&temp.path, &["commit"]).0, 0);
     let restate = json!({"af1": 1, "tests": [{"name": "t1", "fn": "neg", "args": [1], "expect": false},
                                              {"name": "t3", "fn": "neg", "args": [-5], "expect": true}]});
-    let (status, text) = run(&temp.path, &["try", &restate.to_string()]);
+    let (status, text) = run(&temp.path, &["try", "--verbose", &restate.to_string()]);
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("changed: test +t3\n"), "{text}");
     assert!(text.contains("[authored 1, provided 2]"), "{text}");
@@ -1791,7 +1798,14 @@ fn concurrent_commands_keep_every_name_they_create() {
         json!({"af1": 1, "tests": [{"name": "t_f7", "fn": "f7", "args": [5], "expect": 5}]});
     let (status, text) = run(
         &dir,
-        &["try", "--on", draft, "--rebase", &tests.to_string()],
+        &[
+            "try",
+            "--on",
+            draft,
+            "--rebase",
+            "--verbose",
+            &tests.to_string(),
+        ],
     );
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("changed: test +t_f7\n"), "{text}");
@@ -2126,7 +2140,7 @@ fn an_import_never_replaces_a_test_a_table_row_makes() {
     assert_eq!(revisions(&temp.path, "d2"), ["r1"]);
     let (status, text) = run(
         &temp.path,
-        &["import", path, "--on", "d2", "--only", "other"],
+        &["import", path, "--on", "d2", "--only", "other", "--verbose"],
     );
     assert_eq!(status, 0, "{text}");
     assert!(

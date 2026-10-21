@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "import pytest\n\n\ndef withdraw(balance: int, amount: int) -> int:\n    if amount <= 0:\n        raise ValueError(\"amount must be positive\")\n    if amount > balance:\n        raise ValueError(\"insufficient funds\")\n    return balance - amount\n\n\ndef test_errors():\n    assert withdraw(100, 30) == 70\n    assert withdraw(50, 50) == 0\n    with pytest.raises(ValueError):\n        withdraw(100, 0)\n    with pytest.raises(ValueError):\n        withdraw(10, 30)\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar errors.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 4/4 passed [authored 4] (advisory); draft d1@r1\nnext: sley-agent submit d1\n"
+ ]
+]

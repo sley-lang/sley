@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "def transform(xs: list[int], lo: int, hi: int) -> int:\n    return sum(min(max(x * 2 if x % 2 else x, lo), hl) for x in xs)\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar transform.py"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/0/1/3/0/2/2/2: unknown name `hl`\n  /fns/0/body/0/1/3 is line 2, column 65 of the familiar text\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r1/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "lo), hl)\nlo), hi)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar transform.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+140 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +transform; const +4\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d2 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"transform_cases\", \"fn\": \"transform\", \"cases\": [{\"args\": [[1, 2, 3, -4], 0, 5], \"expect\": 9}, {\"args\": [[], 0, 1], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d2 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid; tests: 2/2 passed [authored 2] (advisory); draft d2@r2\nnext: sley-agent submit d2\n"
+ ]
+]

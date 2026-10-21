@@ -2980,6 +2980,56 @@ fn run_trial(
         let at = details.find("  hint:").unwrap_or(details.len());
         details.insert_str(at, &line);
     }
+    let provenance_line = provenance_text(&provenance);
+    let public_lines = public_text(&public);
+    // A Valid candidate whose tests all pass, with nothing else to say: one
+    // line and the next step (`--verbose` and `--json` give the detail).
+    if !options.verbose
+        && verdict.valid
+        && failed == 0
+        && !tests.is_empty()
+        && details.is_empty()
+        && notes.is_empty()
+        && also.is_empty()
+        && raw.is_none()
+        && public_lines.is_empty()
+        && public_refusal.is_none()
+        && !changes.iter().any(|change| change.exported)
+    {
+        let mut text = format!(
+            "{candidate_handle}: Valid; tests: {}/{} passed{provenance_line} (advisory); draft {reference}\n",
+            tests.len(),
+            tests.len()
+        );
+        // What it replaces or deletes is still said; what it creates is in
+        // `--verbose`.
+        if changes.iter().any(|change| change.mark != '+') {
+            text.push_str(&changes_text(&changes));
+        }
+        if let Some(next) = &next {
+            let _ = writeln!(text, "next: {next}");
+        }
+        write_text(out, &text)?;
+        return Ok(exit);
+    }
+    // Familiar text: the line each of its tests came from.
+    let test_line: BTreeMap<String, usize> = proposal
+        .familiar
+        .as_ref()
+        .map(|positions| {
+            frame_value["tests"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .filter_map(|(index, test)| {
+                    let name = test["name"].as_str()?.to_owned();
+                    familiar_locate(positions, &format!("/tests/{index}"))
+                        .map(|(line, _)| (name, line))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut text = format!(
         "{candidate_handle}: {} (+{} created, {} replaced, {} deleted) draft {reference}\n{details}",
         verdict.headline(),
@@ -2994,11 +3044,24 @@ fn run_trial(
         let _ = writeln!(text, "  also: {finding}");
     }
     text.push_str(&changes_text(&changes));
-    let provenance = provenance_text(&provenance);
+    let provenance = provenance_line;
     if !tests.is_empty() {
         let passed = tests.iter().filter(|t| t.passed()).count();
         let _ = writeln!(text, "tests: {passed}/{} passed{provenance}", tests.len());
-        text.push_str(&test_lines(&tests, &after_names, options.verbose));
+        for line in test_lines(&tests, &after_names, options.verbose).lines() {
+            let at = line
+                .strip_prefix("  FAIL ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|name| test_line.get(name));
+            match at {
+                Some(at) => {
+                    let _ = writeln!(text, "{line} (line {at})");
+                }
+                None => {
+                    let _ = writeln!(text, "{line}");
+                }
+            }
+        }
         if options.verbose {
             text.push_str(&test_execution_policy_text());
         } else {
@@ -3015,7 +3078,7 @@ fn run_trial(
             "tests: 0 ran (no TestCase in this candidate targets a function it changes){provenance}"
         );
     }
-    text.push_str(&public_text(&public));
+    text.push_str(&public_lines);
     if let Some(error) = &public_refusal {
         // The recorded revision and its tests are above; the public cases
         // did not run, so no next step is proposed.

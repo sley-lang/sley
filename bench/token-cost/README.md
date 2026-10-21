@@ -25,7 +25,7 @@ This is a static, reproducible count of the tokens an agent writes and reads to 
 
 - The Python dialect lowers `raise` to a trap, so it gets no types frame for errors/parse_int. An earlier draft of this harness wrongly charged it one.
 - The Python form keeps the conventional separate test file, which costs a `from <task> import ...` line per task (about 10 tokens). The inline form doesn't need that line.
-- In the dialect, `pytest.raises(E)` matches any trap. The dialect has no exception types.
+- In the dialect, `pytest.raises(E)` is checked statically: the called function (or one it calls) must be able to raise `E`. At run time any trap still satisfies it, because the dialect lowers every exception to the same trap code.
 
 ## Results (o200k_base; cl100k_base is within 1%; see `results/*/SUMMARY.md`)
 
@@ -48,3 +48,15 @@ Tool calls: Python 9/18/18, inline dialect 9/18/18, layered dialect 19/28/28.
 - Reading a compiled function back (`view`) is 4.6–92x the source size.
 
 **Where Sley is lighter:** errors. pytest's traceback for a typo is longer than Sley's located `unknown name` error.
+
+### Terse `try` (stacked on the branch above; `results/terse-branch/`)
+
+A passing `try` prints one line plus `next:`. Failing tests name the source line. `pytest.raises` is checked statically.
+
+| scenario | Python | dialect, inline tests | dialect, layered tests | familiar | AF1-X |
+|---|---|---|---|---|---|
+| clean | 1338 | **1473 (1.10x)** | 2991 (2.24x) | 3406 (2.55x) | 2705 (2.02x) |
+| logic bug | 2690 | **2916 (1.08x)** | 4691 (1.74x) | 5131 (1.91x) | 4452 (1.66x) |
+| typo | 3934 | **2873 (0.73x)** | 4395 (1.12x) | 4819 (1.22x) | 4237 (1.08x) |
+
+`help python` is now 322 tokens, read once.

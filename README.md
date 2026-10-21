@@ -93,10 +93,7 @@ checkout.
 $ sley-agent init demo && cd demo
 $ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../area.json
 $ sley-agent try ../area.json
-c1: Valid (+25 created, 0 replaced, 0 deleted) draft d1@r1
-changed: fn +area; type +ShapeError; const +k_1; test +area_cases_0..2
-tests: 3/3 passed [authored 3]
-advisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)
+c1: Valid; tests: 3/3 passed [authored 3] (advisory); draft d1@r1
 next: sley-agent submit d1
 $ sley-agent call area 3 4 --on c1
 {"Ok":12}

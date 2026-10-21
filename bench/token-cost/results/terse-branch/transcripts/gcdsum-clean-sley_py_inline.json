@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "def gcd(a: int, b: int) -> int:\n    while b != 0:\n        a, b = b, a % b\n    return a\n\n\ndef gcdsum(n: int) -> int:\n    s = 0\n    for i in range(1, n):\n        for j in range(1, n):\n            s += gcd(i, j)\n    return s\n\n\ndef test_gcdsum():\n    assert gcdsum(5) == 24\n    assert gcdsum(10) == 145\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d1@r1\nnext: sley-agent submit d1\n"
+ ]
+]

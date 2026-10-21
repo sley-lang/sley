@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"transform\", \"params\": [[\"xs\", \"Vec<i64>\"], [\"lo\", \"i64\"], [\"hi\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"t\", \"i64\", 0], [\"for\", \"x\", \"xs\", [[\"set\", \"t\", [\"add\", \"t\", [\"clamp\", [\"if\", [\"ne\", [\"rem\", \"x\", 2], 0], [\"mul\", \"x\", 3], \"x\"], \"lo\", \"hi\"]]]]], [\"return\", \"t\"]]}], \"test_tables\": [{\"name\": \"transform_cases\", \"fn\": \"transform\", \"cases\": [{\"args\": [[1, 2, 3, -4], 0, 5], \"expect\": 9}, {\"args\": [[], 0, 1], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try transform.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+101 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +transform; const +5; test +transform_cases_0 +transform_cases_1\ntests: 1/2 passed [authored 2]\n  FAIL transform_cases_0 (transform): expected 9, got 10\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"mul\", \"x\", 3]\n[\"mul\", \"x\", 2]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try transform.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid; tests: 2/2 passed [authored 2] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

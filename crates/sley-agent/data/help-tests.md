@@ -24,8 +24,10 @@ In an AF1-X frame (`"afx": 1`), `test_tables` states a target and its
 defaults once, then one row per case (`sley-agent help afx`). Each row
 becomes one TestCase under the same rules.
 
-`try` runs the tests its candidate touches and prints failures in full
-(`--verbose` also lists passing tests). `sley-agent test c1` runs every
+`try` runs the tests its candidate touches and prints failures in full,
+with the familiar text line of each failing test. When every test passes
+it prints one `cN: Valid; tests: n/n passed (advisory)` line and the next
+step (`--verbose` and `--json` give the full report and list passing tests). `sley-agent test c1` runs every
 TestCase in the candidate's state, and `--public cases.json` also runs
 `[{"name", "function", "args", "expect"}]` cases. `sley-agent import
 cases.json --on d1` adds such cases to a draft as TestCases, recording the
