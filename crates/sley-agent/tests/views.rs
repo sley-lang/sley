@@ -2,6 +2,7 @@
 //! (`view --x`): parity with the full view, byte stability, the output
 //! bound and its expansion commands, exact-pattern sugaring with fallback,
 //! and the JSON shape (`docs/spec/SLEY_AGENT_V1.md` section 4).
+#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

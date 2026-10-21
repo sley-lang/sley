@@ -5,9 +5,14 @@
 //! in `.sley/` beside the repository and never inside it; the submission is
 //! `final_candidate.hex`. Nothing here writes to `repo/` except the one
 //! privileged seeding import of an empty repository.
+//!
+//! Workspaces need the `native` feature. [`Head`] and [`Program`] do not: a
+//! head can also be built in memory from [`HeadParts`].
 
 use std::collections::BTreeMap;
+#[cfg(feature = "native")]
 use std::fs;
+#[cfg(feature = "native")]
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -16,9 +21,12 @@ use sley_mutate::EntityObject;
 use sley_mutate::value::EntityBodyValue;
 use sley_policy::AcceptedPolicyRoot;
 use sley_state_root::AcceptedStateRoot;
+#[cfg(feature = "native")]
 use sley_txn::{AcceptedHead, TransactionRepository};
 
-use crate::error::{AgentError, AgentErrorCode, Result, io};
+#[cfg(feature = "native")]
+use crate::error::io;
+use crate::error::{AgentError, AgentErrorCode, Result};
 
 /// Served repository directory name.
 pub const REPO_DIR: &str = "repo";
@@ -32,11 +40,13 @@ pub const SUBMISSION: &str = "final_candidate.hex";
 pub const NAMES_FILE: &str = "names.json";
 
 /// One located workspace.
+#[cfg(feature = "native")]
 #[derive(Clone, Debug)]
 pub struct Workspace {
     dir: PathBuf,
 }
 
+#[cfg(feature = "native")]
 impl Workspace {
     /// Locates the workspace containing `start` (or `start` itself): the
     /// nearest directory, walking up, that holds `repo/` or `base.pack`.
@@ -179,14 +189,55 @@ pub fn epoch() -> Result<SchemaEpochId> {
 /// a command that only validates or runs a candidate never needs it.
 #[derive(Clone, Debug)]
 pub struct Head {
-    head: AcceptedHead,
+    state: HeadState,
     program: OnceLock<Program>,
 }
 
+/// Where a head's facts live: a repository's verified accepted head
+/// (`native`), or a plain in-memory state ([`HeadParts`]).
+// The repository head stays inline, as `Head` always held it; the rarer
+// in-memory parts are boxed.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+enum HeadState {
+    #[cfg(feature = "native")]
+    Accepted(AcceptedHead),
+    Parts(Box<HeadParts>),
+}
+
+/// The facts of an accepted head held in memory, without a repository: what
+/// candidate assembly, validation and execution read. The embed API builds
+/// one for a fresh genesis ([`crate::genesis::genesis_head`]).
+#[derive(Clone, Debug)]
+pub struct HeadParts {
+    /// The accepted transaction identity the candidate binds as its base.
+    pub transaction_id: TransactionId,
+    /// The accepted state root.
+    pub state_root: AcceptedStateRoot,
+    /// The protected policy root.
+    pub policy_root: AcceptedPolicyRoot,
+    /// The live objects in binding order.
+    pub objects: Vec<EntityObject>,
+    /// The tombstone ledger.
+    pub tombstones: Vec<EntityId>,
+}
+
 impl Head {
+    /// A head over in-memory facts. Nothing checks that `transaction_id`
+    /// names a durable transaction: the kernel's candidate validation judges
+    /// a candidate against exactly these facts.
+    #[must_use]
+    pub fn from_parts(parts: HeadParts) -> Self {
+        Self {
+            state: HeadState::Parts(Box::new(parts)),
+            program: OnceLock::new(),
+        }
+    }
+
+    #[cfg(feature = "native")]
     const fn new(head: AcceptedHead) -> Self {
         Self {
-            head,
+            state: HeadState::Accepted(head),
             program: OnceLock::new(),
         }
     }
@@ -194,56 +245,76 @@ impl Head {
     /// Returns the accepted transaction.
     #[must_use]
     pub const fn transaction_id(&self) -> TransactionId {
-        self.head.transaction_id()
+        match &self.state {
+            #[cfg(feature = "native")]
+            HeadState::Accepted(head) => head.transaction_id(),
+            HeadState::Parts(parts) => parts.transaction_id,
+        }
     }
 
     /// Returns the accepted state root.
     #[must_use]
     pub const fn state_root(&self) -> &AcceptedStateRoot {
-        self.head.state_root()
+        match &self.state {
+            #[cfg(feature = "native")]
+            HeadState::Accepted(head) => head.state_root(),
+            HeadState::Parts(parts) => &parts.state_root,
+        }
     }
 
     /// Returns the protected policy root.
     #[must_use]
     pub const fn policy_root(&self) -> &AcceptedPolicyRoot {
-        self.head.policy_root()
+        match &self.state {
+            #[cfg(feature = "native")]
+            HeadState::Accepted(head) => head.policy_root(),
+            HeadState::Parts(parts) => &parts.policy_root,
+        }
     }
 
     /// Returns the live objects in binding order.
     #[must_use]
     pub fn objects(&self) -> &[EntityObject] {
-        self.head.objects()
+        match &self.state {
+            #[cfg(feature = "native")]
+            HeadState::Accepted(head) => head.objects(),
+            HeadState::Parts(parts) => &parts.objects,
+        }
     }
 
     /// Returns the tombstone ledger.
     #[must_use]
     pub fn tombstones(&self) -> &[EntityId] {
-        self.head.tombstoned_entities()
+        match &self.state {
+            #[cfg(feature = "native")]
+            HeadState::Accepted(head) => head.tombstoned_entities(),
+            HeadState::Parts(parts) => &parts.tombstones,
+        }
     }
 
     /// Returns the schema epoch of the accepted state (the program view's).
     #[must_use]
     pub const fn epoch(&self) -> SchemaEpochId {
-        self.head.state_root().record.schema_epoch_id
+        self.state_root().record.schema_epoch_id
     }
 
     /// Returns the workspace identity of the accepted state (the program
     /// view's).
     #[must_use]
     pub const fn workspace(&self) -> WorkspaceId {
-        self.head.state_root().record.workspace_id
+        self.state_root().record.workspace_id
     }
 
     /// Returns the accepted program view, building it on first use.
     #[must_use]
     pub fn program(&self) -> &Program {
         self.program.get_or_init(|| {
-            let state = self.head.state_root();
+            let state = self.state_root();
             Program::new(
                 state.record.schema_epoch_id,
                 state.root,
                 state.record.workspace_id,
-                self.head.objects().to_vec(),
+                self.objects().to_vec(),
             )
         })
     }

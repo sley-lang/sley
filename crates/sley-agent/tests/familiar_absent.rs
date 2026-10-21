@@ -1,7 +1,7 @@
-//! Built without the optional familiar frontend (`--no-default-features`,
-//! ADR-0055), `try --familiar` is refused and says why; JSON frames are
-//! unaffected.
-#![cfg(not(feature = "familiar"))]
+//! Built without the optional familiar frontend (`--no-default-features
+//! --features native`, ADR-0055), `try --familiar` is refused and says why;
+//! JSON frames are unaffected.
+#![cfg(all(feature = "native", not(feature = "familiar")))]
 
 use std::fs;
 

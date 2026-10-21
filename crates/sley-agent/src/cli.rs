@@ -1506,11 +1506,7 @@ fn import_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
 
 /// Everything before a candidate handle: compile the frame (or raw
 /// operation list), assemble the record over the head, validate it.
-type Staged = (
-    frame::Compiled,
-    sley_mutate::ImportedCandidate,
-    sley_policy::CandidateValidationOutput,
-);
+type Staged = candidate::Staged;
 
 fn stage(
     head: &Head,
@@ -1520,40 +1516,18 @@ fn stage(
     nonce: sley_id::CandidateNonce,
     before_candidate: impl FnOnce(&frame::Compiled) -> Result<()>,
 ) -> Result<Staged> {
-    let mut compiled = if frame_value.is_array() {
-        let (ops, new_names) = crate::raw::compile(head.program(), names, frame_value, nonce)?;
-        let count = |class: sley_mutate::MutationClass| {
-            ops.iter().filter(|op| op.payload.class() == class).count()
-        };
-        frame::Compiled {
-            created: count(sley_mutate::MutationClass::CreateEntity),
-            replaced: count(sley_mutate::MutationClass::ReplaceEntityVersion),
-            deleted: count(sley_mutate::MutationClass::DeleteEntityBinding),
-            ops,
-            names: new_names,
-            ..frame::Compiled::default()
-        }
-    } else {
-        frame::compile(
-            head.program(),
-            names,
-            &authority.ceilings,
-            frame_value,
+    candidate::stage(
+        head,
+        authority,
+        names,
+        frame_value,
+        candidate::StageInputs {
             nonce,
-            &mut candidate::random32,
-        )?
-    };
-    if compiled.ops.is_empty() {
-        return Err(AgentError::new(
-            AgentErrorCode::FrameInvalid,
-            "the frame changes nothing: everything it states is already live as stated",
-        ));
-    }
-    before_candidate(&compiled)?;
-    let ops = std::mem::take(&mut compiled.ops);
-    let imported = candidate::assemble(head, authority, nonce, ops)?;
-    let output = candidate::validate(head, authority, &imported.stored_bytes)?;
-    Ok((compiled, imported, output))
+            random: &mut candidate::random32,
+            now: &mut candidate::now_unix_millis,
+        },
+        before_candidate,
+    )
 }
 
 /// The frame a candidate's authored pointers index when it was layered: the

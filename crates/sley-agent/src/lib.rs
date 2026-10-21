@@ -20,6 +20,10 @@
 //!   textual proposal syntax parsed into structured bodies at the authoring
 //!   boundary, then handled like any JSON frame ([`familiar`]).
 //!
+//! The cargo feature `native` (default) adds the file-system layer:
+//! workspaces, repositories, drafts, search and the CLI. Without it the
+//! library is pure and builds for `wasm32-unknown-unknown`.
+//!
 //! The kernel alone judges candidates. Nothing here is admission evidence,
 //! and nothing here commits or signs. The familiar frontend is the one
 //! parser of program text; it is optional, its text is never canonical, and
@@ -28,13 +32,20 @@
 // The library has no unsafe code. The binary's allocator is the one exception
 // in the workspace, and it is a module of the binary target (ADR-0052).
 #![forbid(unsafe_code)]
+// Without `native`, the helpers the frame compiler shares with the
+// native-only residual engine, search and CLI have no caller; they stay
+// compiled so that both builds share one implementation.
+#![cfg_attr(not(feature = "native"), allow(dead_code))]
 
 pub mod afx;
 pub mod candidate;
 pub mod catalog;
+#[cfg(feature = "native")]
 pub mod cli;
+#[cfg(feature = "native")]
 pub mod draft;
 pub mod error;
+#[cfg(feature = "native")]
 pub mod events;
 pub mod exec;
 pub mod explain;
@@ -50,8 +61,10 @@ pub mod locate;
 pub mod names;
 pub mod opcodes;
 pub mod raw;
+#[cfg(feature = "native")]
 pub mod residual;
 pub mod ripple;
+#[cfg(feature = "native")]
 pub mod search;
 pub(crate) mod structured;
 pub mod tables;

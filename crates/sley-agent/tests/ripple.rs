@@ -1,5 +1,6 @@
 //! Ripple: `arity` and `guard` derivations in AF1-X frames, and the intents
 //! this build does not enable.
+#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

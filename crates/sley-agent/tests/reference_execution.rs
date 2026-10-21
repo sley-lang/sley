@@ -1,4 +1,5 @@
 //! Explicit reference execution preserves public answers/accounting and state.
+#![cfg(feature = "native")]
 use serde_json::{Value, json};
 use std::fs;
 use std::path::PathBuf;

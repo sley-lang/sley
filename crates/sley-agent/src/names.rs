@@ -10,13 +10,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+#[cfg(feature = "native")]
 use std::fs;
+#[cfg(feature = "native")]
 use std::path::Path;
 
 use sley_id::EntityId;
 use sley_mutate::value::EntityBodyValue;
 use sley_ssmc::{MemberId, TypeDefForm, ValueRef};
 
+#[cfg(feature = "native")]
 use crate::error::{AgentError, AgentErrorCode, Result, io};
 use crate::hex;
 use crate::workspace::Program;
@@ -45,6 +48,7 @@ impl NameMap {
     ///
     /// `AGENT_WORKSPACE_INVALID` for a malformed map, `AGENT_IO_FAILED` for
     /// an unreadable one.
+    #[cfg(feature = "native")]
     pub fn read(path: &Path) -> Result<Self> {
         let text = match fs::read_to_string(path) {
             Ok(text) => text,
@@ -65,6 +69,7 @@ impl NameMap {
     }
 
     /// Decodes an already-read name map, including the usual identifier rules.
+    #[cfg(feature = "native")]
     pub(crate) fn from_value(value: &serde_json::Value, path: &Path) -> Result<Self> {
         let invalid = |detail: &str| {
             AgentError::new(
@@ -91,6 +96,7 @@ impl NameMap {
     /// # Errors
     ///
     /// `AGENT_IO_FAILED` when the file cannot be written.
+    #[cfg(feature = "native")]
     pub fn write(&self, path: &Path) -> Result<()> {
         let object: serde_json::Map<String, serde_json::Value> = self
             .entries
@@ -141,7 +147,7 @@ impl NameMap {
             bytes.extend_from_slice(&(name.len() as u64).to_be_bytes());
             bytes.extend_from_slice(name.as_bytes());
         }
-        crate::draft::sha256(&bytes)
+        hex::encode(&sley_vm::host_abi::image_digest(&bytes))
     }
 }
 

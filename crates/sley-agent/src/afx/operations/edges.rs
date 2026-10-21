@@ -12,6 +12,7 @@ mod inputs;
 mod operation_types;
 mod order;
 mod patch;
+#[cfg_attr(not(feature = "native"), allow(unused_imports))]
 pub(crate) use patch::patch;
 
 #[derive(Default)]
