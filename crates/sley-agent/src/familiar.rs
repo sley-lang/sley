@@ -2650,6 +2650,10 @@ impl Parser {
                 );
             }
         }
+        self.py_test_record(&tok)
+    }
+
+    fn py_test_record(&mut self, tok: &Tok) -> P<Value> {
         let Some(fields) = self
             .declared
             .records
@@ -2669,8 +2673,11 @@ impl Parser {
         self.expect_op("(")?;
         let mut record = Map::new();
         let mut k = 0_usize;
+        let mut seen_keyword = false;
         while !self.at_op(")") {
+            let argument_pos = self.peek().pos;
             let field = if self.peek().kind == Kind::Name && self.peek_at(1).text == "=" {
+                seen_keyword = true;
                 let (field, pos) = self.ident("a field name")?;
                 self.bump();
                 if !fields.contains(&field) {
@@ -2678,6 +2685,12 @@ impl Parser {
                 }
                 field
             } else {
+                if seen_keyword {
+                    return refuse(
+                        argument_pos,
+                        "record positional arguments must precede keyword arguments",
+                    );
+                }
                 let Some(field) = fields.get(k) else {
                     return refuse(
                         self.peek().pos,
@@ -2686,6 +2699,12 @@ impl Parser {
                 };
                 field.clone()
             };
+            if record.contains_key(&field) {
+                return refuse(
+                    argument_pos,
+                    format!("`{}` gives field `{field}` more than once", tok.text),
+                );
+            }
             let value = self.py_test_value()?;
             record.insert(field, value);
             k += 1;
@@ -4006,6 +4025,47 @@ mod tests {
         assert_eq!(frame["fns"].as_array().unwrap().len(), 1);
         assert_eq!(parsed.positions.entries()["/types/0"].line, 5);
         assert_eq!(parsed.positions.entries()["/tests/2"].line, 20);
+    }
+
+    #[test]
+    fn python_test_records_refuse_duplicate_or_misordered_arguments() {
+        let head = "class P:\n    x: int\n    y: int\n\ndef f(p: P) -> int:\n    return p.x\n\n";
+        for (call, offending, message) in [
+            ("P(x=1, x=2, y=3)", "x=2", "field `x` more than once"),
+            ("P(1, 2, x=3)", "x=3", "field `x` more than once"),
+            ("P(x=1, 2)", "2", "positional arguments must precede"),
+        ] {
+            let line = format!("    assert f({call}) == 1");
+            let error = refused(&format!("{head}def test_f():\n{line}\n"));
+            assert!(error.message.contains(message), "{call}: {}", error.message);
+            assert_eq!(error.at.line, head.lines().count() + 2, "{call}");
+            assert_eq!(error.at.column, line.find(offending).unwrap() + 1, "{call}");
+        }
+    }
+
+    #[test]
+    fn python_test_record_arguments_preserve_valid_order_and_nesting() {
+        let head = "class P:\n    x: int\n    y: int\n\nclass Box:\n    p: P\n\ndef f(p: P) -> int:\n    return p.x\n\ndef g(b: Box) -> int:\n    return b.p.x\n\n";
+        for call in ["P(1, 2)", "P(y=2, x=1)", "P(1, y=2)", "P(1, y=2,)"] {
+            let frame = parse(&format!("{head}def test_f():\n    assert f({call}) == 1\n"))
+                .unwrap()
+                .frame;
+            assert_eq!(
+                frame["tests"][0]["args"],
+                json!([{"x": 1, "y": 2}]),
+                "{call}"
+            );
+        }
+        for call in ["Box(p=P(1, y=2))", "Box(P(y=2, x=1))"] {
+            let frame = parse(&format!("{head}def test_g():\n    assert g({call}) == 1\n"))
+                .unwrap()
+                .frame;
+            assert_eq!(
+                frame["tests"][0]["args"],
+                json!([{"p": {"x": 1, "y": 2}}]),
+                "{call}"
+            );
+        }
     }
 
     #[test]

@@ -3,6 +3,7 @@ Not supported: None, list values (append, slicing into a variable), dicts, sets 
 works), tuple values, methods, strings as sequences, classes other than records.
 A class of annotated fields (`@dataclass`) declares a record type. A `def test_*():` of
 `assert f(...) == value` lines and `with pytest.raises(E): f(...)` (any trap) adds TestCases.
+Record values in tests require each field once; positional arguments precede keyword arguments.
 Write typed Python (def f(xs: list[int]) -> int:); `sley-agent try --familiar` compiles it.
 Types: int, bool, str, list[T], records. // and % floor as in Python; / is refused.
 Has: if/elif/else, for over lists, range, enumerate, zip and slices, while, break, continue,
