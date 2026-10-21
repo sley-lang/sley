@@ -661,6 +661,55 @@ struct Facts {
     calls: Vec<String>,
 }
 
+fn py_exception_alias(name: &str) -> &str {
+    match name {
+        "IOError" | "EnvironmentError" => "OSError",
+        _ => name,
+    }
+}
+
+/// Public Python builtin exception ancestry, used only by the static raises
+/// check. Runtime failures still lower to the existing trap outcome.
+fn py_exception_bases(name: &str) -> &'static [&'static str] {
+    match name {
+        "Exception" | "BaseExceptionGroup" | "GeneratorExit" | "KeyboardInterrupt"
+        | "SystemExit" => &["BaseException"],
+        "ExceptionGroup" => &["BaseExceptionGroup", "Exception"],
+        "ArithmeticError" | "AssertionError" | "AttributeError" | "BufferError" | "EOFError"
+        | "ImportError" | "LookupError" | "MemoryError" | "NameError" | "OSError"
+        | "ReferenceError" | "RuntimeError" | "StopAsyncIteration" | "StopIteration"
+        | "SyntaxError" | "SystemError" | "TypeError" | "ValueError" | "Warning" => &["Exception"],
+        "FloatingPointError" | "OverflowError" | "ZeroDivisionError" => &["ArithmeticError"],
+        "IndexError" | "KeyError" => &["LookupError"],
+        "ModuleNotFoundError" => &["ImportError"],
+        "NotImplementedError" | "PythonFinalizationError" | "RecursionError" => &["RuntimeError"],
+        "UnboundLocalError" => &["NameError"],
+        "IndentationError" => &["SyntaxError"],
+        "TabError" => &["IndentationError"],
+        "UnicodeError" => &["ValueError"],
+        "UnicodeDecodeError" | "UnicodeEncodeError" | "UnicodeTranslateError" => &["UnicodeError"],
+        "BlockingIOError" | "ChildProcessError" | "ConnectionError" | "FileExistsError"
+        | "FileNotFoundError" | "InterruptedError" | "IsADirectoryError" | "NotADirectoryError"
+        | "PermissionError" | "ProcessLookupError" | "TimeoutError" => &["OSError"],
+        "BrokenPipeError"
+        | "ConnectionAbortedError"
+        | "ConnectionRefusedError"
+        | "ConnectionResetError" => &["ConnectionError"],
+        "BytesWarning"
+        | "DeprecationWarning"
+        | "EncodingWarning"
+        | "FutureWarning"
+        | "ImportWarning"
+        | "PendingDeprecationWarning"
+        | "ResourceWarning"
+        | "RuntimeWarning"
+        | "SyntaxWarning"
+        | "UnicodeWarning"
+        | "UserWarning" => &["Warning"],
+        _ => &[],
+    }
+}
+
 type P<T> = Result<T, FamiliarError>;
 
 impl Parser {
@@ -2828,10 +2877,20 @@ impl Parser {
     /// raise or check for `Exception`/`BaseException`.
     fn py_can_raise(&self, function: &str, exception: &str) -> bool {
         let is_a = |class: &str| {
+            let expected = if self.declared.bases.contains_key(exception) {
+                exception
+            } else {
+                py_exception_alias(exception)
+            };
             let mut seen = Vec::new();
             let mut todo = vec![class.to_owned()];
             while let Some(c) = todo.pop() {
-                if c == exception {
+                let c = if self.declared.bases.contains_key(&c) {
+                    c
+                } else {
+                    py_exception_alias(&c).to_owned()
+                };
+                if c == expected {
                     return true;
                 }
                 if seen.contains(&c) {
@@ -2839,6 +2898,8 @@ impl Parser {
                 }
                 if let Some(bases) = self.declared.bases.get(&c) {
                     todo.extend(bases.iter().cloned());
+                } else {
+                    todo.extend(py_exception_bases(&c).iter().map(|base| (*base).to_owned()));
                 }
                 seen.push(c);
             }
@@ -4211,6 +4272,56 @@ mod tests {
             assert_eq!(error.at.line, 16);
         }
         assert!(refused(&format!("{head}def test_x():\n    with pytest.raises((ValueError, KeyError)):\n        plain(1)\n")).message.contains("name one exception class"));
+    }
+
+    #[test]
+    fn python_raises_follows_builtin_exception_ancestry() {
+        for (raised, expected) in [
+            ("IndexError", "LookupError"),
+            ("KeyError", "LookupError"),
+            ("ZeroDivisionError", "ArithmeticError"),
+            ("OverflowError", "ArithmeticError"),
+            ("FloatingPointError", "ArithmeticError"),
+            ("TabError", "SyntaxError"),
+            ("ConnectionResetError", "OSError"),
+            ("UnboundLocalError", "NameError"),
+            ("ModuleNotFoundError", "ImportError"),
+            ("RecursionError", "RuntimeError"),
+            ("UnicodeDecodeError", "ValueError"),
+            ("UserWarning", "Warning"),
+            ("ExceptionGroup", "BaseExceptionGroup"),
+            ("IOError", "OSError"),
+            ("OSError", "EnvironmentError"),
+            ("IOError", "EnvironmentError"),
+        ] {
+            let body = format!(
+                "def fail(x: int) -> int:\n    raise {raised}\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+            );
+            assert!(parse(&body).is_ok(), "{raised} is a subclass of {expected}");
+            let custom = format!(
+                "class BadValue({raised}):\n    pass\n\n{}",
+                body.replace(&format!("raise {raised}"), "raise BadValue")
+            );
+            assert!(
+                parse(&custom).is_ok(),
+                "BadValue({raised}) is a subclass of {expected}"
+            );
+        }
+        for (raised, expected) in [
+            ("IndexError", "ArithmeticError"),
+            ("TabError", "RuntimeError"),
+        ] {
+            let body = format!(
+                "def fail(x: int) -> int:\n    raise {raised}\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+            );
+            let error = refused(&body);
+            assert!(error.message.contains(&format!("cannot raise {expected}")));
+            assert_eq!(error.at.line, 5);
+        }
+        // A source declaration takes precedence over the builtin alias.
+        let shadow = "class IOError(ValueError):\n    pass\n\ndef fail(x: int) -> int:\n    raise IOError\n\ndef test_failure():\n    with pytest.raises(OSError):\n        fail(0)\n";
+        assert!(refused(shadow).message.contains("cannot raise OSError"));
+        assert!(parse(&shadow.replace("raises(OSError)", "raises(ValueError)")).is_ok());
     }
 
     #[test]

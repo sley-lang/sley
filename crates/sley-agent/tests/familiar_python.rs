@@ -85,6 +85,40 @@ fn inline_tests(dir: &Path, text: &str, on: Option<&str>) -> (i32, Value) {
 }
 
 #[test]
+fn python_raises_matches_builtin_ancestors_and_aliases() {
+    let temp = workspace("raises-inheritance");
+    for (raised, expected, prefix) in [
+        ("IndexError", "LookupError", ""),
+        ("ZeroDivisionError", "ArithmeticError", ""),
+        ("ConnectionResetError", "OSError", ""),
+        ("IOError", "EnvironmentError", ""),
+        (
+            "BadIndex",
+            "LookupError",
+            "class BadIndex(IndexError):\n    pass\n\n",
+        ),
+    ] {
+        let text = format!(
+            "{prefix}def fail(x: int) -> int:\n    raise {raised}(\"boom\")\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+        );
+        let (status, report) = inline_tests(&temp.path, &text, None);
+        assert_eq!(status, 0, "{raised} -> {expected}: {report:#}");
+        assert_eq!(report["tests"].as_array().unwrap().len(), 1, "{report:#}");
+        assert_eq!(report["tests"][0]["pass"], true, "{report:#}");
+    }
+    let text = "def fail(x: int) -> int:\n    raise IndexError(\"boom\")\n\ndef test_failure():\n    with pytest.raises(ArithmeticError):\n        fail(0)\n";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 2, "{report:#}");
+    assert!(
+        report["detail"]
+            .as_str()
+            .unwrap()
+            .contains("cannot raise ArithmeticError")
+    );
+    assert_eq!(report["obligations"][0]["text"]["line"], 5, "{report:#}");
+}
+
+#[test]
 fn python_bare_assertions_use_truthiness() {
     let temp = workspace("truthiness");
     let text = "\
