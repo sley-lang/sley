@@ -51,6 +51,9 @@ Tool calls: Python 9/18/18, inline dialect 9/18/18, layered dialect 19/28/28.
 
 ### Terse `try` (stacked on the branch above; `results/terse-branch/`)
 
+These are retained measurements of the original terse-output branch. Later
+correctness and help-text changes have not been recounted in this snapshot.
+
 A passing `try` prints one line plus `next:`. Failing tests name the source line. `pytest.raises` is checked statically.
 
 | scenario | Python | dialect, inline tests | dialect, layered tests | familiar | AF1-X |
@@ -59,4 +62,4 @@ A passing `try` prints one line plus `next:`. Failing tests name the source line
 | logic bug | 2690 | **2916 (1.08x)** | 4691 (1.74x) | 5131 (1.91x) | 4452 (1.66x) |
 | typo | 3934 | **2873 (0.73x)** | 4395 (1.12x) | 4819 (1.22x) | 4237 (1.08x) |
 
-`help python` is now 322 tokens, read once.
+In this snapshot, `help python` was 322 tokens, read once.

@@ -857,6 +857,40 @@ def distinct(xs: list[str]) -> int:
 }
 
 #[test]
+fn python_layered_failures_use_current_authored_test_lines() {
+    for reference in ["c1", "d1"] {
+        let temp = workspace("python-layered-test-lines");
+        let path = temp.path.join("layered.py");
+        let file = path.display().to_string();
+        fs::write(
+            &path,
+            "def value(x: int) -> int:\n    return x\n\ndef test_old():\n    assert value(1) == 2\n\ndef test_kept():\n    assert value(3) == 4\n",
+        )
+        .unwrap();
+        let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
+        assert_eq!(status, 1, "{out}");
+        fs::write(
+            &path,
+            "\n\n\n\n\ndef test_new():\n    assert value(2) == 3\n\ndef test_old():\n    assert value(4) == 5\n",
+        )
+        .unwrap();
+        let (status, out) = run(&temp.path, &["try", "--on", reference, "--familiar", &file]);
+        assert_eq!(status, 1, "{reference}: {out}");
+        assert!(out.contains("tests: 0/3 passed"), "{out}");
+        for expected in [
+            "  FAIL test_new_0 (value): expected 3, got 2 (line 7)",
+            "  FAIL test_old_0 (value): expected 5, got 4 (line 10)",
+            "  FAIL test_kept_0 (value): expected 4, got 3",
+        ] {
+            assert!(
+                out.lines().any(|line| line == expected),
+                "{reference}: {out}"
+            );
+        }
+    }
+}
+
+#[test]
 fn python_tests_and_record_classes_run_in_one_try() {
     let temp = workspace("python-inline-tests");
     let text = "\
