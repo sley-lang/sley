@@ -1,0 +1,3 @@
+fn manhattan(a: Point, b: Point) -> i64 {
+    abs(a.x - b.x) + abs(a.y - b.y)
+}

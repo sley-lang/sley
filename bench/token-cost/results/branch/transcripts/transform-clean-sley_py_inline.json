@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "def transform(xs: list[int], lo: int, hi: int) -> int:\n    return sum(min(max(x * 2 if x % 2 else x, lo), hi) for x in xs)\n\n\ndef test_transform():\n    assert transform([1, 2, 3, -4], 0, 5) == 9\n    assert transform([], 0, 1) == 0\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar transform.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+142 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +transform; const +4; test +test_transform_0 +test_transform_1\ntests: 2/2 passed [authored 2]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d1\n"
+ ]
+]

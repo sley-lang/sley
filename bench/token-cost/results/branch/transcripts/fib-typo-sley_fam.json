@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "fn fib(n: i64) -> i64 {\n    if n < 2 {\n        return n\n    }\n    fib(n - 1) + fib(m - 2)\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.sley"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/1/1/2/2/1: unknown name `m`\n  /fns/0/body/1/1/2/2/1 is line 5, column 22 of the familiar text\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r1/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "fib(m - 2)\nfib(n - 2)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+24 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +fib; const +k_1 +k_2\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d2 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"fib_cases\", \"fn\": \"fib\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [1], \"expect\": 1}, {\"args\": [10], \"expect\": 55}, {\"args\": [20], \"expect\": 6765}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d2 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+28 created, 0 replaced, 0 deleted) draft d2@r2\nchanged: fn +fib; const +k_1 +k_2; test +fib_cases_0..3\ntests: 4/4 passed [authored 4]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

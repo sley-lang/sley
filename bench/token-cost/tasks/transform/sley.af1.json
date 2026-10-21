@@ -1,0 +1,1 @@
+{"af1": 1, "afx": 1, "fns": [{"fn": "transform", "params": [["xs", "Vec<i64>"], ["lo", "i64"], ["hi", "i64"]], "returns": "i64", "body": [["var", "t", "i64", 0], ["for", "x", "xs", [["set", "t", ["add", "t", ["clamp", ["if", ["ne", ["rem", "x", 2], 0], ["mul", "x", 2], "x"], "lo", "hi"]]]]], ["return", "t"]]}]}

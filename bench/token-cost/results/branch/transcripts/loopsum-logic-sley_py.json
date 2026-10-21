@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "def loopsum(n: int) -> int:\n    s = 0\n    for i in range(n):\n        s = (s + i + i) % 1000000007\n    return s\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+87 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +loopsum; const +3\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"loopsum_cases\", \"fn\": \"loopsum\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [10], \"expect\": 285}, {\"args\": [1000], \"expect\": 332833500}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+90 created, 0 replaced, 0 deleted) draft d1@r2\nchanged: fn +loopsum; const +3; test +loopsum_cases_0..2\ntests: 1/3 passed [authored 3]\n  FAIL loopsum_cases_1 (loopsum): expected 285, got 90\n  FAIL loopsum_cases_2 (loopsum): expected 332833500, got 999000\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "i + i\ni * i"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c3: Valid (+90 created, 0 replaced, 0 deleted) draft d1@r3\nchanged: fn +loopsum; const +3; test +loopsum_cases_0..2\ntests: 3/3 passed [authored 3]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d1\n"
+ ]
+]

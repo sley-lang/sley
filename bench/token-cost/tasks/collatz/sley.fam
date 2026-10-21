@@ -1,0 +1,21 @@
+fn collatz(limit: i64) -> i64 {
+    var best = 0
+    var best_n = 0
+    for n in 1..limit {
+        var x = n
+        var steps = 0
+        while x != 1 {
+            if x % 2 == 0 {
+                x = x / 2
+            } else {
+                x = 3 * x + 1
+            }
+            steps += 1
+        }
+        if steps > best {
+            best = steps
+            best_n = n
+        }
+    }
+    best_n
+}

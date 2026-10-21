@@ -1,0 +1,9 @@
+fn withdraw(balance: i64, amount: i64) -> Result<i64,WithdrawError> {
+    if amount <= 0 {
+        return err(NotPositive)
+    }
+    if amount > balance {
+        return err(Insufficient)
+    }
+    ok(balance - amount)
+}

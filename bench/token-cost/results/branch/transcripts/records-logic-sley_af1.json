@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"Point\", \"record\": [[\"x\", \"i64\"], [\"y\", \"i64\"]]}], \"fns\": [{\"fn\": \"manhattan\", \"params\": [[\"a\", \"Point\"], [\"b\", \"Point\"]], \"returns\": \"i64\", \"body\": [[\"return\", [\"add\", [\"abs\", [\"sub\", [\"field\", \"a\", \"x\"], [\"field\", \"b\", \"x\"]]], [\"abs\", [\"sub\", [\"field\", \"a\", \"y\"], [\"field\", \"b\", \"x\"]]]]]]}], \"test_tables\": [{\"name\": \"records_cases\", \"fn\": \"manhattan\", \"cases\": [{\"args\": [{\"x\": 1, \"y\": 2}, {\"x\": 4, \"y\": -2}], \"expect\": 7}, {\"args\": [{\"x\": 0, \"y\": 0}, {\"x\": 0, \"y\": 0}], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try records.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+41 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +manhattan; type +Point; const +k_0; test +records_cases_0 +records_cases_1\ntests: 1/2 passed [authored 2]\n  FAIL records_cases_0 (manhattan): expected 7, got 5\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"field\", \"b\", \"x\"]\n[\"field\", \"b\", \"y\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try records.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+41 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +manhattan; type +Point; const +k_0; test +records_cases_0 +records_cases_1\ntests: 2/2 passed [authored 2]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def gcd(a: int, b: int) -> int:\n    while b != 0:\n        a, b = b, a % b\n    return a\n\n\ndef gcdsum(n: int) -> int:\n    s = 0\n    for i in range(1, n):\n        for j in range(0, n):\n            s += gcd(i, j)\n    return s\n\n\ndef test_gcdsum():\n    assert gcdsum(5) == 24\n    assert gcdsum(10) == 145\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+236 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +gcd +gcdsum; const +k_0 +k_1; test +test_gcdsum_0 +test_gcdsum_1\ntests: 0/2 passed [authored 2]\n  FAIL test_gcdsum_0 (gcdsum): expected 24, got 34\n  FAIL test_gcdsum_1 (gcdsum): expected 145, got 190\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix the text and run try --familiar again\n"
+ ],
+ [
+  "write",
+  "edit",
+  "for j in range(0, n)\nfor j in range(1, n)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+236 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +gcd +gcdsum; const +k_0 +k_1; test +test_gcdsum_0 +test_gcdsum_1\ntests: 2/2 passed [authored 2]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

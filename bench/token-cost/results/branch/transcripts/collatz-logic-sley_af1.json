@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"collatz\", \"params\": [[\"limit\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"best\", \"i64\", 0], [\"var\", \"best_n\", \"i64\", 0], [\"range\", \"n\", 1, \"limit\", [[\"var\", \"x\", \"i64\", \"n\"], [\"var\", \"steps\", \"i64\", 0], [\"while\", [\"ne\", \"x\", 1], [[\"if\", [\"eq\", [\"rem\", \"x\", 2], 0], [[\"set\", \"x\", [\"div\", \"x\", 2]]], [[\"set\", \"x\", [\"add\", [\"mul\", 3, \"x\"], 1]]]], [\"set\", \"steps\", [\"add\", \"steps\", 1]]]], [\"if\", [\"gt\", \"steps\", \"best\"], [[\"set\", \"best\", \"steps\"], [\"set\", \"best_n\", \"steps\"]]]]], [\"return\", \"best_n\"]]}], \"test_tables\": [{\"name\": \"collatz_cases\", \"fn\": \"collatz\", \"cases\": [{\"args\": [10], \"expect\": 9}, {\"args\": [100], \"expect\": 97}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try collatz.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+165 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +collatz; const +4; test +collatz_cases_0 +collatz_cases_1\ntests: 0/2 passed [authored 2]\n  FAIL collatz_cases_0 (collatz): expected 9, got 19\n  FAIL collatz_cases_1 (collatz): expected 97, got 118\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"set\", \"best_n\", \"steps\"]\n[\"set\", \"best_n\", \"n\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try collatz.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+165 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +collatz; const +4; test +collatz_cases_0 +collatz_cases_1\ntests: 2/2 passed [authored 2]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

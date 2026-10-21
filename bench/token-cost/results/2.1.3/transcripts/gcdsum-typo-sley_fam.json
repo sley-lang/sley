@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "fn gcd(a0: i64, b0: i64) -> i64 {\n    var a = a0\n    var b = b0\n    while b != 0 {\n        let t = a % b\n        a = b\n        b = t\n    }\n    a\n}\n\nfn gcdsum(n: i64) -> i64 {\n    var s = 0\n    for i in 1..n {\n        for j in 1..n {\n            s += gcd(i, k)\n        }\n    }\n    s\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.sley"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/1/body/1/4/0/4/0/2/2/3: unknown name `k` (1 of 2 problems)\n  /fns/0: missing \"blocks\"\n  /fns/1/body/1/4/0/4/0/2/2/3 is line 16, column 25 of the familiar text\n  /fns/0 is line 1, column 1 of the familiar text\n  pointers refer to the structured frame built from the familiar text (.sley/drafts/d1/r1/frame.json); fix the text and run try --familiar again\ndraft d1@r1: incomplete, 2 obligation(s) (AGENT_FRAME_INVALID 2); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/1/body/1/4/0/4/0/2/2/3\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "s += gcd(i, k)\ns += gcd(i, j)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+88 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +gcd +gcdsum; const +k_0 +k_1\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d2 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"gcdsum_cases\", \"fn\": \"gcdsum\", \"cases\": [{\"args\": [5], \"expect\": 24}, {\"args\": [10], \"expect\": 145}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d2 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+90 created, 0 replaced, 0 deleted) draft d2@r2\nchanged: fn +gcd +gcdsum; const +k_0 +k_1; test +gcdsum_cases_0 +gcdsum_cases_1\ntests: 2/2 passed [authored 2]\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: sley-agent submit d2\n"
+ ]
+]

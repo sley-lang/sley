@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"ParseError\", \"variant\": [\"Empty\", \"LoneMinus\", \"NotDigit\"]}], \"fns\": [{\"fn\": \"parse_int\", \"params\": [[\"chars\", \"Vec<i64>\"]], \"returns\": \"Result<i64,ParseError>\", \"body\": [[\"if\", [\"eq\", [\"len\", \"chars\"], {\"type\": \"u64\", \"value\": 0}], [[\"fail\", \"Empty\"]]], [\"var\", \"sign\", \"i64\", 1], [\"var\", \"start\", \"u64\", {\"type\": \"u64\", \"value\": 0}], [\"if\", [\"eq\", [\"get\", \"chars\", {\"type\": \"u64\", \"value\": 0}], 45], [[\"set\", \"sign\", -1], [\"set\", \"start\", {\"type\": \"u64\", \"value\": 1}], [\"if\", [\"eq\", [\"len\", \"chars\"], {\"type\": \"u64\", \"value\": 1}], [[\"fail\", \"LoneMinus\"]]]]], [\"var\", \"value\", \"i64\", 0], [\"range\", \"i\", \"start\", [\"len\", \"chars\"], [[\"let\", \"c\", [\"get\", \"chars\", \"i\"]], [\"if\", [\"or\", [\"lt\", \"c\", 48], [\"gt\", \"c\", 57]], [[\"fail\", \"NotDigit\"]]], [\"set\", \"value\", [\"add\", [\"mul\", \"value\", 10], [\"sub\", \"c\", 47]]]]], [\"ok\", [\"mul\", \"sign\", \"value\"]]]}], \"test_tables\": [{\"name\": \"parse_int_cases\", \"fn\": \"parse_int\", \"cases\": [{\"args\": [[49, 50, 51]], \"expect\": {\"Ok\": 123}}, {\"args\": [[45, 55]], \"expect\": {\"Ok\": -7}}, {\"args\": [[]], \"expect\": {\"Err\": \"Empty\"}}, {\"args\": [[45]], \"expect\": {\"Err\": \"LoneMinus\"}}, {\"args\": [[49, 120]], \"expect\": {\"Err\": \"NotDigit\"}}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try parse_int.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+165 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +parse_int; type +ParseError; const +k_0 +k_0u +k_1 +k_10 +k_1u +k_45 +k_47 +k_48 +k_57 +k_neg1; test +parse_int_cases_0 +parse_int_cases_1 +parse_int_cases_2 +parse_int_cases_3 +parse_int_cases_4\ntests: 3/5 passed [authored 5]\n  FAIL parse_int_cases_0 (parse_int): expected Ok(123), got Ok(234)\n  FAIL parse_int_cases_1 (parse_int): expected Ok(-7), got Ok(-8)\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"sub\", \"c\", 47]\n[\"sub\", \"c\", 48]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try parse_int.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+164 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +parse_int; type +ParseError; const +k_0 +k_0u +k_1 +k_10 +k_1u +k_45 +k_48 +k_57 +k_neg1; test +parse_int_cases_0 +parse_int_cases_1 +parse_int_cases_2 +parse_int_cases_3 +parse_int_cases_4\ntests: 5/5 passed [authored 5]\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: sley-agent submit d2\n"
+ ]
+]

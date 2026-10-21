@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "fn fib(n: i64) -> i64 {\n    if n < 2 {\n        return n\n    }\n    fib(n - 1) + fib(m - 2)\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.sley"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/1/1/2/2/1: unknown name `m`\n  /fns/0/body/1/1/2/2/1 is line 5, column 22 of the familiar text\n  pointers refer to the structured frame built from the familiar text (.sley/drafts/d1/r1/frame.json); fix the text and run try --familiar again\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/0/body/1/1/2/2/1\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "fib(m - 2)\nfib(n - 2)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+24 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +fib; const +k_1 +k_2\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d2 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"fib_cases\", \"fn\": \"fib\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [1], \"expect\": 1}, {\"args\": [10], \"expect\": 55}, {\"args\": [20], \"expect\": 6765}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d2 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+28 created, 0 replaced, 0 deleted) draft d2@r2\nchanged: fn +fib; const +k_1 +k_2; test +fib_cases_0 +fib_cases_1 +fib_cases_2 +fib_cases_3\ntests: 4/4 passed [authored 4]\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: sley-agent submit d2\n"
+ ]
+]

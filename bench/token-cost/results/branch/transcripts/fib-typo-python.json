@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def fib(n: int) -> int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(m - 2)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom fib import fib\n\n\ndef test_fib():\n    assert fib(0) == 0\n    assert fib(1) == 1\n    assert fib(10) == 55\n    assert fib(20) == 6765\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n___________________________________ test_fib ___________________________________\n\n    def test_fib():\n        assert fib(0) == 0\n        assert fib(1) == 1\n>       assert fib(10) == 55\n               ^^^^^^^\n\ntest_fib.py:9: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\nfib.py:4: in fib\n    return fib(n - 1) + fib(m - 2)\n           ^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nn = 2\n\n    def fib(n: int) -> int:\n        if n < 2:\n            return n\n>       return fib(n - 1) + fib(m - 2)\n                                ^\nE       NameError: name 'm' is not defined\n\nfib.py:4: NameError\n=========================== short test summary info ============================\nFAILED test_fib.py::test_fib - NameError: name 'm' is not defined\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "fib(m - 2)\nfib(n - 2)"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_fib.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]
