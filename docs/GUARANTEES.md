@@ -27,7 +27,7 @@ evidence for the exact implementation still matter.
 | Result | Read it as |
 |---|---|
 | `c1: Valid` | The candidate passed the supported static validation phases in that context. Validation did not advance the accepted head. |
-| `tests: 3/3 passed` or `"pass": true` | Those advisory comparisons matched. Read `test_execution_policy` for which resource declarations the runner applies. This is not native admission evidence. |
+| `3 passed`, `tests: 3/3 passed` (`--verbose`) or `"pass": true` | Those advisory comparisons matched. Read `test_execution_policy` for which resource declarations the runner applies. This is not native admission evidence. |
 | `submitted c1` | The workbench wrote the candidate to the submission file. `submit` does not commit it. |
 | `committed c1 as transaction …` | The selected commit route returned an accepted transaction. Its receipt/profile determine the evidence admitted; this still says nothing about unspecified application requirements. |
 | `sley serve` exits `0` | The stream was processed, possibly including failed answers. Inspect each response's result/error; see [CLI exit codes](QUICKSTART.md#5-commands-and-exit-codes). |

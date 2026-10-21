@@ -93,8 +93,7 @@ checkout.
 $ sley-agent init demo && cd demo
 $ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../area.json
 $ sley-agent try ../area.json
-c1: Valid; tests: 3/3 passed [authored 3] (advisory); draft d1@r1
-next: sley-agent submit d1
+c1: 3 passed (advisory) d1@r1
 $ sley-agent call area 3 4 --on c1
 {"Ok":12}
 $ sley-agent submit d1

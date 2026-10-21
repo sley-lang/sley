@@ -1871,7 +1871,8 @@ fn every_example_in_help_afx_and_quick_runs() {
             .map(|table| table["cases"].as_array().unwrap().len())
             .sum();
         assert!(
-            text.contains(&format!("tests: {rows}/{rows} passed")),
+            text.contains(&format!(": {rows} passed"))
+                || text.contains(&format!("tests: {rows}/{rows} passed")),
             "help afx example {index}: {text}"
         );
     }
@@ -2776,7 +2777,7 @@ fn a_dialect_follow_up_keeps_the_plain_names_of_its_base() {
         "cases": [{"args": [-1], "expect": true}, {"args": [1], "expect": false}]}]});
     let (status, text) = run(&temp.path, &["try", "--on", "d1", &follow_up.to_string()]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains("tests: 2/2 passed"), "{text}");
+    assert!(text.contains("2 passed"), "{text}");
 }
 
 #[test]
@@ -2874,7 +2875,7 @@ fn a_plain_block_keeps_plain_af1_trap_reading_under_a_dialect_follow_up() {
         "cases": [{"args": [3], "expect": 3}]}]});
     let (status, text) = run(&temp.path, &["try", "--on", "d1", &follow_up.to_string()]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains("tests: 1/1 passed"), "{text}");
+    assert!(text.contains("1 passed"), "{text}");
     // A block that uses the dialect is held to the strict form.
     let mut extended = plain.clone();
     extended["afx"] = json!(1);
