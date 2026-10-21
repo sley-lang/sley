@@ -35,7 +35,12 @@ struct S128(i128);
 #[repr(C, packed(8))]
 struct U128(u128);
 
+// Word-sized so a `Value` is 24 bytes of atom and 8 of shape with no padding.
+// With a one-byte shape the compiler copied the 7 padding bytes as two
+// overlapping 4-byte moves, and the reload of those moves stalled on store
+// forwarding: the hottest instructions in loop profiles.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u64)]
 enum Shape {
     Plain,
     Ok,
@@ -566,8 +571,10 @@ struct Frame<'p, 'v> {
 /// caller of `run`.
 //
 // The direct and parallel edge moves are written out inline: factoring them
-// into a helper measured 1.7x slower on loop benchmarks.
+// into a helper measured 1.7x slower on loop benchmarks. The loop stays its
+// own function so its codegen does not depend on what it is inlined into.
 #[allow(clippy::too_many_lines)]
+#[inline(never)]
 fn run<'p, 'v>(
     program: &Program<'p, 'v>,
     runtime: &mut Runtime,
