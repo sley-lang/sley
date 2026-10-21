@@ -2378,7 +2378,7 @@ impl Parser {
             functions.push(self.py_function()?);
             functions.append(&mut self.hoisted);
         }
-        if functions.is_empty() {
+        if functions.is_empty() && self.declared.tests.is_empty() {
             return refuse(self.peek().pos, "expected at least one def");
         }
         Ok(functions)
@@ -2505,18 +2505,18 @@ impl Parser {
                 }
                 _ => {}
             }
-            let (function, args, expect) = if self.at_word("assert") {
+            let (function, args, expectation) = if self.at_word("assert") {
                 self.bump();
                 let negated = self.at_word("not");
                 if negated {
                     self.bump();
                 }
                 let (function, args) = self.py_test_call()?;
-                let expect = if !negated && self.at_op("==") {
+                let expectation = if !negated && self.at_op("==") {
                     self.bump();
-                    self.py_test_value()?
+                    json!({"expect": self.py_test_value()?})
                 } else {
-                    Value::Bool(!negated)
+                    json!({"truthy": !negated})
                 };
                 if self.at_op(",") {
                     // The assertion message.
@@ -2527,7 +2527,7 @@ impl Parser {
                     self.bump();
                 }
                 self.py_end_of_statement()?;
-                (function, args, expect)
+                (function, args, expectation)
             } else if self.at_word("with") {
                 self.bump();
                 if !(self.at_word("pytest")
@@ -2573,17 +2573,18 @@ impl Parser {
                     }
                     self.bump();
                 }
-                (function, args, json!({"trap": "unreachable"}))
+                (function, args, json!({"expect": {"trap": "unreachable"}}))
             } else {
                 return refuse(
                     tok.pos,
                     "a test function holds assert f(...) == value and with pytest.raises(...): f(...) lines",
                 );
             };
-            self.declared.tests.push((
-                json!({"name": format!("{name}_{count}"), "fn": function, "args": args, "expect": expect}),
-                tok.pos,
-            ));
+            let mut test = expectation;
+            test["name"] = Value::String(format!("{name}_{count}"));
+            test["fn"] = Value::String(function);
+            test["args"] = Value::Array(args);
+            self.declared.tests.push((test, tok.pos));
             count += 1;
         }
         if count == 0 {
@@ -4018,7 +4019,7 @@ mod tests {
             frame["tests"],
             json!([
                 {"name": "test_dist_0", "fn": "dist", "args": [{"x": 1, "y": 2}, {"x": 4, "y": -2}], "expect": 7},
-                {"name": "test_dist_1", "fn": "dist", "args": [{"x": 0, "y": 0}, {"x": 0, "y": 0}], "expect": false},
+                {"name": "test_dist_1", "fn": "dist", "args": [{"x": 0, "y": 0}, {"x": 0, "y": 0}], "truthy": false},
                 {"name": "test_dist_2", "fn": "dist", "args": [{"x": 0, "y": 0}, {"x": 0, "y": 1}], "expect": {"trap": "unreachable"}}
             ])
         );

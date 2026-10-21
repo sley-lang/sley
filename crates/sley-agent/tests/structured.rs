@@ -85,6 +85,104 @@ fn refusal(dir: &Path, frame: &Value) -> String {
 }
 
 #[test]
+fn truth_assertions_preserve_aliases_limits_and_dependency_selection() {
+    let temp = workspace("truth-assertions");
+    let frame = json!({"af1": 1, "afx": 1,
+        "functions": [{"fn": "_sley_assert_0", "params": [["x", "i64"]],
+            "returns": "i64", "body": [["return", "x"]]}],
+        "tests": [
+            {"name": "positive", "target": "_sley_assert_0", "inputs": [7], "truthy": true},
+            {"name": "negative", "function": "_sley_assert_0", "args": [0], "truthy": false}
+        ]
+    });
+    let (status, report) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{report:#}");
+    assert_eq!(report["tests"].as_array().unwrap().len(), 2);
+    assert!(
+        report["tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t["pass"] == true)
+    );
+    let handle = report["handle"].as_str().unwrap();
+    assert_eq!(
+        call(&temp.path, handle, "_sley_assert_0", &[json!(7)]),
+        json!(7)
+    );
+    let changed = function(
+        "_sley_assert_0",
+        json!([["x", "i64"]]),
+        "i64",
+        json!([["return", 0]]),
+    );
+    let (status, report) = run_json(&temp.path, &["try", &changed.to_string(), "--on", handle]);
+    assert_eq!(status, 1, "{report:#}");
+    assert_eq!(report["verdict"]["valid"], true, "{report:#}");
+    assert!(
+        report["tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["test"] == "positive" && t["pass"] == false)
+    );
+
+    let mut limited = frame;
+    limited["tests"][0]["limits"] = json!({"fuel": 1});
+    let (status, report) = run_json(&temp.path, &["try", &limited.to_string()]);
+    assert_eq!(status, 1, "{report:#}");
+    assert_eq!(report["verdict"]["valid"], true, "{report:#}");
+    assert!(
+        report["tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["test"] == "positive" && t["pass"] == false)
+    );
+}
+
+#[test]
+fn truth_assertions_refuse_ambiguous_or_malformed_frames() {
+    let temp = workspace("truth-assertion-errors");
+    let base = function("f", json!([["x", "i64"]]), "i64", json!([["return", "x"]]));
+    for (case, message) in [
+        (
+            json!({"fn": "f", "args": [1], "truthy": true, "expect": 1}),
+            "either expect or truthy",
+        ),
+        (
+            json!({"fn": "f", "args": [1], "truthy": 1}),
+            "truthy must be a boolean",
+        ),
+        (
+            json!({"fn": "missing", "truthy": true}),
+            "target has no signature",
+        ),
+        (
+            json!({"fn": "f", "args": [1], "expect": true}),
+            "expected an integer",
+        ),
+    ] {
+        let mut frame = base.clone();
+        frame["tests"] = json!([case]);
+        let error = refusal(&temp.path, &frame);
+        assert!(error.contains(message), "{error}");
+        assert!(error.contains("/tests/0"), "{error}");
+    }
+    let handle = valid(&temp.path, &base);
+    let (status, report) = run_json(&temp.path, &["commit", &handle]);
+    assert_eq!(status, 0, "{report:#}");
+    let frame = json!({"af1": 1, "afx": 1, "fns": {},
+        "tests": [{"fn": "f", "args": [1], "truthy": true}]});
+    let (status, report) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 2, "{report:#}");
+    assert!(
+        report["detail"].as_str().unwrap().contains("/fns"),
+        "{report:#}"
+    );
+}
+
+#[test]
 fn a_fold_with_two_accumulators_runs_without_authored_blocks() {
     let temp = workspace("fold");
     let frame = function(

@@ -24,6 +24,13 @@ In an AF1-X frame (`"afx": 1`), `test_tables` states a target and its
 defaults once, then one row per case (`sley-agent help afx`). Each row
 becomes one TestCase under the same rules.
 
+AF1-X tests may use `"truthy": true` or `"truthy": false` instead of `expect`.
+Boolean targets keep their target; integer, text and vector targets use a
+generated private predicate that calls the target and applies structured
+`truthy`. The result is an ordinary Boolean TestCase. Other result types are
+refused. Arguments, names and limits are preserved; limits cover the predicate
+and its call. This is authoring shorthand, not a new TestCase comparison mode.
+
 `try` runs the tests its candidate touches and prints failures in full
 (`--verbose` also lists passing tests). `sley-agent test c1` runs every
 TestCase in the candidate's state, and `--public cases.json` also runs
