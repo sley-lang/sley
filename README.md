@@ -207,8 +207,8 @@ roots, the change lifecycle, sessions, and the glossary.
 
 A point release. The VM's compact scalar plan coalesces registers that block edges would copy,
 and it charges fuel for runs of steps in prepaid batches with exactly the same totals. Loop
-benchmarks run about 1.6-2.2x faster than in 2.1.3, and Sley is still about 1.9-2.6x slower than
-CPython 3.13 on them. The Python dialect now accepts pytest-style tests (`def test_*():` with
+benchmarks run about 1.6-1.9x faster than in 2.1.3 (`fib(30)`, which is call-bound, is
+unchanged), and Sley is still about 1.9-2.7x slower than CPython 3.13 on every benchmark. The Python dialect now accepts pytest-style tests (`def test_*():` with
 `assert` and `with pytest.raises(E):`) and `@dataclass` record classes in the same file. A
 passing `try` prints one line, and a failing test names its source line. In a scripted
 token-count harness, a write-test-fix loop in the dialect costs 1.10x, 1.08x and 0.73x the tokens

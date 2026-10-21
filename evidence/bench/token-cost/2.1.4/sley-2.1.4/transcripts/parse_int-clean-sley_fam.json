@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "fn parse_int(chars: Vec<i64>) -> Result<i64,ParseError> {\n    if len(chars) == 0 {\n        return err(Empty)\n    }\n    var sign = 1\n    var start = 0\n    if chars[0] == 45 {\n        sign = -1\n        start = 1\n        if len(chars) == 1 {\n            return err(LoneMinus)\n        }\n    }\n    var value = 0\n    for i in to(u64, start)..len(chars) {\n        let c = chars[i]\n        if c < 48 or c > 57 {\n            return err(NotDigit)\n        }\n        value = value * 10 + (c - 48)\n    }\n    ok(sign * value)\n}\n"
+ ],
+ [
+  "write",
+  "types",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"ParseError\", \"variant\": [\"Empty\", \"LoneMinus\", \"NotDigit\"]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try types.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+1 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: type +ParseError\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar parse_int.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+330 created, 0 replaced, 0 deleted) draft d1@r2\nchanged: fn +parse_int; type +ParseError; const +11\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"parse_int_cases\", \"fn\": \"parse_int\", \"cases\": [{\"args\": [[49, 50, 51]], \"expect\": {\"Ok\": 123}}, {\"args\": [[45, 55]], \"expect\": {\"Ok\": -7}}, {\"args\": [[]], \"expect\": {\"Err\": \"Empty\"}}, {\"args\": [[45]], \"expect\": {\"Err\": \"LoneMinus\"}}, {\"args\": [[49, 120]], \"expect\": {\"Err\": \"NotDigit\"}}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c3: Valid; tests: 5/5 passed [authored 5] (advisory); draft d1@r3\nnext: sley-agent submit d1\n"
+ ]
+]

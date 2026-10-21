@@ -1,0 +1,62 @@
+[
+ [
+  "write",
+  "program",
+  "from dataclasses import dataclass\n\n\n@dataclass\nclass Point:\n    x: int\n    y: int\n\n\ndef manhattan(a: Point, b: Point) -> int:\n    return abs(a.x - c.x) + abs(a.y - b.y)\n"
+ ],
+ [
+  "write",
+  "types",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"Point\", \"record\": [[\"x\", \"i64\"], [\"y\", \"i64\"]]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try types.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+1 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: type +Point\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar records.py"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/0/1/1/1/2/1: unknown name `c`\n  /fns/0/body/0/1/1/1/2/1 is line 11, column 22 of the familiar text\n  pointers refer to the structured frame built from the familiar text (.sley/drafts/d1/r2/frame.json); fix the text and run try --familiar again\ndraft d1@r2: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 2 with {\"set\": [{\"at\": \"/fns/0/body/0/1/1/1/2/1\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.x - c.x\na.x - b.x"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar records.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+39 created, 0 replaced, 0 deleted) draft d1@r3\nchanged: fn +manhattan; type +Point; const +k_0\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"records_cases\", \"fn\": \"manhattan\", \"cases\": [{\"args\": [{\"x\": 1, \"y\": 2}, {\"x\": 4, \"y\": -2}], \"expect\": 7}, {\"args\": [{\"x\": 0, \"y\": 0}, {\"x\": 0, \"y\": 0}], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c3: Valid (+41 created, 0 replaced, 0 deleted) draft d1@r4\nchanged: fn +manhattan; type +Point; const +k_0; test +records_cases_0 +records_cases_1\ntests: 2/2 passed [authored 2]\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: sley-agent submit d1\n"
+ ]
+]
