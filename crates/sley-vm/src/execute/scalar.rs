@@ -13,6 +13,8 @@ use super::{
 };
 use sley_ssmc::{BuiltinFailureKind, BuiltinFailureValue, Immediate, Opcode};
 
+mod words;
+
 // A word-sized tag: every variant's payload then starts at byte 8, so copying
 // an atom moves whole words. With a one-byte tag a `Bool` or `Failure` atom
 // was written byte by byte and read back as overlapping wider moves, which
@@ -428,6 +430,9 @@ pub(super) struct Plan {
     result: Units,
     /// The plans of `LoweredFunction::callees`, in that order (entry only).
     callees: Vec<Plan>,
+    /// The word-tier form of the whole program, when every value of every
+    /// function fits a word (entry only; see `words`).
+    words: Option<words::Words>,
 }
 
 impl Plan {
@@ -451,6 +456,11 @@ impl Plan {
             .iter()
             .map(|callee| Self::compile_with(callee, &resolve))
             .collect::<Option<_>>()?;
+        let mut plans = vec![&plan];
+        plans.extend(plan.callees.iter());
+        let mut codes = vec![entry];
+        codes.extend(callees.iter());
+        plan.words = words::Words::compile(&plans, &codes);
         Some(plan)
     }
 
@@ -537,6 +547,7 @@ impl Plan {
             fields,
             result: Units::of(&code.result_type)?,
             callees: Vec::new(),
+            words: None,
         })
     }
 
@@ -586,16 +597,52 @@ impl Plan {
                 .iter()
                 .map(Value::from_const)
                 .collect::<Option<Vec<_>>>()?;
-            match run(&program, &mut runtime, &request.limits, values) {
-                Ok(Ended::Returned(value)) => {
-                    let value = value.to_const(&lowered.bytecode.result_type);
+            let word_run = self.words.as_ref().and_then(|words| {
+                let constants = program
+                    .constants
+                    .iter()
+                    .map(|c| {
+                        c.iter()
+                            .map(|v| words::to_word(*v))
+                            .collect::<Option<Vec<_>>>()
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let inputs = values
+                    .iter()
+                    .map(|v| words::to_word(*v))
+                    .collect::<Option<Vec<_>>>()?;
+                Some((words, constants, inputs))
+            });
+            let ran = if let Some((words, constants, inputs)) = word_run {
+                words::run(
+                    &program,
+                    words,
+                    &constants,
+                    &mut runtime,
+                    &request.limits,
+                    &inputs,
+                )
+                .and_then(|ended| match ended {
+                    words::WordEnded::Returned(word) => {
+                        words::to_const(word, &lowered.bytecode.result_type).map(Ok)
+                    }
+                    words::WordEnded::Stopped(end) => Ok(Err(end)),
+                })
+            } else {
+                run(&program, &mut runtime, &request.limits, values).map(|ended| match ended {
+                    Ended::Returned(value) => Ok(value.to_const(&lowered.bytecode.result_type)),
+                    Ended::Stopped(end) => Err(end),
+                })
+            };
+            match ran {
+                Ok(Ok(value)) => {
                     if value_units_const(&value) > request.limits.max_output_units {
                         ExecutionTermination::ResourceLimit(ResourceKind::OutputUnits)
                     } else {
                         ExecutionTermination::Success(value)
                     }
                 }
-                Ok(Ended::Stopped(termination)) => termination,
+                Ok(Err(termination)) => termination,
                 Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
             }
         };

@@ -7,7 +7,10 @@ typical workloads.
 - `progs/*.py` are the Sley programs, written in the Sley Python dialect. The same files run
   unchanged under CPython and PyPy (`progs/runpy.py`). `bench.lua`, `bench_jit.lua` (LuaJIT has
   no `//`), `bench.js` and `bench.rb` are ports of the same algorithms. Every language prints the
-  same answer.
+  same answer. `progs/native/bench.c` and `bench.rs` are the same algorithms in C and Rust,
+  built by `run.sh` (gcc `-O2`; rustc `-C opt-level=3`, and once more with
+  `-C overflow-checks=on`, the `rust_checked` column, whose integers fail on overflow as Sley's
+  do; Python's grow instead) for the `c`, `rust` and `rust_checked` languages.
 - `run.sh <sley-agent> <out-dir> [langs...]` commits each program to a fresh workspace with the
   given `sley-agent`. It then times every language end to end with hyperfine (2 warmups, at
   least 10 runs, pinned to one CPU with `taskset`; `BENCH_CPU` picks the CPU), and records
