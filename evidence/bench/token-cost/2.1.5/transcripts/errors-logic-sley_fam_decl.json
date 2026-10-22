@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "enum WithdrawError { NotPositive, Insufficient }\n\nfn withdraw(balance: i64, amount: i64) -> Result<i64,WithdrawError> {\n    if amount <= 0 {\n        return err(NotPositive)\n    }\n    if amount >= balance {\n        return err(Insufficient)\n    }\n    ok(balance - amount)\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar errors.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+26 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +withdraw; type +WithdrawError; const +k_0\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"errors_cases\", \"fn\": \"withdraw\", \"cases\": [{\"args\": [100, 30], \"expect\": {\"Ok\": 70}}, {\"args\": [50, 50], \"expect\": {\"Ok\": 0}}, {\"args\": [100, 0], \"expect\": {\"Err\": \"NotPositive\"}}, {\"args\": [10, 30], \"expect\": {\"Err\": \"Insufficient\"}}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+30 created, 0 replaced, 0 deleted) draft d1@r2\nchanged: fn +withdraw; type +WithdrawError; const +k_0; test +errors_cases_0..3\ntests: 3/4 passed [authored 4]\n  FAIL errors_cases_1 (withdraw): expected Ok(0), got Err(WithdrawError.Insufficient)\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "amount >= balance\namount > balance"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar errors.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c3: 4 passed (advisory) d1@r3\n"
+ ]
+]

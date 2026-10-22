@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "struct Point { x: i64, y: i64 }\n\nfn manhattan(a: Point, b: Point) -> i64 {\n    abs(a.x - b.x) + abs(a.y - b.y)\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar records.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+39 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +manhattan; type +Point; const +k_0\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"records_cases\", \"fn\": \"manhattan\", \"cases\": [{\"args\": [{\"x\": 1, \"y\": 2}, {\"x\": 4, \"y\": -2}], \"expect\": 7}, {\"args\": [{\"x\": 0, \"y\": 0}, {\"x\": 0, \"y\": 0}], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 2 passed (advisory) d1@r2\n"
+ ]
+]

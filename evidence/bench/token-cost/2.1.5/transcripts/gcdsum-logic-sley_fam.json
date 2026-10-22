@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "fn gcd(a0: i64, b0: i64) -> i64 {\n    var a = a0\n    var b = b0\n    while b != 0 {\n        let t = a % b\n        a = b\n        b = t\n    }\n    a\n}\n\nfn gcdsum(n: i64) -> i64 {\n    var s = 0\n    for i in 1..n {\n        for j in 0..n {\n            s += gcd(i, j)\n        }\n    }\n    s\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar gcdsum.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+88 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +gcd +gcdsum; const +k_0 +k_1\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"gcdsum_cases\", \"fn\": \"gcdsum\", \"cases\": [{\"args\": [5], \"expect\": 24}, {\"args\": [10], \"expect\": 145}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+90 created, 0 replaced, 0 deleted) draft d1@r2\nchanged: fn +gcd +gcdsum; const +k_0 +k_1; test +gcdsum_cases_0 +gcdsum_cases_1\ntests: 0/2 passed [authored 2]\n  FAIL gcdsum_cases_0 (gcdsum): expected 24, got 34\n  FAIL gcdsum_cases_1 (gcdsum): expected 145, got 190\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "for j in 0..n\nfor j in 1..n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar gcdsum.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c3: 2 passed (advisory) d1@r3\n"
+ ]
+]

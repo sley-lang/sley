@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"collatz\", \"params\": [[\"limit\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"best\", \"i64\", 0], [\"var\", \"best_n\", \"i64\", 0], [\"range\", \"n\", 1, \"limit\", [[\"var\", \"x\", \"i64\", \"n\"], [\"var\", \"steps\", \"i64\", 0], [\"while\", [\"ne\", \"x\", 1], [[\"if\", [\"eq\", [\"rem\", \"x\", 2], 0], [[\"set\", \"x\", [\"div\", \"x\", 2]]], [[\"set\", \"x\", [\"add\", [\"mul\", 3, \"x\"], 1]]]], [\"set\", \"steps\", [\"add\", \"steps\", 1]]]], [\"if\", [\"gt\", \"steps\", \"best\"], [[\"set\", \"best\", \"steps\"], [\"set\", \"best_n\", \"n\"]]]]], [\"return\", \"best_n\"]]}], \"test_tables\": [{\"name\": \"collatz_cases\", \"fn\": \"collatz\", \"cases\": [{\"args\": [10], \"expect\": 9}, {\"args\": [100], \"expect\": 97}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try collatz.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 2 passed (advisory) d1@r1\n"
+ ]
+]

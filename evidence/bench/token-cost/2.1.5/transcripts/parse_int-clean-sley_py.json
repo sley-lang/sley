@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def parse_int(chars: list[int]) -> int:\n    if not chars:\n        raise ValueError(\"empty\")\n    sign = 1\n    start = 0\n    if chars[0] == 45:\n        sign = -1\n        start = 1\n        if len(chars) == 1:\n            raise ValueError(\"lone minus\")\n    value = 0\n    for c in chars[start:]:\n        if c < 48 or c > 57:\n            raise ValueError(\"not a digit\")\n        value = value * 10 + (c - 48)\n    return sign * value\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar parse_int.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+844 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +parse_int; const +12\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"parse_int_cases\", \"fn\": \"parse_int\", \"cases\": [{\"args\": [[49, 50, 51]], \"expect\": 123}, {\"args\": [[45, 55]], \"expect\": -7}, {\"args\": [[]], \"expect\": {\"trap\": \"unreachable\"}}, {\"args\": [[45]], \"expect\": {\"trap\": \"unreachable\"}}, {\"args\": [[49, 120]], \"expect\": {\"trap\": \"unreachable\"}}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 5 passed (advisory) d1@r2\n"
+ ]
+]

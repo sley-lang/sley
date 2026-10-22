@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "#include <stddef.h>\n\nenum parse_error { PARSE_OK, PARSE_EMPTY, PARSE_LONE_MINUS, PARSE_NOT_DIGIT };\n\nenum parse_error parse_int(const int *chars, size_t len, long long *out) {\n    if (len == 0)\n        return PARSE_EMPTY;\n    long long sign = 1;\n    size_t start = 0;\n    if (chars[0] == '-') {\n        sign = -1;\n        start = 1;\n        if (len == 1)\n            return PARSE_LONE_MINUS;\n    }\n    long long value = 0;\n    for (size_t i = start; i < len; i++) {\n        int c = chars[i];\n        if (c < '0' || c > '9')\n            return PARSE_NOT_DIGIT;\n        value = value * 10 + (c - '0');\n    }\n    *out = sign * value;\n    return PARSE_OK;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"parse_int.c\"\n\nint main(void) {\n    long long v;\n    assert(parse_int((int[]){49, 50, 51}, 3, &v) == PARSE_OK && v == 123);\n    assert(parse_int((int[]){45, 55}, 2, &v) == PARSE_OK && v == -7);\n    assert(parse_int(NULL, 0, &v) == PARSE_EMPTY);\n    assert(parse_int((int[]){45}, 1, &v) == PARSE_LONE_MINUS);\n    assert(parse_int((int[]){49, 120}, 2, &v) == PARSE_NOT_DIGIT);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_parse_int test_parse_int.c && ./test_parse_int"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

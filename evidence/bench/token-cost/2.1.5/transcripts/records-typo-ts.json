@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export interface Point {\n  x: number;\n  y: number;\n}\n\nexport function manhattan(a: Point, b: Point): number {\n  return Math.abs(a.x - c.x) + Math.abs(a.y - b.y);\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { manhattan } from \"./records.js\";\n\ntest(\"manhattan\", () => {\n  assert.equal(manhattan({ x: 1, y: 2 }, { x: 4, y: -2 }), 7);\n  assert.equal(manhattan({ x: 0, y: 0 }, { x: 0, y: 0 }), 0);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "records.ts(7,25): error TS2304: Cannot find name 'c'.\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.x - c.x\na.x - b.x"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

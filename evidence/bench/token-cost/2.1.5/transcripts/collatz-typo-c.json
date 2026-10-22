@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long collatz(long long limit) {\n    long long best = 0, best_n = 0;\n    for (long long n = 1; n < limit; n++) {\n        long long x = n, steps = 0;\n        while (x != 1) {\n            if (x % 2 == 0)\n                x = x / 2;\n            else\n                x = 3 * x + 1;\n            steps++;\n        }\n        if (steps > bets) {\n            best = steps;\n            best_n = n;\n        }\n    }\n    return best_n;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"collatz.c\"\n\nint main(void) {\n    assert(collatz(10) == 9);\n    assert(collatz(100) == 97);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_collatz test_collatz.c && ./test_collatz"
+ ],
+ [
+  "read",
+  "output",
+  "In file included from test_collatz.c:2:\ncollatz.c: In function \u2018collatz\u2019:\ncollatz.c:12:21: error: \u2018bets\u2019 undeclared (first use in this function); did you mean \u2018best\u2019?\n   12 |         if (steps > bets) {\n      |                     ^~~~\n      |                     best\ncollatz.c:12:21: note: each undeclared identifier is reported only once for each function it appears in\ncollatz.c:2:15: warning: variable \u2018best\u2019 set but not used [-Wunused-but-set-variable]\n    2 |     long long best = 0, best_n = 0;\n      |               ^~~~\n"
+ ],
+ [
+  "write",
+  "edit",
+  "steps > bets\nsteps > best"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_collatz test_collatz.c && ./test_collatz"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

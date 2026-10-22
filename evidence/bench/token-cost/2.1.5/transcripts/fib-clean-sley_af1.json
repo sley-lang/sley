@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"fib\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"if\", [\"lt\", \"n\", 2], [[\"return\", \"n\"]]], [\"return\", [\"add\", [\"call\", \"fib\", [\"sub\", \"n\", 1]], [\"call\", \"fib\", [\"sub\", \"n\", 2]]]]]}], \"test_tables\": [{\"name\": \"fib_cases\", \"fn\": \"fib\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [1], \"expect\": 1}, {\"args\": [10], \"expect\": 55}, {\"args\": [20], \"expect\": 6765}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try fib.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 4 passed (advisory) d1@r1\n"
+ ]
+]

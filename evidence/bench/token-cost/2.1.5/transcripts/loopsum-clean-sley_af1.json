@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"loopsum\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"s\", \"i64\", 0], [\"range\", \"i\", 0, \"n\", [[\"set\", \"s\", [\"rem\", [\"add\", \"s\", [\"mul\", \"i\", \"i\"]], 1000000007]]]], [\"return\", \"s\"]]}], \"test_tables\": [{\"name\": \"loopsum_cases\", \"fn\": \"loopsum\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [10], \"expect\": 285}, {\"args\": [1000], \"expect\": 332833500}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try loopsum.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 3 passed (advisory) d1@r1\n"
+ ]
+]
