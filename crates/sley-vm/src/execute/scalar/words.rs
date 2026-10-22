@@ -746,6 +746,18 @@ pub(super) enum WordEnded {
     Stopped(ExecutionTermination),
 }
 
+/// How one pass of a burst over a frame's fast blocks ended.
+enum Pass {
+    /// The burst's blocks are used up.
+    Out,
+    /// At a call site.
+    Call(u32),
+    /// At a block returning a word.
+    Return(usize, u64),
+    /// At a trap.
+    End(usize),
+}
+
 /// A caller waiting on a call: where it resumes is the start of its fast
 /// block `tail`, the step after the call.
 struct Frame {
@@ -801,8 +813,6 @@ pub(super) fn run(
         *file.get_mut(slot).ok_or(RuntimeFault)? = word;
     }
     'frames: loop {
-        let mut registers = &mut file[base..base + plan.slots];
-        let mut flags = &mut flag_file[base..base + plan.slots];
         let mut prepaid_exit = false;
         // A burst: fast blocks, calls and returns run back to back, each
         // charging exactly what the general loop charges, against one
@@ -822,150 +832,169 @@ pub(super) fn run(
             let mut count: u64 = 0;
             let mut units: u64 = 0;
             let mut stopped = None;
-            for _ in 0..BURST {
-                let fast = &steps.fast[at];
-                let mut left = None;
-                for step in &fast.steps {
-                    match step.op {
-                        Op::Guard(g) => {
-                            if flags[step.output as usize] {
-                                left = Some(g);
-                                break;
-                            }
-                        }
-                        Op::GuardTrue(g) => {
-                            if registers[step.output as usize] == 0 {
-                                left = Some(g);
-                                break;
-                            }
-                        }
-                        Op::GuardFalse(g) => {
-                            if registers[step.output as usize] != 0 {
-                                left = Some(g);
-                                break;
-                            }
-                        }
-                        _ => units += exec(step, consts, registers, flags),
+            let mut left_over = BURST;
+            // Each pass runs the current frame's fast blocks until a call,
+            // a return or an exit that leaves the burst.
+            'burst: loop {
+                let registers = &mut file[base..base + steps.slots];
+                let flags = &mut flag_file[base..base + steps.slots];
+                let end = loop {
+                    if left_over == 0 {
+                        break Pass::Out;
                     }
-                }
-                let leave = match left {
-                    Some(g) => fast.guards[g as usize],
-                    None => Leave {
-                        block: fast.last,
-                        fuel: fast.fuel,
-                        count: fast.count,
-                        units: fast.units,
-                    },
+                    left_over -= 1;
+                    let fast = &steps.fast[at];
+                    let mut left = None;
+                    for step in &fast.steps {
+                        match step.op {
+                            Op::Guard(g) => {
+                                if flags[step.output as usize] {
+                                    left = Some(g);
+                                    break;
+                                }
+                            }
+                            Op::GuardTrue(g) => {
+                                if registers[step.output as usize] == 0 {
+                                    left = Some(g);
+                                    break;
+                                }
+                            }
+                            Op::GuardFalse(g) => {
+                                if registers[step.output as usize] != 0 {
+                                    left = Some(g);
+                                    break;
+                                }
+                            }
+                            _ => units += exec(step, consts, registers, flags),
+                        }
+                    }
+                    let leave = match left {
+                        Some(g) => fast.guards[g as usize],
+                        None => Leave {
+                            block: fast.last,
+                            fuel: fast.fuel,
+                            count: fast.count,
+                            units: fast.units,
+                        },
+                    };
+                    count += leave.count;
+                    fuel += leave.fuel;
+                    units += leave.units;
+                    let block = leave.block;
+                    if left.is_none()
+                        && let Some(site) = fast.call
+                    {
+                        break Pass::Call(site);
+                    }
+                    let (edge, payload) = match &steps.exits[block] {
+                        WordExit::Branch(edge) => (edge, 0),
+                        WordExit::Cond(r, yes, no) => {
+                            (if registers[*r as usize] != 0 { yes } else { no }, 0)
+                        }
+                        WordExit::Switch(r, ok, err) => (
+                            if flags[*r as usize] { err } else { ok },
+                            registers[*r as usize],
+                        ),
+                        WordExit::Return(r) => break Pass::Return(block, registers[*r as usize]),
+                        WordExit::End => break Pass::End(block),
+                    };
+                    fuel += edge.fuel;
+                    if edge.direct {
+                        for &(from, to) in &edge.moves {
+                            registers[to as usize] = if from == PAYLOAD {
+                                payload
+                            } else {
+                                registers[from as usize]
+                            };
+                        }
+                    } else {
+                        scratch.clear();
+                        for &(from, _) in &edge.moves {
+                            scratch.push(if from == PAYLOAD {
+                                payload
+                            } else {
+                                registers[from as usize]
+                            });
+                        }
+                        for (&(_, to), &v) in edge.moves.iter().zip(&scratch) {
+                            registers[to as usize] = v;
+                        }
+                    }
+                    at = edge.target;
                 };
-                count += leave.count;
-                fuel += leave.fuel;
-                units += leave.units;
-                let block = leave.block;
-                if left.is_none()
-                    && let Some(site) = fast.call
-                {
-                    // The call's instruction, the depth check, its action.
-                    let site = &steps.sites[site as usize];
-                    fuel += 1;
-                    let depth = stack.len().saturating_add(1);
-                    if depth.saturating_add(1) > runtime.max_call_depth {
-                        stopped =
-                            Some(ExecutionTermination::ResourceLimit(ResourceKind::CallDepth));
-                        break;
+                match end {
+                    Pass::Out => break 'burst,
+                    Pass::Call(site) => {
+                        // The call's instruction, the depth check, its action.
+                        let site = &steps.sites[site as usize];
+                        fuel += 1;
+                        let depth = stack.len().saturating_add(1);
+                        if depth.saturating_add(1) > runtime.max_call_depth {
+                            stopped =
+                                Some(ExecutionTermination::ResourceLimit(ResourceKind::CallDepth));
+                            break 'burst;
+                        }
+                        fuel += 1;
+                        runtime.peak_call_depth =
+                            runtime.peak_call_depth.max(depth.saturating_add(1));
+                        units += site.arg_units;
+                        let callee = &words.functions[site.function];
+                        let callee_base = base + steps.slots;
+                        let end = callee_base + callee.slots;
+                        if file.len() < end {
+                            file.resize(end, 0);
+                            flag_file.resize(end, false);
+                        }
+                        for (&a, &parameter) in site.args.iter().zip(&callee.parameters) {
+                            file[callee_base + parameter] = file[base + a as usize];
+                        }
+                        for &(slot, word) in &prefill[site.function] {
+                            file[callee_base + slot] = word;
+                        }
+                        stack.push(Frame {
+                            function: steps.index,
+                            base,
+                            output: site.output,
+                            tail: site.tail,
+                            units: site.units,
+                        });
+                        base = callee_base;
+                        function = site.function;
+                        steps = callee;
+                        consts = &constants[function][..];
+                        at = steps.entry;
                     }
-                    fuel += 1;
-                    runtime.peak_call_depth = runtime.peak_call_depth.max(depth.saturating_add(1));
-                    units += site.arg_units;
-                    let callee = &words.functions[site.function];
-                    let callee_base = base + steps.slots;
-                    let end = callee_base + callee.slots;
-                    if file.len() < end {
-                        file.resize(end, 0);
-                        flag_file.resize(end, false);
-                    }
-                    for (&a, &parameter) in site.args.iter().zip(&callee.parameters) {
-                        file[callee_base + parameter] = file[base + a as usize];
-                    }
-                    for &(slot, word) in &prefill[site.function] {
-                        file[callee_base + slot] = word;
-                    }
-                    stack.push(Frame {
-                        function: steps.index,
-                        base,
-                        output: site.output,
-                        tail: site.tail,
-                        units: site.units,
-                    });
-                    base = callee_base;
-                    function = site.function;
-                    steps = callee;
-                    consts = &constants[function][..];
-                    registers = &mut file[base..base + steps.slots];
-                    flags = &mut flag_file[base..base + steps.slots];
-                    at = steps.entry;
-                    continue;
-                }
-                let (edge, payload) = match &steps.exits[block] {
-                    WordExit::Branch(edge) => (edge, 0),
-                    WordExit::Cond(r, yes, no) => {
-                        (if registers[*r as usize] != 0 { yes } else { no }, 0)
-                    }
-                    WordExit::Switch(r, ok, err) => (
-                        if flags[*r as usize] { err } else { ok },
-                        registers[*r as usize],
-                    ),
-                    WordExit::Return(r) if !stack.is_empty() => {
+                    Pass::Return(block, value) => {
+                        let Some(caller) = stack.pop() else {
+                            // The run's own return: the general exit runs.
+                            at = block;
+                            pc = steps.blocks[block].len();
+                            prepaid_exit = true;
+                            break 'burst;
+                        };
                         fuel += 1;
                         if steps.result_units > limits.max_output_units {
                             stopped = Some(ExecutionTermination::ResourceLimit(
                                 ResourceKind::OutputUnits,
                             ));
-                            break;
+                            break 'burst;
                         }
-                        let value = registers[*r as usize];
-                        let caller = stack.pop().ok_or(RuntimeFault)?;
                         function = caller.function as usize;
                         steps = &words.functions[function];
                         consts = &constants[function][..];
                         base = caller.base;
                         file[base + caller.output as usize] = value;
-                        registers = &mut file[base..base + steps.slots];
-                        flags = &mut flag_file[base..base + steps.slots];
                         units += caller.units;
                         count += 1;
                         at = caller.tail as usize;
-                        continue;
                     }
-                    WordExit::Return(_) | WordExit::End => {
+                    Pass::End(block) => {
                         at = block;
                         pc = steps.blocks[block].len();
                         prepaid_exit = true;
-                        break;
-                    }
-                };
-                fuel += edge.fuel;
-                if edge.direct {
-                    for &(from, to) in &edge.moves {
-                        registers[to as usize] = if from == PAYLOAD {
-                            payload
-                        } else {
-                            registers[from as usize]
-                        };
-                    }
-                } else {
-                    scratch.clear();
-                    for &(from, _) in &edge.moves {
-                        scratch.push(if from == PAYLOAD {
-                            payload
-                        } else {
-                            registers[from as usize]
-                        });
-                    }
-                    for (&(_, to), &v) in edge.moves.iter().zip(&scratch) {
-                        registers[to as usize] = v;
+                        break 'burst;
                     }
                 }
-                at = edge.target;
             }
             plan = program.plans[function];
             code = program.codes[function];
@@ -982,6 +1011,8 @@ pub(super) fn run(
                 (runtime.block, pc) = steps.fast[at].start;
             }
         }
+        let registers = &mut file[base..base + plan.slots];
+        let flags = &mut flag_file[base..base + plan.slots];
         let block = plan.blocks.get(runtime.block).ok_or(RuntimeFault)?;
         let wsteps = &steps.blocks[runtime.block];
         if !prepaid_exit
