@@ -1,0 +1,62 @@
+[
+ [
+  "write",
+  "program",
+  "fn manhattan(a: Point, b: Point) -> i64 {\n    abs(a.x - c.x) + abs(a.y - b.y)\n}\n"
+ ],
+ [
+  "write",
+  "types",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"Point\", \"record\": [[\"x\", \"i64\"], [\"y\", \"i64\"]]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try types.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+1 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: type +Point\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar records.sley"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/0/1/1/1/2/1: unknown name `c`\n  /fns/0/body/0/1/1/1/2/1 is line 2, column 15 of the familiar text\ndraft d1@r2: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r2/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.x - c.x\na.x - b.x"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 --familiar records.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+39 created, 0 replaced, 0 deleted) draft d1@r3\nchanged: fn +manhattan; type +Point; const +k_0\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"records_cases\", \"fn\": \"manhattan\", \"cases\": [{\"args\": [{\"x\": 1, \"y\": 2}, {\"x\": 4, \"y\": -2}], \"expect\": 7}, {\"args\": [{\"x\": 0, \"y\": 0}, {\"x\": 0, \"y\": 0}], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c3: Valid; tests: 2/2 passed [authored 2] (advisory); draft d1@r4\nnext: sley-agent submit d1\n"
+ ]
+]

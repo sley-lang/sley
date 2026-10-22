@@ -876,11 +876,11 @@ fn python_layered_failures_use_current_authored_test_lines() {
         .unwrap();
         let (status, out) = run(&temp.path, &["try", "--on", reference, "--familiar", &file]);
         assert_eq!(status, 1, "{reference}: {out}");
-        assert!(out.contains("tests: 0/3 passed"), "{out}");
+        assert!(out.contains("3 failed, 0 passed"), "{out}");
         for expected in [
-            "  FAIL test_new_0 (value): expected 3, got 2 (line 7)",
-            "  FAIL test_old_0 (value): expected 5, got 4 (line 10)",
-            "  FAIL test_kept_0 (value): expected 4, got 3",
+            "FAIL test_new_0 (value): expected 3, got 2 (line 7)",
+            "FAIL test_old_0 (value): expected 5, got 4 (line 10)",
+            "FAIL test_kept_0 (value): expected 4, got 3",
         ] {
             assert!(
                 out.lines().any(|line| line == expected),
@@ -927,21 +927,16 @@ def test_manhattan():
     let file = path.display().to_string();
     let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
     assert_eq!(status, 1, "{out}");
+    // Like `pytest -q`: the failure at its line and one count line.
     assert!(
-        out.contains(
-            "changed: fn +manhattan +scale; type +Point; const +4; test +test_manhattan_0..4\n"
-        ),
-        "{out}"
-    );
-    assert!(out.contains("tests: 4/5 passed [authored 5]"), "{out}");
-    assert!(
-        out.contains("FAIL test_manhattan_1 (manhattan): expected 1, got 0 (line 23)\n"),
+        out.starts_with("FAIL test_manhattan_1 (manhattan): expected 1, got 0 (line 23)\n"),
         "{out}"
     );
     assert!(
-        out.contains("next: fix the text and run try --familiar again"),
+        out.ends_with(": 1 failed, 4 passed (advisory) d1@r1\n"),
         "{out}"
     );
+    assert_eq!(out.lines().count(), 2, "{out}");
     fs::write(
         &path,
         text.replace("Point(0, 0)) == 1", "Point(0, 0)) == 0"),
@@ -949,8 +944,5 @@ def test_manhattan():
     .unwrap();
     let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
     assert_eq!(status, 0, "{out}");
-    assert_eq!(
-        out,
-        "c2: Valid; tests: 5/5 passed [authored 5] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
-    );
+    assert_eq!(out, "c2: 5 passed (advisory) d2@r1\n");
 }

@@ -773,6 +773,50 @@ fn familiar_positions(obligations: &mut [Value], positions: &FamiliarPositions) 
     lines
 }
 
+/// A compiler-style diagnostic for familiar text: `path:line:column:
+/// message`, the text's line, and a caret under the column.
+fn source_caret(path: &str, text: &[u8], line: usize, column: usize, message: &str) -> String {
+    let text = String::from_utf8_lossy(text);
+    let mut out = format!("{path}:{line}:{column}: {message}\n");
+    if let Some(source) = text.lines().nth(line.saturating_sub(1)) {
+        let pad: String = source
+            .chars()
+            .take(column.saturating_sub(1))
+            .map(|c| if c == '\t' { '\t' } else { ' ' })
+            .collect();
+        let _ = writeln!(out, "{source}\n{pad}^");
+    }
+    out
+}
+
+/// The terse text of familiar text refused at located obligations: the
+/// first as a caret diagnostic and how many more there are (`--verbose`
+/// and `--json` give every pointer).
+fn familiar_refusal_text(path: &str, text: &[u8], obligations: &[Value]) -> Option<String> {
+    let located: Vec<&Value> = obligations
+        .iter()
+        .filter(|record| record["text"].is_object())
+        .collect();
+    let first = located.first()?;
+    let line = usize::try_from(first["text"]["line"].as_u64()?).ok()?;
+    let column = usize::try_from(first["text"]["column"].as_u64()?).ok()?;
+    let message = first["decision"].as_str()?;
+    let mut out = source_caret(path, text, line, column, message);
+    let more = obligations.len() - 1;
+    if more > 0 {
+        let _ = writeln!(out, "(+{more} more; --verbose lists them)");
+    }
+    Some(out)
+}
+
+/// Where familiar text came from, for diagnostics.
+fn familiar_path(origin: &Origin) -> &str {
+    match origin {
+        Origin::File(path) => path,
+        _ => "<text>",
+    }
+}
+
 /// The switches of every command that makes a draft revision.
 const TRIAL_SWITCHES: [&str; 5] = ["--no-test", "--all-tests", "--raw", "--verbose", "--rebase"];
 
@@ -2393,6 +2437,22 @@ fn run_trial(
                     failure.line, failure.column, failure.detail
                 ),
             );
+            if !options.verbose && !global.json {
+                global.note("refusal", error.code().symbol());
+                global.note("obligations", draft::obligation_count(&obligations));
+                let text = source_caret(
+                    familiar_path(&proposal.origin),
+                    &proposal.input,
+                    failure.line,
+                    failure.column,
+                    &failure.detail,
+                );
+                write_text(
+                    out,
+                    &format!("{text}draft {reference}: text refused{skip_suffix}\n"),
+                )?;
+                return Ok(EXIT_REFUSED);
+            }
             let summary = format!(
                 "draft {reference}: text (refused familiar syntax at line {}, column {}); the input is kept{skip_suffix}",
                 failure.line, failure.column
@@ -2612,6 +2672,25 @@ fn run_trial(
             // Familiar text located at its lines is fixed in the text: the
             // next step says so instead of a frame fill.
             let text_located = located.as_ref().is_some_and(|lines| !lines.is_empty());
+            // Without --verbose or --json, a refusal located in the text
+            // reads like a compiler's: the line, a caret, and the draft.
+            if text_located
+                && !options.verbose
+                && !global.json
+                && let Some(text) = familiar_refusal_text(
+                    familiar_path(&proposal.origin),
+                    &proposal.input,
+                    &obligations,
+                )
+            {
+                global.note("refusal", error.code().symbol());
+                global.note("obligations", draft::obligation_count(&obligations));
+                write_text(
+                    out,
+                    &format!("{text}draft {reference}: incomplete{skip_suffix}\n"),
+                )?;
+                return Ok(EXIT_REFUSED);
+            }
             let error = match located {
                 // Pointers index the structured frame the text parsed to
                 // (the draft's frame.json); the text positions locate them.
@@ -3007,32 +3086,65 @@ fn run_trial(
     }
     let provenance_line = provenance_text(&provenance);
     let public_lines = public_text(&public);
-    // A Valid candidate whose tests all pass, with nothing else to say: one
-    // line and the next step (`--verbose` and `--json` give the detail).
-    if !options.verbose
+    // Only authored tests ran: the count needs no provenance.
+    let authored_only = provenance["imported"].as_u64().unwrap_or(0) == 0
+        && provenance["provided"].as_u64().unwrap_or(0) == 0
+        && provenance["replaced"]
+            .as_array()
+            .is_none_or(std::vec::Vec::is_empty);
+    let terse_provenance = if authored_only {
+        String::new()
+    } else {
+        provenance_line.clone()
+    };
+    // A Valid candidate whose tests ran, with nothing else to say: like a
+    // test runner's quiet mode, the failures (familiar text only) and one
+    // count line naming the candidate and draft (`--verbose` and `--json` give the
+    // detail and the next step).
+    let quiet = !options.verbose
         && verdict.valid
-        && failed == 0
         && !tests.is_empty()
+        && (failed == 0 || proposal.familiar.is_some())
         && details.is_empty()
         && notes.is_empty()
         && also.is_empty()
         && raw.is_none()
         && public_lines.is_empty()
         && public_refusal.is_none()
-        && !changes.iter().any(|change| change.exported)
-    {
-        let mut text = format!(
-            "{candidate_handle}: Valid; tests: {}/{} passed{provenance_line} (advisory); draft {reference}\n",
-            tests.len(),
-            tests.len()
-        );
+        && !changes.iter().any(|change| change.exported);
+    if quiet {
+        let mut text = String::new();
+        for line in test_lines(&tests, &after_names, false).lines() {
+            let line = line.trim_start();
+            let at = line
+                .strip_prefix("FAIL ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|name| proposal.familiar_test_lines.get(name));
+            match at {
+                Some(at) => {
+                    let _ = writeln!(text, "{line} (line {at})");
+                }
+                None => {
+                    let _ = writeln!(text, "{line}");
+                }
+            }
+        }
         // What it replaces or deletes is still said; what it creates is in
         // `--verbose`.
         if changes.iter().any(|change| change.mark != '+') {
             text.push_str(&changes_text(&changes));
         }
-        if let Some(next) = &next {
-            let _ = writeln!(text, "next: {next}");
+        let passed = tests.len() - failed;
+        if failed == 0 {
+            let _ = writeln!(
+                text,
+                "{candidate_handle}: {passed} passed{terse_provenance} (advisory) {reference}"
+            );
+        } else {
+            let _ = writeln!(
+                text,
+                "{candidate_handle}: {failed} failed, {passed} passed{terse_provenance} (advisory) {reference}"
+            );
         }
         write_text(out, &text)?;
         return Ok(exit);

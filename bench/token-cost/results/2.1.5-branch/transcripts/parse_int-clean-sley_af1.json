@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"ParseError\", \"variant\": [\"Empty\", \"LoneMinus\", \"NotDigit\"]}], \"fns\": [{\"fn\": \"parse_int\", \"params\": [[\"chars\", \"Vec<i64>\"]], \"returns\": \"Result<i64,ParseError>\", \"body\": [[\"if\", [\"eq\", [\"len\", \"chars\"], {\"type\": \"u64\", \"value\": 0}], [[\"fail\", \"Empty\"]]], [\"var\", \"sign\", \"i64\", 1], [\"var\", \"start\", \"u64\", {\"type\": \"u64\", \"value\": 0}], [\"if\", [\"eq\", [\"get\", \"chars\", {\"type\": \"u64\", \"value\": 0}], 45], [[\"set\", \"sign\", -1], [\"set\", \"start\", {\"type\": \"u64\", \"value\": 1}], [\"if\", [\"eq\", [\"len\", \"chars\"], {\"type\": \"u64\", \"value\": 1}], [[\"fail\", \"LoneMinus\"]]]]], [\"var\", \"value\", \"i64\", 0], [\"range\", \"i\", \"start\", [\"len\", \"chars\"], [[\"let\", \"c\", [\"get\", \"chars\", \"i\"]], [\"if\", [\"or\", [\"lt\", \"c\", 48], [\"gt\", \"c\", 57]], [[\"fail\", \"NotDigit\"]]], [\"set\", \"value\", [\"add\", [\"mul\", \"value\", 10], [\"sub\", \"c\", 48]]]]], [\"ok\", [\"mul\", \"sign\", \"value\"]]]}], \"test_tables\": [{\"name\": \"parse_int_cases\", \"fn\": \"parse_int\", \"cases\": [{\"args\": [[49, 50, 51]], \"expect\": {\"Ok\": 123}}, {\"args\": [[45, 55]], \"expect\": {\"Ok\": -7}}, {\"args\": [[]], \"expect\": {\"Err\": \"Empty\"}}, {\"args\": [[45]], \"expect\": {\"Err\": \"LoneMinus\"}}, {\"args\": [[49, 120]], \"expect\": {\"Err\": \"NotDigit\"}}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try parse_int.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 5 passed (advisory) d1@r1\n"
+ ]
+]

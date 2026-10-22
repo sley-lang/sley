@@ -3,6 +3,7 @@
 and takes the ordinary path; the program is stored as Sley's graph, never as this text.
 `--body NAME --base-root ROOT` accepts statements only, using that live function's signature.
 fn name(x: i64, xs: Vec<i64>) -> i64 { statements }     (one or more fns; newlines or ; separate)
+struct Point { x: i64, y: i64 }     enum Error { Empty, TooBig }     (no payloads; before or between fns)
   let x = e          var t = e (or var t: T = e)          t = e   t += e (-= *= /= %=; t is a var)
   if c { } else if c { } else { }          for x in xs { }          while c { }
   for i in start..end { } (half-open; bounds once)     for i, x in xs { } (i is u64)

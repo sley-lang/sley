@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn transform(xs: &[i64], lo: i64, hi: i64) -> i64 {\n    xs.iter()\n        .map(|&x| (if x % 2 != 0 { x * 2 } else { x }).max(lo).min(hl))\n        .sum()\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_transform() {\n        assert_eq!(transform(&[1, 2, 3, -4], 0, 5), 9);\n        assert_eq!(transform(&[], 0, 1), 0);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "error[E0425]: cannot find value `hl` in this scope\n --> src/lib.rs:3:68\n  |\n3 |         .map(|&x| (if x % 2 != 0 { x * 2 } else { x }).max(lo).min(hl))\n  |                                                                    ^^\n  |\nhelp: a local variable with a similar name exists\n  |\n3 -         .map(|&x| (if x % 2 != 0 { x * 2 } else { x }).max(lo).min(hl))\n3 +         .map(|&x| (if x % 2 != 0 { x * 2 } else { x }).max(lo).min(hi))\n  |\n\nFor more information about this error, try `rustc --explain E0425`.\nerror: could not compile `calc` (lib) due to 1 previous error\nerror: could not compile `calc` (lib test) due to 1 previous error\n"
+ ],
+ [
+  "write",
+  "edit",
+  ".min(hl)\n.min(hi)"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

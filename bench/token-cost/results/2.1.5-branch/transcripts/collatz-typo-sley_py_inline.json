@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def collatz(limit: int) -> int:\n    best = 0\n    best_n = 0\n    for n in range(1, limit):\n        x = n\n        steps = 0\n        while x != 1:\n            if x % 2 == 0:\n                x = x // 2\n            else:\n                x = 3 * x + 1\n            steps += 1\n        if steps > bets:\n            best = steps\n            best_n = n\n    return best_n\n\n\ndef test_collatz():\n    assert collatz(10) == 9\n    assert collatz(100) == 97\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar collatz.py"
+ ],
+ [
+  "read",
+  "output",
+  "collatz.py:13:20: unknown name `bets`\n        if steps > bets:\n                   ^\ndraft d1@r1: incomplete\n"
+ ],
+ [
+  "write",
+  "edit",
+  "steps > bets\nsteps > best"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar collatz.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 2 passed (advisory) d2@r1\n"
+ ]
+]

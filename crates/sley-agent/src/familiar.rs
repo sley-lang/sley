@@ -107,8 +107,7 @@ pub struct Parsed {
 ///
 /// The first unsupported, ambiguous or malformed construct, at its position.
 pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
-    let mut declared = Declared::default();
-    let functions = if is_python(text) {
+    let (functions, declared) = if is_python(text) {
         let mut parser = Parser {
             toks: py_tokenize(text)?,
             k: 0,
@@ -119,8 +118,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             declared: Declared::default(),
         };
         let functions = parser.py_program()?;
-        declared = std::mem::take(&mut parser.declared);
-        functions
+        (functions, std::mem::take(&mut parser.declared))
     } else {
         let mut parser = Parser {
             toks: tokenize(text)?,
@@ -131,7 +129,8 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             fresh: 0,
             declared: Declared::default(),
         };
-        parser.program()?
+        let functions = parser.program()?;
+        (functions, std::mem::take(&mut parser.declared))
     };
     let mut positions = BTreeMap::new();
     let mut fns = Vec::with_capacity(functions.len());
@@ -818,12 +817,70 @@ impl Parser {
                 self.bump();
                 continue;
             }
+            if self.at_word("struct") || self.at_word("enum") {
+                let declaration = self.type_declaration()?;
+                self.declared.records.push(declaration);
+                continue;
+            }
             functions.push(self.function()?);
         }
         if functions.is_empty() {
             return refuse(self.peek().pos, "expected at least one fn");
         }
         Ok(functions)
+    }
+
+    /// `struct Name { field: T, ... }` (a record) or `enum Name { A, B }`
+    /// (a variant type without payloads): the AF1 `types` entry it
+    /// declares, as an AF1 frame would state it.
+    fn type_declaration(&mut self) -> P<(String, Vec<String>, Value, Pos)> {
+        let keyword = self.bump();
+        let record = keyword.text == "struct";
+        let (name, _) = self.ident("a type name")?;
+        let open = self.expect_op("{")?;
+        let mut names: Vec<String> = Vec::new();
+        let mut members = Vec::new();
+        while !self.at_op("}") {
+            if self.peek().kind == Kind::Eof {
+                return refuse(open.pos, "this `{` is never closed");
+            }
+            let (member, pos) = self.ident(if record {
+                "a field name"
+            } else {
+                "a variant name"
+            })?;
+            if names.contains(&member) {
+                return refuse(pos, format!("`{member}` is declared twice in `{name}`"));
+            }
+            if record {
+                self.expect_op(":")?;
+                let (ty, _) = self.type_()?;
+                members.push(json!([member.clone(), ty]));
+            } else {
+                if self.at_op("(") || self.at_op("{") {
+                    return refuse(
+                        self.peek().pos,
+                        "an enum variant here carries no payload: declare payload variants in an AF1 types frame",
+                    );
+                }
+                members.push(json!(member.clone()));
+            }
+            names.push(member);
+            if !self.at_op("}") {
+                self.expect_op(",")?;
+            }
+        }
+        self.bump();
+        if members.is_empty() {
+            return refuse(open.pos, format!("`{name}` declares no members"));
+        }
+        let entry = if record {
+            json!({"name": name.clone(), "record": members})
+        } else {
+            json!({"name": name.clone(), "variant": members})
+        };
+        let fields = if record { names } else { Vec::new() };
+        Ok((name, fields, entry, keyword.pos))
     }
 
     fn function(&mut self) -> P<Function> {

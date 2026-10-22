@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"fib\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"if\", [\"lt\", \"n\", 2], [[\"return\", \"n\"]]], [\"return\", [\"add\", [\"call\", \"fib\", [\"sub\", \"n\", 1]], [\"call\", \"fib\", [\"sub\", \"m\", 2]]]]]}], \"test_tables\": [{\"name\": \"fib_cases\", \"fn\": \"fib\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [1], \"expect\": 1}, {\"args\": [10], \"expect\": 55}, {\"args\": [20], \"expect\": 6765}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try fib.json"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/1/1/2/2/1: unknown name `m`\n  fix: edit fib.json in place at those pointers (no need to rewrite it) and run try again\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/0/body/1/1/2/2/1\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"sub\", \"m\", 2]\n[\"sub\", \"n\", 2]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try fib.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 4 passed (advisory) d2@r1\n"
+ ]
+]

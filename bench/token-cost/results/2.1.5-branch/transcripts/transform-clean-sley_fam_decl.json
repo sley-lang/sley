@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "fn transform(xs: Vec<i64>, lo: i64, hi: i64) -> i64 {\n    sum(clamp(x * 2 if x % 2 != 0 else x, lo, hi) for x in xs)\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar transform.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+98 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +transform; const +4\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"transform_cases\", \"fn\": \"transform\", \"cases\": [{\"args\": [[1, 2, 3, -4], 0, 5], \"expect\": 9}, {\"args\": [[], 0, 1], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 2 passed (advisory) d1@r2\n"
+ ]
+]

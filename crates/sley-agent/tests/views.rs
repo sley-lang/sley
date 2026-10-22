@@ -201,7 +201,7 @@ fn expanded_program(label: &str) -> TempDir {
     let temp = workspace(label);
     let (status, text) = run(&temp.path, &["try", &expanded_frame().to_string()]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains("tests: 6/6 passed"), "{text}");
+    assert!(text.contains("6 passed"), "{text}");
     temp
 }
 

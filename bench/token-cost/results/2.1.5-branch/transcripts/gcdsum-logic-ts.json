@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function gcd(a: number, b: number): number {\n  while (b !== 0) {\n    [a, b] = [b, a % b];\n  }\n  return a;\n}\n\nexport function gcdsum(n: number): number {\n  let s = 0;\n  for (let i = 1; i < n; i++) {\n    for (let j = 0; j < n; j++) {\n      s += gcd(i, j);\n    }\n  }\n  return s;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { gcdsum } from \"./gcdsum.js\";\n\ntest(\"gcdsum\", () => {\n  assert.equal(gcdsum(5), 24);\n  assert.equal(gcdsum(10), 145);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 gcdsum (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  34 !== 24\n  \n      at TestContext.<anonymous> (file:///work/dist/gcdsum.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 34,\n    expected: 24,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "let j = 0\nlet j = 1"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

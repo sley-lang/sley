@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"transform\", \"params\": [[\"xs\", \"Vec<i64>\"], [\"lo\", \"i64\"], [\"hi\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"t\", \"i64\", 0], [\"for\", \"x\", \"xs\", [[\"set\", \"t\", [\"add\", \"t\", [\"clamp\", [\"if\", [\"ne\", [\"rem\", \"x\", 2], 0], [\"mul\", \"x\", 2], \"x\"], \"lo\", \"hi\"]]]]], [\"return\", \"t\"]]}], \"test_tables\": [{\"name\": \"transform_cases\", \"fn\": \"transform\", \"cases\": [{\"args\": [[1, 2, 3, -4], 0, 5], \"expect\": 9}, {\"args\": [[], 0, 1], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try transform.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 2 passed (advisory) d1@r1\n"
+ ]
+]

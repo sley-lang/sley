@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def withdraw(balance: int, amount: int) -> int:\n    if amount <= 0:\n        raise ValueError(\"amount must be positive\")\n    if amount >= balance:\n        raise ValueError(\"insufficient funds\")\n    return balance - amount\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom errors import withdraw\n\n\ndef test_errors():\n    assert withdraw(100, 30) == 70\n    assert withdraw(50, 50) == 0\n    with pytest.raises(ValueError):\n        withdraw(100, 0)\n    with pytest.raises(ValueError):\n        withdraw(10, 30)\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_errors.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________________________________ test_errors __________________________________\n\n    def test_errors():\n        assert withdraw(100, 30) == 70\n>       assert withdraw(50, 50) == 0\n               ^^^^^^^^^^^^^^^^\n\ntest_errors.py:8: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nbalance = 50, amount = 50\n\n    def withdraw(balance: int, amount: int) -> int:\n        if amount <= 0:\n            raise ValueError(\"amount must be positive\")\n        if amount >= balance:\n>           raise ValueError(\"insufficient funds\")\nE           ValueError: insufficient funds\n\nerrors.py:5: ValueError\n=========================== short test summary info ============================\nFAILED test_errors.py::test_errors - ValueError: insufficient funds\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "amount >= balance\namount > balance"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_errors.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

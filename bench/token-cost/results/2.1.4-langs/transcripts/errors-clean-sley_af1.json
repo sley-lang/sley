@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"types\": [{\"name\": \"WithdrawError\", \"variant\": [\"NotPositive\", \"Insufficient\"]}], \"fns\": [{\"fn\": \"withdraw\", \"params\": [[\"balance\", \"i64\"], [\"amount\", \"i64\"]], \"returns\": \"Result<i64,WithdrawError>\", \"body\": [[\"if\", [\"le\", \"amount\", 0], [[\"fail\", \"NotPositive\"]]], [\"if\", [\"gt\", \"amount\", \"balance\"], [[\"fail\", \"Insufficient\"]]], [\"ok\", [\"sub\", \"balance\", \"amount\"]]]}], \"test_tables\": [{\"name\": \"errors_cases\", \"fn\": \"withdraw\", \"cases\": [{\"args\": [100, 30], \"expect\": {\"Ok\": 70}}, {\"args\": [50, 50], \"expect\": {\"Ok\": 0}}, {\"args\": [100, 0], \"expect\": {\"Err\": \"NotPositive\"}}, {\"args\": [10, 30], \"expect\": {\"Err\": \"Insufficient\"}}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try errors.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 4/4 passed [authored 4] (advisory); draft d1@r1\nnext: sley-agent submit d1\n"
+ ]
+]

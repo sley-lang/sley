@@ -244,7 +244,7 @@ fn scoping_rebinds_in_one_list_and_refuses_redeclaring_an_outer_name() {
     );
     assert_eq!(status, 2, "{out}");
     assert!(
-        out.contains("unknown name `y`") && out.contains("line 3, column 10"),
+        out.contains(":3:10: unknown name `y`\n  return y\n         ^\n"),
         "{out}"
     );
     // Redeclaring an outer name, a parameter or a loop variable inside a
@@ -269,7 +269,7 @@ fn scoping_rebinds_in_one_list_and_refuses_redeclaring_an_outer_name() {
         let (status, out) = try_text(&temp.path, text, false);
         assert_eq!(status, 2, "{out}");
         assert!(out.contains("declared outside"), "{out}");
-        assert!(out.contains(&format!("{pointer} is line {line}")), "{out}");
+        assert!(out.contains(&format!("proposal.txt:{line}:")), "{out}");
         let frame = sley_agent::familiar::parse(text).unwrap().frame;
         let (status, json_out) = run(&temp.path, &["try", &frame.to_string(), "--no-test"]);
         assert_eq!(status, 2, "{json_out}");
@@ -325,7 +325,16 @@ fn refusals_inside_the_body_name_the_authored_line_and_column() {
         false,
     );
     assert_eq!(status, 2, "{out}");
-    assert!(out.contains("operands mix i64 and u64"), "{out}");
+    // Without --verbose it reads like a compiler's diagnostic.
+    assert!(
+        out.contains(":4:13: operands mix i64 and u64\n    t = t + len(xs)\n            ^\n"),
+        "{out}"
+    );
+    assert!(out.ends_with("draft d1@r1: incomplete\n"), "{out}");
+    // --verbose names every pointer at its authored position.
+    let path = temp.path.join("proposal.txt").display().to_string();
+    let (status, out) = run(&temp.path, &["try", "--familiar", &path, "--verbose"]);
+    assert_eq!(status, 2, "{out}");
     assert!(
         out.contains("/fns/0/body/1/3/0/2/2 is line 4, column 13"),
         "{out}"
@@ -419,4 +428,87 @@ fn the_familiar_help_example_runs() {
     let (status, out) = run(&temp.path, &["help", "familiar"]);
     assert_eq!(status, 0);
     assert!(out.contains("try --familiar"), "{out}");
+}
+
+#[test]
+fn struct_and_enum_declare_types_beside_the_functions() {
+    let temp = workspace("declare");
+    let (status, out) = try_text(
+        &temp.path,
+        "struct Point { x: i64, y: i64 }\nenum Fail { Negative, Far, }\n\
+         fn far(a: Point, b: Point) -> Result<i64,Fail> {\n\
+         \x20 if a.x < 0 { return err(Negative) }\n\
+         \x20 let d = abs(a.x - b.x) + abs(a.y - b.y)\n\
+         \x20 if d > 9 { return err(Far) }\n\
+         \x20 return ok(d)\n}\n",
+        true,
+    );
+    assert_eq!(status, 0, "{out}");
+    let report: Value = serde_json::from_str(out.trim()).unwrap();
+    let handle = report["handle"].as_str().unwrap();
+    let point = |x: i64, y: i64| json!({"x": x, "y": y});
+    assert_eq!(
+        call(&temp.path, handle, "far", &[point(1, 2), point(4, 0)]),
+        json!({"Ok": 5})
+    );
+    assert_eq!(
+        call(&temp.path, handle, "far", &[point(-1, 0), point(0, 0)]),
+        json!({"Err": "Negative"})
+    );
+    assert_eq!(
+        call(&temp.path, handle, "far", &[point(0, 0), point(9, 9)]),
+        json!({"Err": "Far"})
+    );
+    // The frame states them as an AF1 types frame would.
+    let parsed = sley_agent::familiar::parse(
+        "struct P { x: i64 }\nenum E { A, B }\nfn f(p: P) -> i64 { return p.x }\n",
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.frame["types"],
+        json!([{"name": "P", "record": [["x", "i64"]]}, {"name": "E", "variant": ["A", "B"]}])
+    );
+    // Payloads, repeats and empty declarations are refused at their place.
+    for (text, line, column, message) in [
+        (
+            "enum E { A(i64) }\nfn f() -> i64 { return 1 }\n",
+            1,
+            11,
+            "carries no payload",
+        ),
+        (
+            "struct P { x: i64, x: i64 }\nfn f() -> i64 { return 1 }\n",
+            1,
+            20,
+            "declared twice",
+        ),
+        (
+            "enum E { }\nfn f() -> i64 { return 1 }\n",
+            1,
+            8,
+            "declares no members",
+        ),
+    ] {
+        let error = sley_agent::familiar::parse(text).unwrap_err();
+        assert_eq!(
+            (error.at.line, error.at.column),
+            (line, column),
+            "{text}: {error:?}"
+        );
+        assert!(error.message.contains(message), "{text}: {error:?}");
+    }
+}
+
+#[test]
+fn a_text_refusal_reads_like_a_compiler_diagnostic() {
+    let temp = workspace("caret");
+    let (status, out) = try_text(&temp.path, "fn f() -> i64 {\n  return 1.5\n}\n", false);
+    assert_eq!(status, 2, "{out}");
+    let mut lines = out.lines();
+    let first = lines.next().unwrap();
+    assert!(first.contains("proposal.txt:2:"), "{out}");
+    assert_eq!(lines.next(), Some("  return 1.5"), "{out}");
+    assert!(lines.next().unwrap().trim_end().ends_with('^'), "{out}");
+    assert_eq!(lines.next(), Some("draft d1@r1: text refused"), "{out}");
+    assert_eq!(lines.next(), None, "{out}");
 }

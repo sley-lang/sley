@@ -10,15 +10,30 @@ counted with tiktoken o200k_base and cl100k_base. Usage:
 """
 import json, os, re, shutil, subprocess, sys, pathlib
 import tiktoken
-import spec
+import spec, langs
 
 SLEY = os.path.abspath(sys.argv[1]); OUT = pathlib.Path(sys.argv[2]).resolve()
-PY = os.environ.get("PYTHON", sys.executable)
+# The Python that runs pytest, and the node_modules holding typescript and @types/node.
+PY = os.environ.get("PYTEST_PYTHON", sys.executable)
 TASKS = pathlib.Path(__file__).resolve().parent / "tasks"
 ENC = {n: tiktoken.get_encoding(n) for n in ("o200k_base", "cl100k_base")}
 FORMS = [f for f in os.environ.get("FORMS", "python sley_py sley_fam sley_af1").split()]
-FILE = {"python": "{t}.py", "sley_py": "{t}.py", "sley_py_inline": "{t}.py", "sley_fam": "{t}.sley", "sley_af1": "{t}.json"}
-SRC = {"python": "python.py", "sley_py": "sley.py", "sley_py_inline": "sley.py", "sley_fam": "sley.fam", "sley_af1": "sley.af1.json"}
+FILE = {"python": "{t}.py", "sley_py": "{t}.py", "sley_py_inline": "{t}.py", "sley_fam": "{t}.sley", "sley_fam_decl": "{t}.sley", "sley_af1": "{t}.json"}
+SRC = {"python": "python.py", "sley_py": "sley.py", "sley_py_inline": "sley.py", "sley_fam": "sley.fam", "sley_fam_decl": "sley.fam", "sley_af1": "sley.af1.json"}
+# Output of a try whose tests all passed: the terse count line (2.1.5) or the full report.
+PASSED = re.compile(r"tests: (\d+)/\1 passed|^c\d+: \d+ passed", re.M)
+
+def declarations(task):
+    """The task's types as familiar struct/enum declarations (2.1.5)."""
+    if task not in spec.TYPES:
+        return ""
+    out = []
+    for t in json.loads((TASKS / task / "sley.types.json").read_text())["types"]:
+        if "record" in t:
+            out.append(f"struct {t['name']} {{ " + ", ".join(f"{f}: {ty}" for f, ty in t["record"]) + " }")
+        else:
+            out.append(f"enum {t['name']} {{ " + ", ".join(t["variant"]) + " }")
+    return "\n".join(out) + "\n\n"
 
 def toks(text):
     return {n: len(e.encode(text)) for n, e in ENC.items()}
@@ -69,7 +84,11 @@ def run(task, form, kind, workdir):
         out = out.replace(str(workdir), "/work")
         steps.append(("write", "command", c)); steps.append(("read", "output", out))
         return code
+    if form in langs.LANGS:
+        return run_lang(task, form, kind, workdir)
     correct = (TASKS / task / SRC[form]).read_text()
+    if form == "sley_fam_decl":
+        correct = declarations(task) + correct
     if form == "sley_py_inline":
         # The pytest test function, in the same file (the import of the module under test dropped).
         tests = python_tests(task).replace(f"from {task} import {fn(task)}" + (", Point" if task == "records" else "") + "\n\n", "")
@@ -86,7 +105,7 @@ def run(task, form, kind, workdir):
         old = new = ""
         buggy = correct
     else:
-        old, new = spec.BUGS[task][kind]["sley_py" if form == "sley_py_inline" else form]
+        old, new = spec.BUGS[task][kind][{"sley_py_inline": "sley_py", "sley_fam_decl": "sley_fam"}.get(form, form)]
         assert correct.count(old) == 1, (task, form, kind, old)
         buggy = correct.replace(old, new)
     name = FILE[form].format(t=task)
@@ -96,7 +115,7 @@ def run(task, form, kind, workdir):
     def sley(c):
         code = cmd(c.replace("sley-agent", SLEY, 1)); steps[-2] = ("write", "command", c); return code
     def draft():
-        return re.findall(r"draft (d\d+)@", steps[-1][2])[-1]
+        return re.findall(r"\b(d\d+)@r\d+", steps[-1][2])[-1]
     if form == "python":
         tests = python_tests(task); (workdir / f"test_{task}.py").write_text(tests); write("tests", tests)
         c = f"python -m pytest -q test_{task}.py"
@@ -114,18 +133,18 @@ def run(task, form, kind, workdir):
         first = sley(f"sley-agent try --familiar {name}")
         if first:
             fix(); sley(f"sley-agent try --familiar {name}")
-        last = 0 if re.search(r"tests: (\d+)/\1 passed", steps[-1][2]) else 1
+        last = 0 if PASSED.search(steps[-1][2]) else 1
     elif form == "sley_af1":
         sh(f"{SLEY} init", workdir)
         first = sley(f"sley-agent try {name}")
         if first:
             fix(); sley(f"sley-agent try {name}")
-        last = 0 if re.search(r"tests: (\d+)/\1 passed", steps[-1][2]) else 1
+        last = 0 if PASSED.search(steps[-1][2]) else 1
     else:
         sh(f"{SLEY} init", workdir)  # workspace setup, not part of the loop
         on = ""
         # The Python dialect lowers raise to a trap, so only records need a types frame there.
-        if task in spec.TYPES and (form == "sley_fam" or task == "records"):
+        if task in spec.TYPES and (form == "sley_fam" or (task == "records" and form == "sley_py")):
             types = json.dumps(json.loads((TASKS / task / "sley.types.json").read_text()))
             (workdir / "types.json").write_text(types); write("types", types)
             sley("sley-agent try types.json")
@@ -139,8 +158,47 @@ def run(task, form, kind, workdir):
         first = first or t
         if t:  # a test failed: fix the text, layer it on the draft with the tests
             fix(); sley(f"sley-agent try --on {d} --familiar {name}")
-        last = 0 if re.search(r"tests: (\d+)/\1 passed", steps[-1][2]) else 1
+        last = 0 if PASSED.search(steps[-1][2]) else 1
     return steps, first, last
+
+NODE_MODULES = os.path.abspath(os.environ.get("NODE_MODULES", "node_modules"))
+TOOLPATH = os.path.join(NODE_MODULES, ".bin") + ":" + os.environ["PATH"]
+
+def run_lang(task, lang, kind, workdir):
+    shutil.rmtree(workdir, ignore_errors=True); workdir.mkdir(parents=True)
+    env = dict(os.environ, PATH=TOOLPATH, CARGO_TERM_COLOR="never", NO_COLOR="1", GOFLAGS="-count=1")
+    def sh2(c):
+        r = subprocess.run(c, cwd=workdir, shell=True, capture_output=True, text=True, env=env)
+        return r.stdout + r.stderr, r.returncode
+    for c in langs.SETUP[lang]:
+        out, code = sh2(c); assert code == 0, (c, out)
+    steps = []
+    def write(label, text): steps.append(("write", label, text))
+    correct = (TASKS / task / langs.SRC[lang]).read_text()
+    tname, ttext = langs.tests(task, lang)
+    if kind == "clean":
+        old = new = ""; buggy = correct
+    else:
+        old, new = langs.bug(task, kind, lang)
+        assert correct.count(old) == 1, (task, lang, kind, old)
+        buggy = correct.replace(old, new)
+    prog = langs.PROG[lang].format(t=task)
+    def put(program):
+        (workdir / prog).parent.mkdir(parents=True, exist_ok=True)
+        if lang == "rust": (workdir / prog).write_text(program + ttext)
+        else:
+            (workdir / prog).write_text(program); (workdir / tname).write_text(ttext)
+    put(buggy); write("program", buggy); write("tests", ttext)
+    c = langs.command(task, lang)
+    def go():
+        out, code = sh2(c)
+        out = langs.normalize(out.replace(str(workdir), "/work"))
+        steps.append(("write", "command", c)); steps.append(("read", "output", out)); return code
+    first = go()
+    if first:
+        put(correct); write("edit", f"{new}\n{old}"); go()
+    out, code = sh2(c)
+    return steps, first, code
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)

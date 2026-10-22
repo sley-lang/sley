@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function primes(n: number): number {\n  let count = 0;\n  for (let k = 2; k < n; k++) {\n    let isP = true;\n    for (let d = 2; d * d < k; d++) {\n      if (k % d === 0) {\n        isP = false;\n        break;\n      }\n    }\n    if (isP) {\n      count++;\n    }\n  }\n  return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { primes } from \"./primes.js\";\n\ntest(\"primes\", () => {\n  assert.equal(primes(10), 4);\n  assert.equal(primes(100), 25);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 primes (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  6 !== 4\n  \n      at TestContext.<anonymous> (file:///work/dist/primes.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 6,\n    expected: 4,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "d * d < k\nd * d <= k"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]
