@@ -4,7 +4,7 @@
 //! semantics; unsupported text is refused at its line and column; refusals
 //! inside the body map back to the text; and a committed program needs no
 //! frontend afterwards.
-#![cfg(feature = "familiar")]
+#![cfg(all(feature = "native", feature = "familiar"))]
 
 use std::fs;
 use std::path::{Path, PathBuf};

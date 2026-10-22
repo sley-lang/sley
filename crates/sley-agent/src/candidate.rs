@@ -5,10 +5,14 @@
 //! nonce, and binds each operation's precondition in operation order. The
 //! kernel's `validate_candidate_bytes` is the only judge.
 
+#[cfg(feature = "native")]
 use std::fs;
+#[cfg(feature = "native")]
 use std::path::{Path, PathBuf};
+#[cfg(feature = "native")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde_json::Value;
 use sley_id::{CandidateNonce, EntityId, PrincipalId};
 use sley_mutate::{
     BoundPrecondition, CandidateExpiry, CandidateRecord, ExactContainerVersion, ExactEntityVersion,
@@ -20,9 +24,15 @@ use sley_policy::{
     PolicyResourceCeilings,
 };
 
-use crate::error::{AgentError, AgentErrorCode, Result, io};
+#[cfg(feature = "native")]
+use crate::error::io;
+use crate::error::{AgentError, AgentErrorCode, Result};
+use crate::frame;
 use crate::hex;
-use crate::workspace::{Head, Program, Workspace};
+use crate::names::Names;
+#[cfg(feature = "native")]
+use crate::workspace::Workspace;
+use crate::workspace::{Head, Program};
 
 /// Far-future candidate expiry (2100-01-01): candidates never expire in a
 /// workspace; the base binding is what goes stale.
@@ -77,6 +87,7 @@ impl Authority {
 /// # Errors
 ///
 /// `AGENT_IO_FAILED` when no randomness is available.
+#[cfg(feature = "native")]
 pub fn fresh_nonce() -> Result<CandidateNonce> {
     Ok(CandidateNonce::from_bytes(random32()?))
 }
@@ -86,6 +97,7 @@ pub fn fresh_nonce() -> Result<CandidateNonce> {
 /// # Errors
 ///
 /// `AGENT_IO_FAILED` when no randomness is available.
+#[cfg(feature = "native")]
 pub fn random32() -> Result<[u8; 32]> {
     use std::io::Read as _;
     let path = Path::new("/dev/urandom");
@@ -210,22 +222,46 @@ pub fn assemble(
     sley_mutate::build_candidate(&record).map_err(|error| kernel(error.to_string()))
 }
 
-/// Validates stored candidate bytes against the accepted head, in process.
+/// Validates stored candidate bytes against the accepted head, in process,
+/// at the current wall-clock time.
 ///
 /// # Errors
 ///
 /// `AGENT_CANDIDATE_INVALID` only when the validator cannot render a result
 /// at all; candidate invalidity is a result, not an error.
+#[cfg(feature = "native")]
 pub fn validate(
     head: &Head,
     authority: &Authority,
     stored: &[u8],
 ) -> Result<CandidateValidationOutput> {
-    let now = SystemTime::now()
+    validate_at(head, authority, stored, now_unix_millis())
+}
+
+/// The wall-clock time in Unix milliseconds (0 before the epoch).
+#[cfg(feature = "native")]
+#[must_use]
+pub fn now_unix_millis() -> u64 {
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |elapsed| {
             u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
-        });
+        })
+}
+
+/// Validates stored candidate bytes against the accepted head, in process,
+/// as of `now` (Unix milliseconds, the validation context's clock).
+///
+/// # Errors
+///
+/// `AGENT_CANDIDATE_INVALID` only when the validator cannot render a result
+/// at all; candidate invalidity is a result, not an error.
+pub fn validate_at(
+    head: &Head,
+    authority: &Authority,
+    stored: &[u8],
+    now: u64,
+) -> Result<CandidateValidationOutput> {
     let context = CandidateValidationContext::new(
         head.transaction_id(),
         head.state_root(),
@@ -240,6 +276,82 @@ pub fn validate(
     .map_err(|error| AgentError::new(AgentErrorCode::CandidateInvalid, format!("{error:?}")))?;
     sley_policy::validate_candidate_bytes(&context, stored)
         .map_err(|error| AgentError::new(AgentErrorCode::CandidateInvalid, format!("{error:?}")))
+}
+
+/// A staged frame: what it compiled to, the candidate assembled from it, and
+/// the kernel's validation output.
+pub type Staged = (
+    frame::Compiled,
+    ImportedCandidate,
+    CandidateValidationOutput,
+);
+
+/// The nondeterministic inputs of [`stage`]: the record nonce, the source
+/// of fresh member identities, and the validation clock.
+pub struct StageInputs<'a> {
+    /// The candidate record nonce (created identities derive from it).
+    pub nonce: CandidateNonce,
+    /// Fresh member identities (SSMC1 section 4).
+    pub random: &'a mut dyn FnMut() -> Result<[u8; 32]>,
+    /// The validation clock, read once, after the candidate is assembled.
+    pub now: &'a mut dyn FnMut() -> u64,
+}
+
+/// Compiles a frame (an AF1 or AF1-X object, or a raw operation array) over
+/// the head, assembles the candidate, and validates it in process: the
+/// staging step of `try`. Nothing is written anywhere.
+///
+/// `before_candidate` sees the compiled frame before assembly and may refuse
+/// it.
+///
+/// # Errors
+///
+/// The frame compiler's refusals, `AGENT_FRAME_INVALID` for a frame that
+/// changes nothing, and `AGENT_CANDIDATE_INVALID` when the candidate cannot
+/// be built or validated at all. A kernel refusal is a result in the output,
+/// not an error.
+pub fn stage(
+    head: &Head,
+    authority: &Authority,
+    names: &Names,
+    frame_value: &Value,
+    inputs: StageInputs<'_>,
+    before_candidate: impl FnOnce(&frame::Compiled) -> Result<()>,
+) -> Result<Staged> {
+    let StageInputs { nonce, random, now } = inputs;
+    let mut compiled = if frame_value.is_array() {
+        let (ops, new_names) = crate::raw::compile(head.program(), names, frame_value, nonce)?;
+        let count =
+            |class: MutationClass| ops.iter().filter(|op| op.payload.class() == class).count();
+        frame::Compiled {
+            created: count(MutationClass::CreateEntity),
+            replaced: count(MutationClass::ReplaceEntityVersion),
+            deleted: count(MutationClass::DeleteEntityBinding),
+            ops,
+            names: new_names,
+            ..frame::Compiled::default()
+        }
+    } else {
+        frame::compile(
+            head.program(),
+            names,
+            &authority.ceilings,
+            frame_value,
+            nonce,
+            random,
+        )?
+    };
+    if compiled.ops.is_empty() {
+        return Err(AgentError::new(
+            AgentErrorCode::FrameInvalid,
+            "the frame changes nothing: everything it states is already live as stated",
+        ));
+    }
+    before_candidate(&compiled)?;
+    let ops = std::mem::take(&mut compiled.ops);
+    let imported = assemble(head, authority, nonce, ops)?;
+    let output = validate_at(head, authority, &imported.stored_bytes, now())?;
+    Ok((compiled, imported, output))
 }
 
 /// The program a Valid candidate proposes.
@@ -275,11 +387,13 @@ pub fn applied_program(head: &Head, candidate: &ImportedCandidate) -> Option<Pro
 
 /// Candidate storage under `.sley/candidates/`, addressed by short handles
 /// (`c1`, `c2`, ...).
+#[cfg(feature = "native")]
 #[derive(Clone, Debug)]
 pub struct Store {
     dir: PathBuf,
 }
 
+#[cfg(feature = "native")]
 impl Store {
     /// Opens (creating) the store of a workspace.
     ///
@@ -415,6 +529,7 @@ pub fn is_handle(reference: &str) -> bool {
 }
 
 /// A scratch file name no other command uses: `.<label>-<pid>-<random>`.
+#[cfg(feature = "native")]
 fn scratch_name(label: &str) -> Result<String> {
     let random = random32()?;
     Ok(format!(
@@ -432,6 +547,7 @@ fn scratch_name(label: &str) -> Result<String> {
 /// # Errors
 ///
 /// `AGENT_IO_FAILED` when the directory cannot be written.
+#[cfg(feature = "native")]
 pub(crate) fn claim_file(
     dir: &Path,
     first: u64,
@@ -442,6 +558,7 @@ pub(crate) fn claim_file(
 }
 
 /// Atomic allocation with an inclusive ceiling, including concurrent collisions.
+#[cfg(feature = "native")]
 pub(crate) fn claim_file_bounded(
     dir: &Path,
     first: u64,
@@ -484,6 +601,7 @@ pub(crate) fn claim_file_bounded(
 /// # Errors
 ///
 /// `AGENT_IO_FAILED` when the file cannot be written.
+#[cfg(feature = "native")]
 pub(crate) fn replace_file(path: &Path, content: &[u8]) -> Result<()> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     let scratch = dir.join(scratch_name("write")?);

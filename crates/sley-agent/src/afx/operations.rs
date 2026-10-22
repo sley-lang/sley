@@ -7,7 +7,9 @@ pub(crate) mod edges;
 mod edit;
 mod patch;
 pub(crate) mod topology;
+#[cfg_attr(not(feature = "native"), allow(unused_imports))]
 pub(crate) use edit::edits;
+#[cfg_attr(not(feature = "native"), allow(unused_imports))]
 pub(crate) use patch::patch;
 
 pub(crate) struct Operation {

@@ -9,13 +9,29 @@ description = "Sley 2 agent workbench: derived AV1 views, AF1 authoring frames, 
 [[bin]]
 name = "sley-agent"
 path = "src/main.rs"
+required-features = ["native"]
+
+[[example]]
+name = "needleshift_sustained"
+required-features = ["native"]
+
+[[example]]
+name = "scaling_phases"
+required-features = ["native"]
 
 # The optional familiar authoring frontend (ADR-0055): a textual proposal
 # syntax parsed into structured bodies at the authoring boundary. Building
 # with `--no-default-features` removes it; every other path is unchanged.
+#
+# `native` (default) is the workspace, repository, draft and CLI layer over
+# the file system. Without it the library is the pure core: frames,
+# candidate assembly and validation, execution, and the embed API
+# (`--no-default-features --features familiar`), which builds for
+# `wasm32-unknown-unknown`. The binary needs `native`.
 [features]
-default = ["familiar"]
+default = ["familiar", "native"]
 familiar = []
+native = ["dep:sley-repo", "dep:sley-store", "dep:sley-txn"]
 
 [dependencies]
 serde = "=1.0.228"
@@ -24,14 +40,14 @@ sha2 = { version = "=0.11.0", default-features = false, features = ["alloc"] }
 sley-id = { path = "../sley-id" }
 sley-mutate = { path = "../sley-mutate" }
 sley-policy = { path = "../sley-policy" }
-sley-repo = { path = "../sley-repo" }
+sley-repo = { path = "../sley-repo", optional = true }
 sley-scb1 = { path = "../sley-scb1" }
 sley-ssmc = { path = "../sley-ssmc" }
 sley-check = { path = "../sley-check" }
 sley-state-root = { path = "../sley-state-root" }
-sley-store = { path = "../sley-store" }
+sley-store = { path = "../sley-store", optional = true }
 sley-tests = { path = "../sley-tests" }
-sley-txn = { path = "../sley-txn" }
+sley-txn = { path = "../sley-txn", optional = true }
 sley-vm = { path = "../sley-vm" }
 
 # The workspace lints, except that `unsafe_code` is `deny` rather than

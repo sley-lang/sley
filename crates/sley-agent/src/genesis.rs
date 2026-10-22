@@ -4,26 +4,39 @@
 //!
 //! `init` is the local equivalent of `workspace.create`: it writes one
 //! genesis whose policy grants its principal the workbench defaults. It
-//! never touches an existing repository. `commit` goes through the kernel's
+//! never touches an existing repository. The genesis facts themselves are
+//! pure ([`genesis`], [`genesis_head`]); writing them needs `native`. `commit` goes through the kernel's
 //! transaction engine, which validates the candidate again.
 
+#[cfg(feature = "native")]
 use std::fs;
+#[cfg(feature = "native")]
 use std::path::Path;
+#[cfg(feature = "native")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sley_id::{GenesisNonce, PrincipalId, TransactionId, WorkspaceId};
 use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody};
-use sley_mutate::{EntityObjectRecord, MutationClass, build_entity_object};
+use sley_mutate::{EntityObject, EntityObjectRecord, MutationClass, build_entity_object};
+#[cfg(feature = "native")]
+use sley_policy::CandidateValidationLimits;
 use sley_policy::{
-    CandidateValidationLimits, PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
+    AcceptedPolicyRoot, PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
 };
-use sley_state_root::StateRootBuilder;
+use sley_state_root::{AcceptedStateRoot, StateRootBuilder};
+#[cfg(feature = "native")]
 use sley_store::ObjectStore;
+#[cfg(feature = "native")]
 use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput};
 
+#[cfg(feature = "native")]
 use crate::candidate::Authority;
-use crate::error::{AgentError, AgentErrorCode, Result, io};
-use crate::workspace::{self, Head, REPO_DIR, SEED_PACK, Workspace};
+#[cfg(feature = "native")]
+use crate::error::io;
+use crate::error::{AgentError, AgentErrorCode, Result};
+use crate::workspace::{self, Head, HeadParts};
+#[cfg(feature = "native")]
+use crate::workspace::{REPO_DIR, SEED_PACK, Workspace};
 
 /// Workbench policy ceilings for `init`: fuel, memory, and output sized for
 /// real tests, and room for large candidates (`SLEY_AGENT_V1.md` section 7).
@@ -52,32 +65,27 @@ fn kernel(what: &str, detail: impl std::fmt::Display) -> AgentError {
     )
 }
 
-/// Creates a workspace at `dir` with a fresh genesis and writes its
-/// `base.pack`. `seed` makes the genesis identities reproducible.
+/// The genesis facts `init` writes, built in memory: the policy root
+/// granting one principal the workbench classes, the contract and test root
+/// anchors, and the state root over them. Nothing here touches a file.
+#[derive(Clone, Debug)]
+pub struct Genesis {
+    /// The workspace identity (derived from the genesis nonce).
+    pub workspace_id: WorkspaceId,
+    /// The protected policy root.
+    pub policy: AcceptedPolicyRoot,
+    /// The contract and test root anchors, in that order.
+    pub anchors: Vec<EntityObject>,
+    /// The genesis state root.
+    pub state: AcceptedStateRoot,
+}
+
+/// Builds the genesis facts of a workspace whose genesis nonce is `nonce`.
 ///
 /// # Errors
 ///
-/// `AGENT_WORKSPACE_INVALID` when `dir` already holds a repository or a
-/// seed, or the kernel refuses a genesis fact.
-pub fn init(
-    dir: &Path,
-    seed: Option<[u8; 32]>,
-    ceilings: PolicyResourceCeilings,
-) -> Result<Workspace> {
-    let repo = dir.join(REPO_DIR);
-    if dir.join(SEED_PACK).exists()
-        || fs::read_dir(&repo).is_ok_and(|mut entries| entries.next().is_some())
-    {
-        return Err(AgentError::new(
-            AgentErrorCode::WorkspaceInvalid,
-            format!("{} already holds a repository or base.pack", dir.display()),
-        ));
-    }
-    fs::create_dir_all(&repo).map_err(|error| io(&repo, &error))?;
-    let nonce = match seed {
-        Some(seed) => seed,
-        None => crate::candidate::random32()?,
-    };
+/// `AGENT_WORKSPACE_INVALID` when the kernel refuses a genesis fact.
+pub fn genesis(nonce: [u8; 32], ceilings: PolicyResourceCeilings) -> Result<Genesis> {
     let workspace_id = WorkspaceId::derive(GenesisNonce::from_bytes(nonce));
     let principal = PrincipalId::from_bytes(*workspace_id.as_bytes());
     let mut grant = PrincipalGrantBuilder::new(ceilings);
@@ -94,9 +102,6 @@ pub fn init(
         .build(&registry)
         .map_err(|error| kernel("policy", format!("{error:?}")))?;
     let epoch = workspace::epoch()?;
-    let store = ObjectStore::new(&repo);
-    let verifier =
-        move |b: &[u8]| sley_mutate::import_entity_object(epoch, b).map(|o| o.object_id());
     // The contract and test roots are two empty namespace objects, as in
     // every trusted genesis the repository tests build.
     let mut anchors = Vec::new();
@@ -117,16 +122,94 @@ pub fn init(
             },
         )
         .map_err(|error| kernel("anchor", format!("{error:?}")))?;
-        store
-            .put(object.object_id(), object.stored_bytes(), &verifier)
-            .map_err(|error| kernel("anchor store", format!("{error:?}")))?;
-        anchors.push(object.object_id());
+        anchors.push(object);
     }
     let state_registry = sley_state_root::conformance_registry()
         .map_err(|error| kernel("state registry", format!("{error:?}")))?;
-    let state = StateRootBuilder::new(workspace_id, anchors[0], anchors[1], policy.root())
-        .build(&state_registry)
-        .map_err(|error| kernel("state root", format!("{error:?}")))?;
+    let state = StateRootBuilder::new(
+        workspace_id,
+        anchors[0].object_id(),
+        anchors[1].object_id(),
+        policy.root(),
+    )
+    .build(&state_registry)
+    .map_err(|error| kernel("state root", format!("{error:?}")))?;
+    Ok(Genesis {
+        workspace_id,
+        policy,
+        anchors,
+        state,
+    })
+}
+
+/// Domain of [`genesis_head`]'s stand-in transaction identity.
+const IN_MEMORY_GENESIS: &[u8] = b"sley.agent.in-memory-genesis.v1\0";
+
+/// An accepted head over a fresh genesis, in memory: what `init` followed by
+/// loading the head gives, without a repository. No durable transaction
+/// exists, so its identity is a stand-in derived from the genesis state
+/// root (a domain-separated SHA-256); candidates bind it as their base like
+/// any other, and the kernel judges them against exactly these facts.
+///
+/// # Errors
+///
+/// `AGENT_WORKSPACE_INVALID` when the kernel refuses a genesis fact.
+pub fn genesis_head(nonce: [u8; 32], ceilings: PolicyResourceCeilings) -> Result<Head> {
+    let genesis = genesis(nonce, ceilings)?;
+    let mut preimage = IN_MEMORY_GENESIS.to_vec();
+    preimage.extend_from_slice(genesis.state.root.as_bytes());
+    let transaction_id = TransactionId::from_bytes(sley_vm::host_abi::image_digest(&preimage));
+    Ok(Head::from_parts(HeadParts {
+        transaction_id,
+        state_root: genesis.state,
+        policy_root: genesis.policy,
+        objects: Vec::new(),
+        tombstones: Vec::new(),
+    }))
+}
+
+/// Creates a workspace at `dir` with a fresh genesis and writes its
+/// `base.pack`. `seed` makes the genesis identities reproducible.
+///
+/// # Errors
+///
+/// `AGENT_WORKSPACE_INVALID` when `dir` already holds a repository or a
+/// seed, or the kernel refuses a genesis fact.
+#[cfg(feature = "native")]
+pub fn init(
+    dir: &Path,
+    seed: Option<[u8; 32]>,
+    ceilings: PolicyResourceCeilings,
+) -> Result<Workspace> {
+    let repo = dir.join(REPO_DIR);
+    if dir.join(SEED_PACK).exists()
+        || fs::read_dir(&repo).is_ok_and(|mut entries| entries.next().is_some())
+    {
+        return Err(AgentError::new(
+            AgentErrorCode::WorkspaceInvalid,
+            format!("{} already holds a repository or base.pack", dir.display()),
+        ));
+    }
+    fs::create_dir_all(&repo).map_err(|error| io(&repo, &error))?;
+    let nonce = match seed {
+        Some(seed) => seed,
+        None => crate::candidate::random32()?,
+    };
+    let Genesis {
+        policy,
+        anchors,
+        state,
+        ..
+    } = genesis(nonce, ceilings)?;
+    let epoch = workspace::epoch()?;
+    let store = ObjectStore::new(&repo);
+    let verifier =
+        move |b: &[u8]| sley_mutate::import_entity_object(epoch, b).map(|o| o.object_id());
+    for object in &anchors {
+        store
+            .put(object.object_id(), object.stored_bytes(), &verifier)
+            .map_err(|error| kernel("anchor store", format!("{error:?}")))?;
+    }
     let genesis = TransactionRepository::new(&repo)
         .initialize_trusted_genesis(TrustedGenesisInput::new(&state, &policy, &[], &[]))
         .map_err(|error| kernel("genesis", error.code()))?;
@@ -145,6 +228,7 @@ pub fn init(
 /// `AGENT_SUBMISSION_REFUSED` when the transaction engine refuses it
 /// (including candidates that carry `TestCases`, which 2.0 cannot commit
 /// until native test evidence lands).
+#[cfg(feature = "native")]
 pub fn commit(head: &Head, repo: &Path, stored: &[u8]) -> Result<TransactionId> {
     let authority = Authority::of(head)?;
     let now = SystemTime::now()
@@ -176,6 +260,7 @@ pub fn commit(head: &Head, repo: &Path, stored: &[u8]) -> Result<TransactionId> 
 ///
 /// `AGENT_WORKSPACE_INVALID` when the kernel refuses the export,
 /// `AGENT_IO_FAILED` when the file cannot be written.
+#[cfg(feature = "native")]
 pub fn export(workspace: &Workspace, path: &Path) -> Result<usize> {
     let epoch = workspace::epoch()?;
     let verifier =

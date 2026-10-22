@@ -5,7 +5,7 @@
 //! where Sley can express it exactly (floor division and modulo, truthiness,
 //! short-circuit and/or, chained comparisons, membership, views) and refuses
 //! the rest at its line and column.
-#![cfg(feature = "familiar")]
+#![cfg(all(feature = "native", feature = "familiar"))]
 
 use std::fs;
 use std::path::{Path, PathBuf};

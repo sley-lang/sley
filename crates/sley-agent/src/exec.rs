@@ -9,7 +9,6 @@
 //! admission evidence, never signed, never committed.
 
 use std::collections::BTreeMap;
-use std::time::Instant;
 
 use serde_json::{Value, json};
 use sley_check::TypeEnvironment;
@@ -54,6 +53,37 @@ struct Lowered {
     image: VerifiedImage,
 }
 
+/// VM wall time for [`Outcome::micros`]. The clock is read only with the
+/// `native` feature: `wasm32-unknown-unknown` has none, and nothing but the
+/// advisory `micros` reads it (fuel and instructions are exact counts).
+#[derive(Clone, Copy)]
+struct Stopwatch {
+    #[cfg(feature = "native")]
+    started: std::time::Instant,
+}
+
+impl Stopwatch {
+    fn start() -> Self {
+        Self {
+            #[cfg(feature = "native")]
+            started: std::time::Instant::now(),
+        }
+    }
+
+    /// Microseconds since [`Self::start`]; 0 without the `native` feature.
+    #[allow(clippy::unused_self)]
+    fn micros(self) -> u64 {
+        #[cfg(feature = "native")]
+        {
+            u64::try_from(self.started.elapsed().as_micros()).unwrap_or(u64::MAX)
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            0
+        }
+    }
+}
+
 /// One execution result.
 #[derive(Clone, Debug)]
 pub struct Outcome {
@@ -63,17 +93,18 @@ pub struct Outcome {
     pub fuel: u64,
     /// Instructions executed.
     pub instructions: u64,
-    /// VM wall time in microseconds (lowering excluded).
+    /// VM wall time in microseconds (lowering excluded); 0 without the
+    /// `native` feature.
     pub micros: u64,
 }
 
 impl Outcome {
-    fn from_execution(outcome: sley_vm::ExecutionOutcome, started: Instant) -> Self {
+    fn from_execution(outcome: sley_vm::ExecutionOutcome, started: Stopwatch) -> Self {
         Self {
             termination: outcome.termination,
             fuel: outcome.fuel_used,
             instructions: outcome.instruction_count,
-            micros: u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX),
+            micros: started.micros(),
         }
     }
 }
@@ -91,7 +122,7 @@ impl PreparedCall<'_> {
     /// # Errors
     /// `AGENT_EXECUTION_REFUSED` if execution or observation derivation refuses.
     pub fn run(&self) -> Result<Outcome> {
-        let started = Instant::now();
+        let started = Stopwatch::start();
         let outcome = self
             .execution
             .execute()
@@ -292,7 +323,7 @@ impl Executor {
         self.lower(id)?;
         let lowered = &self.lowered[id];
         let input = self.loaded_input();
-        let started = Instant::now();
+        let started = Stopwatch::start();
         let outcome = lowered
             .image
             .execute(input, ExecutionRequest { inputs, limits })
