@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc fib(n int64) int64 {\n\tif n < 2 {\n\t\treturn n\n\t}\n\treturn fib(n-1) + fib(m-2)\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestFib(t *testing.T) {\n\tif got := fib(0); got != 0 {\n\t\tt.Errorf(\"fib(0) = %d, want 0\", got)\n\t}\n\tif got := fib(1); got != 1 {\n\t\tt.Errorf(\"fib(1) = %d, want 1\", got)\n\t}\n\tif got := fib(10); got != 55 {\n\t\tt.Errorf(\"fib(10) = %d, want 55\", got)\n\t}\n\tif got := fib(20); got != 6765 {\n\t\tt.Errorf(\"fib(20) = %d, want 6765\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL\tcalc [build failed]\n# calc [calc.test]\n./calc.go:7:24: undefined: m\n"
+ ],
+ [
+  "write",
+  "edit",
+  "fib(m-2)\nfib(n-2)"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

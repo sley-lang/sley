@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn collatz(limit: i64) -> i64 {\n    let (mut best, mut best_n) = (0, 0);\n    for n in 1..limit {\n        let mut x = n;\n        let mut steps = 0;\n        while x != 1 {\n            x = if x % 2 == 0 { x / 2 } else { 3 * x + 1 };\n            steps += 1;\n        }\n        if steps > best {\n            best = steps;\n            best_n = steps;\n        }\n    }\n    best_n\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_collatz() {\n        assert_eq!(collatz(10), 9);\n        assert_eq!(collatz(100), 97);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\ntests::test_collatz --- FAILED\n\nfailures:\n\n---- tests::test_collatz stdout ----\n\nthread 'tests::test_collatz' (1) panicked at src/lib.rs:24:9:\nassertion `left == right` failed\n  left: 19\n right: 9\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    tests::test_collatz\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--lib`\n"
+ ],
+ [
+  "write",
+  "edit",
+  "best_n = steps\nbest_n = n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

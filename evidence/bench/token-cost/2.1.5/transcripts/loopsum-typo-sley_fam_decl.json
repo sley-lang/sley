@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "fn loopsum(n: i64) -> i64 {\n    var s = 0\n    for i in 0..n {\n        s = (s + j * i) % 1000000007\n    }\n    s\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar loopsum.sley"
+ ],
+ [
+  "read",
+  "output",
+  "loopsum.sley:4:18: unknown name `j`\n        s = (s + j * i) % 1000000007\n                 ^\ndraft d1@r1: incomplete\n"
+ ],
+ [
+  "write",
+  "edit",
+  "s + j * i\ns + i * i"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar loopsum.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+45 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +loopsum; const +3\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d2 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"loopsum_cases\", \"fn\": \"loopsum\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [10], \"expect\": 285}, {\"args\": [1000], \"expect\": 332833500}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d2 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 3 passed (advisory) d2@r2\n"
+ ]
+]

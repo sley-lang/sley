@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nimport \"errors\"\n\nvar (\n\tErrNotPositive  = errors.New(\"amount must be positive\")\n\tErrInsufficient = errors.New(\"insufficient funds\")\n)\n\nfunc withdraw(balance, amount int64) (int64, error) {\n\tif amount <= 0 {\n\t\treturn 0, ErrNotPositive\n\t}\n\tif amount >= balance {\n\t\treturn 0, ErrInsufficient\n\t}\n\treturn balance - amount, nil\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport (\n\t\"errors\"\n\t\"testing\"\n)\n\nfunc TestErrors(t *testing.T) {\n\tif got, err := withdraw(100, 30); err != nil || got != 70 {\n\t\tt.Errorf(\"withdraw(100, 30) = %d, %v, want 70\", got, err)\n\t}\n\tif got, err := withdraw(50, 50); err != nil || got != 0 {\n\t\tt.Errorf(\"withdraw(50, 50) = %d, %v, want 0\", got, err)\n\t}\n\tif _, err := withdraw(100, 0); !errors.Is(err, ErrNotPositive) {\n\t\tt.Errorf(\"withdraw(100, 0) error = %v, want ErrNotPositive\", err)\n\t}\n\tif _, err := withdraw(10, 30); !errors.Is(err, ErrInsufficient) {\n\t\tt.Errorf(\"withdraw(10, 30) error = %v, want ErrInsufficient\", err)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "--- FAIL: TestErrors (0.00s)\n    calc_test.go:13: withdraw(50, 50) = 0, insufficient funds, want 0\nFAIL\nexit status 1\nFAIL\tcalc\t0.001s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "amount >= balance\namount > balance"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

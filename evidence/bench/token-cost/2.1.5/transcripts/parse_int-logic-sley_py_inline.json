@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "import pytest\n\n\ndef parse_int(chars: list[int]) -> int:\n    if not chars:\n        raise ValueError(\"empty\")\n    sign = 1\n    start = 0\n    if chars[0] == 45:\n        sign = -1\n        start = 1\n        if len(chars) == 1:\n            raise ValueError(\"lone minus\")\n    value = 0\n    for c in chars[start:]:\n        if c < 48 or c > 57:\n            raise ValueError(\"not a digit\")\n        value = value * 10 + (c - 47)\n    return sign * value\n\n\ndef test_parse_int():\n    assert parse_int([49, 50, 51]) == 123\n    assert parse_int([45, 55]) == -7\n    with pytest.raises(ValueError):\n        parse_int([])\n    with pytest.raises(ValueError):\n        parse_int([45])\n    with pytest.raises(ValueError):\n        parse_int([49, 120])\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar parse_int.py"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL test_parse_int_0 (parse_int): expected 123, got 234 (line 23)\nFAIL test_parse_int_1 (parse_int): expected -7, got -8 (line 24)\nc1: 2 failed, 3 passed (advisory) d1@r1\n"
+ ],
+ [
+  "write",
+  "edit",
+  "(c - 47)\n(c - 48)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar parse_int.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 5 passed (advisory) d2@r1\n"
+ ]
+]

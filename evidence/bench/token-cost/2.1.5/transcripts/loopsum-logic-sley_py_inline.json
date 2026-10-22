@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def loopsum(n: int) -> int:\n    s = 0\n    for i in range(n):\n        s = (s + i + i) % 1000000007\n    return s\n\n\ndef test_loopsum():\n    assert loopsum(0) == 0\n    assert loopsum(10) == 285\n    assert loopsum(1000) == 332833500\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL test_loopsum_1 (loopsum): expected 285, got 90 (line 10)\nFAIL test_loopsum_2 (loopsum): expected 332833500, got 999000 (line 11)\nc1: 2 failed, 1 passed (advisory) d1@r1\n"
+ ],
+ [
+  "write",
+  "edit",
+  "i + i\ni * i"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 3 passed (advisory) d2@r1\n"
+ ]
+]

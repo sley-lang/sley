@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "#include <stdlib.h>\n\nstruct point {\n    long long x;\n    long long y;\n};\n\nlong long manhattan(struct point a, struct point b) {\n    return llabs(a.x - b.x) + llabs(a.y - b.x);\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"records.c\"\n\nint main(void) {\n    assert(manhattan((struct point){1, 2}, (struct point){4, -2}) == 7);\n    assert(manhattan((struct point){0, 0}, (struct point){0, 0}) == 0);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_records test_records.c && ./test_records"
+ ],
+ [
+  "read",
+  "output",
+  "test_records: test_records.c:5: main: Assertion `manhattan((struct point){1, 2}, (struct point){4, -2}) == 7' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.y - b.x\na.y - b.y"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_records test_records.c && ./test_records"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

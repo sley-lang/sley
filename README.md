@@ -204,14 +204,17 @@ roots, the change lifecycle, sessions, and the glossary.
 
 ## New in 2.1.5: the word tier and quieter agent output
 
-A point release. When every value in a program fits a machine word (integers, booleans and
-checked results), the VM now runs it on plain 64-bit registers, fuses whole blocks into fast
-blocks, and runs calls and returns inside prepaid bursts with exactly the same fuel and
-instruction totals. The release binary is built with fat LTO and one codegen unit. The runtime benchmarks run faster than in 2.1.4.
-`try` now prints only failures and one count line, familiar text is refused with
-`file:line:col` diagnostics and a caret, and familiar syntax declares `struct` and `enum` types.
-See the [2.1.5 release notes](docs/release/SLEY-2.1.5.md) for the tables and their
-caveats.
+A point release. When every value in a program fits a machine word (integers, booleans and checked
+results), the VM now runs it on plain 64-bit registers, fuses whole blocks into fast blocks, and
+runs calls and returns inside prepaid bursts with exactly the same fuel and instruction totals. The
+release binary is built with fat LTO and one codegen unit. The runtime benchmarks run 2.2-2.9x
+faster than in 2.1.4. Against CPython 3.13, with process start included, Sley is now faster on
+three of the five (loopsum, primes, gcdsum), at parity on `fib(30)` and 1.07x slower on collatz.
+`try` now prints only failures and one count line, familiar text is refused with `file:line:col`
+diagnostics and a caret, and familiar syntax declares `struct` and `enum` types. In a scripted
+token-count harness, a write-test-fix loop in the dialect costs 0.95x, 0.74x and 0.46x the tokens
+of the same loop in Python (clean, logic bug, typo), and less than C, Rust, Go and TypeScript. See
+the [2.1.5 release notes](docs/release/SLEY-2.1.5.md) for the tables and their caveats.
 
 ## New in 2.1.4: faster loops and cheaper agent loops
 
