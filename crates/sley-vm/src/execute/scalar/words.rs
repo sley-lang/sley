@@ -44,7 +44,8 @@ enum Op {
     Not(u32),
     And(u32, u32),
     Or(u32, u32),
-    Call,
+    /// A direct call: its call site in the function's `sites`.
+    Call(u32),
     /// An edge move inside a fused block (bursts only): no charge.
     Copy(u32),
     /// A fused switch's Ok test (bursts only): when the output slot's
@@ -83,8 +84,39 @@ enum WordExit {
     Branch(WordEdge),
     Cond(u32, WordEdge, WordEdge),
     Switch(u32, WordEdge, WordEdge),
-    /// A return or trap: the general exit runs.
+    /// A return of the slot's word.
+    Return(u32),
+    /// A trap: the general exit runs.
     End,
+}
+
+impl WordExit {
+    /// The most fuel the exit charges, its own action included.
+    fn fuel(&self) -> u64 {
+        match self {
+            Self::Branch(edge) => edge.fuel,
+            Self::Cond(_, a, b) | Self::Switch(_, a, b) => a.fuel.max(b.fuel),
+            Self::Return(_) | Self::End => 1,
+        }
+    }
+
+    /// Whether the exit leaves the function.
+    fn ends(&self) -> bool {
+        matches!(self, Self::Return(_) | Self::End)
+    }
+}
+
+/// A direct call in word form: the callee, the argument slots and the
+/// units each charges, where the result goes and the units it charges, and
+/// the fast block that runs after it returns.
+#[derive(Clone, Debug)]
+struct CallSite {
+    function: usize,
+    args: Vec<u32>,
+    arg_units: u64,
+    output: u32,
+    units: u64,
+    tail: u32,
 }
 
 /// A whole block as a burst runs it: its own steps without the constants
@@ -93,6 +125,8 @@ enum WordExit {
 /// is static except the units of the steps it runs and its last exit.
 #[derive(Clone, Debug, Default)]
 struct FastBlock {
+    /// The block and step it starts at.
+    start: (usize, usize),
     steps: Vec<WordStep>,
     /// Fuel and instructions of every step it stands for, and the fuel of
     /// the branches it fused.
@@ -104,6 +138,8 @@ struct FastBlock {
     last: usize,
     /// Where each guard leaves it: what it charged up to that block's exit.
     guards: Vec<Leave>,
+    /// The call it ends with, instead of its last block's exit.
+    call: Option<u32>,
 }
 
 /// A fast block left at a fused switch whose check failed: the block and
@@ -121,16 +157,23 @@ struct Leave {
 pub(super) struct WordFunction {
     blocks: Vec<Vec<WordStep>>,
     exits: Vec<WordExit>,
-    /// Whether each block is one prepaid run, exit included (no calls).
-    whole: Vec<bool>,
-    /// Each whole block as a burst runs it.
+    /// The fast block starting at each block, then one after each call.
     fast: Vec<FastBlock>,
+    /// Each direct call.
+    sites: Vec<CallSite>,
+    /// The entry block.
+    entry: usize,
     /// Slots only one constant ever writes, with the constant: written when
     /// a frame starts, so bursts skip those constant steps.
     constant_slots: Vec<(u32, u32)>,
-    /// `BURST` times the largest whole block's run: the budget a burst of
-    /// blocks is prepaid against.
-    burst: Batch,
+    /// The most one fast block (and a return after it) can charge.
+    item: Batch,
+    /// Its index in the program.
+    index: u32,
+    /// The plan's slots, parameters and result units, for calls in bursts.
+    slots: usize,
+    parameters: Vec<usize>,
+    result_units: u64,
 }
 
 /// How many fast blocks one burst runs at most.
@@ -139,18 +182,14 @@ const BURST: usize = 64;
 /// How many whole blocks a fast block fuses at most.
 const FUSE: usize = 12;
 
-fn whole_run(plan: &Plan, block: usize) -> Option<Batch> {
-    plan.blocks[block]
-        .batches
-        .first()
-        .copied()
-        .filter(|batch| batch.start == 0 && batch.exit)
-}
-
 /// The word form of every function of a program, in plan order.
 #[derive(Clone, Debug)]
 pub(super) struct Words {
     functions: Vec<WordFunction>,
+    /// `BURST` times the most one fast block of any function charges: the
+    /// budget a burst, which calls and returns across functions, is
+    /// prepaid against.
+    burst: Batch,
 }
 
 fn word_type(ty: &TypeExpr) -> bool {
@@ -203,12 +242,36 @@ impl Words {
     /// The word form of a program whose plans are `plans` (entry first) and
     /// bytecode `codes`, or `None` when any function has another value.
     pub(super) fn compile(plans: &[&Plan], codes: &[&crate::BytecodeFunction]) -> Option<Self> {
-        let functions = plans
+        let mut functions = plans
             .iter()
             .zip(codes)
             .map(|(plan, code)| compile_function(plan, code))
-            .collect::<Option<_>>()?;
-        Some(Self { functions })
+            .collect::<Option<Vec<WordFunction>>>()?;
+        // Frames keep function indices as `u32`.
+        for (index, f) in functions.iter_mut().enumerate() {
+            f.index = u32::try_from(index).ok()?;
+        }
+        // A return charges its instruction and the call's units.
+        let returned = functions
+            .iter()
+            .flat_map(|f| &f.sites)
+            .map(|site| site.units)
+            .max()
+            .unwrap_or(0);
+        let mut burst = Batch::default();
+        for f in &functions {
+            burst.fuel = burst.fuel.max(f.item.fuel);
+            burst.steps = burst.steps.max(f.item.steps);
+            burst.units = burst.units.max(f.item.units);
+        }
+        burst.steps = burst.steps.checked_add(1)?.checked_mul(BURST)?;
+        burst.fuel = burst.fuel.checked_mul(BURST as u64)?;
+        burst.units = burst
+            .units
+            .checked_add(returned)?
+            .checked_mul(BURST as u64)?;
+        burst.exit = true;
+        Some(Self { functions, burst })
     }
 }
 
@@ -294,34 +357,57 @@ fn compile_function(plan: &Plan, code: &crate::BytecodeFunction) -> Option<WordF
         }
         blocks.push(steps);
     }
-    let whole: Vec<bool> = (0..plan.blocks.len())
-        .map(|b| whole_run(plan, b).is_some())
-        .collect();
-    let constant_slots = constant_slots(plan, &blocks, &exits);
-    let mut fast = Vec::with_capacity(plan.blocks.len());
-    let mut burst = Batch::default();
-    for b in 0..plan.blocks.len() {
-        if !whole[b] {
-            fast.push(FastBlock::default());
-            continue;
+    // Each direct call's site, numbered in block order.
+    let mut sites = Vec::new();
+    for (b, block) in plan.blocks.iter().enumerate() {
+        for (k, step) in block.steps.iter().enumerate() {
+            let Some(call) = &step.call else { continue };
+            let index = u32::try_from(sites.len()).ok()?;
+            let Op::Call(site) = &mut blocks[b][k].op else {
+                return None;
+            };
+            *site = index;
+            sites.push(CallSite {
+                function: call.function,
+                args: step.args.iter().map(|&r| slot(r)).collect::<Option<_>>()?,
+                arg_units: call.arguments.iter().map(|u| u.fixed[0]).sum(),
+                output: slot(step.output)?,
+                units: step.units[0],
+                tail: 0,
+            });
         }
-        let (block, budget) = fuse(plan, b, &blocks, &exits, &whole, &constant_slots)?;
-        burst.fuel = burst.fuel.max(budget.fuel);
-        burst.steps = burst.steps.max(budget.steps);
-        burst.units = burst.units.max(budget.units);
+    }
+    let constant_slots = constant_slots(plan, &blocks, &exits);
+    let mut starts: Vec<(usize, usize)> = (0..plan.blocks.len()).map(|b| (b, 0)).collect();
+    for (b, steps) in blocks.iter().enumerate() {
+        for (k, step) in steps.iter().enumerate() {
+            if let Op::Call(site) = step.op {
+                sites[site as usize].tail = u32::try_from(starts.len()).ok()?;
+                starts.push((b, k + 1));
+            }
+        }
+    }
+    let mut fast = Vec::with_capacity(starts.len());
+    let mut item = Batch::default();
+    for start in starts {
+        let (block, budget) = fuse(start, &blocks, &exits, &sites, &constant_slots)?;
+        item.fuel = item.fuel.max(budget.fuel);
+        item.steps = item.steps.max(budget.steps);
+        item.units = item.units.max(budget.units);
         fast.push(block);
     }
-    burst.fuel = burst.fuel.saturating_mul(BURST as u64);
-    burst.steps = burst.steps.saturating_mul(BURST);
-    burst.units = burst.units.saturating_mul(BURST as u64);
-    burst.exit = true;
     Some(WordFunction {
         blocks,
         exits,
-        whole,
         fast,
+        sites,
+        entry: usize::try_from(code.entry_block).ok()?,
         constant_slots,
-        burst,
+        item,
+        index: 0,
+        slots: plan.slots,
+        parameters: plan.parameters.clone(),
+        result_units: plan.result.fixed[0],
     })
 }
 
@@ -352,7 +438,7 @@ fn constant_slots(plan: &Plan, blocks: &[Vec<WordStep>], exits: &[WordExit]) -> 
         let edges: Vec<&WordEdge> = match exit {
             WordExit::Branch(e) => vec![e],
             WordExit::Cond(_, a, b) | WordExit::Switch(_, a, b) => vec![a, b],
-            WordExit::End => vec![],
+            WordExit::Return(_) | WordExit::End => vec![],
         };
         for edge in edges {
             for &(_, to) in &edge.moves {
@@ -378,26 +464,32 @@ fn constant_slots(plan: &Plan, blocks: &[Vec<WordStep>], exits: &[WordExit]) -> 
         .collect()
 }
 
-/// Block `start` as a burst runs it, and the budget that covers it: the
-/// sum of the prepaid runs of the whole blocks it stands for.
+/// The steps from `start` (a block and a step) as a burst runs them, up to
+/// a call or the exit of the last block fused, and the most they charge.
 fn fuse(
-    plan: &Plan,
-    start: usize,
+    start: (usize, usize),
     blocks: &[Vec<WordStep>],
     exits: &[WordExit],
-    whole: &[bool],
+    sites: &[CallSite],
     constant_slots: &[(u32, u32)],
 ) -> Option<(FastBlock, Batch)> {
-    let mut fast = FastBlock::default();
+    let mut fast = FastBlock {
+        start,
+        ..FastBlock::default()
+    };
     let mut budget = Batch::default();
-    let mut seen = vec![start];
-    let mut at = start;
+    let (mut at, mut pc) = start;
+    let mut seen = vec![at];
     loop {
-        let run = whole_run(plan, at)?;
-        budget.fuel = budget.fuel.saturating_add(run.fuel);
-        budget.steps = budget.steps.saturating_add(run.steps);
-        budget.units = budget.units.saturating_add(run.units);
-        for step in &blocks[at] {
+        let mut n: u64 = 0;
+        for step in blocks.get(at)?.get(pc..)? {
+            if let Op::Call(site) = step.op {
+                sites.get(site as usize)?;
+                fast.call = Some(site);
+                break;
+            }
+            n += 1;
+            budget.units = budget.units.checked_add(step.units[0].max(step.units[1]))?;
             match step.op {
                 Op::Constant(i) if constant_slots.contains(&(step.output, i)) => {
                     fast.units += step.units[0];
@@ -405,13 +497,22 @@ fn fuse(
                 _ => fast.steps.push(*step),
             }
         }
-        let n = blocks[at].len() as u64;
         fast.fuel += n;
         fast.count += n;
+        budget.fuel = budget.fuel.checked_add(n)?;
+        budget.steps = budget.steps.checked_add(usize::try_from(n).ok()?)?;
         fast.last = at;
-        let fusable = |edge: &WordEdge| {
-            edge.direct && whole[edge.target] && !seen.contains(&edge.target) && seen.len() < FUSE
-        };
+        if let Some(site) = fast.call {
+            // The call's instruction and action, and its arguments.
+            let site = &sites[site as usize];
+            budget.fuel = budget.fuel.checked_add(2)?;
+            budget.steps = budget.steps.checked_add(1)?;
+            budget.units = budget.units.checked_add(site.arg_units)?;
+            return Some((fast, budget));
+        }
+        budget.fuel = budget.fuel.checked_add(exits[at].fuel())?;
+        let fusable =
+            |edge: &WordEdge| edge.direct && !seen.contains(&edge.target) && seen.len() < FUSE;
         // The edge it continues on, and the slot a payload comes from.
         let (edge, payload) = match &exits[at] {
             WordExit::Branch(edge) if fusable(edge) => (edge, PAYLOAD),
@@ -430,13 +531,13 @@ fn fuse(
                 });
                 (ok, *r)
             }
-            // A branch whose other side ends the function (a loop's exit):
-            // the side that continues is fused.
+            // A branch whose other side leaves the function (a loop's exit
+            // or a base case): the side that continues is fused.
             WordExit::Cond(r, yes, no)
-                if matches!(exits[no.target], WordExit::End) && fusable(yes)
-                    || matches!(exits[yes.target], WordExit::End) && fusable(no) =>
+                if exits[no.target].ends() && fusable(yes)
+                    || exits[yes.target].ends() && fusable(no) =>
             {
-                let fused_yes = matches!(exits[no.target], WordExit::End) && fusable(yes);
+                let fused_yes = exits[no.target].ends() && fusable(yes);
                 let g = u32::try_from(fast.guards.len()).ok()?;
                 fast.guards.push(Leave {
                     block: at,
@@ -467,6 +568,7 @@ fn fuse(
         }
         seen.push(edge.target);
         at = edge.target;
+        pc = 0;
     }
 }
 
@@ -513,7 +615,8 @@ fn compile_exit(exit: &Exit) -> Option<WordExit> {
                 word_edge(&cases[err].1, err as u64 + 1)?,
             )
         }
-        Exit::Return(_) | Exit::Trap(..) => WordExit::End,
+        Exit::Return(r) => WordExit::Return(slot(*r)?),
+        Exit::Trap(..) => WordExit::End,
     })
 }
 
@@ -528,7 +631,8 @@ fn compile_step(
     let op = if let Some(index) = step.constant {
         Op::Constant(u32::try_from(index).ok()?)
     } else if step.call.is_some() {
-        Op::Call
+        // The site index is set when the function's sites are listed.
+        Op::Call(0)
     } else if let Some(word) = step.word {
         let (a, b) = (slot(word.a)?, slot(word.b)?);
         match (word.op, word.signed) {
@@ -614,7 +718,7 @@ fn exec(step: &WordStep, constants: &[u64], registers: &mut [u64], flags: &mut [
         Op::Not(a) => (Ok(r(a) ^ 1), false),
         Op::And(a, b) => (Ok(r(a) & r(b)), false),
         Op::Or(a, b) => (Ok(r(a) | r(b)), false),
-        Op::Call | Op::Guard(_) | Op::GuardTrue(_) | Op::GuardFalse(_) => return 0,
+        Op::Call(_) | Op::Guard(_) | Op::GuardTrue(_) | Op::GuardFalse(_) => return 0,
         Op::Copy(a) => {
             registers[step.output as usize] = r(a);
             return 0;
@@ -642,12 +746,13 @@ pub(super) enum WordEnded {
     Stopped(ExecutionTermination),
 }
 
+/// A caller waiting on a call: where it resumes is the start of its fast
+/// block `tail`, the step after the call.
 struct Frame {
-    function: usize,
+    function: u32,
+    output: u32,
+    tail: u32,
     base: usize,
-    block: usize,
-    pc: usize,
-    output: usize,
     units: u64,
 }
 
@@ -679,28 +784,45 @@ pub(super) fn run(
     for (&r, &value) in plan.parameters.iter().zip(inputs) {
         *file.get_mut(r).ok_or(RuntimeFault)? = value;
     }
-    for &(slot, index) in &steps.constant_slots {
-        *file.get_mut(slot as usize).ok_or(RuntimeFault)? =
-            *consts.get(index as usize).ok_or(RuntimeFault)?;
+    // Each function's single-writer constant slots with their words.
+    let prefill = words
+        .functions
+        .iter()
+        .zip(constants)
+        .map(|(f, consts)| {
+            f.constant_slots
+                .iter()
+                .map(|&(slot, index)| Some((slot as usize, *consts.get(index as usize)?)))
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or(RuntimeFault)?;
+    for &(slot, word) in &prefill[0] {
+        *file.get_mut(slot).ok_or(RuntimeFault)? = word;
     }
     'frames: loop {
-        let registers = &mut file[base..base + plan.slots];
-        let flags = &mut flag_file[base..base + plan.slots];
+        let mut registers = &mut file[base..base + plan.slots];
+        let mut flags = &mut flag_file[base..base + plan.slots];
         let mut prepaid_exit = false;
-        // A burst: whole blocks run back to back, each charging exactly what
-        // its prepaid run and exit charge, against one prepaid worst case.
-        if pc == 0
-            && steps.whole.get(runtime.block) == Some(&true)
-            && super::prepaid(runtime, limits, &steps.burst)
+        // A burst: fast blocks, calls and returns run back to back, each
+        // charging exactly what the general loop charges, against one
+        // prepaid worst case.
+        let entry = if pc == 0 {
+            Some(runtime.block)
+        } else {
+            steps.fast[plan.blocks.len()..]
+                .iter()
+                .position(|f| f.start == (runtime.block, pc))
+                .map(|i| i + plan.blocks.len())
+        };
+        if let Some(mut at) = entry
+            && super::prepaid(runtime, limits, &words.burst)
         {
             let mut fuel: u64 = 0;
             let mut count: u64 = 0;
             let mut units: u64 = 0;
-            let mut at = runtime.block;
+            let mut stopped = None;
             for _ in 0..BURST {
-                if !steps.whole[at] {
-                    break;
-                }
                 let fast = &steps.fast[at];
                 let mut left = None;
                 for step in &fast.steps {
@@ -738,8 +860,52 @@ pub(super) fn run(
                 count += leave.count;
                 fuel += leave.fuel;
                 units += leave.units;
-                at = leave.block;
-                let (edge, payload) = match &steps.exits[at] {
+                let block = leave.block;
+                if left.is_none()
+                    && let Some(site) = fast.call
+                {
+                    // The call's instruction, the depth check, its action.
+                    let site = &steps.sites[site as usize];
+                    fuel += 1;
+                    let depth = stack.len().saturating_add(1);
+                    if depth.saturating_add(1) > runtime.max_call_depth {
+                        stopped =
+                            Some(ExecutionTermination::ResourceLimit(ResourceKind::CallDepth));
+                        break;
+                    }
+                    fuel += 1;
+                    runtime.peak_call_depth = runtime.peak_call_depth.max(depth.saturating_add(1));
+                    units += site.arg_units;
+                    let callee = &words.functions[site.function];
+                    let callee_base = base + steps.slots;
+                    let end = callee_base + callee.slots;
+                    if file.len() < end {
+                        file.resize(end, 0);
+                        flag_file.resize(end, false);
+                    }
+                    for (&a, &parameter) in site.args.iter().zip(&callee.parameters) {
+                        file[callee_base + parameter] = file[base + a as usize];
+                    }
+                    for &(slot, word) in &prefill[site.function] {
+                        file[callee_base + slot] = word;
+                    }
+                    stack.push(Frame {
+                        function: steps.index,
+                        base,
+                        output: site.output,
+                        tail: site.tail,
+                        units: site.units,
+                    });
+                    base = callee_base;
+                    function = site.function;
+                    steps = callee;
+                    consts = &constants[function][..];
+                    registers = &mut file[base..base + steps.slots];
+                    flags = &mut flag_file[base..base + steps.slots];
+                    at = steps.entry;
+                    continue;
+                }
+                let (edge, payload) = match &steps.exits[block] {
                     WordExit::Branch(edge) => (edge, 0),
                     WordExit::Cond(r, yes, no) => {
                         (if registers[*r as usize] != 0 { yes } else { no }, 0)
@@ -748,8 +914,31 @@ pub(super) fn run(
                         if flags[*r as usize] { err } else { ok },
                         registers[*r as usize],
                     ),
-                    WordExit::End => {
-                        pc = steps.blocks[at].len();
+                    WordExit::Return(r) if !stack.is_empty() => {
+                        fuel += 1;
+                        if steps.result_units > limits.max_output_units {
+                            stopped = Some(ExecutionTermination::ResourceLimit(
+                                ResourceKind::OutputUnits,
+                            ));
+                            break;
+                        }
+                        let value = registers[*r as usize];
+                        let caller = stack.pop().ok_or(RuntimeFault)?;
+                        function = caller.function as usize;
+                        steps = &words.functions[function];
+                        consts = &constants[function][..];
+                        base = caller.base;
+                        file[base + caller.output as usize] = value;
+                        registers = &mut file[base..base + steps.slots];
+                        flags = &mut flag_file[base..base + steps.slots];
+                        units += caller.units;
+                        count += 1;
+                        at = caller.tail as usize;
+                        continue;
+                    }
+                    WordExit::Return(_) | WordExit::End => {
+                        at = block;
+                        pc = steps.blocks[block].len();
                         prepaid_exit = true;
                         break;
                     }
@@ -778,11 +967,20 @@ pub(super) fn run(
                 }
                 at = edge.target;
             }
+            plan = program.plans[function];
+            code = program.codes[function];
             runtime.fuel_used += fuel;
             runtime.instruction_count += count;
             runtime.live_value_units += units;
             runtime.peak_value_units = runtime.peak_value_units.max(runtime.live_value_units);
-            runtime.block = at;
+            if let Some(end) = stopped {
+                return Ok(WordEnded::Stopped(end));
+            }
+            if prepaid_exit {
+                runtime.block = at;
+            } else {
+                (runtime.block, pc) = steps.fast[at].start;
+            }
         }
         let block = plan.blocks.get(runtime.block).ok_or(RuntimeFault)?;
         let wsteps = &steps.blocks[runtime.block];
@@ -816,7 +1014,7 @@ pub(super) fn run(
             if let Some(end) = charge_action(runtime, limits, Some(ResourceKind::Instruction)) {
                 return Ok(WordEnded::Stopped(end));
             }
-            if let Op::Call = step.op {
+            if let Op::Call(site) = step.op {
                 let source = &block.steps[pc - 1];
                 let call = source.call.as_ref().ok_or(RuntimeFault)?;
                 let depth = stack.len().saturating_add(1);
@@ -849,19 +1047,14 @@ pub(super) fn run(
                 for (&parameter, &value) in callee_plan.parameters.iter().zip(&scratch) {
                     *file.get_mut(callee_base + parameter).ok_or(RuntimeFault)? = value;
                 }
-                let callee_consts = &constants[call.function];
-                for &(slot, index) in &words.functions[call.function].constant_slots {
-                    *file
-                        .get_mut(callee_base + slot as usize)
-                        .ok_or(RuntimeFault)? =
-                        *callee_consts.get(index as usize).ok_or(RuntimeFault)?;
+                for &(slot, word) in &prefill[call.function] {
+                    *file.get_mut(callee_base + slot).ok_or(RuntimeFault)? = word;
                 }
                 stack.push(Frame {
-                    function,
+                    function: steps.index,
                     base,
-                    block: runtime.block,
-                    pc,
-                    output: step.output as usize,
+                    output: step.output,
+                    tail: steps.sites.get(site as usize).ok_or(RuntimeFault)?.tail,
                     units: step.units[0],
                 });
                 base = callee_base;
@@ -896,21 +1089,20 @@ pub(super) fn run(
                         ResourceKind::OutputUnits,
                     )));
                 }
-                function = caller.function;
+                function = caller.function as usize;
                 plan = program.plans[function];
                 code = program.codes[function];
                 steps = &words.functions[function];
                 consts = &constants[function][..];
                 base = caller.base;
-                runtime.block = caller.block;
-                pc = caller.pc;
+                (runtime.block, pc) = steps.fast[caller.tail as usize].start;
                 if !charge_value(runtime, caller.units, limits.max_value_units) {
                     return Ok(WordEnded::Stopped(ExecutionTermination::ResourceLimit(
                         ResourceKind::ValueUnits,
                     )));
                 }
                 runtime.instruction_count = runtime.instruction_count.saturating_add(1);
-                file[base + caller.output] = value;
+                file[base + caller.output as usize] = value;
                 continue 'frames;
             }
             Exit::Trap(tag, payload) => {
@@ -1618,6 +1810,349 @@ mod tests {
         .into_iter()
         .map(|(n, k)| vec![sint(n), sint(k)])
         .collect();
+        sweep(bytecode, &constants, &rows);
+    }
+
+    /// Doubly recursive `fib` shaped like the Python dialect's: constants,
+    /// a conditional return, checked steps, and two calls in a row, so
+    /// bursts run calls, returns and the fast blocks after each call.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn calls_in_bursts_match_reference_on_every_budget_cut() {
+        let ty = TypeExpr::SInt(IntegerWidth::from_bits(64));
+        let failure = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        let checked = TypeExpr::Result {
+            ok: Box::new(ty.clone()),
+            error: Box::new(failure.clone()),
+        };
+        let mut types = vec![ty.clone(); 14];
+        for r in [4, 8, 11] {
+            types[r] = checked.clone();
+        }
+        types[2] = TypeExpr::Bool;
+        types[13] = failure;
+        let i = |op, a: Vec<u32>, out| instruction(op, a, out, Immediate::None);
+        let function = EntityId::from_bytes([9; 32]);
+        let one = EntityId::from_bytes([1; 32]);
+        let two = EntityId::from_bytes([2; 32]);
+        let constant =
+            |id, out| instruction(Opcode::ConstantRef, vec![], out, Immediate::Entity(id));
+        let call = |argument, out| {
+            instruction(
+                Opcode::CallDirect,
+                vec![argument],
+                out,
+                Immediate::Function(FunctionRefValue {
+                    function,
+                    type_arguments: vec![],
+                }),
+            )
+        };
+        let edge = |target| BytecodeTargetEdge {
+            target,
+            arguments: vec![],
+        };
+        // fib(n) = n if n < 2 else fib(n - 1) + fib(n - 2)  (checked)
+        let bytecode = BytecodeFunction {
+            function,
+            parameter_registers: vec![0],
+            register_types: types,
+            result_type: ty.clone(),
+            entry_block: 0,
+            blocks: vec![
+                block(
+                    0,
+                    vec![],
+                    vec![constant(two, 1), i(Opcode::LessThan, vec![0, 1], 2)],
+                    BytecodeTerminator::CondBranch {
+                        condition: 2,
+                        if_true: edge(1),
+                        if_false: edge(2),
+                    },
+                ),
+                block(1, vec![], vec![], BytecodeTerminator::Return(0)),
+                block(2, vec![], vec![], BytecodeTerminator::Branch(edge(3))),
+                block(
+                    3,
+                    vec![],
+                    vec![constant(one, 3), i(Opcode::IntSubChecked, vec![0, 3], 4)],
+                    switch(4, 5, 4, false),
+                ),
+                block(
+                    4,
+                    vec![13],
+                    vec![],
+                    BytecodeTerminator::Trap {
+                        code: 3,
+                        payload: Some(13),
+                    },
+                ),
+                block(
+                    5,
+                    vec![5],
+                    vec![
+                        call(5, 6),
+                        constant(two, 7),
+                        i(Opcode::IntSubChecked, vec![0, 7], 8),
+                    ],
+                    switch(8, 6, 4, true),
+                ),
+                block(
+                    6,
+                    vec![9],
+                    vec![call(9, 10), i(Opcode::IntAddChecked, vec![6, 10], 11)],
+                    switch(11, 7, 4, false),
+                ),
+                block(7, vec![12], vec![], BytecodeTerminator::Return(12)),
+            ],
+        };
+        let value = |n| ConstValue {
+            value_type: ty.clone(),
+            data: ConstData::SInt(n),
+        };
+        let constants = [
+            ConstantDefinition {
+                entity_id: one,
+                value: value(1),
+            },
+            ConstantDefinition {
+                entity_id: two,
+                value: value(2),
+            },
+        ];
+        let words = Plan::compile(&bytecode).unwrap().words.unwrap();
+        let f = &words.functions[0];
+        assert_eq!(f.sites.len(), 2, "two call sites: {f:?}");
+        assert!(
+            f.fast.iter().filter(|b| b.call.is_some()).count() >= 2
+                && f.sites.iter().all(|s| f.fast[s.tail as usize].start.1 > 0),
+            "fast blocks end at calls and resume after them: {f:?}"
+        );
+        assert!(!f.constant_slots.is_empty(), "constants are prefilled");
+        let rows: Vec<Vec<ConstValue>> = [0, 1, 2, 3, 7, 12, -4, i128::from(i64::MIN)]
+            .into_iter()
+            .map(|n| vec![sint(n)])
+            .collect();
+        sweep(bytecode, &constants, &rows);
+    }
+
+    /// A call chain through the call depth ceiling and past it whose bursts
+    /// charge close to their whole prepaid worst case: on the way down every
+    /// fast block ends at a two-argument call, on the way up at a return.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn call_chains_charge_the_burst_worst_case() {
+        let ty = TypeExpr::SInt(IntegerWidth::from_bits(64));
+        let failure = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        let checked = TypeExpr::Result {
+            ok: Box::new(ty.clone()),
+            error: Box::new(failure.clone()),
+        };
+        let mut types = vec![ty.clone(); 18];
+        types[2] = TypeExpr::Bool;
+        for r in [4, 9, 11, 13, 15] {
+            types[r] = checked.clone();
+        }
+        types[7] = failure;
+        let function = EntityId::from_bytes([9; 32]);
+        let zero = EntityId::from_bytes([1; 32]);
+        let one = EntityId::from_bytes([2; 32]);
+        let i = |op, a: Vec<u32>, out| instruction(op, a, out, Immediate::None);
+        let constant =
+            |id, out| instruction(Opcode::ConstantRef, vec![], out, Immediate::Entity(id));
+        let edge = |target| BytecodeTargetEdge {
+            target,
+            arguments: vec![],
+        };
+        // down(n, k) = k if n == 0 else down(n - 1, k) + 0 + 0 + 0 + 0
+        // Two arguments, and four checked steps after the call: the way
+        // down charges the costliest call, the way up the costliest return.
+        let bytecode = BytecodeFunction {
+            function,
+            parameter_registers: vec![0, 8],
+            register_types: types,
+            result_type: ty.clone(),
+            entry_block: 0,
+            blocks: vec![
+                block(
+                    0,
+                    vec![],
+                    vec![constant(zero, 1), i(Opcode::Equal, vec![0, 1], 2)],
+                    BytecodeTerminator::CondBranch {
+                        condition: 2,
+                        if_true: edge(1),
+                        if_false: edge(2),
+                    },
+                ),
+                block(1, vec![], vec![], BytecodeTerminator::Return(8)),
+                block(
+                    2,
+                    vec![],
+                    vec![constant(one, 3), i(Opcode::IntSubChecked, vec![0, 3], 4)],
+                    switch(4, 3, 4, false),
+                ),
+                block(
+                    3,
+                    vec![5],
+                    vec![
+                        instruction(
+                            Opcode::CallDirect,
+                            vec![5, 8],
+                            6,
+                            Immediate::Function(FunctionRefValue {
+                                function,
+                                type_arguments: vec![],
+                            }),
+                        ),
+                        i(Opcode::IntAddChecked, vec![6, 1], 9),
+                    ],
+                    switch(9, 5, 4, true),
+                ),
+                block(
+                    4,
+                    vec![7],
+                    vec![],
+                    BytecodeTerminator::Trap {
+                        code: 3,
+                        payload: Some(7),
+                    },
+                ),
+                block(
+                    5,
+                    vec![10],
+                    vec![i(Opcode::IntAddChecked, vec![10, 1], 11)],
+                    switch(11, 6, 4, false),
+                ),
+                block(
+                    6,
+                    vec![12],
+                    vec![i(Opcode::IntAddChecked, vec![12, 1], 13)],
+                    switch(13, 7, 4, true),
+                ),
+                block(
+                    7,
+                    vec![14],
+                    vec![i(Opcode::IntAddChecked, vec![14, 1], 15)],
+                    switch(15, 8, 4, false),
+                ),
+                block(8, vec![16], vec![], BytecodeTerminator::Return(16)),
+            ],
+        };
+        let value = |n| ConstValue {
+            value_type: ty.clone(),
+            data: ConstData::SInt(n),
+        };
+        let constants = [
+            ConstantDefinition {
+                entity_id: zero,
+                value: value(0),
+            },
+            ConstantDefinition {
+                entity_id: one,
+                value: value(1),
+            },
+        ];
+        let rows: Vec<Vec<ConstValue>> = [0, 1, 70, 200, 254, 255, 256, 400]
+            .into_iter()
+            .map(|n| vec![sint(n), sint(n * 3 - 5)])
+            .collect();
+        sweep(bytecode, &constants, &rows);
+    }
+
+    /// `down(n, k) = k if n == 0 else down(n - 1, k)`: on the way down every
+    /// fast block is the costliest one and ends at a two-argument call, so
+    /// bursts charge their whole prepaid fuel and more than its returns'
+    /// share of units; through the call depth ceiling and past it.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn call_descents_charge_the_burst_worst_case() {
+        let ty = TypeExpr::SInt(IntegerWidth::from_bits(64));
+        let failure = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        let checked = TypeExpr::Result {
+            ok: Box::new(ty.clone()),
+            error: Box::new(failure.clone()),
+        };
+        let mut types = vec![ty.clone(); 9];
+        types[2] = TypeExpr::Bool;
+        types[4] = checked;
+        types[7] = failure;
+        let function = EntityId::from_bytes([9; 32]);
+        let zero = EntityId::from_bytes([1; 32]);
+        let one = EntityId::from_bytes([2; 32]);
+        let i = |op, a: Vec<u32>, out| instruction(op, a, out, Immediate::None);
+        let constant =
+            |id, out| instruction(Opcode::ConstantRef, vec![], out, Immediate::Entity(id));
+        let edge = |target| BytecodeTargetEdge {
+            target,
+            arguments: vec![],
+        };
+        let bytecode = BytecodeFunction {
+            function,
+            parameter_registers: vec![0, 8],
+            register_types: types,
+            result_type: ty.clone(),
+            entry_block: 0,
+            blocks: vec![
+                block(
+                    0,
+                    vec![],
+                    vec![constant(zero, 1), i(Opcode::Equal, vec![0, 1], 2)],
+                    BytecodeTerminator::CondBranch {
+                        condition: 2,
+                        if_true: edge(1),
+                        if_false: edge(2),
+                    },
+                ),
+                block(1, vec![], vec![], BytecodeTerminator::Return(8)),
+                block(
+                    2,
+                    vec![],
+                    vec![constant(one, 3), i(Opcode::IntSubChecked, vec![0, 3], 4)],
+                    switch(4, 3, 4, false),
+                ),
+                block(
+                    3,
+                    vec![5],
+                    vec![instruction(
+                        Opcode::CallDirect,
+                        vec![5, 8],
+                        6,
+                        Immediate::Function(FunctionRefValue {
+                            function,
+                            type_arguments: vec![],
+                        }),
+                    )],
+                    BytecodeTerminator::Return(6),
+                ),
+                block(
+                    4,
+                    vec![7],
+                    vec![],
+                    BytecodeTerminator::Trap {
+                        code: 3,
+                        payload: Some(7),
+                    },
+                ),
+            ],
+        };
+        let value = |n| ConstValue {
+            value_type: ty.clone(),
+            data: ConstData::SInt(n),
+        };
+        let constants = [
+            ConstantDefinition {
+                entity_id: zero,
+                value: value(0),
+            },
+            ConstantDefinition {
+                entity_id: one,
+                value: value(1),
+            },
+        ];
+        let rows: Vec<Vec<ConstValue>> = [0, 1, 70, 200, 254, 255, 256, 400]
+            .into_iter()
+            .map(|n| vec![sint(n), sint(7 - n)])
+            .collect();
         sweep(bytecode, &constants, &rows);
     }
 
