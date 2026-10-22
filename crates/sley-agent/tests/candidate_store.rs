@@ -1,6 +1,5 @@
 //! Candidate-file recovery and allocation boundaries. Payload validity belongs
 //! to the kernel; these tests exercise the store's opaque byte preservation.
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::PathBuf;

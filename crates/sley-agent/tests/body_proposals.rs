@@ -1,5 +1,4 @@
 //! Headerless proposals inherit their signature from the exact accepted graph.
-#![cfg(feature = "native")]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};

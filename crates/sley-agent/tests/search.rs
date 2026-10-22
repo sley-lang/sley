@@ -3,7 +3,6 @@
 //! ambiguity, the neighbor and wall limits, seed and oracle refusals,
 //! determinism, the ranking rule, the per-seed use limit, the events
 //! ledger, and repairs applied with `try --on`.
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -2,7 +2,6 @@
 //! candidate made from a frame names the frame positions the advisory
 //! analysis ties to the kernel's symbol, or says the location is the whole
 //! function (`docs/spec/SLEY_AGENT_V1.md` section 8).
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

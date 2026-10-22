@@ -1,5 +1,4 @@
 //! Root binding and exact preservation for controller-owned function scopes.
-#![cfg(feature = "native")]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};

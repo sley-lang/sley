@@ -1,5 +1,4 @@
 //! Adversarial parsing and real-workspace binding checks for GHOSTWEAVE.
-#![cfg(feature = "native")]
 
 #[path = "residual/authority.rs"]
 mod authority_tests;

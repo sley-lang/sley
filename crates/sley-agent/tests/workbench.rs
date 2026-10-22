@@ -1,7 +1,6 @@
 //! End-to-end workbench tests over fresh `init` workspaces: AV1 views, AF1
 //! frames, the raw path, decoded refusals with locators, the dev loop, and
 //! the submission semantics (`docs/spec/SLEY_AGENT_V1.md`).
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

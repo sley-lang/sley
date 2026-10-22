@@ -1,6 +1,5 @@
 //! Drafts, delta repair, test import and the events ledger, end to end over
 //! fresh `init` workspaces (`docs/spec/SLEY_AGENT_V1.md`, section 12).
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

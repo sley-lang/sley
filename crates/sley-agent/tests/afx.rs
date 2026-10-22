@@ -1,5 +1,4 @@
 //! AF1-X: the authoring dialect (`"afx": 1`) and compact test tables.
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

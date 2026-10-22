@@ -1,7 +1,6 @@
 //! Namespace membership of frame-created entities: the omitted key joins
 //! the only namespace, a name joins that namespace, and `null` joins none
 //! (`docs/spec/SLEY_AGENT_V1.md` section 5, item 7).
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

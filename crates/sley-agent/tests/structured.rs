@@ -1,6 +1,5 @@
 //! Structured function bodies: lowering to blocks, execution semantics, integer
 //! conversions, refusals at authored body locations, and the help example.
-#![cfg(feature = "native")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -1,5 +1,4 @@
 //! Checked range and indexed iteration against explicit reference loops.
-#![cfg(feature = "native")]
 use std::fs;
 use std::path::{Path, PathBuf};
 
