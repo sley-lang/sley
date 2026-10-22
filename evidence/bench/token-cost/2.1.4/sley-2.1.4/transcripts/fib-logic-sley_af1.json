@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"fib\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"if\", [\"lt\", \"n\", 1], [[\"return\", \"n\"]]], [\"return\", [\"add\", [\"call\", \"fib\", [\"sub\", \"n\", 1]], [\"call\", \"fib\", [\"sub\", \"n\", 2]]]]]}], \"test_tables\": [{\"name\": \"fib_cases\", \"fn\": \"fib\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [1], \"expect\": 1}, {\"args\": [10], \"expect\": 55}, {\"args\": [20], \"expect\": 6765}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try fib.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+28 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +fib; const +k_1 +k_2; test +fib_cases_0..3\ntests: 1/4 passed [authored 4]\n  FAIL fib_cases_1 (fib): expected 1, got -1\n  FAIL fib_cases_2 (fib): expected 55, got -55\n  FAIL fib_cases_3 (fib): expected 6765, got -6765\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"lt\", \"n\", 1]\n[\"lt\", \"n\", 2]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try fib.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid; tests: 4/4 passed [authored 4] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

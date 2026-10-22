@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def primes(n: int) -> int:\n    count = 0\n    for k in range(2, n):\n        d = 2\n        is_p = True\n        while d * d <= k:\n            if k % b == 0:\n                is_p = False\n                break\n            d += 1\n        if is_p:\n            count += 1\n    return count\n\n\ndef test_primes():\n    assert primes(10) == 4\n    assert primes(100) == 25\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar primes.py"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/1/4/2/2/0/1/1/1/2: unknown name `b`\n  /fns/0/body/1/4/2/2/0/1/1/1/2 is line 7, column 20 of the familiar text\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r1/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "k % b == 0\nk % d == 0"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar primes.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

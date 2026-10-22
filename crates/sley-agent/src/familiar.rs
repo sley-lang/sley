@@ -107,7 +107,7 @@ pub struct Parsed {
 ///
 /// The first unsupported, ambiguous or malformed construct, at its position.
 pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
-    let functions = if is_python(text) {
+    let (functions, declared) = if is_python(text) {
         let mut parser = Parser {
             toks: py_tokenize(text)?,
             k: 0,
@@ -115,8 +115,10 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             scopes: Vec::new(),
             hoisted: Vec::new(),
             fresh: 0,
+            declared: Declared::default(),
         };
-        parser.py_program()?
+        let functions = parser.py_program()?;
+        (functions, std::mem::take(&mut parser.declared))
     } else {
         let mut parser = Parser {
             toks: tokenize(text)?,
@@ -125,8 +127,10 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             scopes: Vec::new(),
             hoisted: Vec::new(),
             fresh: 0,
+            declared: Declared::default(),
         };
-        parser.program()?
+        let functions = parser.program()?;
+        (functions, std::mem::take(&mut parser.declared))
     };
     let mut positions = BTreeMap::new();
     let mut fns = Vec::with_capacity(functions.len());
@@ -147,8 +151,25 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
         object.insert("body".into(), f.body.value());
         fns.push(Value::Object(object));
     }
+    let mut frame = json!({"af1": 1, "afx": 1, "fns": fns});
+    if !declared.records.is_empty() {
+        let mut types = Vec::with_capacity(declared.records.len());
+        for (index, (_, _, entry, pos)) in declared.records.into_iter().enumerate() {
+            positions.insert(format!("/types/{index}"), pos);
+            types.push(entry);
+        }
+        frame["types"] = Value::Array(types);
+    }
+    if !declared.tests.is_empty() {
+        let mut tests = Vec::with_capacity(declared.tests.len());
+        for (index, (case, pos)) in declared.tests.into_iter().enumerate() {
+            positions.insert(format!("/tests/{index}"), pos);
+            tests.push(case);
+        }
+        frame["tests"] = Value::Array(tests);
+    }
     Ok(Parsed {
-        frame: json!({"af1": 1, "afx": 1, "fns": fns}),
+        frame,
         positions: Positions(positions),
     })
 }
@@ -169,6 +190,7 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         scopes: Vec::new(),
         hoisted: Vec::new(),
         fresh: 0,
+        declared: Declared::default(),
     };
     let pos = parser.peek().pos;
     let mut statements = Vec::new();
@@ -606,6 +628,85 @@ struct Parser {
     hoisted: Vec<Function>,
     /// Python dialect: a counter for the dialect's own temporary names.
     fresh: usize,
+    /// Python dialect: record classes and pytest-style tests in the file.
+    declared: Declared,
+}
+
+/// What a Python-dialect file declares besides its functions: record
+/// classes (`types`) and `def test_*()` functions (`tests`), each with the
+/// position it came from.
+#[derive(Default)]
+struct Declared {
+    /// Record classes in file order: name, field names, AF1 type entry.
+    records: Vec<(String, Vec<String>, Value, Pos)>,
+    /// `TestCase` entities in file order.
+    tests: Vec<(Value, Pos)>,
+    /// `pytest.raises(E)` tests: the function called, `E`, and where.
+    raises: Vec<(String, String, Pos)>,
+    /// What each function's text can raise: explicit `raise` classes, and
+    /// whether it divides, indexes, asserts or calls.
+    facts: BTreeMap<String, Facts>,
+    /// Class bases, for `raise Sub` matching `pytest.raises(Base)`.
+    bases: BTreeMap<String, Vec<String>>,
+}
+
+/// What a Python-dialect function's text can raise.
+#[derive(Default)]
+struct Facts {
+    raises: Vec<String>,
+    divides: bool,
+    indexes: bool,
+    asserts: bool,
+    calls: Vec<String>,
+}
+
+fn py_exception_alias(name: &str) -> &str {
+    match name {
+        "IOError" | "EnvironmentError" => "OSError",
+        _ => name,
+    }
+}
+
+/// Public Python builtin exception ancestry, used only by the static raises
+/// check. Runtime failures still lower to the existing trap outcome.
+fn py_exception_bases(name: &str) -> &'static [&'static str] {
+    match name {
+        "Exception" | "BaseExceptionGroup" | "GeneratorExit" | "KeyboardInterrupt"
+        | "SystemExit" => &["BaseException"],
+        "ExceptionGroup" => &["BaseExceptionGroup", "Exception"],
+        "ArithmeticError" | "AssertionError" | "AttributeError" | "BufferError" | "EOFError"
+        | "ImportError" | "LookupError" | "MemoryError" | "NameError" | "OSError"
+        | "ReferenceError" | "RuntimeError" | "StopAsyncIteration" | "StopIteration"
+        | "SyntaxError" | "SystemError" | "TypeError" | "ValueError" | "Warning" => &["Exception"],
+        "FloatingPointError" | "OverflowError" | "ZeroDivisionError" => &["ArithmeticError"],
+        "IndexError" | "KeyError" => &["LookupError"],
+        "ModuleNotFoundError" => &["ImportError"],
+        "NotImplementedError" | "PythonFinalizationError" | "RecursionError" => &["RuntimeError"],
+        "UnboundLocalError" => &["NameError"],
+        "IndentationError" => &["SyntaxError"],
+        "TabError" => &["IndentationError"],
+        "UnicodeError" => &["ValueError"],
+        "UnicodeDecodeError" | "UnicodeEncodeError" | "UnicodeTranslateError" => &["UnicodeError"],
+        "BlockingIOError" | "ChildProcessError" | "ConnectionError" | "FileExistsError"
+        | "FileNotFoundError" | "InterruptedError" | "IsADirectoryError" | "NotADirectoryError"
+        | "PermissionError" | "ProcessLookupError" | "TimeoutError" => &["OSError"],
+        "BrokenPipeError"
+        | "ConnectionAbortedError"
+        | "ConnectionRefusedError"
+        | "ConnectionResetError" => &["ConnectionError"],
+        "BytesWarning"
+        | "DeprecationWarning"
+        | "EncodingWarning"
+        | "FutureWarning"
+        | "ImportWarning"
+        | "PendingDeprecationWarning"
+        | "ResourceWarning"
+        | "RuntimeWarning"
+        | "SyntaxWarning"
+        | "UnicodeWarning"
+        | "UserWarning" => &["Warning"],
+        _ => &[],
+    }
 }
 
 type P<T> = Result<T, FamiliarError>;
@@ -716,12 +817,70 @@ impl Parser {
                 self.bump();
                 continue;
             }
+            if self.at_word("struct") || self.at_word("enum") {
+                let declaration = self.type_declaration()?;
+                self.declared.records.push(declaration);
+                continue;
+            }
             functions.push(self.function()?);
         }
         if functions.is_empty() {
             return refuse(self.peek().pos, "expected at least one fn");
         }
         Ok(functions)
+    }
+
+    /// `struct Name { field: T, ... }` (a record) or `enum Name { A, B }`
+    /// (a variant type without payloads): the AF1 `types` entry it
+    /// declares, as an AF1 frame would state it.
+    fn type_declaration(&mut self) -> P<(String, Vec<String>, Value, Pos)> {
+        let keyword = self.bump();
+        let record = keyword.text == "struct";
+        let (name, _) = self.ident("a type name")?;
+        let open = self.expect_op("{")?;
+        let mut names: Vec<String> = Vec::new();
+        let mut members = Vec::new();
+        while !self.at_op("}") {
+            if self.peek().kind == Kind::Eof {
+                return refuse(open.pos, "this `{` is never closed");
+            }
+            let (member, pos) = self.ident(if record {
+                "a field name"
+            } else {
+                "a variant name"
+            })?;
+            if names.contains(&member) {
+                return refuse(pos, format!("`{member}` is declared twice in `{name}`"));
+            }
+            if record {
+                self.expect_op(":")?;
+                let (ty, _) = self.type_()?;
+                members.push(json!([member.clone(), ty]));
+            } else {
+                if self.at_op("(") || self.at_op("{") {
+                    return refuse(
+                        self.peek().pos,
+                        "an enum variant here carries no payload: declare payload variants in an AF1 types frame",
+                    );
+                }
+                members.push(json!(member.clone()));
+            }
+            names.push(member);
+            if !self.at_op("}") {
+                self.expect_op(",")?;
+            }
+        }
+        self.bump();
+        if members.is_empty() {
+            return refuse(open.pos, format!("`{name}` declares no members"));
+        }
+        let entry = if record {
+            json!({"name": name.clone(), "record": members})
+        } else {
+            json!({"name": name.clone(), "variant": members})
+        };
+        let fields = if record { names } else { Vec::new() };
+        Ok((name, fields, entry, keyword.pos))
     }
 
     fn function(&mut self) -> P<Function> {
@@ -2293,8 +2452,30 @@ impl Parser {
                 continue;
             }
             if self.at_word("class") {
-                // A class describes a record; records come from the program
-                // (a field it lacks is refused where it is used).
+                // A class of annotated fields declares a record type; any
+                // other class is skipped (its record comes from the program,
+                // and a field it lacks is refused where it is used).
+                let start = self.k;
+                if self.peek_at(1).kind == Kind::Name && self.peek_at(2).text == "(" {
+                    let name = self.peek_at(1).text.clone();
+                    let mut bases = Vec::new();
+                    let mut k = start + 3;
+                    while let Some(tok) = self.toks.get(k) {
+                        if tok.text == ")" || tok.kind == Kind::Newline {
+                            break;
+                        }
+                        if tok.kind == Kind::Name {
+                            bases.push(tok.text.clone());
+                        }
+                        k += 1;
+                    }
+                    self.declared.bases.insert(name, bases);
+                }
+                if let Some(record) = self.py_record_class() {
+                    self.declared.records.push(record);
+                    continue;
+                }
+                self.k = start;
                 while !matches!(self.peek().kind, Kind::Newline | Kind::Eof) {
                     self.bump();
                 }
@@ -2328,16 +2509,484 @@ impl Parser {
                     format!("expected def, found {}", Self::found(&tok)),
                 );
             }
+            if self.at_py_test() {
+                self.py_test()?;
+                continue;
+            }
             functions.push(self.py_function()?);
             functions.append(&mut self.hoisted);
         }
-        if functions.is_empty() {
+        if functions.is_empty() && self.declared.tests.is_empty() {
             return refuse(self.peek().pos, "expected at least one def");
+        }
+        for (function, exception, pos) in &self.declared.raises {
+            if self.declared.facts.contains_key(function) && !self.py_can_raise(function, exception)
+            {
+                return refuse(
+                    *pos,
+                    format!(
+                        "`{function}` cannot raise {exception}: pytest.raises names an exception the function or a function it calls raises (raise {exception}, // or % for ZeroDivisionError, an index for IndexError, assert for AssertionError)"
+                    ),
+                );
+            }
         }
         Ok(functions)
     }
 
+    /// `class Name:` (bases ignored) whose body is only `field: type` lines,
+    /// a docstring or `pass`: the record it declares. `None` (and the caller
+    /// skips the class) for anything else.
+    fn py_record_class(&mut self) -> Option<(String, Vec<String>, Value, Pos)> {
+        let pos = self.expect_word("class").ok()?.pos;
+        let (name, _) = self.ident("a class name").ok()?;
+        if self.at_op("(") {
+            while !self.at_op(")") {
+                if matches!(self.peek().kind, Kind::Newline | Kind::Eof) {
+                    return None;
+                }
+                self.bump();
+            }
+            self.bump();
+        }
+        self.expect_op(":").ok()?;
+        if self.peek().kind != Kind::Newline {
+            return None;
+        }
+        self.bump();
+        if self.peek().kind != Kind::Indent {
+            return None;
+        }
+        self.bump();
+        let mut names = Vec::new();
+        let mut fields = Vec::new();
+        loop {
+            match self.peek().kind {
+                Kind::Dedent => {
+                    self.bump();
+                    break;
+                }
+                Kind::Eof => break,
+                Kind::Newline => {
+                    self.bump();
+                    continue;
+                }
+                Kind::Str => {
+                    self.bump();
+                }
+                _ if self.at_word("pass") => {
+                    self.bump();
+                }
+                _ => {
+                    let (field, _) = self.ident("a field name").ok()?;
+                    self.expect_op(":").ok()?;
+                    let (ty, _) = self.py_type().ok()?;
+                    if names.contains(&field) {
+                        return None;
+                    }
+                    fields.push(json!([field.clone(), ty]));
+                    names.push(field);
+                }
+            }
+            match self.peek().kind {
+                Kind::Newline => {
+                    self.bump();
+                }
+                Kind::Dedent | Kind::Eof => {}
+                _ => return None,
+            }
+        }
+        if fields.is_empty() {
+            return None;
+        }
+        let entry = json!({"name": name.clone(), "record": fields});
+        Some((name, names, entry, pos))
+    }
+
+    /// `def test_...()`: a pytest-style test function.
+    fn at_py_test(&self) -> bool {
+        self.at_word("def")
+            && (self.peek_at(1).text == "test" || self.peek_at(1).text.starts_with("test_"))
+            && self.peek_at(2).text == "("
+            && self.peek_at(3).text == ")"
+    }
+
+    /// `def test_x():` whose body holds `assert f(...) == value`,
+    /// `assert f(...)`, `assert not f(...)` and
+    /// `with pytest.raises(E): f(...)` lines; each becomes a `TestCase` named
+    /// `test_x_<n>`. `pytest.raises` expects a trap: the dialect lowers every
+    /// exception (`raise`, a failed check) to one.
+    #[allow(clippy::too_many_lines)]
+    fn py_test(&mut self) -> P<()> {
+        self.expect_word("def")?;
+        let (name, _) = self.ident("a test name")?;
+        self.expect_op("(")?;
+        self.expect_op(")")?;
+        if self.at_op("->") {
+            self.bump();
+            self.expect_word("None")?;
+        }
+        self.expect_op(":")?;
+        if self.peek().kind != Kind::Newline {
+            return refuse(self.peek().pos, "write the test body on its own lines");
+        }
+        self.bump();
+        if self.peek().kind != Kind::Indent {
+            return refuse(self.peek().pos, "expected an indented block");
+        }
+        self.bump();
+        let mut count = 0_usize;
+        loop {
+            let tok = self.peek().clone();
+            match tok.kind {
+                Kind::Dedent => {
+                    self.bump();
+                    break;
+                }
+                Kind::Eof => break,
+                Kind::Newline => {
+                    self.bump();
+                    continue;
+                }
+                Kind::Str => {
+                    self.bump();
+                    self.py_end_of_statement()?;
+                    continue;
+                }
+                _ => {}
+            }
+            let (function, args, expectation) = if self.at_word("assert") {
+                self.bump();
+                let negated = self.at_word("not");
+                if negated {
+                    self.bump();
+                }
+                let (function, args) = self.py_test_call()?;
+                let expectation = if !negated && self.at_op("==") {
+                    self.bump();
+                    json!({"expect": self.py_test_value()?})
+                } else {
+                    json!({"truthy": !negated})
+                };
+                if self.at_op(",") {
+                    // The assertion message.
+                    self.bump();
+                    if self.peek().kind != Kind::Str {
+                        return refuse(self.peek().pos, "an assertion message is a string");
+                    }
+                    self.bump();
+                }
+                self.py_end_of_statement()?;
+                (function, args, expectation)
+            } else if self.at_word("with") {
+                self.bump();
+                if !(self.at_word("pytest")
+                    && self.peek_at(1).text == "."
+                    && self.peek_at(2).text == "raises")
+                {
+                    return refuse(tok.pos, "a test's with block is with pytest.raises(...):");
+                }
+                self.bump();
+                self.bump();
+                self.bump();
+                self.expect_op("(")?;
+                let exception = match self.peek() {
+                    tok if tok.kind == Kind::Name
+                        && matches!(self.peek_at(1).text.as_str(), ")" | ",") =>
+                    {
+                        tok.text.clone()
+                    }
+                    tok => {
+                        return refuse(
+                            tok.pos,
+                            "name one exception class: with pytest.raises(ValueError):",
+                        );
+                    }
+                };
+                let mut depth = 1_usize;
+                while depth > 0 {
+                    match self.peek().kind {
+                        Kind::Newline | Kind::Eof => {
+                            return refuse(self.peek().pos, "expected `)`");
+                        }
+                        _ if self.at_op("(") => depth += 1,
+                        _ if self.at_op(")") => depth -= 1,
+                        _ => {}
+                    }
+                    self.bump();
+                }
+                if self.at_word("as") {
+                    self.bump();
+                    self.ident("a name")?;
+                }
+                self.expect_op(":")?;
+                let inline = self.peek().kind != Kind::Newline;
+                if !inline {
+                    self.bump();
+                    if self.peek().kind != Kind::Indent {
+                        return refuse(self.peek().pos, "expected an indented block");
+                    }
+                    self.bump();
+                }
+                let (function, args) = self.py_test_call()?;
+                self.py_end_of_statement()?;
+                if !inline {
+                    if self.peek().kind != Kind::Dedent {
+                        return refuse(self.peek().pos, "a pytest.raises block holds one call");
+                    }
+                    self.bump();
+                }
+                self.declared
+                    .raises
+                    .push((function.clone(), exception.clone(), tok.pos));
+                (function, args, json!({"expect": {"trap": "unreachable"}}))
+            } else {
+                return refuse(
+                    tok.pos,
+                    "a test function holds assert f(...) == value and with pytest.raises(...): f(...) lines",
+                );
+            };
+            let mut test = expectation;
+            test["name"] = Value::String(format!("{name}_{count}"));
+            test["fn"] = Value::String(function);
+            test["args"] = Value::Array(args);
+            self.declared.tests.push((test, tok.pos));
+            count += 1;
+        }
+        if count == 0 {
+            return refuse(self.previous().pos, format!("`{name}` holds no assertion"));
+        }
+        Ok(())
+    }
+
+    /// `f(value, ...)` in a test: the function and its argument values.
+    fn py_test_call(&mut self) -> P<(String, Vec<Value>)> {
+        let (function, _) = self.ident("the function a test calls")?;
+        self.expect_op("(")?;
+        let mut args = Vec::new();
+        while !self.at_op(")") {
+            args.push(self.py_test_value()?);
+            if !self.at_op(")") {
+                self.expect_op(",")?;
+            }
+        }
+        self.expect_op(")")?;
+        Ok((function, args))
+    }
+
+    /// A literal value in a test: an int, True/False, a string, a list of
+    /// values, or a record class built positionally or by field name.
+    fn py_test_value(&mut self) -> P<Value> {
+        let tok = self.peek().clone();
+        match tok.kind {
+            Kind::Num => {
+                self.bump();
+                return Ok(Self::literal(&tok, None)?.value());
+            }
+            Kind::Op if tok.text == "-" && self.peek_at(1).kind == Kind::Num => {
+                self.bump();
+                let number = self.bump();
+                return Ok(Self::literal(&number, Some(tok.pos))?.value());
+            }
+            Kind::Str => {
+                self.bump();
+                let text: String = serde_json::from_str(&tok.text).unwrap_or_default();
+                return Ok(Value::String(text));
+            }
+            Kind::Op if tok.text == "[" => {
+                self.bump();
+                let mut items = Vec::new();
+                while !self.at_op("]") {
+                    items.push(self.py_test_value()?);
+                    if !self.at_op("]") {
+                        self.expect_op(",")?;
+                    }
+                }
+                self.bump();
+                return Ok(Value::Array(items));
+            }
+            Kind::Name if tok.text == "True" || tok.text == "False" => {
+                self.bump();
+                return Ok(Value::Bool(tok.text == "True"));
+            }
+            Kind::Name => {}
+            _ => {
+                return refuse(
+                    tok.pos,
+                    format!("expected a literal value, found {}", Self::found(&tok)),
+                );
+            }
+        }
+        self.py_test_record(&tok)
+    }
+
+    fn py_test_record(&mut self, tok: &Tok) -> P<Value> {
+        let Some(fields) = self
+            .declared
+            .records
+            .iter()
+            .find(|(name, ..)| *name == tok.text)
+            .map(|(_, fields, ..)| fields.clone())
+        else {
+            return refuse(
+                tok.pos,
+                format!(
+                    "a test argument is a literal or a record class declared above; `{}` is neither",
+                    tok.text
+                ),
+            );
+        };
+        self.bump();
+        self.expect_op("(")?;
+        let mut record = Map::new();
+        let mut k = 0_usize;
+        let mut seen_keyword = false;
+        while !self.at_op(")") {
+            let argument_pos = self.peek().pos;
+            let field = if self.peek().kind == Kind::Name && self.peek_at(1).text == "=" {
+                seen_keyword = true;
+                let (field, pos) = self.ident("a field name")?;
+                self.bump();
+                if !fields.contains(&field) {
+                    return refuse(pos, format!("`{}` has no field `{field}`", tok.text));
+                }
+                field
+            } else {
+                if seen_keyword {
+                    return refuse(
+                        argument_pos,
+                        "record positional arguments must precede keyword arguments",
+                    );
+                }
+                let Some(field) = fields.get(k) else {
+                    return refuse(
+                        self.peek().pos,
+                        format!("`{}` has {} fields", tok.text, fields.len()),
+                    );
+                };
+                field.clone()
+            };
+            if record.contains_key(&field) {
+                return refuse(
+                    argument_pos,
+                    format!("`{}` gives field `{field}` more than once", tok.text),
+                );
+            }
+            let value = self.py_test_value()?;
+            record.insert(field, value);
+            k += 1;
+            if !self.at_op(")") {
+                self.expect_op(",")?;
+            }
+        }
+        self.expect_op(")")?;
+        if record.len() != fields.len() {
+            return refuse(tok.pos, format!("give every field of `{}`", tok.text));
+        }
+        Ok(Value::Object(record))
+    }
+
     fn py_function(&mut self) -> P<Function> {
+        let start = self.k;
+        let function = self.py_function_body()?;
+        let facts = self.py_facts(start, self.k);
+        self.declared.facts.insert(function.name.clone(), facts);
+        Ok(function)
+    }
+
+    /// What the tokens of one function (`start..end`) can raise.
+    fn py_facts(&self, start: usize, end: usize) -> Facts {
+        let mut facts = Facts::default();
+        let toks = &self.toks[start..end.min(self.toks.len())];
+        for (i, tok) in toks.iter().enumerate() {
+            let next = toks.get(i + 1);
+            let previous = i.checked_sub(1).map(|j| &toks[j]);
+            match (tok.kind, tok.text.as_str()) {
+                (Kind::Name, "raise") => {
+                    if let Some(name) = next.filter(|t| t.kind == Kind::Name) {
+                        facts.raises.push(name.text.clone());
+                    }
+                }
+                (Kind::Name, "assert") => facts.asserts = true,
+                (Kind::Name, "divmod") | (Kind::Op, "//" | "%" | "//=" | "%=") => {
+                    facts.divides = true;
+                }
+                (Kind::Op, "[") => {
+                    let after_value = previous.is_some_and(|p| {
+                        (p.kind == Kind::Name && !matches!(p.text.as_str(), "list" | "List"))
+                            || (p.kind == Kind::Op && matches!(p.text.as_str(), ")" | "]"))
+                            || p.kind == Kind::Str
+                    });
+                    facts.indexes |= after_value;
+                }
+                (Kind::Name, name) if next.is_some_and(|t| t.text == "(") => {
+                    facts.calls.push(name.to_owned());
+                }
+                _ => {}
+            }
+        }
+        facts
+    }
+
+    /// Whether `function` (or a function it calls) can raise `exception`:
+    /// a `raise` of it or of a subclass, a division for
+    /// `ZeroDivisionError`/`ArithmeticError`, an index for
+    /// `IndexError`/`LookupError`, an `assert` for `AssertionError`; any
+    /// raise or check for `Exception`/`BaseException`.
+    fn py_can_raise(&self, function: &str, exception: &str) -> bool {
+        let is_a = |class: &str| {
+            let expected = if self.declared.bases.contains_key(exception) {
+                exception
+            } else {
+                py_exception_alias(exception)
+            };
+            let mut seen = Vec::new();
+            let mut todo = vec![class.to_owned()];
+            while let Some(c) = todo.pop() {
+                let c = if self.declared.bases.contains_key(&c) {
+                    c
+                } else {
+                    py_exception_alias(&c).to_owned()
+                };
+                if c == expected {
+                    return true;
+                }
+                if seen.contains(&c) {
+                    continue;
+                }
+                if let Some(bases) = self.declared.bases.get(&c) {
+                    todo.extend(bases.iter().cloned());
+                } else {
+                    todo.extend(py_exception_bases(&c).iter().map(|base| (*base).to_owned()));
+                }
+                seen.push(c);
+            }
+            false
+        };
+        let any = matches!(exception, "Exception" | "BaseException");
+        let mut seen: Vec<&str> = Vec::new();
+        let mut todo = vec![function];
+        while let Some(f) = todo.pop() {
+            if seen.contains(&f) {
+                continue;
+            }
+            seen.push(f);
+            let Some(facts) = self.declared.facts.get(f) else {
+                continue;
+            };
+            if facts.raises.iter().any(|r| any || is_a(r))
+                || (facts.divides
+                    && (any || matches!(exception, "ZeroDivisionError" | "ArithmeticError")))
+                || (facts.indexes && (any || matches!(exception, "IndexError" | "LookupError")))
+                || (facts.asserts && (any || exception == "AssertionError"))
+            {
+                return true;
+            }
+            todo.extend(facts.calls.iter().map(String::as_str));
+        }
+        false
+    }
+
+    fn py_function_body(&mut self) -> P<Function> {
         let pos = self.expect_word("def")?.pos;
         let (name, _) = self.ident("a function name")?;
         if RESERVED_CALLS.contains(&name.as_str()) || PY_BUILTINS.contains(&name.as_str()) {
@@ -3621,6 +4270,189 @@ mod tests {
 
     fn refused(text: &str) -> FamiliarError {
         parse(text).expect_err("refused")
+    }
+
+    #[test]
+    fn python_record_classes_and_tests_join_the_frame() {
+        let text = "import pytest\nfrom dataclasses import dataclass\n\n@dataclass\nclass Point:\n    \"\"\"A point.\"\"\"\n    x: int\n    y: int\n\nclass Helper:\n    def run(self) -> int:\n        return 1\n\ndef dist(a: Point, b: Point) -> int:\n    if a.x == b.x and a.y != b.y:\n        raise ValueError(\"vertical\")\n    return abs(a.x - b.x) + abs(a.y - b.y)\n\ndef test_dist() -> None:\n    assert dist(Point(1, 2), Point(x=4, y=-2)) == 7, \"seven\"\n    assert not dist(Point(0, 0), Point(0, 0))\n    with pytest.raises(ValueError):\n        dist(Point(0, 0), Point(0, 1))\n";
+        let parsed = parse(text).unwrap();
+        let frame = &parsed.frame;
+        assert_eq!(
+            frame["types"],
+            json!([{"name": "Point", "record": [["x", "i64"], ["y", "i64"]]}])
+        );
+        assert_eq!(
+            frame["tests"],
+            json!([
+                {"name": "test_dist_0", "fn": "dist", "args": [{"x": 1, "y": 2}, {"x": 4, "y": -2}], "expect": 7},
+                {"name": "test_dist_1", "fn": "dist", "args": [{"x": 0, "y": 0}, {"x": 0, "y": 0}], "truthy": false},
+                {"name": "test_dist_2", "fn": "dist", "args": [{"x": 0, "y": 0}, {"x": 0, "y": 1}], "expect": {"trap": "unreachable"}}
+            ])
+        );
+        assert_eq!(frame["fns"].as_array().unwrap().len(), 1);
+        assert_eq!(parsed.positions.entries()["/types/0"].line, 5);
+        assert_eq!(parsed.positions.entries()["/tests/2"].line, 22);
+    }
+
+    #[test]
+    fn python_raises_names_an_exception_the_function_can_raise() {
+        let head = "class AppError(ValueError):\n    pass\n\ndef inner(a: int) -> int:\n    if a < 0:\n        raise AppError(\"neg\")\n    return a\n\ndef outer(a: int, xs: list[int]) -> int:\n    return inner(a) + xs[0] + 10 // a\n\ndef plain(a: int) -> int:\n    return a + 1\n\n";
+        for exception in [
+            "AppError",
+            "ValueError",
+            "Exception",
+            "ZeroDivisionError",
+            "ArithmeticError",
+            "IndexError",
+            "LookupError",
+        ] {
+            let text = format!(
+                "{head}def test_x():\n    with pytest.raises({exception}):\n        outer(-1, [1])\n"
+            );
+            assert!(parse(&text).is_ok(), "{exception}");
+        }
+        for (call, exception) in [
+            ("outer(-1, [1])", "KeyError"),
+            ("outer(-1, [1])", "AssertionError"),
+            ("plain(1)", "ValueError"),
+            ("plain(1)", "Exception"),
+        ] {
+            let text = format!(
+                "{head}def test_x():\n    with pytest.raises({exception}):\n        {call}\n"
+            );
+            let error = refused(&text);
+            assert!(
+                error.message.contains(&format!("cannot raise {exception}")),
+                "{}",
+                error.message
+            );
+            assert_eq!(error.at.line, 16);
+        }
+        assert!(refused(&format!("{head}def test_x():\n    with pytest.raises((ValueError, KeyError)):\n        plain(1)\n")).message.contains("name one exception class"));
+    }
+
+    #[test]
+    fn python_raises_follows_builtin_exception_ancestry() {
+        for (raised, expected) in [
+            ("IndexError", "LookupError"),
+            ("KeyError", "LookupError"),
+            ("ZeroDivisionError", "ArithmeticError"),
+            ("OverflowError", "ArithmeticError"),
+            ("FloatingPointError", "ArithmeticError"),
+            ("TabError", "SyntaxError"),
+            ("ConnectionResetError", "OSError"),
+            ("UnboundLocalError", "NameError"),
+            ("ModuleNotFoundError", "ImportError"),
+            ("RecursionError", "RuntimeError"),
+            ("UnicodeDecodeError", "ValueError"),
+            ("UserWarning", "Warning"),
+            ("ExceptionGroup", "BaseExceptionGroup"),
+            ("IOError", "OSError"),
+            ("OSError", "EnvironmentError"),
+            ("IOError", "EnvironmentError"),
+        ] {
+            let body = format!(
+                "def fail(x: int) -> int:\n    raise {raised}\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+            );
+            assert!(parse(&body).is_ok(), "{raised} is a subclass of {expected}");
+            let custom = format!(
+                "class BadValue({raised}):\n    pass\n\n{}",
+                body.replace(&format!("raise {raised}"), "raise BadValue")
+            );
+            assert!(
+                parse(&custom).is_ok(),
+                "BadValue({raised}) is a subclass of {expected}"
+            );
+        }
+        for (raised, expected) in [
+            ("IndexError", "ArithmeticError"),
+            ("TabError", "RuntimeError"),
+        ] {
+            let body = format!(
+                "def fail(x: int) -> int:\n    raise {raised}\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+            );
+            let error = refused(&body);
+            assert!(error.message.contains(&format!("cannot raise {expected}")));
+            assert_eq!(error.at.line, 5);
+        }
+        // A source declaration takes precedence over the builtin alias.
+        let shadow = "class IOError(ValueError):\n    pass\n\ndef fail(x: int) -> int:\n    raise IOError\n\ndef test_failure():\n    with pytest.raises(OSError):\n        fail(0)\n";
+        assert!(refused(shadow).message.contains("cannot raise OSError"));
+        assert!(parse(&shadow.replace("raises(OSError)", "raises(ValueError)")).is_ok());
+    }
+
+    #[test]
+    fn python_test_records_refuse_duplicate_or_misordered_arguments() {
+        let head = "class P:\n    x: int\n    y: int\n\ndef f(p: P) -> int:\n    return p.x\n\n";
+        for (call, offending, message) in [
+            ("P(x=1, x=2, y=3)", "x=2", "field `x` more than once"),
+            ("P(1, 2, x=3)", "x=3", "field `x` more than once"),
+            ("P(x=1, 2)", "2", "positional arguments must precede"),
+        ] {
+            let line = format!("    assert f({call}) == 1");
+            let error = refused(&format!("{head}def test_f():\n{line}\n"));
+            assert!(error.message.contains(message), "{call}: {}", error.message);
+            assert_eq!(error.at.line, head.lines().count() + 2, "{call}");
+            assert_eq!(error.at.column, line.find(offending).unwrap() + 1, "{call}");
+        }
+    }
+
+    #[test]
+    fn python_test_record_arguments_preserve_valid_order_and_nesting() {
+        let head = "class P:\n    x: int\n    y: int\n\nclass Box:\n    p: P\n\ndef f(p: P) -> int:\n    return p.x\n\ndef g(b: Box) -> int:\n    return b.p.x\n\n";
+        for call in ["P(1, 2)", "P(y=2, x=1)", "P(1, y=2)", "P(1, y=2,)"] {
+            let frame = parse(&format!("{head}def test_f():\n    assert f({call}) == 1\n"))
+                .unwrap()
+                .frame;
+            assert_eq!(
+                frame["tests"][0]["args"],
+                json!([{"x": 1, "y": 2}]),
+                "{call}"
+            );
+        }
+        for call in ["Box(p=P(1, y=2))", "Box(P(y=2, x=1))"] {
+            let frame = parse(&format!("{head}def test_g():\n    assert g({call}) == 1\n"))
+                .unwrap()
+                .frame;
+            assert_eq!(
+                frame["tests"][0]["args"],
+                json!([{"p": {"x": 1, "y": 2}}]),
+                "{call}"
+            );
+        }
+    }
+
+    #[test]
+    fn python_tests_refuse_what_they_cannot_state() {
+        let head = "class P:\n    x: int\n\ndef f(a: int) -> int:\n    return a\n\n";
+        for (test, message) in [
+            ("def test_f():\n    x = 1\n", "a test function holds"),
+            ("def test_f():\n    assert f(g(1)) == 1\n", "neither"),
+            (
+                "def test_f():\n    assert f(P(1, 2)) == 1\n",
+                "has 1 fields",
+            ),
+            ("def test_f():\n    assert f(P(z=1)) == 1\n", "no field `z`"),
+            (
+                "def test_f():\n    with open(1):\n        f(1)\n",
+                "pytest.raises",
+            ),
+            (
+                "def test_f():\n    \"\"\"Nothing.\"\"\"\n",
+                "holds no assertion",
+            ),
+        ] {
+            let error = refused(&format!("{head}{test}"));
+            assert!(error.message.contains(message), "{test}: {}", error.message);
+        }
+        // A test helper with parameters is an ordinary function.
+        let frame = parse(&format!(
+            "{head}def test_helper(a: int) -> int:\n    return a\n"
+        ))
+        .unwrap()
+        .frame;
+        assert_eq!(frame["fns"][1]["fn"], "test_helper");
+        assert!(frame.get("tests").is_none());
     }
 
     #[test]

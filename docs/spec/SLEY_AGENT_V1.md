@@ -2524,6 +2524,17 @@ fnref`. AF1 also accepts the SSMC1 names and the numeric tags.
 
 ## 7. TestCase defaults and the workbench policy
 
+AF1-X tests also accept `"truthy": true` or `"truthy": false` in place of
+`expect`. A Boolean target is tested directly. For integer, text or vector
+results, structured lowering adds a collision-free private Boolean predicate
+which calls the target and applies the existing `truthy` operation. Other
+result types are refused. The generated ordinary TestCase retains the authored
+name, arguments and limits; those limits include the predicate and its call.
+There is no new canonical comparison mode or VM operation. Python test
+functions use this form for `assert f(...)` and `assert not f(...)`, including
+targets in the current workspace or `--on` candidate. A text proposal may
+contain only test functions. Explicit equality assertions still use `expect`.
+
 An AF1 test (or a test table's `defaults` or row) declares its limits as
 `"limits"`, an object of non-negative integers whose keys are exactly
 `fuel`, `memory_bytes`, `output_bytes`, `effect_count`, `call_depth` and

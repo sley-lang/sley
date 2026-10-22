@@ -735,6 +735,25 @@ fn familiar_locate(_positions: &FamiliarPositions, _pointer: &str) -> Option<(us
     None
 }
 
+fn familiar_test_lines(
+    frame: Option<&Value>,
+    positions: Option<&FamiliarPositions>,
+) -> BTreeMap<String, usize> {
+    match (frame, positions) {
+        (Some(frame), Some(positions)) => frame["tests"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .filter_map(|(index, test)| {
+                let name = test["name"].as_str()?.to_owned();
+                familiar_locate(positions, &format!("/tests/{index}")).map(|(line, _)| (name, line))
+            })
+            .collect(),
+        _ => BTreeMap::new(),
+    }
+}
+
 /// Adds the familiar text position of each obligation's pointer (`text`:
 /// line and column, diagnostic only) and returns one line per located
 /// obligation.
@@ -752,6 +771,50 @@ fn familiar_positions(obligations: &mut [Value], positions: &FamiliarPositions) 
         }
     }
     lines
+}
+
+/// A compiler-style diagnostic for familiar text: `path:line:column:
+/// message`, the text's line, and a caret under the column.
+fn source_caret(path: &str, text: &[u8], line: usize, column: usize, message: &str) -> String {
+    let text = String::from_utf8_lossy(text);
+    let mut out = format!("{path}:{line}:{column}: {message}\n");
+    if let Some(source) = text.lines().nth(line.saturating_sub(1)) {
+        let pad: String = source
+            .chars()
+            .take(column.saturating_sub(1))
+            .map(|c| if c == '\t' { '\t' } else { ' ' })
+            .collect();
+        let _ = writeln!(out, "{source}\n{pad}^");
+    }
+    out
+}
+
+/// The terse text of familiar text refused at located obligations: the
+/// first as a caret diagnostic and how many more there are (`--verbose`
+/// and `--json` give every pointer).
+fn familiar_refusal_text(path: &str, text: &[u8], obligations: &[Value]) -> Option<String> {
+    let located: Vec<&Value> = obligations
+        .iter()
+        .filter(|record| record["text"].is_object())
+        .collect();
+    let first = located.first()?;
+    let line = usize::try_from(first["text"]["line"].as_u64()?).ok()?;
+    let column = usize::try_from(first["text"]["column"].as_u64()?).ok()?;
+    let message = first["decision"].as_str()?;
+    let mut out = source_caret(path, text, line, column, message);
+    let more = obligations.len() - 1;
+    if more > 0 {
+        let _ = writeln!(out, "(+{more} more; --verbose lists them)");
+    }
+    Some(out)
+}
+
+/// Where familiar text came from, for diagnostics.
+fn familiar_path(origin: &Origin) -> &str {
+    match origin {
+        Origin::File(path) => path,
+        _ => "<text>",
+    }
 }
 
 /// The switches of every command that makes a draft revision.
@@ -858,6 +921,9 @@ struct Proposal {
     /// With `try --familiar`: where the frame's pointers came from in the
     /// text, for diagnostics.
     familiar: Option<FamiliarPositions>,
+    /// Current input's test names and lines, captured before layering can
+    /// replace or reorder tests from an earlier frame.
+    familiar_test_lines: BTreeMap<String, usize>,
     scope: Option<scope::Guard>,
     body: Option<body::Target>,
 }
@@ -887,6 +953,7 @@ impl Proposal {
             residual: None,
             artifacts: Vec::new(),
             familiar: None,
+            familiar_test_lines: BTreeMap::new(),
             scope: None,
             body: None,
         }
@@ -1088,6 +1155,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     let guard = scope::Guard::parse(&words, &head)?;
     let body = body::Target::select(&words, &workspace, &head)?;
     let (input, parsed, positions) = trial_input(global, frame_argument, familiar, body.as_ref())?;
+    let familiar_test_lines = familiar_test_lines(parsed.as_ref().ok(), positions.as_ref());
     if let (Some(guard), Ok(frame)) = (&guard, &parsed) {
         guard.check_frame(frame)?;
     }
@@ -1164,6 +1232,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     };
     let mut proposal = proposal;
     proposal.familiar = positions;
+    proposal.familiar_test_lines = familiar_test_lines;
     proposal.scope = guard;
     if body.is_some() {
         proposal.origin = Origin::Draft;
@@ -2062,7 +2131,15 @@ fn changes_text(changes: &[Change]) -> String {
     }
     let body: Vec<String> = groups
         .iter()
-        .map(|(kind, items)| format!("{} {}", crate::names::kind_prefix(*kind), items.join(" ")))
+        .map(|(kind, items)| {
+            let prefix = crate::names::kind_prefix(*kind);
+            let items = match prefix {
+                "const" if items.len() > 2 => mark_counts(items),
+                "test" if items.len() > 2 => numbered_runs(items),
+                _ => items.clone(),
+            };
+            format!("{prefix} {}", items.join(" "))
+        })
         .collect();
     let mut text = format!("changed: {}\n", body.join("; "));
     let exported: Vec<String> = changes
@@ -2074,6 +2151,71 @@ fn changes_text(changes: &[Change]) -> String {
         let _ = writeln!(text, "exported: {}", exported.join(" "));
     }
     text
+}
+
+/// Many constants (most are literals the lowering names): `+5 ~1` counts
+/// per mark instead of names; `--json` lists them.
+fn mark_counts(items: &[String]) -> Vec<String> {
+    let mut counts: Vec<(char, usize)> = Vec::new();
+    for item in items {
+        let mark = item.chars().next().unwrap_or('~');
+        match counts.iter_mut().find(|(m, _)| *m == mark) {
+            Some((_, n)) => *n += 1,
+            None => counts.push((mark, 1)),
+        }
+    }
+    counts
+        .into_iter()
+        .map(|(mark, n)| format!("{mark}{n}"))
+        .collect()
+}
+
+/// Test names that run `name_0` .. `name_k` (one mark, contiguous numbers,
+/// three or more) as `+name_0..k`; other names as they are.
+fn numbered_runs(items: &[String]) -> Vec<String> {
+    let split = |item: &str| -> Option<(String, u64)> {
+        let (stem, number) = item.rsplit_once('_')?;
+        if number.is_empty() || !number.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        if number.len() > 1 && number.starts_with('0') {
+            return None;
+        }
+        Some((stem.to_owned(), number.parse().ok()?))
+    };
+    let mut runs: Vec<(String, Vec<u64>)> = Vec::new();
+    for item in items {
+        if let Some((stem, number)) = split(item) {
+            match runs.iter_mut().find(|(s, _)| *s == stem) {
+                Some((_, numbers)) => numbers.push(number),
+                None => runs.push((stem, vec![number])),
+            }
+        }
+    }
+    let mut collapsed: Vec<(String, String)> = Vec::new();
+    for (stem, mut numbers) in runs {
+        numbers.sort_unstable();
+        let contiguous = numbers.windows(2).all(|w| w[1] == w[0] + 1);
+        if numbers.len() >= 3 && contiguous {
+            collapsed.push((
+                stem.clone(),
+                format!("{stem}_{}..{}", numbers[0], numbers[numbers.len() - 1]),
+            ));
+        }
+    }
+    let mut out: Vec<String> = Vec::new();
+    for item in items {
+        let run = split(item).and_then(|(stem, _)| collapsed.iter().find(|(s, _)| *s == stem));
+        match run {
+            Some((_, text)) => {
+                if !out.iter().any(|o| o == text) {
+                    out.push(text.clone());
+                }
+            }
+            None => out.push(item.clone()),
+        }
+    }
+    out
 }
 
 /// ` [authored 2, imported 1, provided 3]` (non-zero counts only), and the
@@ -2295,6 +2437,22 @@ fn run_trial(
                     failure.line, failure.column, failure.detail
                 ),
             );
+            if !options.verbose && !global.json {
+                global.note("refusal", error.code().symbol());
+                global.note("obligations", draft::obligation_count(&obligations));
+                let text = source_caret(
+                    familiar_path(&proposal.origin),
+                    &proposal.input,
+                    failure.line,
+                    failure.column,
+                    &failure.detail,
+                );
+                write_text(
+                    out,
+                    &format!("{text}draft {reference}: text refused{skip_suffix}\n"),
+                )?;
+                return Ok(EXIT_REFUSED);
+            }
             let summary = format!(
                 "draft {reference}: text (refused familiar syntax at line {}, column {}); the input is kept{skip_suffix}",
                 failure.line, failure.column
@@ -2511,16 +2669,34 @@ fn run_trial(
                     status: &status,
                 },
             )?;
+            // Familiar text located at its lines is fixed in the text: the
+            // next step says so instead of a frame fill.
+            let text_located = located.as_ref().is_some_and(|lines| !lines.is_empty());
+            // Without --verbose or --json, a refusal located in the text
+            // reads like a compiler's: the line, a caret, and the draft.
+            if text_located
+                && !options.verbose
+                && !global.json
+                && let Some(text) = familiar_refusal_text(
+                    familiar_path(&proposal.origin),
+                    &proposal.input,
+                    &obligations,
+                )
+            {
+                global.note("refusal", error.code().symbol());
+                global.note("obligations", draft::obligation_count(&obligations));
+                write_text(
+                    out,
+                    &format!("{text}draft {reference}: incomplete{skip_suffix}\n"),
+                )?;
+                return Ok(EXIT_REFUSED);
+            }
             let error = match located {
                 // Pointers index the structured frame the text parsed to
                 // (the draft's frame.json); the text positions locate them.
                 Some(lines) if !lines.is_empty() => AgentError::new(
                     error.code(),
-                    format!(
-                        "{}\n  {}\n  pointers refer to the structured frame built from the familiar text ({frame_path}); fix the text and run try --familiar again",
-                        error.detail(),
-                        lines.join("\n  ")
-                    ),
+                    format!("{}\n  {}", error.detail(), lines.join("\n  ")),
                 ),
                 _ if obligations.iter().any(|record| record["at"].is_string()) => {
                     pointer_hint(error, &proposal.origin, &frame_path, &handle)
@@ -2532,7 +2708,13 @@ fn run_trial(
                 draft::obligation_count(&obligations),
                 draft::obligation_symbols(&obligations)
             );
-            let next = repair_hint(&obligations, &handle, revision, None);
+            let next = if text_located {
+                format!(
+                    "next: fix the text and run try --familiar again (pointers index the frame built from it, {frame_path})"
+                )
+            } else {
+                repair_hint(&obligations, &handle, revision, None)
+            };
             return unfinished(
                 global,
                 out,
@@ -2853,6 +3035,9 @@ fn run_trial(
         })
     } else if failed == 0 {
         Some(format!("sley-agent submit {handle}"))
+    } else if proposal.familiar.is_some() {
+        // Familiar text is fixed in the text, then tried again.
+        Some("fix the text and run try --familiar again".to_owned())
     } else if layerable {
         Some(format!(
             "fix only what failed on top of {handle}: sley-agent try --on {handle} '{{{envelope}, \"edit\": [...]}}' (or \"patch\", \"tests\")"
@@ -2899,6 +3084,71 @@ fn run_trial(
         let at = details.find("  hint:").unwrap_or(details.len());
         details.insert_str(at, &line);
     }
+    let provenance_line = provenance_text(&provenance);
+    let public_lines = public_text(&public);
+    // Only authored tests ran: the count needs no provenance.
+    let authored_only = provenance["imported"].as_u64().unwrap_or(0) == 0
+        && provenance["provided"].as_u64().unwrap_or(0) == 0
+        && provenance["replaced"]
+            .as_array()
+            .is_none_or(std::vec::Vec::is_empty);
+    let terse_provenance = if authored_only {
+        String::new()
+    } else {
+        provenance_line.clone()
+    };
+    // A Valid candidate whose tests ran, with nothing else to say: like a
+    // test runner's quiet mode, the failures (familiar text only) and one
+    // count line naming the candidate and draft (`--verbose` and `--json` give the
+    // detail and the next step).
+    let quiet = !options.verbose
+        && verdict.valid
+        && !tests.is_empty()
+        && (failed == 0 || proposal.familiar.is_some())
+        && details.is_empty()
+        && notes.is_empty()
+        && also.is_empty()
+        && raw.is_none()
+        && public_lines.is_empty()
+        && public_refusal.is_none()
+        && !changes.iter().any(|change| change.exported);
+    if quiet {
+        let mut text = String::new();
+        for line in test_lines(&tests, &after_names, false).lines() {
+            let line = line.trim_start();
+            let at = line
+                .strip_prefix("FAIL ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|name| proposal.familiar_test_lines.get(name));
+            match at {
+                Some(at) => {
+                    let _ = writeln!(text, "{line} (line {at})");
+                }
+                None => {
+                    let _ = writeln!(text, "{line}");
+                }
+            }
+        }
+        // What it replaces or deletes is still said; what it creates is in
+        // `--verbose`.
+        if changes.iter().any(|change| change.mark != '+') {
+            text.push_str(&changes_text(&changes));
+        }
+        let passed = tests.len() - failed;
+        if failed == 0 {
+            let _ = writeln!(
+                text,
+                "{candidate_handle}: {passed} passed{terse_provenance} (advisory) {reference}"
+            );
+        } else {
+            let _ = writeln!(
+                text,
+                "{candidate_handle}: {failed} failed, {passed} passed{terse_provenance} (advisory) {reference}"
+            );
+        }
+        write_text(out, &text)?;
+        return Ok(exit);
+    }
     let mut text = format!(
         "{candidate_handle}: {} (+{} created, {} replaced, {} deleted) draft {reference}\n{details}",
         verdict.headline(),
@@ -2913,12 +3163,29 @@ fn run_trial(
         let _ = writeln!(text, "  also: {finding}");
     }
     text.push_str(&changes_text(&changes));
-    let provenance = provenance_text(&provenance);
+    let provenance = provenance_line;
     if !tests.is_empty() {
         let passed = tests.iter().filter(|t| t.passed()).count();
         let _ = writeln!(text, "tests: {passed}/{} passed{provenance}", tests.len());
-        text.push_str(&test_lines(&tests, &after_names, options.verbose));
-        text.push_str(&test_execution_policy_text());
+        for line in test_lines(&tests, &after_names, options.verbose).lines() {
+            let at = line
+                .strip_prefix("  FAIL ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|name| proposal.familiar_test_lines.get(name));
+            match at {
+                Some(at) => {
+                    let _ = writeln!(text, "{line} (line {at})");
+                }
+                None => {
+                    let _ = writeln!(text, "{line}");
+                }
+            }
+        }
+        if options.verbose {
+            text.push_str(&test_execution_policy_text());
+        } else {
+            text.push_str(TEST_EXECUTION_POLICY_SHORT);
+        }
     }
     if let Some(raw) = &raw {
         let _ = writeln!(text, "stored: {raw}");
@@ -2930,7 +3197,7 @@ fn run_trial(
             "tests: 0 ran (no TestCase in this candidate targets a function it changes){provenance}"
         );
     }
-    text.push_str(&public_text(&public));
+    text.push_str(&public_lines);
     if let Some(error) = &public_refusal {
         // The recorded revision and its tests are above; the public cases
         // did not run, so no next step is proposed.
@@ -3273,6 +3540,10 @@ fn test_execution_policy(tests: &[TestOutcome]) -> Value {
         },
     })
 }
+
+/// `try`'s one-line form of [`test_execution_policy_text`] (`--verbose`
+/// and `--json` give the full policy).
+const TEST_EXECUTION_POLICY_SHORT: &str = "advisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\n";
 
 fn test_execution_policy_text() -> String {
     let limits = exec::call_limits();

@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"loopsum\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"s\", \"i64\", 0], [\"range\", \"i\", 0, \"n\", [[\"set\", \"s\", [\"rem\", [\"add\", \"s\", [\"mul\", \"j\", \"i\"]], 1000000007]]]], [\"return\", \"s\"]]}], \"test_tables\": [{\"name\": \"loopsum_cases\", \"fn\": \"loopsum\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [10], \"expect\": 285}, {\"args\": [1000], \"expect\": 332833500}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try loopsum.json"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/1/4/0/2/1/2/1: unknown name `j`\n  fix: edit loopsum.json in place at those pointers (no need to rewrite it) and run try again\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/0/body/1/4/0/2/1/2/1\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"mul\", \"j\", \"i\"]\n[\"mul\", \"i\", \"i\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try loopsum.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+48 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +loopsum; const +3; test +loopsum_cases_0..2\ntests: 3/3 passed [authored 3]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

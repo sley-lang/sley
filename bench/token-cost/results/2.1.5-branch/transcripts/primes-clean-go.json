@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc primes(n int64) int64 {\n\tvar count int64\n\tfor k := int64(2); k < n; k++ {\n\t\tisP := true\n\t\tfor d := int64(2); d*d <= k; d++ {\n\t\t\tif k%d == 0 {\n\t\t\t\tisP = false\n\t\t\t\tbreak\n\t\t\t}\n\t\t}\n\t\tif isP {\n\t\t\tcount++\n\t\t}\n\t}\n\treturn count\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestPrimes(t *testing.T) {\n\tif got := primes(10); got != 4 {\n\t\tt.Errorf(\"primes(10) = %d, want 4\", got)\n\t}\n\tif got := primes(100); got != 25 {\n\t\tt.Errorf(\"primes(100) = %d, want 25\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

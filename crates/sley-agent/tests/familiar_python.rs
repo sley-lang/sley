@@ -72,6 +72,147 @@ fn accepted(dir: &Path, text: &str) -> String {
     report["handle"].as_str().unwrap().to_owned()
 }
 
+fn inline_tests(dir: &Path, text: &str, on: Option<&str>) -> (i32, Value) {
+    let path = dir.join("truthiness.py");
+    fs::write(&path, text).unwrap();
+    let path = path.display().to_string();
+    let mut args = vec!["--json", "try", "--familiar", path.as_str()];
+    if let Some(handle) = on {
+        args.extend(["--on", handle]);
+    }
+    let (status, output) = run(dir, &args);
+    (status, serde_json::from_str(output.trim()).unwrap())
+}
+
+#[test]
+fn python_raises_matches_builtin_ancestors_and_aliases() {
+    let temp = workspace("raises-inheritance");
+    for (raised, expected, prefix) in [
+        ("IndexError", "LookupError", ""),
+        ("ZeroDivisionError", "ArithmeticError", ""),
+        ("ConnectionResetError", "OSError", ""),
+        ("IOError", "EnvironmentError", ""),
+        (
+            "BadIndex",
+            "LookupError",
+            "class BadIndex(IndexError):\n    pass\n\n",
+        ),
+    ] {
+        let text = format!(
+            "{prefix}def fail(x: int) -> int:\n    raise {raised}(\"boom\")\n\ndef test_failure():\n    with pytest.raises({expected}):\n        fail(0)\n"
+        );
+        let (status, report) = inline_tests(&temp.path, &text, None);
+        assert_eq!(status, 0, "{raised} -> {expected}: {report:#}");
+        assert_eq!(report["tests"].as_array().unwrap().len(), 1, "{report:#}");
+        assert_eq!(report["tests"][0]["pass"], true, "{report:#}");
+    }
+    let text = "def fail(x: int) -> int:\n    raise IndexError(\"boom\")\n\ndef test_failure():\n    with pytest.raises(ArithmeticError):\n        fail(0)\n";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 2, "{report:#}");
+    assert!(
+        report["detail"]
+            .as_str()
+            .unwrap()
+            .contains("cannot raise ArithmeticError")
+    );
+    assert_eq!(report["obligations"][0]["text"]["line"], 5, "{report:#}");
+}
+
+#[test]
+fn python_bare_assertions_use_truthiness() {
+    let temp = workspace("truthiness");
+    let text = "\
+def number(x: int) -> int:
+    return x
+
+def word(x: str) -> str:
+    return x
+
+def items(x: list[int]) -> list[int]:
+    return x
+
+def flag(x: int) -> bool:
+    return x > 0
+
+def test_truth():
+    assert number(7)
+    assert not number(0)
+    assert word(\"hello\")
+    assert not word(\"\")
+    assert items([1])
+    assert not items([])
+    assert flag(7)
+    assert not flag(0)
+";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 0, "{report:#}");
+    let tests = report["tests"].as_array().unwrap();
+    assert_eq!(tests.len(), 8);
+    assert!(tests.iter().all(|test| test["pass"] == true), "{report:#}");
+
+    let false_assertion = text.replace("assert number(7)", "assert number(0)");
+    let (status, report) = inline_tests(&temp.path, &false_assertion, None);
+    assert_eq!(status, 1, "{report:#}");
+    assert_eq!(report["verdict"]["valid"], true, "{report:#}");
+    assert_eq!(report["tests"][0]["pass"], false, "{report:#}");
+}
+
+#[test]
+fn python_bare_assertions_can_test_existing_functions() {
+    let temp = workspace("truthiness-existing");
+    let handle = accepted(
+        &temp.path,
+        "def number(x: int) -> int:\n    return x\n\ndef flag(x: int) -> bool:\n    return x > 0\n\ndef _sley_assert_0() -> int:\n    return 42\n",
+    );
+    let text = "def test_existing():\n    assert number(7)\n    assert not number(0)\n    assert flag(7)\n    assert not flag(0)\n";
+    let (status, report) = inline_tests(&temp.path, text, Some(&handle));
+    assert_eq!(status, 0, "{report:#}");
+    let tests = report["tests"].as_array().unwrap();
+    assert_eq!(tests.len(), 4);
+    assert!(tests.iter().all(|test| test["pass"] == true), "{report:#}");
+    // Candidate-on-candidate reports include the inherited functions. Commit
+    // the code-only base to check which functions the assertions themselves add.
+    let (status, output) = run(&temp.path, &["commit", &handle]);
+    assert_eq!(status, 0, "{output}");
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 0, "{report:#}");
+    let mut added = 0;
+    for change in report["changed"].as_array().unwrap() {
+        if change["kind"] == "fn" {
+            added += 1;
+            assert_eq!(change["visibility"], "private", "{report:#}");
+            assert_ne!(change["name"], "number");
+            assert_ne!(change["name"], "flag");
+            assert_ne!(change["name"], "_sley_assert_0");
+        }
+    }
+    assert_eq!(added, 1, "positive and negative cases share a predicate");
+    let handle = report["handle"].as_str().unwrap();
+    assert_eq!(call(&temp.path, handle, "_sley_assert_0", &[]), json!(42));
+}
+
+#[test]
+fn python_bare_assertions_preserve_traps_and_error_locations() {
+    let temp = workspace("truthiness-errors");
+    let text = "def divide(x: int) -> int:\n    return 1 // x\n\ndef test_divide():\n    assert not divide(0)\n";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 1, "{report:#}");
+    assert_eq!(report["verdict"]["valid"], true, "{report:#}");
+    assert_eq!(report["tests"][0]["pass"], false, "{report:#}");
+
+    let text = "class R:\n    x: int\n\ndef record(r: R) -> R:\n    return r\n\ndef test_record():\n    assert record(R(1))\n";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 2, "{report:#}");
+    assert!(
+        report["detail"]
+            .as_str()
+            .unwrap()
+            .contains("no truth value")
+    );
+    assert_eq!(report["obligations"][0]["text"]["line"], 8, "{report:#}");
+    assert_eq!(report["obligations"][0]["text"]["column"], 5, "{report:#}");
+}
+
 fn call(dir: &Path, handle: &str, name: &str, args: &[Value]) -> Value {
     let mut words: Vec<String> = vec!["--json".into(), "call".into(), name.into()];
     words.extend(args.iter().map(Value::to_string));
@@ -713,4 +854,95 @@ def distinct(xs: list[str]) -> int:
             (json!([[]]), json!(0)),
         ],
     );
+}
+
+#[test]
+fn python_layered_failures_use_current_authored_test_lines() {
+    for reference in ["c1", "d1"] {
+        let temp = workspace("python-layered-test-lines");
+        let path = temp.path.join("layered.py");
+        let file = path.display().to_string();
+        fs::write(
+            &path,
+            "def value(x: int) -> int:\n    return x\n\ndef test_old():\n    assert value(1) == 2\n\ndef test_kept():\n    assert value(3) == 4\n",
+        )
+        .unwrap();
+        let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
+        assert_eq!(status, 1, "{out}");
+        fs::write(
+            &path,
+            "\n\n\n\n\ndef test_new():\n    assert value(2) == 3\n\ndef test_old():\n    assert value(4) == 5\n",
+        )
+        .unwrap();
+        let (status, out) = run(&temp.path, &["try", "--on", reference, "--familiar", &file]);
+        assert_eq!(status, 1, "{reference}: {out}");
+        assert!(out.contains("3 failed, 0 passed"), "{out}");
+        for expected in [
+            "FAIL test_new_0 (value): expected 3, got 2 (line 7)",
+            "FAIL test_old_0 (value): expected 5, got 4 (line 10)",
+            "FAIL test_kept_0 (value): expected 4, got 3",
+        ] {
+            assert!(
+                out.lines().any(|line| line == expected),
+                "{reference}: {out}"
+            );
+        }
+    }
+}
+
+#[test]
+fn python_tests_and_record_classes_run_in_one_try() {
+    let temp = workspace("python-inline-tests");
+    let text = "\
+import pytest
+from dataclasses import dataclass
+
+
+@dataclass
+class Point:
+    x: int
+    y: int
+
+
+def manhattan(a: Point, b: Point) -> int:
+    if a.x < 0:
+        raise ValueError(\"negative\")
+    return abs(a.x - b.x) + abs(a.y - b.y)
+
+
+def scale(x: int) -> int:
+    return x * 3 + 7 - 11
+
+
+def test_manhattan():
+    assert manhattan(Point(1, 2), Point(4, -2)) == 7
+    assert manhattan(Point(0, 0), Point(0, 0)) == 1
+    assert manhattan(Point(2, 0), Point(0, 0)) == 2
+    assert manhattan(Point(0, 3), Point(0, 0)) == 3
+    with pytest.raises(ValueError):
+        manhattan(Point(-1, 0), Point(0, 0))
+";
+    let path = temp.path.join("records.py");
+    fs::write(&path, text).unwrap();
+    let file = path.display().to_string();
+    let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
+    assert_eq!(status, 1, "{out}");
+    // Like `pytest -q`: the failure at its line and one count line.
+    assert!(
+        out.starts_with("FAIL test_manhattan_1 (manhattan): expected 1, got 0 (line 23)\n"),
+        "{out}"
+    );
+    assert!(
+        out.ends_with(": 1 failed, 4 passed (advisory) d1@r1\n"),
+        "{out}"
+    );
+    assert_eq!(out.lines().count(), 2, "{out}");
+    fs::write(
+        &path,
+        text.replace("Point(0, 0)) == 1", "Point(0, 0)) == 0"),
+    )
+    .unwrap();
+    let (status, out) = run(&temp.path, &["try", "--familiar", &file]);
+    assert_eq!(status, 0, "{out}");
+    assert_eq!(out, "c2: 5 passed (advisory) d2@r1\n");
 }

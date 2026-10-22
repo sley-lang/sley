@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def primes(n: int) -> int:\n    count = 0\n    for k in range(2, n):\n        d = 2\n        is_p = True\n        while d * d <= k:\n            if k % d == 0:\n                is_p = False\n                break\n            d += 1\n        if is_p:\n            count += 1\n    return count\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar primes.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+186 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +primes; const +k_0 +k_1 +k_2 +k_false +k_true\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"primes_cases\", \"fn\": \"primes\", \"cases\": [{\"args\": [10], \"expect\": 4}, {\"args\": [100], \"expect\": 25}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid (+188 created, 0 replaced, 0 deleted) draft d1@r2\nchanged: fn +primes; const +k_0 +k_1 +k_2 +k_false +k_true; test +primes_cases_0 +primes_cases_1\ntests: 2/2 passed [authored 2]\ntest execution: advisory value/trap comparison; not admission evidence\ndeclared limits: fuel=VM fuel; memory_bytes=not applied; output_bytes=not applied; effect_count=not applied; call_depth=not applied; wall_timeout_millis=not applied\nfixed VM limits: instructions=100000000; value_units=1000000000; output_units=16777216 (VM units are not host bytes)\nnext: sley-agent submit d1\n"
+ ]
+]

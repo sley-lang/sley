@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "enum withdraw_error { WITHDRAW_OK, WITHDRAW_NOT_POSITIVE, WITHDRAW_INSUFFICIENT };\n\nenum withdraw_error withdraw(long long balance, long long amount, long long *out) {\n    if (amount <= 0)\n        return WITHDRAW_NOT_POSITIVE;\n    if (amount > balance)\n        return WITHDRAW_INSUFFICIENT;\n    *out = balance - amout;\n    return WITHDRAW_OK;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"errors.c\"\n\nint main(void) {\n    long long v;\n    assert(withdraw(100, 30, &v) == WITHDRAW_OK && v == 70);\n    assert(withdraw(50, 50, &v) == WITHDRAW_OK && v == 0);\n    assert(withdraw(100, 0, &v) == WITHDRAW_NOT_POSITIVE);\n    assert(withdraw(10, 30, &v) == WITHDRAW_INSUFFICIENT);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_errors test_errors.c && ./test_errors"
+ ],
+ [
+  "read",
+  "output",
+  "In file included from test_errors.c:2:\nerrors.c: In function \u2018withdraw\u2019:\nerrors.c:8:22: error: \u2018amout\u2019 undeclared (first use in this function); did you mean \u2018amount\u2019?\n    8 |     *out = balance - amout;\n      |                      ^~~~~\n      |                      amount\nerrors.c:8:22: note: each undeclared identifier is reported only once for each function it appears in\n"
+ ],
+ [
+  "write",
+  "edit",
+  "balance - amout\nbalance - amount"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_errors test_errors.c && ./test_errors"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

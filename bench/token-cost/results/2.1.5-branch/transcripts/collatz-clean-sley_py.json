@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def collatz(limit: int) -> int:\n    best = 0\n    best_n = 0\n    for n in range(1, limit):\n        x = n\n        steps = 0\n        while x != 1:\n            if x % 2 == 0:\n                x = x // 2\n            else:\n                x = 3 * x + 1\n            steps += 1\n        if steps > best:\n            best = steps\n            best_n = n\n    return best_n\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar collatz.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+293 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +collatz; const +4\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"collatz_cases\", \"fn\": \"collatz\", \"cases\": [{\"args\": [10], \"expect\": 9}, {\"args\": [100], \"expect\": 97}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d1 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 2 passed (advisory) d1@r2\n"
+ ]
+]

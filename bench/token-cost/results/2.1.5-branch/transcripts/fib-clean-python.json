@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "def fib(n: int) -> int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom fib import fib\n\n\ndef test_fib():\n    assert fib(0) == 0\n    assert fib(1) == 1\n    assert fib(10) == 55\n    assert fib(20) == 6765\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_fib.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

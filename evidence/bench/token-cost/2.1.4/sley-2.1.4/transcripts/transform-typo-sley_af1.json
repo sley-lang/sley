@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"transform\", \"params\": [[\"xs\", \"Vec<i64>\"], [\"lo\", \"i64\"], [\"hi\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"t\", \"i64\", 0], [\"for\", \"x\", \"xs\", [[\"set\", \"t\", [\"add\", \"t\", [\"clamp\", [\"if\", [\"ne\", [\"rem\", \"x\", 2], 0], [\"mul\", \"x\", 2], \"x\"], \"lo\", \"hl\"]]]]], [\"return\", \"t\"]]}], \"test_tables\": [{\"name\": \"transform_cases\", \"fn\": \"transform\", \"cases\": [{\"args\": [[1, 2, 3, -4], 0, 5], \"expect\": 9}, {\"args\": [[], 0, 1], \"expect\": 0}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try transform.json"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/1/3/0/2/2/3: unknown name `hl`\n  fix: edit transform.json in place at those pointers (no need to rewrite it) and run try again\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/0/body/1/3/0/2/2/3\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "\"lo\", \"hl\"]\n\"lo\", \"hi\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try transform.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

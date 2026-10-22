@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "export function withdraw(balance: number, amount: number): number {\n  if (amount <= 0) {\n    throw new RangeError(\"amount must be positive\");\n  }\n  if (amount > balance) {\n    throw new RangeError(\"insufficient funds\");\n  }\n  return balance - amount;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { withdraw } from \"./errors.js\";\n\ntest(\"withdraw\", () => {\n  assert.equal(withdraw(100, 30), 70);\n  assert.equal(withdraw(50, 50), 0);\n  assert.throws(() => withdraw(100, 0), RangeError);\n  assert.throws(() => withdraw(10, 30), RangeError);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

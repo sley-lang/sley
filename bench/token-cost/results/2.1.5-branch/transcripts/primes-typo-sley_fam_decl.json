@@ -1,0 +1,47 @@
+[
+ [
+  "write",
+  "program",
+  "fn primes(n: i64) -> i64 {\n    var count = 0\n    for k in 2..n {\n        var d = 2\n        var is_p = true\n        while d * d <= k {\n            if k % b == 0 {\n                is_p = false\n                break\n            }\n            d += 1\n        }\n        if is_p {\n            count += 1\n        }\n    }\n    count\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar primes.sley"
+ ],
+ [
+  "read",
+  "output",
+  "primes.sley:7:20: unknown name `b`\n            if k % b == 0 {\n                   ^\ndraft d1@r1: incomplete\n"
+ ],
+ [
+  "write",
+  "edit",
+  "k % b == 0\nk % d == 0"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar primes.sley"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+135 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +primes; const +5\ntests: 0 ran (no TestCase in this candidate targets a function it changes)\nnext: add tests without restating the frame: sley-agent try --on d2 '{\"af1\": 1, \"afx\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "{\"af1\": 1, \"afx\": 1, \"test_tables\": [{\"name\": \"primes_cases\", \"fn\": \"primes\", \"cases\": [{\"args\": [10], \"expect\": 4}, {\"args\": [100], \"expect\": 25}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --on d2 tests.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 2 passed (advisory) d2@r2\n"
+ ]
+]

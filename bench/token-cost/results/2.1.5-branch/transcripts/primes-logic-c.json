@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "#include <stdbool.h>\n\nlong long primes(long long n) {\n    long long count = 0;\n    for (long long k = 2; k < n; k++) {\n        bool is_p = true;\n        for (long long d = 2; d * d < k; d++) {\n            if (k % d == 0) {\n                is_p = false;\n                break;\n            }\n        }\n        if (is_p)\n            count++;\n    }\n    return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"primes.c\"\n\nint main(void) {\n    assert(primes(10) == 4);\n    assert(primes(100) == 25);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_primes test_primes.c && ./test_primes"
+ ],
+ [
+  "read",
+  "output",
+  "test_primes: test_primes.c:5: main: Assertion `primes(10) == 4' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "d * d < k\nd * d <= k"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_primes test_primes.c && ./test_primes"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

@@ -1,0 +1,7 @@
+fn loopsum(n: i64) -> i64 {
+    var s = 0
+    for i in 0..n {
+        s = (s + i * i) % 1000000007
+    }
+    s
+}

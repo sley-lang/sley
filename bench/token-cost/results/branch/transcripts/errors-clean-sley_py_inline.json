@@ -1,0 +1,17 @@
+[
+ [
+  "write",
+  "program",
+  "import pytest\n\n\ndef withdraw(balance: int, amount: int) -> int:\n    if amount <= 0:\n        raise ValueError(\"amount must be positive\")\n    if amount > balance:\n        raise ValueError(\"insufficient funds\")\n    return balance - amount\n\n\ndef test_errors():\n    assert withdraw(100, 30) == 70\n    assert withdraw(50, 50) == 0\n    with pytest.raises(ValueError):\n        withdraw(100, 0)\n    with pytest.raises(ValueError):\n        withdraw(10, 30)\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar errors.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+22 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +withdraw; const +k_0; test +test_errors_0..3\ntests: 4/4 passed [authored 4]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d1\n"
+ ]
+]

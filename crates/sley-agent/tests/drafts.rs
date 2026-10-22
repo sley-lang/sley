@@ -244,10 +244,9 @@ fn inherited_tests_survive_a_one_operation_correction() {
     // Only the edit: the definitions and both tests of r1 come along.
     let (status, text) = run(&temp.path, &["try", "--on", "d1", FIX]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.starts_with("c2: Valid"), "{text}");
-    assert!(text.contains(" draft d1@r2\n"), "{text}");
-    assert!(text.contains("tests: 2/2 passed"), "{text}");
-    assert!(text.contains("next: sley-agent submit d1"), "{text}");
+    assert!(text.starts_with("c2: "), "{text}");
+    assert!(text.contains(" d1@r2\n"), "{text}");
+    assert!(text.contains("2 passed"), "{text}");
     let status = status_of(&temp.path, "d1");
     assert_eq!(status["made_by"], "try-on");
     assert_eq!(status["parent"], "d1@r1");
@@ -256,11 +255,11 @@ fn inherited_tests_survive_a_one_operation_correction() {
     let more = json!({"af1": 1, "tests": [{"name": "t_low", "fn": "bound", "args": [-3, 0, 10], "expect": {"Ok": 0}}]});
     let (status, text) = run(&temp.path, &["try", "--on", "d1", &more.to_string()]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains("tests: 3/3 passed"), "{text}");
+    assert!(text.contains("3 passed"), "{text}");
     // `try --on c2` keeps its meaning and starts a new draft.
     let (status, text) = run(&temp.path, &["try", "--on", "c2", &more.to_string()]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains(" draft d2@r1\n"), "{text}");
+    assert!(text.contains(" d2@r1\n"), "{text}");
     assert_eq!(status_of(&temp.path, "d2")["on"], "c2");
     // An explicit earlier revision is a base too; the parent is recorded.
     let (status, text) = run(&temp.path, &["try", "--on", "d1@r1", FIX]);
@@ -416,7 +415,7 @@ fn fill_refuses_stale_missing_equal_and_overlapping_targets() {
         &["fill", "d1", &pair.to_string(), "--revision", "2"],
     );
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains(" draft d1@r3\n"), "{text}");
+    assert!(text.contains(" d1@r3\n"), "{text}");
     let (_, frame) = run_json(&temp.path, &["draft", "d1", "--frame"]);
     assert_eq!(frame["frame"]["tests"][0]["args"], json!([6, 0, 10]));
     let status = status_of(&temp.path, "d1");
@@ -529,7 +528,7 @@ fn submission_never_falls_back_to_an_older_revision() {
         {"name": "j", "ops": [], "term": ["return", "l.m"]}]}]});
     let (status, text) = run(&temp.path, &["try", &refused.to_string()]);
     assert_eq!(status, 1, "{text}");
-    assert!(text.contains(" draft d2@r1\n"), "{text}");
+    assert!(text.contains(" d2@r1\n"), "{text}");
     let status = status_of(&temp.path, "d2");
     assert_eq!(status["state"], "refused");
     assert_eq!(
@@ -614,7 +613,7 @@ fn named_entities_collide_across_revisions_only_by_kind() {
         &["fill", "d1", &repair.to_string(), "--revision", "3"],
     );
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains("tests: 2/2 passed"), "{text}");
+    assert!(text.contains("2 passed"), "{text}");
 }
 
 #[test]
@@ -658,7 +657,7 @@ fn imported_cases_keep_their_source_and_never_count_as_authored() {
     );
     assert_eq!(status, 0, "{text}");
     assert!(
-        text.contains("tests: 4/4 passed [authored 1, imported 2, provided 1]"),
+        text.contains("4 passed [authored 1, imported 2, provided 1]"),
         "{text}"
     );
     let status = status_of(&temp.path, "d3");
@@ -720,8 +719,8 @@ fn import_without_a_draft_starts_one_and_refuses_unsourced_cases() {
     .unwrap();
     let (status, text) = run(&temp.path, &["import", cases.to_str().unwrap()]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains(" draft d2@r1\n"), "{text}");
-    assert!(text.contains("tests: 1/1 passed [imported 1]"), "{text}");
+    assert!(text.contains(" d2@r1\n"), "{text}");
+    assert!(text.contains("1 passed [imported 1]"), "{text}");
     let status = status_of(&temp.path, "d2");
     assert_eq!(status["made_by"], "import");
     assert_eq!(status["parent"], Value::Null);
@@ -1316,7 +1315,14 @@ fn a_follow_up_layering_refuses_is_kept() {
     let add = json!({"set": [{"at": "", "value": {"af1": 1, "tests": [{"name": "k", "fn": "neg", "args": [1], "expect": false}]}}]});
     let (status, text) = run(
         &temp.path,
-        &["fill", "d2", &add.to_string(), "--revision", "2"],
+        &[
+            "fill",
+            "d2",
+            &add.to_string(),
+            "--revision",
+            "2",
+            "--verbose",
+        ],
     );
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("test +k +t_0"), "{text}");
@@ -1340,7 +1346,7 @@ fn provenance_counts_a_replaced_live_test_once() {
     let (status, text) = run(&temp.path, &["try", &restated.to_string()]);
     assert_eq!(status, 0, "{text}");
     assert!(
-        text.contains("tests: 1/1 passed [authored 1, provided 3; replaces provided t_1]"),
+        text.contains("1 passed [authored 1, provided 3; replaces provided t_1]"),
         "{text}"
     );
     assert_eq!(
@@ -1449,7 +1455,7 @@ fn an_identical_restatement_counts_once() {
     assert_eq!(run(&temp.path, &["commit"]).0, 0);
     let restate = json!({"af1": 1, "tests": [{"name": "t1", "fn": "neg", "args": [1], "expect": false},
                                              {"name": "t3", "fn": "neg", "args": [-5], "expect": true}]});
-    let (status, text) = run(&temp.path, &["try", &restate.to_string()]);
+    let (status, text) = run(&temp.path, &["try", "--verbose", &restate.to_string()]);
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("changed: test +t3\n"), "{text}");
     assert!(text.contains("[authored 1, provided 2]"), "{text}");
@@ -1464,7 +1470,7 @@ fn an_identical_restatement_counts_once() {
         "tests": [{"name": "t1", "fn": "neg", "args": [1], "expect": false}]});
     let (status, text) = run(&temp.path, &["try", &change.to_string()]);
     assert_eq!(status, 0, "{text}");
-    assert!(text.contains("tests: 2/2 passed [provided 2]\n"), "{text}");
+    assert!(text.contains("2 passed [provided 2]\n"), "{text}");
     let last = ledger(&temp.path).pop().unwrap();
     assert_eq!(
         last["tests"],
@@ -1791,7 +1797,14 @@ fn concurrent_commands_keep_every_name_they_create() {
         json!({"af1": 1, "tests": [{"name": "t_f7", "fn": "f7", "args": [5], "expect": 5}]});
     let (status, text) = run(
         &dir,
-        &["try", "--on", draft, "--rebase", &tests.to_string()],
+        &[
+            "try",
+            "--on",
+            draft,
+            "--rebase",
+            "--verbose",
+            &tests.to_string(),
+        ],
     );
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("changed: test +t_f7\n"), "{text}");
@@ -1840,10 +1853,7 @@ fn a_claim_left_by_a_stopped_command_never_blocks_the_draft() {
     let tests = json!({"af1": 1, "tests": [{"name": "t", "fn": "f", "args": [1], "expect": 1}]});
     let (status, text) = run(&dir, &["try", "--on", "d1", &tests.to_string()]);
     assert_eq!(status, 0, "{text}");
-    assert!(
-        text.lines().next().unwrap().ends_with(" draft d1@r4"),
-        "{text}"
-    );
+    assert!(text.lines().next().unwrap().ends_with(" d1@r4"), "{text}");
     assert_eq!(revisions(&dir, "d1"), ["r1", "r3", "r4"]);
     assert!(partial.is_dir());
 
@@ -1893,10 +1903,7 @@ fn a_claim_left_by_a_stopped_command_never_blocks_the_draft() {
     fs::remove_dir_all(&unchecked).unwrap();
     let (status, text) = run(&dir, &["fill", "d1", fill, "--revision", "6"]);
     assert!(status == 0 || status == 1, "{text}");
-    assert!(
-        text.lines().next().unwrap().ends_with(" draft d1@r7"),
-        "{text}"
-    );
+    assert!(text.lines().next().unwrap().ends_with(" d1@r7"), "{text}");
 }
 
 #[test]
@@ -2086,7 +2093,7 @@ fn the_provenance_bracket_counts_tests_that_did_not_run() {
     let (status, text) = run(&temp.path, &["try", &b.to_string(), "--verbose"]);
     assert_eq!(status, 0, "{text}");
     assert!(
-        text.contains("tests: 1/1 passed [authored 1, provided 1]\n"),
+        text.contains("1 passed [authored 1, provided 1]\n"),
         "{text}"
     );
     assert!(text.contains("  ok   tb"), "{text}");
@@ -2126,7 +2133,7 @@ fn an_import_never_replaces_a_test_a_table_row_makes() {
     assert_eq!(revisions(&temp.path, "d2"), ["r1"]);
     let (status, text) = run(
         &temp.path,
-        &["import", path, "--on", "d2", "--only", "other"],
+        &["import", path, "--on", "d2", "--only", "other", "--verbose"],
     );
     assert_eq!(status, 0, "{text}");
     assert!(

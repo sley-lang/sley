@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "from dataclasses import dataclass\n\n\n@dataclass\nclass Point:\n    x: int\n    y: int\n\n\ndef manhattan(a: Point, b: Point) -> int:\n    return abs(a.x - c.x) + abs(a.y - b.y)\n\n\ndef test_records():\n    assert manhattan(Point(1, 2), Point(4, -2)) == 7\n    assert manhattan(Point(0, 0), Point(0, 0)) == 0\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar records.py"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/0/1/1/1/2/1: unknown name `c`\n  /fns/0/body/0/1/1/1/2/1 is line 11, column 22 of the familiar text\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r1/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.x - c.x\na.x - b.x"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar records.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

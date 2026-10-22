@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "#[derive(Debug, PartialEq)]\npub enum ParseError {\n    Empty,\n    LoneMinus,\n    NotDigit,\n}\n\npub fn parse_int(chars: &[u8]) -> Result<i64, ParseError> {\n    let (sign, digits) = match chars {\n        [] => return Err(ParseError::Empty),\n        [b'-'] => return Err(ParseError::LoneMinus),\n        [b'-', rest @ ..] => (-1, rest),\n        _ => (1, chars),\n    };\n    let mut value: i64 = 0;\n    for &c in digits {\n        if !c.is_ascii_digit() {\n            return Err(ParseError::NotDigit);\n        }\n        value = value * 10 + i64::from(c - b'0');\n    }\n    Ok(sign * value)\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_parse_int() {\n        assert_eq!(parse_int(&[49, 50, 51]), Ok(123));\n        assert_eq!(parse_int(&[45, 55]), Ok(-7));\n        assert_eq!(parse_int(&[]), Err(ParseError::Empty));\n        assert_eq!(parse_int(&[45]), Err(ParseError::LoneMinus));\n        assert_eq!(parse_int(&[49, 120]), Err(ParseError::NotDigit));\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

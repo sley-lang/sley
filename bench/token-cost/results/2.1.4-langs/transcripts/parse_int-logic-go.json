@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nimport \"errors\"\n\nvar (\n\tErrEmpty     = errors.New(\"empty\")\n\tErrLoneMinus = errors.New(\"lone minus\")\n\tErrNotDigit  = errors.New(\"not a digit\")\n)\n\nfunc parseInt(chars []byte) (int64, error) {\n\tif len(chars) == 0 {\n\t\treturn 0, ErrEmpty\n\t}\n\tsign, start := int64(1), 0\n\tif chars[0] == '-' {\n\t\tif len(chars) == 1 {\n\t\t\treturn 0, ErrLoneMinus\n\t\t}\n\t\tsign, start = -1, 1\n\t}\n\tvar value int64\n\tfor _, c := range chars[start:] {\n\t\tif c < '0' || c > '9' {\n\t\t\treturn 0, ErrNotDigit\n\t\t}\n\t\tvalue = value*10 + int64(c-'/')\n\t}\n\treturn sign * value, nil\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport (\n\t\"errors\"\n\t\"testing\"\n)\n\nfunc TestParseInt(t *testing.T) {\n\tif got, err := parseInt([]byte{49, 50, 51}); err != nil || got != 123 {\n\t\tt.Errorf(\"parseInt([]byte{49, 50, 51}) = %d, %v, want 123\", got, err)\n\t}\n\tif got, err := parseInt([]byte{45, 55}); err != nil || got != -7 {\n\t\tt.Errorf(\"parseInt([]byte{45, 55}) = %d, %v, want -7\", got, err)\n\t}\n\tif _, err := parseInt([]byte{}); !errors.Is(err, ErrEmpty) {\n\t\tt.Errorf(\"parseInt([]byte{}) error = %v, want ErrEmpty\", err)\n\t}\n\tif _, err := parseInt([]byte{45}); !errors.Is(err, ErrLoneMinus) {\n\t\tt.Errorf(\"parseInt([]byte{45}) error = %v, want ErrLoneMinus\", err)\n\t}\n\tif _, err := parseInt([]byte{49, 120}); !errors.Is(err, ErrNotDigit) {\n\t\tt.Errorf(\"parseInt([]byte{49, 120}) error = %v, want ErrNotDigit\", err)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "--- FAIL: TestParseInt (0.00s)\n    calc_test.go:10: parseInt([]byte{49, 50, 51}) = 234, <nil>, want 123\n    calc_test.go:13: parseInt([]byte{45, 55}) = -8, <nil>, want -7\nFAIL\nexit status 1\nFAIL\tcalc\t0.001s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "int64(c-'/')\nint64(c-'0')"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

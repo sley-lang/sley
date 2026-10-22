@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "#include <stddef.h>\n\nlong long transform(const long long *xs, size_t len, long long lo, long long hi) {\n    long long s = 0;\n    for (size_t i = 0; i < len; i++) {\n        long long x = xs[i] % 2 ? xs[i] * 3 : xs[i];\n        if (x < lo)\n            x = lo;\n        if (x > hi)\n            x = hi;\n        s += x;\n    }\n    return s;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"transform.c\"\n\nint main(void) {\n    assert(transform((long long[]){1, 2, 3, -4}, 4, 0, 5) == 9);\n    assert(transform(NULL, 0, 0, 1) == 0);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_transform test_transform.c && ./test_transform"
+ ],
+ [
+  "read",
+  "output",
+  "test_transform: test_transform.c:5: main: Assertion `transform((long long[]){1, 2, 3, -4}, 4, 0, 5) == 9' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "xs[i] * 3\nxs[i] * 2"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_transform test_transform.c && ./test_transform"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

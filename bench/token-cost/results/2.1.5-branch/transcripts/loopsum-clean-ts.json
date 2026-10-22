@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "export function loopsum(n: number): number {\n  let s = 0;\n  for (let i = 0; i < n; i++) {\n    s = (s + i * i) % 1000000007;\n  }\n  return s;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { loopsum } from \"./loopsum.js\";\n\ntest(\"loopsum\", () => {\n  assert.equal(loopsum(0), 0);\n  assert.equal(loopsum(10), 285);\n  assert.equal(loopsum(1000), 332833500);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

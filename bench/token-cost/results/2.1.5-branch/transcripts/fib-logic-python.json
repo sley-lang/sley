@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def fib(n: int) -> int:\n    if n < 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom fib import fib\n\n\ndef test_fib():\n    assert fib(0) == 0\n    assert fib(1) == 1\n    assert fib(10) == 55\n    assert fib(20) == 6765\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n___________________________________ test_fib ___________________________________\n\n    def test_fib():\n        assert fib(0) == 0\n>       assert fib(1) == 1\nE       assert -1 == 1\nE        +  where -1 = fib(1)\n\ntest_fib.py:8: AssertionError\n=========================== short test summary info ============================\nFAILED test_fib.py::test_fib - assert -1 == 1\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "n < 1\nn < 2"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_fib.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

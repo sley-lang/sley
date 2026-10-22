@@ -27,7 +27,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.1.3"
+version = "2.1.4"
 edition = "2024"
 rust-version = "1.93"
 license = "Apache-2.0"
@@ -39,3 +39,10 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 all = "warn"
 pedantic = "warn"
+
+# One codegen unit with whole-program (fat) LTO: the VM's dispatch loop and
+# its callees are optimized as one unit, which speeds up interpreted code.
+# Deterministic: the release candidate's two clean builds still compare equal.
+[profile.release]
+lto = "fat"
+codegen-units = 1

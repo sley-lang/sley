@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def gcd(a: int, b: int) -> int:\n    while b != 0:\n        a, b = b, a % b\n    return a\n\n\ndef gcdsum(n: int) -> int:\n    s = 0\n    for i in range(1, n):\n        for j in range(1, n):\n            s += gcd(i, k)\n    return s\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom gcdsum import gcdsum\n\n\ndef test_gcdsum():\n    assert gcdsum(5) == 24\n    assert gcdsum(10) == 145\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_gcdsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________________________________ test_gcdsum __________________________________\n\n    def test_gcdsum():\n>       assert gcdsum(5) == 24\n               ^^^^^^^^^\n\ntest_gcdsum.py:7: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nn = 5\n\n    def gcdsum(n: int) -> int:\n        s = 0\n        for i in range(1, n):\n            for j in range(1, n):\n>               s += gcd(i, k)\n                            ^\nE               NameError: name 'k' is not defined\n\ngcdsum.py:11: NameError\n=========================== short test summary info ============================\nFAILED test_gcdsum.py::test_gcdsum - NameError: name 'k' is not defined\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "s += gcd(i, k)\ns += gcd(i, j)"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_gcdsum.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

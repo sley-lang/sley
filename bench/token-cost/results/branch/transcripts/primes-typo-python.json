@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def primes(n: int) -> int:\n    count = 0\n    for k in range(2, n):\n        d = 2\n        is_p = True\n        while d * d <= k:\n            if k % b == 0:\n                is_p = False\n                break\n            d += 1\n        if is_p:\n            count += 1\n    return count\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom primes import primes\n\n\ndef test_primes():\n    assert primes(10) == 4\n    assert primes(100) == 25\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_primes.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________________________________ test_primes __________________________________\n\n    def test_primes():\n>       assert primes(10) == 4\n               ^^^^^^^^^^\n\ntest_primes.py:7: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nn = 10\n\n    def primes(n: int) -> int:\n        count = 0\n        for k in range(2, n):\n            d = 2\n            is_p = True\n            while d * d <= k:\n>               if k % b == 0:\n                       ^\nE               NameError: name 'b' is not defined\n\nprimes.py:7: NameError\n=========================== short test summary info ============================\nFAILED test_primes.py::test_primes - NameError: name 'b' is not defined\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "k % b == 0\nk % d == 0"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_primes.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

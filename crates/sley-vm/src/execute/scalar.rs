@@ -13,7 +13,14 @@ use super::{
 };
 use sley_ssmc::{BuiltinFailureKind, BuiltinFailureValue, Immediate, Opcode};
 
+mod words;
+
+// A word-sized tag: every variant's payload then starts at byte 8, so copying
+// an atom moves whole words. With a one-byte tag a `Bool` or `Failure` atom
+// was written byte by byte and read back as overlapping wider moves, which
+// stalled on store forwarding in the batched step loop.
 #[derive(Clone, Copy, Debug)]
+#[repr(u64)]
 enum Atom<'a> {
     Borrowed(&'a ConstValue),
     Unit,
@@ -192,6 +199,18 @@ struct Step {
     /// A `call_direct` step: the callee's index in the program's function
     /// table (0 is the entry function) and each argument's unit rule.
     call: Option<Box<Call>>,
+    /// A two-operand 64-bit integer step (checked `add sub mul div rem` or a
+    /// comparison) with its operand registers: evaluated on native words
+    /// when both operands are in range, by `evaluate` otherwise.
+    word: Option<Word>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Word {
+    op: Opcode,
+    signed: bool,
+    a: usize,
+    b: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -270,6 +289,12 @@ struct Edge {
     /// arguments can be moved straight into the parameters: a sequential
     /// move then equals the parallel one, and no scratch copy is needed.
     direct: bool,
+    /// For a prepaid edge: the arguments whose slot is not already their
+    /// parameter's slot (see `assign_slots`), with that parameter's slot,
+    /// whether they can move directly, and the fuel the whole edge charges.
+    moves: Vec<(Argument, usize)>,
+    moves_direct: bool,
+    fuel: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -281,8 +306,11 @@ enum Exit {
         register: usize,
         take: bool,
         cases: Vec<(CaseKey, Edge)>,
+        /// Each case's value shape, for the prepaid selection.
+        shapes: Vec<Option<Shape>>,
     },
-    Trap(u32, Option<usize>),
+    /// The trap tag and the payload's slot and register (for its type).
+    Trap(u32, Option<(usize, usize)>),
 }
 
 #[derive(Clone, Debug)]
@@ -290,6 +318,90 @@ struct Block {
     parameters: Vec<usize>,
     steps: Vec<Step>,
     exit: Exit,
+    /// The prepaid runs that start at step 0 and after each call.
+    batches: Vec<Batch>,
+}
+
+/// The leading run of a block that can be charged at once: its steps before
+/// the first call or variable-size result, and its exit when the run is the
+/// whole block, with the most fuel and value units the run can charge.
+///
+/// When the budgets hold that much (see `prepaid`), no charge inside the run
+/// can stop it, so its per-step checks are skipped and the run's exact fuel,
+/// instruction and value-unit totals are added in the same order of effects.
+/// A budget too small for the worst case runs the block step by step.
+#[derive(Clone, Copy, Debug, Default)]
+struct Batch {
+    start: usize,
+    steps: usize,
+    exit: bool,
+    fuel: u64,
+    units: u64,
+}
+
+impl Batch {
+    /// The runs a block resumes at: its start, and the step after each call.
+    fn segments(steps: &[Step], exit: &Exit) -> Vec<Self> {
+        let mut starts = vec![0];
+        starts.extend(
+            steps
+                .iter()
+                .enumerate()
+                .filter(|(_, step)| step.call.is_some())
+                .map(|(at, _)| at + 1),
+        );
+        starts
+            .into_iter()
+            .map(|start| Self::of(start, &steps[start..], exit))
+            .filter(|batch| batch.steps > 0 || batch.exit)
+            .collect()
+    }
+
+    fn of(start: usize, steps: &[Step], exit: &Exit) -> Self {
+        let count = steps
+            .iter()
+            .position(|step| step.call.is_some() || step.dynamic)
+            .unwrap_or(steps.len());
+        let whole = count == steps.len();
+        let edge = |edge: &Edge| edge.fuel;
+        let exit_fuel = match exit {
+            Exit::Return(_) | Exit::Trap(..) => 1,
+            Exit::Branch(e) => 1 + edge(e),
+            Exit::Cond(_, yes, no) => 1 + edge(yes).max(edge(no)),
+            Exit::Switch { cases, .. } => {
+                1 + cases.len() as u64 + cases.iter().map(|(_, e)| edge(e)).max().unwrap_or(0)
+            }
+        };
+        Self {
+            start,
+            steps: count,
+            exit: whole,
+            fuel: count as u64 + if whole { exit_fuel } else { 0 },
+            units: steps[..count]
+                .iter()
+                .map(|step| step.units[0].max(step.units[1]))
+                .fold(0, u64::saturating_add),
+        }
+    }
+}
+
+/// Whether every charge of `batch` would pass: the fuel, cancellation,
+/// instruction and value-unit checks are each monotone in what was charged
+/// before, so passing at the run's worst case means passing at every step.
+fn prepaid(runtime: &Runtime, limits: &ExecutionLimits, batch: &Batch) -> bool {
+    let Some(fuel) = runtime.fuel_used.checked_add(batch.fuel) else {
+        return false;
+    };
+    fuel <= limits.max_fuel
+        && limits.cancel_at_fuel.is_none_or(|cancel| fuel <= cancel)
+        && runtime
+            .instruction_count
+            .checked_add(batch.steps as u64)
+            .is_some_and(|count| count <= limits.max_instructions)
+        && runtime
+            .live_value_units
+            .checked_add(batch.units)
+            .is_some_and(|units| units <= limits.max_value_units)
 }
 
 #[derive(Clone, Debug)]
@@ -308,6 +420,9 @@ struct FieldBinding {
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
     blocks: Vec<Block>,
+    /// The register file size and each function parameter's slot.
+    slots: usize,
+    parameters: Vec<usize>,
     scratch: usize,
     records: Vec<EntityId>,
     constants: Vec<ConstantBinding>,
@@ -315,6 +430,9 @@ pub(super) struct Plan {
     result: Units,
     /// The plans of `LoweredFunction::callees`, in that order (entry only).
     callees: Vec<Plan>,
+    /// The word-tier form of the whole program, when every value of every
+    /// function fits a word (entry only; see `words`).
+    words: Option<words::Words>,
 }
 
 impl Plan {
@@ -338,6 +456,11 @@ impl Plan {
             .iter()
             .map(|callee| Self::compile_with(callee, &resolve))
             .collect::<Option<_>>()?;
+        let mut plans = vec![&plan];
+        plans.extend(plan.callees.iter());
+        let mut codes = vec![entry];
+        codes.extend(callees.iter());
+        plan.words = words::Words::compile(&plans, &codes);
         Some(plan)
     }
 
@@ -386,6 +509,7 @@ impl Plan {
                     .iter()
                     .map(|r| reg(*r))
                     .collect::<Option<_>>()?,
+                batches: Batch::segments(&steps, &exit),
                 steps,
                 exit,
             });
@@ -401,14 +525,29 @@ impl Plan {
         }
         records.sort();
         records.dedup();
+        let (slot, slots) = assign_slots(code);
+        for block in &mut blocks {
+            block.place(&slot);
+        }
+        let parameters: Vec<_> = blocks.iter().map(|b| b.parameters.clone()).collect();
+        for block in &mut blocks {
+            block.exit.place_moves(&parameters);
+        }
         Some(Self {
             blocks,
+            slots,
+            parameters: code
+                .parameter_registers
+                .iter()
+                .map(|r| reg(*r).map(|r| slot[r]))
+                .collect::<Option<_>>()?,
             scratch,
             records,
             constants,
             fields,
             result: Units::of(&code.result_type)?,
             callees: Vec::new(),
+            words: None,
         })
     }
 
@@ -458,16 +597,52 @@ impl Plan {
                 .iter()
                 .map(Value::from_const)
                 .collect::<Option<Vec<_>>>()?;
-            match run(&program, &mut runtime, &request.limits, values) {
-                Ok(Ended::Returned(value)) => {
-                    let value = value.to_const(&lowered.bytecode.result_type);
+            let word_run = self.words.as_ref().and_then(|words| {
+                let constants = program
+                    .constants
+                    .iter()
+                    .map(|c| {
+                        c.iter()
+                            .map(|v| words::to_word(*v))
+                            .collect::<Option<Vec<_>>>()
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let inputs = values
+                    .iter()
+                    .map(|v| words::to_word(*v))
+                    .collect::<Option<Vec<_>>>()?;
+                Some((words, constants, inputs))
+            });
+            let ran = if let Some((words, constants, inputs)) = word_run {
+                words::run(
+                    &program,
+                    words,
+                    &constants,
+                    &mut runtime,
+                    &request.limits,
+                    &inputs,
+                )
+                .and_then(|ended| match ended {
+                    words::WordEnded::Returned(word) => {
+                        words::to_const(word, &lowered.bytecode.result_type).map(Ok)
+                    }
+                    words::WordEnded::Stopped(end) => Ok(Err(end)),
+                })
+            } else {
+                run(&program, &mut runtime, &request.limits, values).map(|ended| match ended {
+                    Ended::Returned(value) => Ok(value.to_const(&lowered.bytecode.result_type)),
+                    Ended::Stopped(end) => Err(end),
+                })
+            };
+            match ran {
+                Ok(Ok(value)) => {
                     if value_units_const(&value) > request.limits.max_output_units {
                         ExecutionTermination::ResourceLimit(ResourceKind::OutputUnits)
                     } else {
                         ExecutionTermination::Success(value)
                     }
                 }
-                Ok(Ended::Stopped(termination)) => termination,
+                Ok(Err(termination)) => termination,
                 Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
             }
         };
@@ -585,19 +760,57 @@ fn run<'p, 'v>(
     let mut plan = program.plans[0];
     let mut code = program.codes[0];
     let mut constants = &program.constants[0];
-    let mut registers = vec![None; code.register_types.len()];
+    let mut registers = vec![None; plan.slots];
     let mut scratch = Vec::with_capacity(plan.scratch);
     let mut stack: Vec<Frame<'p, 'v>> = Vec::new();
     // Register files of returned frames, reused by the next call.
     let mut spare: Vec<Vec<Option<Value<'v>>>> = Vec::new();
     let mut pc = 0;
-    for (r, value) in code.parameter_registers.iter().zip(inputs) {
-        *registers
-            .get_mut(usize::try_from(*r).map_err(|_| RuntimeFault)?)
-            .ok_or(RuntimeFault)? = Some(value);
+    for (&r, value) in plan.parameters.iter().zip(inputs) {
+        *registers.get_mut(r).ok_or(RuntimeFault)? = Some(value);
     }
     'frames: loop {
         let block = plan.blocks.get(runtime.block).ok_or(RuntimeFault)?;
+        // Every charge of a prepaid run passes; `charge!` then only counts.
+        let mut prepaid_exit = false;
+        if let Some(batch) = block.batches.iter().find(|batch| batch.start == pc)
+            && prepaid(runtime, limits, batch)
+        {
+            let run = &block.steps[pc..pc + batch.steps];
+            let mut units: u64 = 0;
+            for (done, step) in run.iter().enumerate() {
+                let value = match step_value(step, constants, &registers) {
+                    Ok(value) => value,
+                    Err(fault) => {
+                        // The faulting step's action was charged; its value was not.
+                        runtime.fuel_used += done as u64 + 1;
+                        runtime.instruction_count += done as u64;
+                        runtime.live_value_units += units;
+                        runtime.peak_value_units =
+                            runtime.peak_value_units.max(runtime.live_value_units);
+                        return Err(fault);
+                    }
+                };
+                units += step.value_units(value);
+                registers[step.output] = Some(value);
+            }
+            let count = run.len() as u64;
+            runtime.fuel_used += count;
+            runtime.instruction_count += count;
+            runtime.live_value_units += units;
+            runtime.peak_value_units = runtime.peak_value_units.max(runtime.live_value_units);
+            pc += run.len();
+            prepaid_exit = batch.exit;
+        }
+        macro_rules! charge {
+            () => {
+                if prepaid_exit {
+                    runtime.fuel_used += 1;
+                } else if let Some(end) = charge_action(runtime, limits, None) {
+                    return Ok(Ended::Stopped(end));
+                }
+            };
+        }
         while let Some(step) = block.steps.get(pc) {
             pc += 1;
             if let Some(end) = charge_action(runtime, limits, Some(ResourceKind::Instruction)) {
@@ -617,14 +830,15 @@ fn run<'p, 'v>(
                     }
                     runtime.peak_call_depth = runtime.peak_call_depth.max(depth.saturating_add(1));
                     let callee = program.codes[call.function];
+                    let callee_plan = program.plans[call.function];
                     let mut callee_registers = spare.pop().unwrap_or_default();
                     callee_registers.clear();
-                    callee_registers.resize(callee.register_types.len(), None);
+                    callee_registers.resize(callee_plan.slots, None);
                     for ((&r, units), parameter) in step
                         .args
                         .iter()
                         .zip(&call.arguments)
-                        .zip(&callee.parameter_registers)
+                        .zip(&callee_plan.parameters)
                     {
                         let value = get(&registers, r)?;
                         if !charge_value(runtime, units.value(value), limits.max_value_units) {
@@ -632,9 +846,7 @@ fn run<'p, 'v>(
                                 ResourceKind::ValueUnits,
                             )));
                         }
-                        *callee_registers
-                            .get_mut(usize::try_from(*parameter).map_err(|_| RuntimeFault)?)
-                            .ok_or(RuntimeFault)? = Some(value);
+                        *callee_registers.get_mut(*parameter).ok_or(RuntimeFault)? = Some(value);
                     }
                     stack.push(Frame {
                         function,
@@ -651,7 +863,7 @@ fn run<'p, 'v>(
                     pc = 0;
                     continue 'frames;
                 }
-                (None, None) => evaluate(step, &registers)?,
+                (None, None) => step_value(step, constants, &registers)?,
             };
             if !charge_value(runtime, step.value_units(value), limits.max_value_units) {
                 return Ok(Ended::Stopped(ExecutionTermination::ResourceLimit(
@@ -661,9 +873,7 @@ fn run<'p, 'v>(
             runtime.instruction_count = runtime.instruction_count.saturating_add(1);
             registers[step.output] = Some(value);
         }
-        if let Some(end) = charge_action(runtime, limits, None) {
-            return Ok(Ended::Stopped(end));
-        }
+        charge!();
         let (edge, payload) = match &block.exit {
             Exit::Return(r) => {
                 let value = get(&registers, *r)?;
@@ -697,7 +907,9 @@ fn run<'p, 'v>(
             }
             Exit::Trap(tag, payload) => {
                 let payload = payload
-                    .map(|r| get(&registers, r).map(|v| v.to_const(&code.register_types[r])))
+                    .map(|(slot, r)| {
+                        get(&registers, slot).map(|v| v.to_const(&code.register_types[r]))
+                    })
                     .transpose()?;
                 return Ok(Ended::Stopped(
                     if payload
@@ -724,25 +936,87 @@ fn run<'p, 'v>(
                 register,
                 take,
                 cases,
-            } => match select_case(runtime, limits, &mut registers, *register, *take, cases)? {
+                shapes,
+            } if prepaid_exit => {
+                // `select_case` with its charges counted at once.
+                let value = if *take {
+                    registers[*register].take().ok_or(RuntimeFault)?
+                } else {
+                    get(&registers, *register)?
+                };
+                if value.shape == Shape::Plain {
+                    return Err(RuntimeFault);
+                }
+                let position = shapes
+                    .iter()
+                    .position(|shape| *shape == Some(value.shape))
+                    .ok_or(RuntimeFault)?;
+                runtime.fuel_used += position as u64 + 1;
+                (
+                    &cases[position].1,
+                    (value.shape != Shape::None).then_some(Value {
+                        atom: value.atom,
+                        shape: Shape::Plain,
+                    }),
+                )
+            }
+            Exit::Switch {
+                register,
+                take,
+                cases,
+                ..
+            } => match select_case(
+                runtime,
+                limits,
+                prepaid_exit,
+                &mut registers,
+                *register,
+                *take,
+                cases,
+            )? {
                 Ok(selected) => selected,
                 Err(termination) => return Ok(Ended::Stopped(termination)),
             },
         };
         pc = 0;
+        if prepaid_exit {
+            // Arguments already in their parameter's slot stay; the edge's
+            // charges are counted at once.
+            runtime.fuel_used += edge.fuel;
+            if edge.moves_direct {
+                for (arg, slot) in &edge.moves {
+                    let value = match arg.register {
+                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
+                        Some(r) => get(&registers, r)?,
+                        None => payload.ok_or(RuntimeFault)?,
+                    };
+                    registers[*slot] = Some(value);
+                }
+            } else {
+                scratch.clear();
+                for (arg, _) in &edge.moves {
+                    scratch.push(match arg.register {
+                        Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
+                        Some(r) => get(&registers, r)?,
+                        None => payload.ok_or(RuntimeFault)?,
+                    });
+                }
+                for ((_, slot), &v) in edge.moves.iter().zip(&scratch) {
+                    registers[*slot] = Some(v);
+                }
+            }
+            runtime.block = edge.target;
+            continue;
+        }
         if edge.direct {
             let parameters = &plan.blocks[edge.target].parameters;
             for (arg, &r) in edge.args.iter().zip(parameters) {
-                if let Some(end) = charge_action(runtime, limits, None) {
-                    return Ok(Ended::Stopped(end));
-                }
+                charge!();
                 let value = match arg.register {
                     Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
                     Some(r) => get(&registers, r)?,
                     None => {
-                        if let Some(end) = charge_action(runtime, limits, None) {
-                            return Ok(Ended::Stopped(end));
-                        }
+                        charge!();
                         payload.ok_or(RuntimeFault)?
                     }
                 };
@@ -753,16 +1027,12 @@ fn run<'p, 'v>(
         }
         scratch.clear();
         for arg in &edge.args {
-            if let Some(end) = charge_action(runtime, limits, None) {
-                return Ok(Ended::Stopped(end));
-            }
+            charge!();
             scratch.push(match arg.register {
                 Some(r) if arg.take => registers[r].take().ok_or(RuntimeFault)?,
                 Some(r) => get(&registers, r)?,
                 None => {
-                    if let Some(end) = charge_action(runtime, limits, None) {
-                        return Ok(Ended::Stopped(end));
-                    }
+                    charge!();
                     payload.ok_or(RuntimeFault)?
                 }
             });
@@ -771,6 +1041,280 @@ fn run<'p, 'v>(
             registers[r] = Some(v);
         }
         runtime.block = edge.target;
+    }
+}
+
+/// Above this many bits of block-by-register sets, a function keeps one slot
+/// per register (coalescing is a speed choice, never needed for an answer).
+const SLOT_ANALYSIS_BITS: usize = 1 << 24;
+
+/// Assigns each register a slot of the run's register file. Registers start
+/// in their own slots; the two ends of an edge move (an argument register and
+/// its target parameter) then share one when the blocks in which either is
+/// defined or live on entry are disjoint (so neither is ever live while the
+/// other is). The move then leaves the value where it is. Derived bytecode is
+/// in SSA form and a validated image reads a register only where its single
+/// definition dominates the read, so a shared slot always holds the value the
+/// reference would read. Charges, counts and answers do not depend on slots.
+#[allow(clippy::too_many_lines)]
+fn assign_slots(code: &crate::BytecodeFunction) -> (Vec<usize>, usize) {
+    let registers = code.register_types.len();
+    let blocks = code.blocks.len();
+    let identity = || ((0..registers).collect(), registers);
+    let block_words = blocks.div_ceil(64);
+    let register_words = registers.div_ceil(64);
+    if blocks.saturating_mul(registers) > SLOT_ANALYSIS_BITS {
+        return identity();
+    }
+    let index = |r: Register| usize::try_from(r).ok().filter(|&r| r < registers);
+    let target = |t: u32| usize::try_from(t).ok().filter(|&t| t < blocks);
+    let mut defined = vec![vec![0_u64; register_words]; blocks];
+    let mut read = vec![vec![0_u64; register_words]; blocks];
+    let mut successors = vec![Vec::new(); blocks];
+    let mut pairs = Vec::new();
+    let set = |bits: &mut Vec<u64>, r: usize| bits[r / 64] |= 1 << (r % 64);
+    for (b, block) in code.blocks.iter().enumerate() {
+        let registers_of = |list: &[Register], into: &mut Vec<u64>| -> Option<()> {
+            for r in list {
+                set(into, index(*r)?);
+            }
+            Some(())
+        };
+        let ok = (|| {
+            registers_of(&block.parameter_registers, &mut defined[b])?;
+            if usize::try_from(code.entry_block).ok() == Some(b) {
+                registers_of(&code.parameter_registers, &mut defined[b])?;
+            }
+            for instruction in &block.instructions {
+                registers_of(&instruction.results, &mut defined[b])?;
+                registers_of(&instruction.operands, &mut read[b])?;
+            }
+            let mut edge = |t: u32, args: Vec<Option<Register>>, read: &mut Vec<u64>| {
+                let t = target(t)?;
+                successors[b].push(t);
+                for (arg, parameter) in args.iter().zip(&code.blocks[t].parameter_registers) {
+                    if let Some(r) = arg {
+                        set(read, index(*r)?);
+                        pairs.push((index(*r)?, index(*parameter)?));
+                    }
+                }
+                Some(())
+            };
+            match &block.terminator {
+                BytecodeTerminator::Return(r) => set(&mut read[b], index(*r)?),
+                BytecodeTerminator::Trap { payload, .. } => {
+                    if let Some(r) = payload {
+                        set(&mut read[b], index(*r)?);
+                    }
+                }
+                BytecodeTerminator::Branch(e) => {
+                    edge(
+                        e.target,
+                        e.arguments.iter().copied().map(Some).collect(),
+                        &mut read[b],
+                    )?;
+                }
+                BytecodeTerminator::CondBranch {
+                    condition,
+                    if_true,
+                    if_false,
+                } => {
+                    set(&mut read[b], index(*condition)?);
+                    for e in [if_true, if_false] {
+                        edge(
+                            e.target,
+                            e.arguments.iter().copied().map(Some).collect(),
+                            &mut read[b],
+                        )?;
+                    }
+                }
+                BytecodeTerminator::VariantSwitch { value, cases } => {
+                    set(&mut read[b], index(*value)?);
+                    for case in cases {
+                        let args = case
+                            .edge
+                            .arguments
+                            .iter()
+                            .map(|a| match a {
+                                BytecodeSwitchArgument::Value(r) => Some(*r),
+                                BytecodeSwitchArgument::CasePayload => None,
+                            })
+                            .collect();
+                        edge(case.edge.target, args, &mut read[b])?;
+                    }
+                }
+            }
+            Some(())
+        })();
+        if ok.is_none() {
+            return identity();
+        }
+    }
+    // Live on entry: read here before any definition here (SSA: a read of a
+    // register defined in the same block follows that definition), or live
+    // on entry to a successor and not defined here.
+    let mut live = vec![vec![0_u64; register_words]; blocks];
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for b in (0..blocks).rev() {
+            let mut next = vec![0_u64; register_words];
+            for &t in &successors[b] {
+                for (w, bits) in next.iter_mut().zip(&live[t]) {
+                    *w |= bits;
+                }
+            }
+            for w in 0..register_words {
+                next[w] = (read[b][w] | next[w]) & !defined[b][w];
+            }
+            if next != live[b] {
+                live[b] = next;
+                changed = true;
+            }
+        }
+    }
+    // Where each register is defined or live on entry, by block.
+    let mut occupied = vec![vec![0_u64; block_words]; registers];
+    for b in 0..blocks {
+        for w in 0..register_words {
+            let mut bits = live[b][w] | defined[b][w];
+            while bits != 0 {
+                let r = w * 64 + bits.trailing_zeros() as usize;
+                bits &= bits - 1;
+                occupied[r][b / 64] |= 1 << (b % 64);
+            }
+        }
+    }
+    let mut parent: Vec<usize> = (0..registers).collect();
+    let find = |parent: &mut Vec<usize>, mut r: usize| {
+        while parent[r] != r {
+            parent[r] = parent[parent[r]];
+            r = parent[r];
+        }
+        r
+    };
+    for (argument, parameter) in pairs {
+        let (a, p) = (find(&mut parent, argument), find(&mut parent, parameter));
+        if a == p
+            || occupied[a]
+                .iter()
+                .zip(&occupied[p])
+                .any(|(x, y)| x & y != 0)
+        {
+            continue;
+        }
+        parent[p] = a;
+        let merged: Vec<u64> = occupied[a]
+            .iter()
+            .zip(&occupied[p])
+            .map(|(x, y)| x | y)
+            .collect();
+        occupied[a] = merged;
+    }
+    let mut slot_of_root = vec![usize::MAX; registers];
+    let mut count = 0;
+    let mut slots = Vec::with_capacity(registers);
+    for r in 0..registers {
+        let root = find(&mut parent, r);
+        if slot_of_root[root] == usize::MAX {
+            slot_of_root[root] = count;
+            count += 1;
+        }
+        slots.push(slot_of_root[root]);
+    }
+    (slots, count)
+}
+
+impl Block {
+    /// Rewrites every register this block's steps and exit use to its slot.
+    fn place(&mut self, slot: &[usize]) {
+        for r in &mut self.parameters {
+            *r = slot[*r];
+        }
+        for step in &mut self.steps {
+            step.output = slot[step.output];
+            for r in &mut step.args {
+                *r = slot[*r];
+            }
+            if let Some(word) = &mut step.word {
+                word.a = slot[word.a];
+                word.b = slot[word.b];
+            }
+        }
+        let edge = |edge: &mut Edge| {
+            for arg in &mut edge.args {
+                if let Some(r) = &mut arg.register {
+                    *r = slot[*r];
+                }
+            }
+        };
+        match &mut self.exit {
+            Exit::Return(r) => *r = slot[*r],
+            Exit::Trap(_, payload) => {
+                if let Some((s, r)) = payload {
+                    *s = slot[*r];
+                }
+            }
+            Exit::Branch(e) => edge(e),
+            Exit::Cond(r, yes, no) => {
+                *r = slot[*r];
+                edge(yes);
+                edge(no);
+            }
+            Exit::Switch {
+                register, cases, ..
+            } => {
+                *register = slot[*register];
+                for (_, e) in cases {
+                    edge(e);
+                }
+            }
+        }
+    }
+}
+
+impl Exit {
+    /// With slots placed: each edge's direct flag, and the moves a prepaid
+    /// edge makes (arguments not already in their parameter's slot).
+    fn place_moves(&mut self, parameters: &[Vec<usize>]) {
+        let edge = |edge: &mut Edge| {
+            let targets = &parameters[edge.target];
+            // A sequential move equals the parallel one when no argument
+            // reads a slot that another position's parameter writes.
+            let direct = |moves: &[(Argument, usize)]| {
+                moves.iter().enumerate().all(|(i, (_, written))| {
+                    moves
+                        .iter()
+                        .enumerate()
+                        .all(|(j, (arg, _))| i == j || arg.register != Some(*written))
+                })
+            };
+            let all: Vec<(Argument, usize)> = edge
+                .args
+                .iter()
+                .cloned()
+                .zip(targets.iter().copied())
+                .collect();
+            edge.direct = direct(&all);
+            edge.moves = all
+                .into_iter()
+                .filter(|(arg, slot)| arg.register != Some(*slot))
+                .collect();
+            edge.moves_direct = direct(&edge.moves);
+        };
+        match self {
+            Exit::Return(_) | Exit::Trap(..) => {}
+            Exit::Branch(e) => edge(e),
+            Exit::Cond(_, yes, no) => {
+                edge(yes);
+                edge(no);
+            }
+            Exit::Switch { cases, .. } => {
+                for (_, e) in cases {
+                    edge(e);
+                }
+            }
+        }
     }
 }
 
@@ -844,13 +1388,23 @@ fn compile_exit(code: &crate::BytecodeFunction, source: &crate::BytecodeBlock) -
             Exit::Switch {
                 register: reg(*value)?,
                 take: !carried && source.parameter_registers.contains(value),
+                shapes: compiled
+                    .iter()
+                    .map(|(key, _)| match key {
+                        CaseKey::Builtin(BuiltinCase::Ok) => Some(Shape::Ok),
+                        CaseKey::Builtin(BuiltinCase::Err) => Some(Shape::Err),
+                        CaseKey::Builtin(BuiltinCase::Some) => Some(Shape::Some),
+                        CaseKey::Builtin(BuiltinCase::None) => Some(Shape::None),
+                        _ => None,
+                    })
+                    .collect(),
                 cases: compiled,
             }
         }
         BytecodeTerminator::Trap { code, payload } => Exit::Trap(
             *code,
             match payload {
-                Some(r) => Some(reg(*r)?),
+                Some(r) => Some((reg(*r)?, reg(*r)?)),
                 None => None,
             },
         ),
@@ -859,6 +1413,7 @@ fn compile_exit(code: &crate::BytecodeFunction, source: &crate::BytecodeBlock) -
     Some(exit)
 }
 
+#[allow(clippy::too_many_lines)]
 fn compile_step<'f>(
     code: &crate::BytecodeFunction,
     instruction: &crate::Instruction,
@@ -924,6 +1479,31 @@ fn compile_step<'f>(
         (_, Immediate::None) if valid_step(opcode, &types, result_type) => None,
         _ => return None,
     };
+    let word = match (opcode, types.as_slice()) {
+        (
+            Opcode::IntAddChecked
+            | Opcode::IntSubChecked
+            | Opcode::IntMulChecked
+            | Opcode::IntDivChecked
+            | Opcode::IntRemChecked
+            | Opcode::Equal
+            | Opcode::NotEqual
+            | Opcode::LessThan
+            | Opcode::LessEqual
+            | Opcode::GreaterThan
+            | Opcode::GreaterEqual,
+            [a, _],
+        ) => match integer(a) {
+            Some((signed, 64)) => Some(Word {
+                op: opcode,
+                signed,
+                a: args[0],
+                b: args[1],
+            }),
+            _ => None,
+        },
+        _ => None,
+    };
     // Ask the shared accounting code; do not copy its semantic-unit formulas.
     let (normal, failure) = unit_samples(result_type)?;
     Some(Step {
@@ -943,6 +1523,7 @@ fn compile_step<'f>(
         },
         width: types.first().and_then(|ty| integer(ty)),
         call,
+        word,
     })
 }
 
@@ -993,8 +1574,14 @@ fn compile_edge(
     });
     Some(Edge {
         target,
+        fuel: args
+            .iter()
+            .map(|arg| if arg.register.is_some() { 1 } else { 2 })
+            .sum(),
         args,
         direct,
+        moves: Vec::new(),
+        moves_direct: false,
     })
 }
 
@@ -1002,6 +1589,7 @@ fn compile_edge(
 fn select_case<'a, 'v>(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
+    prepaid: bool,
     registers: &mut [Option<Value<'v>>],
     register: usize,
     take: bool,
@@ -1020,7 +1608,9 @@ fn select_case<'a, 'v>(
         Shape::Plain => return Err(RuntimeFault),
     };
     for (case, edge) in cases {
-        if let Some(end) = charge_action(runtime, limits, None) {
+        if prepaid {
+            runtime.fuel_used += 1;
+        } else if let Some(end) = charge_action(runtime, limits, None) {
             return Ok(Err(end));
         }
         if *case == CaseKey::Builtin(key) {
@@ -1034,6 +1624,97 @@ fn select_case<'a, 'v>(
         }
     }
     Err(RuntimeFault)
+}
+
+/// A step's value: its bound constant, a 64-bit word operation on native
+/// integers, or the general `evaluate`. All three answer as `evaluate` does.
+// The per-step evaluator of the run loop: kept inline in it.
+#[allow(clippy::inline_always)]
+#[inline(always)]
+fn step_value<'v>(
+    step: &Step,
+    constants: &[Value<'v>],
+    registers: &[Option<Value<'v>>],
+) -> RuntimeResult<Value<'v>> {
+    if let Some(index) = step.constant {
+        return constants.get(index).copied().ok_or(RuntimeFault);
+    }
+    if let Some(word) = step.word
+        && let (Some(Some(a)), Some(Some(b))) = (registers.get(word.a), registers.get(word.b))
+        && let Some(value) = word_value(word, a.atom, b.atom)
+    {
+        return Ok(value);
+    }
+    evaluate(step, registers)
+}
+
+/// `word.op` on two in-range 64-bit operands, or `None` (the general path
+/// then answers, faults included). Checked operations answer exactly as
+/// `checked_word`; comparisons as `evaluate`'s ordering. Each arm builds its
+/// value whole: an intermediate `Result<Atom, u16>` was assembled from byte
+/// pieces and reloaded wide, stalling on store forwarding.
+#[inline(always)]
+fn word_value<'v>(word: Word, a: Atom<'v>, b: Atom<'v>) -> Option<Value<'v>> {
+    use crate::extended::{ARITHMETIC_DIVIDE_BY_ZERO, ARITHMETIC_OVERFLOW};
+    let boolean = |v| Value {
+        atom: Atom::Bool(v),
+        shape: Shape::Plain,
+    };
+    let failure = |code| Value {
+        atom: Atom::Failure(code),
+        shape: Shape::Err,
+    };
+    macro_rules! arithmetic {
+        ($x:expr, $y:expr, $wrap:expr, $signed:expr) => {{
+            let (x, y) = ($x, $y);
+            let ok = |v| Value {
+                atom: $wrap(v),
+                shape: Shape::Ok,
+            };
+            Some(match word.op {
+                Opcode::Equal => boolean(x == y),
+                Opcode::NotEqual => boolean(x != y),
+                Opcode::LessThan => boolean(x < y),
+                Opcode::LessEqual => boolean(x <= y),
+                Opcode::GreaterThan => boolean(x > y),
+                Opcode::GreaterEqual => boolean(x >= y),
+                Opcode::IntAddChecked => x.checked_add(y).map_or(failure(ARITHMETIC_OVERFLOW), ok),
+                Opcode::IntSubChecked => x.checked_sub(y).map_or(failure(ARITHMETIC_OVERFLOW), ok),
+                Opcode::IntMulChecked => x.checked_mul(y).map_or(failure(ARITHMETIC_OVERFLOW), ok),
+                Opcode::IntDivChecked | Opcode::IntRemChecked if y == 0 => {
+                    failure(ARITHMETIC_DIVIDE_BY_ZERO)
+                }
+                // Signed `MIN / -1` (the only other failure) overflows.
+                Opcode::IntDivChecked => x.checked_div(y).map_or(failure(ARITHMETIC_OVERFLOW), ok),
+                Opcode::IntRemChecked if $signed => {
+                    x.checked_rem(y).map_or(failure(ARITHMETIC_OVERFLOW), ok)
+                }
+                Opcode::IntRemChecked => ok(x % y),
+                _ => return None,
+            })
+        }};
+    }
+    if word.signed {
+        let (Atom::Signed(x), Atom::Signed(y)) = (a, b) else {
+            return None;
+        };
+        arithmetic!(
+            i64::try_from(x.0).ok()?,
+            i64::try_from(y.0).ok()?,
+            |v: i64| Atom::Signed(S128(i128::from(v))),
+            true
+        )
+    } else {
+        let (Atom::Unsigned(x), Atom::Unsigned(y)) = (a, b) else {
+            return None;
+        };
+        arithmetic!(
+            u64::try_from(x.0).ok()?,
+            u64::try_from(y.0).ok()?,
+            |v: u64| Atom::Unsigned(U128(u128::from(v))),
+            false
+        )
+    }
 }
 
 fn get<'v>(registers: &[Option<Value<'v>>], r: usize) -> RuntimeResult<Value<'v>> {
@@ -1536,6 +2217,10 @@ mod tests {
             callees: vec![],
         };
         let plan = Plan::compile(&lowered.bytecode).unwrap();
+        // Edge ends with disjoint live blocks share slots, so the sweep below
+        // runs coalesced moves and every prepaid run against the reference.
+        assert!(plan.slots < lowered.bytecode.register_types.len());
+        assert!(plan.blocks.iter().any(|b| b.batches.iter().any(|r| r.exit)));
         let limits = ExecutionLimits {
             max_instructions: 10_000,
             max_fuel: 10_000,
@@ -1752,6 +2437,93 @@ mod tests {
                 checked_word(op, true, Atom::Signed(S128(5)), b),
                 Ok(None)
             ));
+        }
+    }
+
+    /// The native word path answers every operation exactly as the general
+    /// path does: values, failure codes, comparisons, and (for operands
+    /// outside the width) the general path's own answer or fault.
+    #[test]
+    fn word_operations_match_the_general_path() {
+        let ops = [
+            Opcode::IntAddChecked,
+            Opcode::IntSubChecked,
+            Opcode::IntMulChecked,
+            Opcode::IntDivChecked,
+            Opcode::IntRemChecked,
+            Opcode::Equal,
+            Opcode::NotEqual,
+            Opcode::LessThan,
+            Opcode::LessEqual,
+            Opcode::GreaterThan,
+            Opcode::GreaterEqual,
+        ];
+        let min = i128::from(i64::MIN);
+        let max = i128::from(i64::MAX);
+        let signed = [
+            min - 1,
+            min,
+            min + 1,
+            -3_037_000_500,
+            -7,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            7,
+            3_037_000_500,
+            max - 1,
+            max,
+            max + 1,
+        ]
+        .map(|v| Atom::Signed(S128(v)));
+        let umax = u128::from(u64::MAX);
+        let unsigned =
+            [0, 1, 2, 7, 4_294_967_296, umax - 1, umax, umax + 1].map(|v| Atom::Unsigned(U128(v)));
+        for op in ops {
+            for (is_signed, atoms) in [(true, &signed[..]), (false, &unsigned[..])] {
+                let step = Step {
+                    opcode: op,
+                    output: 2,
+                    args: vec![0, 1],
+                    constant: None,
+                    units: [0, 0],
+                    dynamic: false,
+                    wrapper_units: 0,
+                    field: None,
+                    width: Some((is_signed, 64)),
+                    call: None,
+                    word: Some(Word {
+                        op,
+                        signed: is_signed,
+                        a: 0,
+                        b: 1,
+                    }),
+                };
+                for &x in atoms {
+                    for &y in atoms {
+                        let registers = [
+                            Some(Value {
+                                atom: x,
+                                shape: Shape::Plain,
+                            }),
+                            Some(Value {
+                                atom: y,
+                                shape: Shape::Plain,
+                            }),
+                            None,
+                        ];
+                        let fast = step_value(&step, &[], &registers);
+                        let general = evaluate(&step, &registers);
+                        assert_eq!(
+                            format!("{fast:?}"),
+                            format!("{general:?}"),
+                            "{op:?} {x:?} {y:?}"
+                        );
+                    }
+                }
+            }
         }
     }
 

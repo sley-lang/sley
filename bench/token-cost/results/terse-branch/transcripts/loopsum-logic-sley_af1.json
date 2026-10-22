@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"loopsum\", \"params\": [[\"n\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"s\", \"i64\", 0], [\"range\", \"i\", 0, \"n\", [[\"set\", \"s\", [\"rem\", [\"add\", \"s\", [\"add\", \"i\", \"i\"]], 1000000007]]]], [\"return\", \"s\"]]}], \"test_tables\": [{\"name\": \"loopsum_cases\", \"fn\": \"loopsum\", \"cases\": [{\"args\": [0], \"expect\": 0}, {\"args\": [10], \"expect\": 285}, {\"args\": [1000], \"expect\": 332833500}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try loopsum.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+48 created, 0 replaced, 0 deleted) draft d1@r1\nchanged: fn +loopsum; const +3; test +loopsum_cases_0..2\ntests: 1/3 passed [authored 3]\n  FAIL loopsum_cases_1 (loopsum): expected 285, got 90\n  FAIL loopsum_cases_2 (loopsum): expected 332833500, got 999000\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: fix only what failed on top of d1: sley-agent try --on d1 '{\"af1\": 1, \"afx\": 1, \"edit\": [...]}' (or \"patch\", \"tests\")\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"add\", \"i\", \"i\"]\n[\"mul\", \"i\", \"i\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try loopsum.json"
+ ],
+ [
+  "read",
+  "output",
+  "c2: Valid; tests: 3/3 passed [authored 3] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]

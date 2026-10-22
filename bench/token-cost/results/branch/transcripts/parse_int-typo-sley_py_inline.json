@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "import pytest\n\n\ndef parse_int(chars: list[int]) -> int:\n    if not chars:\n        raise ValueError(\"empty\")\n    sign = 1\n    start = 0\n    if chars[0] == 45:\n        sign = -1\n        start = 1\n        if len(chars) == 1:\n            raise ValueError(\"lone minus\")\n    value = 0\n    for c in chars[start:]:\n        if c < 48 or c > 57:\n            raise ValueError(\"not a digit\")\n        value = valu * 10 + (c - 48)\n    return sign * value\n\n\ndef test_parse_int():\n    assert parse_int([49, 50, 51]) == 123\n    assert parse_int([45, 55]) == -7\n    with pytest.raises(ValueError):\n        parse_int([])\n    with pytest.raises(ValueError):\n        parse_int([45])\n    with pytest.raises(ValueError):\n        parse_int([49, 120])\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar parse_int.py"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/5/4/2/2/1/1: unknown name `valu`\n  /fns/0/body/5/4/2/2/1/1 is line 18, column 17 of the familiar text\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: fix the text and run try --familiar again (pointers index the frame built from it, .sley/drafts/d1/r1/frame.json)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "valu * 10\nvalue * 10"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar parse_int.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid (+849 created, 0 replaced, 0 deleted) draft d2@r1\nchanged: fn +parse_int; const +12; test +test_parse_int_0..4\ntests: 5/5 passed [authored 5]\nadvisory: value/trap comparison, not admission evidence; only fuel and fixed VM limits apply (--verbose lists them)\nnext: sley-agent submit d2\n"
+ ]
+]

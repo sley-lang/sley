@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc gcd(a, b int64) int64 {\n\tfor b != 0 {\n\t\ta, b = b, a%b\n\t}\n\treturn a\n}\n\nfunc gcdsum(n int64) int64 {\n\tvar s int64\n\tfor i := int64(1); i < n; i++ {\n\t\tfor j := int64(0); j < n; j++ {\n\t\t\ts += gcd(i, j)\n\t\t}\n\t}\n\treturn s\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestGcdsum(t *testing.T) {\n\tif got := gcdsum(5); got != 24 {\n\t\tt.Errorf(\"gcdsum(5) = %d, want 24\", got)\n\t}\n\tif got := gcdsum(10); got != 145 {\n\t\tt.Errorf(\"gcdsum(10) = %d, want 145\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "--- FAIL: TestGcdsum (0.00s)\n    calc_test.go:7: gcdsum(5) = 34, want 24\n    calc_test.go:10: gcdsum(10) = 190, want 145\nFAIL\nexit status 1\nFAIL\tcalc\t0.001s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "j := int64(0)\nj := int64(1)"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

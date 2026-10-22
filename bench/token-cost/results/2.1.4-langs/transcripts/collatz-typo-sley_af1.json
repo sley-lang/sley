@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "{\"af1\": 1, \"afx\": 1, \"fns\": [{\"fn\": \"collatz\", \"params\": [[\"limit\", \"i64\"]], \"returns\": \"i64\", \"body\": [[\"var\", \"best\", \"i64\", 0], [\"var\", \"best_n\", \"i64\", 0], [\"range\", \"n\", 1, \"limit\", [[\"var\", \"x\", \"i64\", \"n\"], [\"var\", \"steps\", \"i64\", 0], [\"while\", [\"ne\", \"x\", 1], [[\"if\", [\"eq\", [\"rem\", \"x\", 2], 0], [[\"set\", \"x\", [\"div\", \"x\", 2]]], [[\"set\", \"x\", [\"add\", [\"mul\", 3, \"x\"], 1]]]], [\"set\", \"steps\", [\"add\", \"steps\", 1]]]], [\"if\", [\"gt\", \"steps\", \"bets\"], [[\"set\", \"best\", \"steps\"], [\"set\", \"best_n\", \"n\"]]]]], [\"return\", \"best_n\"]]}], \"test_tables\": [{\"name\": \"collatz_cases\", \"fn\": \"collatz\", \"cases\": [{\"args\": [10], \"expect\": 9}, {\"args\": [100], \"expect\": 97}]}]}"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try collatz.json"
+ ],
+ [
+  "read",
+  "output",
+  "error AGENT_FRAME_INVALID: /fns/0/body/2/4/3/1/2: unknown name `bets`\n  fix: edit collatz.json in place at those pointers (no need to rewrite it) and run try again\ndraft d1@r1: incomplete, 1 obligation(s) (AGENT_FRAME_INVALID 1); list: sley-agent draft d1 --obligations\nnext: repair in place: sley-agent fill d1 <delta.json> --revision 1 with {\"set\": [{\"at\": \"/fns/0/body/2/4/3/1/2\", \"value\": ...}]}\n"
+ ],
+ [
+  "write",
+  "edit",
+  "[\"gt\", \"steps\", \"bets\"]\n[\"gt\", \"steps\", \"best\"]"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try collatz.json"
+ ],
+ [
+  "read",
+  "output",
+  "c1: Valid; tests: 2/2 passed [authored 2] (advisory); draft d2@r1\nnext: sley-agent submit d2\n"
+ ]
+]
