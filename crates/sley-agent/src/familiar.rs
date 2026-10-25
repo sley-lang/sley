@@ -46,12 +46,18 @@ const INT_SUFFIXES: [&str; 10] = [
     "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
 ];
 /// How deep familiar text may nest: both the nesting the text writes
-/// (parentheses, unary operators, calls, blocks, `else if` / `elif` arms) and
-/// the structured tree a function body becomes (a chain such as `a + b + c`
-/// nests one level per operator). Deeper text is refused with a diagnostic
-/// at its position instead of exhausting the stack of the recursive passes
-/// that follow. Real programs stay far below it.
-pub const MAX_NESTING: usize = 128;
+/// (parentheses, unary operators, calls, blocks, `else if` / `elif` arms,
+/// nested types and test values) and the structured tree a function body
+/// becomes (a chain such as `a + b + c` nests one level per operator).
+/// Deeper text is refused with a diagnostic at its position instead of
+/// exhausting the stack of the recursive passes that follow.
+///
+/// 124 is the deepest body a frame can carry: frames, including a draft's
+/// `frame.json`, are read back with `serde_json`, which refuses input nested
+/// past 127 arrays and objects, and a body lies inside three of them (the
+/// frame, its `fns` list and the function). A deeper body would compile once
+/// and then fail to load on the next step. Real programs stay far below it.
+pub const MAX_NESTING: usize = 124;
 
 /// Operations that `try(..)` turns from trapping into returning the failure.
 const FAILING: [&str; 9] = ["add", "sub", "mul", "div", "rem", "neg", "abs", "get", "to"];
@@ -253,7 +259,7 @@ struct Tok {
 
 fn too_deep() -> String {
     format!(
-        "this nests more than {MAX_NESTING} levels deep: move an inner part into a variable or a helper function"
+        "this nests more than {MAX_NESTING} levels deep (a chain such as `a + b + c` nests a level per operator; an `elif` or `else if` arm, or a Python `and`, `or` or `not`, nests two): move an inner part into a variable or a helper function"
     )
 }
 
@@ -2854,7 +2860,9 @@ impl Parser {
         self.expect_op("(")?;
         let mut args = Vec::new();
         while !self.at_op(")") {
-            args.push(self.py_test_value()?);
+            // The frame holds a test's arguments in a list: one level more
+            // than its expected value.
+            args.push(self.deeper(Self::py_test_value)?);
             if !self.at_op(")") {
                 self.expect_op(",")?;
             }
@@ -2883,16 +2891,19 @@ impl Parser {
                 return Ok(Value::String(text));
             }
             Kind::Op if tok.text == "[" => {
-                self.bump();
-                let mut items = Vec::new();
-                while !self.at_op("]") {
-                    items.push(self.deeper(Self::py_test_value)?);
-                    if !self.at_op("]") {
-                        self.expect_op(",")?;
+                // Each list or record is one level of the frame's JSON.
+                return self.deeper(|parser| {
+                    parser.bump();
+                    let mut items = Vec::new();
+                    while !parser.at_op("]") {
+                        items.push(parser.py_test_value()?);
+                        if !parser.at_op("]") {
+                            parser.expect_op(",")?;
+                        }
                     }
-                }
-                self.bump();
-                return Ok(Value::Array(items));
+                    parser.bump();
+                    Ok(Value::Array(items))
+                });
             }
             Kind::Name if tok.text == "True" || tok.text == "False" => {
                 self.bump();
@@ -2906,7 +2917,7 @@ impl Parser {
                 );
             }
         }
-        self.py_test_record(&tok)
+        self.deeper(|parser| parser.py_test_record(&tok))
     }
 
     fn py_test_record(&mut self, tok: &Tok) -> P<Value> {
@@ -2961,7 +2972,7 @@ impl Parser {
                     format!("`{}` gives field `{field}` more than once", tok.text),
                 );
             }
-            let value = self.deeper(Self::py_test_value)?;
+            let value = self.py_test_value()?;
             record.insert(field, value);
             k += 1;
             if !self.at_op(")") {
@@ -4774,7 +4785,7 @@ mod tests {
         );
         let error = refused(&chain(MAX_NESTING - 1));
         assert!(
-            error.message.contains("nests more than 128 levels"),
+            error.message.contains("nests more than 124 levels"),
             "{error:?}"
         );
         // At the innermost operator, the one past the limit.

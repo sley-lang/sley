@@ -186,3 +186,86 @@ fn nesting_just_inside_the_limit_compiles() {
         assert_eq!(result, None, "{label}");
     }
 }
+
+/// Every frame the frontend accepts reads back through `serde_json`, as a
+/// draft's `frame.json` is read by the next step: near the limit, text is
+/// either refused or yields a frame that loads. Before the bound matched the
+/// reader, a 124-term sum compiled and its draft then failed to load.
+#[test]
+fn accepted_frames_near_the_limit_read_back_as_json() {
+    let elif = |arms: usize| {
+        let mut text = String::from("def act(x: int) -> int:\n    if x == 0:\n        return 0\n");
+        for k in 1..=arms {
+            writeln!(text, "    elif x == {k}:\n        return {k}").unwrap();
+        }
+        text + "    return 1\n"
+    };
+    let argument = |depth: usize| {
+        format!(
+            "def act(x: list[int]) -> int:\n    return 1\n\ndef test_act() -> None:\n    assert act({}{}) == 1\n",
+            "[".repeat(depth),
+            "]".repeat(depth)
+        )
+    };
+    let expected = |depth: usize| {
+        format!(
+            "def act(x: list[int]) -> list[int]:\n    return x\n\ndef test_act() -> None:\n    assert act([]) == {}{}\n",
+            "[".repeat(depth),
+            "]".repeat(depth)
+        )
+    };
+    let near = MAX_NESTING - 6..MAX_NESTING + 6;
+    let shapes: Vec<(&str, Vec<String>)> = vec![
+        (
+            "sums",
+            near.clone()
+                .map(|n| program("int", &format!("x{}", "+1".repeat(n))))
+                .collect(),
+        ),
+        (
+            "calls",
+            near.clone()
+                .map(|n| program("int", &wrapped("abs(", ")", n)))
+                .collect(),
+        ),
+        (
+            "and chains",
+            near.clone()
+                .map(|n| program("bool", &format!("x > 0{}", " and x > 1".repeat(n / 2))))
+                .collect(),
+        ),
+        ("elif chains", near.clone().map(|n| elif(n / 2)).collect()),
+        ("test arguments", near.clone().map(argument).collect()),
+        ("expected values", near.clone().map(expected).collect()),
+    ];
+    for (label, texts) in shapes {
+        let outcomes = on_main_sized_stack(move || {
+            texts
+                .iter()
+                .map(|text| match familiar::parse(text) {
+                    Ok(parsed) => {
+                        let json = serde_json::to_string(&parsed.frame).unwrap();
+                        Ok(serde_json::from_str::<serde_json::Value>(&json)
+                            .map(drop)
+                            .map_err(|error| error.to_string()))
+                    }
+                    Err(error) => Err(error.message),
+                })
+                .collect::<Vec<_>>()
+        });
+        assert!(
+            outcomes.first().is_some_and(Result::is_ok),
+            "{label}: {outcomes:?}"
+        );
+        assert!(
+            outcomes.last().is_some_and(Result::is_err),
+            "{label}: {outcomes:?}"
+        );
+        for outcome in outcomes {
+            match outcome {
+                Ok(reloaded) => assert_eq!(reloaded, Ok(()), "{label}"),
+                Err(message) => assert!(message.contains("nests more than"), "{label}: {message}"),
+            }
+        }
+    }
+}
