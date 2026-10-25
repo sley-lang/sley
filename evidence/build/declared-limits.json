@@ -1,7 +1,7 @@
 {
   "contract": "sley2.declared-limits.v1",
-  "declared_limits": 232,
-  "documented_limits": 21,
+  "declared_limits": 233,
+  "documented_limits": 22,
   "result": "PASS",
   "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
   "undocumented": [],
