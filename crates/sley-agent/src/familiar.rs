@@ -775,13 +775,19 @@ impl Parser {
     /// [`MAX_NESTING`] before the recursion can exhaust the stack, and a
     /// result whose tree is deeper.
     fn nested(&mut self, entry: impl FnOnce(&mut Self) -> P<Node>) -> P<Node> {
+        self.deeper(entry)?.within()
+    }
+
+    /// Runs one nested parser entry (a node, a type or a test value),
+    /// refusing it past [`MAX_NESTING`] open entries.
+    fn deeper<T>(&mut self, entry: impl FnOnce(&mut Self) -> P<T>) -> P<T> {
         if self.depth >= MAX_NESTING {
             return refuse(self.peek().pos, too_deep());
         }
         self.depth += 1;
-        let node = entry(self);
+        let result = entry(self);
         self.depth -= 1;
-        node?.within()
+        result
     }
 
     fn peek(&self) -> &Tok {
@@ -873,10 +879,10 @@ impl Parser {
             return Ok((name, pos));
         }
         self.bump();
-        let mut inner = vec![self.type_()?.0];
+        let mut inner = vec![self.deeper(Self::type_)?.0];
         while self.at_op(",") {
             self.bump();
-            inner.push(self.type_()?.0);
+            inner.push(self.deeper(Self::type_)?.0);
         }
         self.expect_op(">")?;
         Ok((format!("{name}<{}>", inner.join(",")), pos))
@@ -2880,7 +2886,7 @@ impl Parser {
                 self.bump();
                 let mut items = Vec::new();
                 while !self.at_op("]") {
-                    items.push(self.py_test_value()?);
+                    items.push(self.deeper(Self::py_test_value)?);
                     if !self.at_op("]") {
                         self.expect_op(",")?;
                     }
@@ -2955,7 +2961,7 @@ impl Parser {
                     format!("`{}` gives field `{field}` more than once", tok.text),
                 );
             }
-            let value = self.py_test_value()?;
+            let value = self.deeper(Self::py_test_value)?;
             record.insert(field, value);
             k += 1;
             if !self.at_op(")") {
@@ -3214,7 +3220,7 @@ impl Parser {
             "str" => "text".to_owned(),
             "list" | "List" => {
                 self.expect_op("[")?;
-                let (inner, _) = self.py_type()?;
+                let (inner, _) = self.deeper(Self::py_type)?;
                 self.expect_op("]")?;
                 format!("Vec<{inner}>")
             }
@@ -4825,6 +4831,26 @@ mod tests {
                 let error = parse(&text).expect_err("refused");
                 assert!(error.message.contains("nests more than"), "{error:?}");
                 assert_eq!(error.at.line, 1, "{error:?}");
+            }
+            for text in [
+                format!(
+                    "fn f(x: {}i64{}) -> i64 {{ return 1 }}",
+                    "Vec<".repeat(30_000),
+                    ">".repeat(30_000)
+                ),
+                format!(
+                    "def f(x: {}int{}) -> int:\n    return 1\n",
+                    "list[".repeat(30_000),
+                    "]".repeat(30_000)
+                ),
+                format!(
+                    "def f(x: list[int]) -> int:\n    return 1\n\ndef test_f() -> None:\n    assert f({}1{}) == 1\n",
+                    "[".repeat(30_000),
+                    "]".repeat(30_000)
+                ),
+            ] {
+                let error = parse(&text).expect_err("refused");
+                assert!(error.message.contains("nests more than"), "{error:?}");
             }
             let body = format!("return {}1{}", "(".repeat(5_000), ")".repeat(5_000));
             let error = parse_body(&body).expect_err("refused");

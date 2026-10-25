@@ -111,6 +111,24 @@ fn hostile() -> Vec<(&'static str, String, u32)> {
             ),
             0,
         ),
+        (
+            "a 30,000-deep list type",
+            format!(
+                "def act(x: {}int{}) -> int:\n    return 1\n",
+                "list[".repeat(30_000),
+                "]".repeat(30_000)
+            ),
+            1,
+        ),
+        (
+            "a 30,000-deep test argument",
+            format!(
+                "def act(x: list[int]) -> int:\n    return 1\n\ndef test_act() -> None:\n    assert act({}1{}) == 1\n",
+                "[".repeat(30_000),
+                "]".repeat(30_000)
+            ),
+            5,
+        ),
     ]
 }
 
