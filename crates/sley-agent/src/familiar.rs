@@ -45,6 +45,20 @@ const RESERVED_CALLS: [&str; 9] = [
 const INT_SUFFIXES: [&str; 10] = [
     "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
 ];
+/// How deep familiar text may nest: both the nesting the text writes
+/// (parentheses, unary operators, calls, blocks, `else if` / `elif` arms,
+/// nested types and test values) and the structured tree a function body
+/// becomes (a chain such as `a + b + c` nests one level per operator).
+/// Deeper text is refused with a diagnostic at its position instead of
+/// exhausting the stack of the recursive passes that follow.
+///
+/// 124 is the deepest body a frame can carry: frames, including a draft's
+/// `frame.json`, are read back with `serde_json`, which refuses input nested
+/// past 127 arrays and objects, and a body lies inside three of them (the
+/// frame, its `fns` list and the function). A deeper body would compile once
+/// and then fail to load on the next step. Real programs stay far below it.
+pub const MAX_NESTING: usize = 124;
+
 /// Operations that `try(..)` turns from trapping into returning the failure.
 const FAILING: [&str; 9] = ["add", "sub", "mul", "div", "rem", "neg", "abs", "get", "to"];
 
@@ -116,6 +130,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             hoisted: Vec::new(),
             fresh: 0,
             declared: Declared::default(),
+            depth: 0,
         };
         let functions = parser.py_program()?;
         (functions, std::mem::take(&mut parser.declared))
@@ -128,6 +143,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             hoisted: Vec::new(),
             fresh: 0,
             declared: Declared::default(),
+            depth: 0,
         };
         let functions = parser.program()?;
         (functions, std::mem::take(&mut parser.declared))
@@ -143,6 +159,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             params.push(json!([name, ty]));
         }
         positions.insert(format!("{at}/returns"), f.returns.1);
+        check_depth(&f.body)?;
         f.body.record(&format!("{at}/body"), &mut positions);
         let mut object = Map::new();
         object.insert("fn".into(), Value::String(f.name));
@@ -191,6 +208,7 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         hoisted: Vec::new(),
         fresh: 0,
         declared: Declared::default(),
+        depth: 0,
     };
     let pos = parser.peek().pos;
     let mut statements = Vec::new();
@@ -204,8 +222,9 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
     if statements.is_empty() {
         return refuse(pos, "expected at least one body statement");
     }
-    let mut body = Node::list(pos, statements);
+    let mut body = Node::list(pos, statements).within()?;
     resolve_tails(&mut body, true)?;
+    check_depth(&body)?;
     let mut positions = BTreeMap::new();
     body.record("/fns/0/body", &mut positions);
     Ok(Parsed {
@@ -236,6 +255,20 @@ struct Tok {
     kind: Kind,
     text: String,
     pos: Pos,
+}
+
+fn too_deep() -> String {
+    format!(
+        "this nests more than {MAX_NESTING} levels deep (a chain such as `a + b + c` nests a level per operator; an `elif` or `else if` arm, or a Python `and`, `or` or `not`, nests two): move an inner part into a variable or a helper function"
+    )
+}
+
+/// Refuses a function body nested deeper than [`MAX_NESTING`].
+fn check_depth(body: &Node) -> Result<(), FamiliarError> {
+    match body.deepest() {
+        Some(pos) => refuse(pos, too_deep()),
+        None => Ok(()),
+    }
 }
 
 fn refuse<T>(pos: Pos, message: impl Into<String>) -> Result<T, FamiliarError> {
@@ -459,6 +492,9 @@ fn tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
 struct Node {
     pos: Pos,
     kind: NodeKind,
+    /// Lists nested inside this node, itself included (an atom is 0), as
+    /// built; a later in-place rewrite does not update it.
+    height: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -472,14 +508,41 @@ impl Node {
         Self {
             pos,
             kind: NodeKind::Atom(value),
+            height: 0,
         }
     }
 
     fn list(pos: Pos, items: Vec<Node>) -> Self {
+        let height = 1 + items.iter().map(|item| item.height).max().unwrap_or(0);
         Self {
             pos,
             kind: NodeKind::List(items),
+            height,
         }
+    }
+
+    /// Refuses a node nested deeper than [`MAX_NESTING`], at a list that
+    /// lies past the limit.
+    fn within(self) -> P<Self> {
+        if self.height > MAX_NESTING {
+            return refuse(self.deepest().unwrap_or(self.pos), too_deep());
+        }
+        Ok(self)
+    }
+
+    /// The first list found below [`MAX_NESTING`] levels, counted without
+    /// recursion (rewrites after parsing can leave `height` stale).
+    fn deepest(&self) -> Option<Pos> {
+        let mut pending = vec![(self, 0_usize)];
+        while let Some((node, above)) = pending.pop() {
+            if let NodeKind::List(items) = &node.kind {
+                if above + 1 > MAX_NESTING {
+                    return Some(node.pos);
+                }
+                pending.extend(items.iter().map(|item| (item, above + 1)));
+            }
+        }
+        None
     }
 
     /// `[op, args..]` at `pos`.
@@ -630,6 +693,8 @@ struct Parser {
     fresh: usize,
     /// Python dialect: record classes and pytest-style tests in the file.
     declared: Declared,
+    /// Nested parser entries now open (see [`MAX_NESTING`]).
+    depth: usize,
 }
 
 /// What a Python-dialect file declares besides its functions: record
@@ -712,6 +777,25 @@ fn py_exception_bases(name: &str) -> &'static [&'static str] {
 type P<T> = Result<T, FamiliarError>;
 
 impl Parser {
+    /// Runs one nested parser entry, refusing text nested deeper than
+    /// [`MAX_NESTING`] before the recursion can exhaust the stack, and a
+    /// result whose tree is deeper.
+    fn nested(&mut self, entry: impl FnOnce(&mut Self) -> P<Node>) -> P<Node> {
+        self.deeper(entry)?.within()
+    }
+
+    /// Runs one nested parser entry (a node, a type or a test value),
+    /// refusing it past [`MAX_NESTING`] open entries.
+    fn deeper<T>(&mut self, entry: impl FnOnce(&mut Self) -> P<T>) -> P<T> {
+        if self.depth >= MAX_NESTING {
+            return refuse(self.peek().pos, too_deep());
+        }
+        self.depth += 1;
+        let result = entry(self);
+        self.depth -= 1;
+        result
+    }
+
     fn peek(&self) -> &Tok {
         &self.toks[self.k]
     }
@@ -801,10 +885,10 @@ impl Parser {
             return Ok((name, pos));
         }
         self.bump();
-        let mut inner = vec![self.type_()?.0];
+        let mut inner = vec![self.deeper(Self::type_)?.0];
         while self.at_op(",") {
             self.bump();
-            inner.push(self.type_()?.0);
+            inner.push(self.deeper(Self::type_)?.0);
         }
         self.expect_op(">")?;
         Ok((format!("{name}<{}>", inner.join(",")), pos))
@@ -940,6 +1024,10 @@ impl Parser {
     }
 
     fn block(&mut self) -> P<Node> {
+        self.nested(Self::braced)
+    }
+
+    fn braced(&mut self) -> P<Node> {
         let open = self.expect_op("{")?;
         let mut body = Vec::new();
         while !self.at_op("}") {
@@ -1222,7 +1310,7 @@ impl Parser {
         }
         self.bump();
         let otherwise = if self.at_word("if") {
-            self.if_expr()?
+            self.nested(Self::if_expr)?
         } else {
             self.branch_value()?
         };
@@ -1255,7 +1343,7 @@ impl Parser {
         }
         let else_pos = self.bump().pos;
         let otherwise = if self.at_word("if") {
-            Node::list(else_pos, vec![self.if_rest()?])
+            Node::list(else_pos, vec![self.nested(Self::if_rest)?])
         } else {
             self.block()?
         };
@@ -1265,6 +1353,10 @@ impl Parser {
     // -------------------------------------------------------------- expressions
 
     fn expr(&mut self) -> P<Node> {
+        self.nested(Self::conditional)
+    }
+
+    fn conditional(&mut self) -> P<Node> {
         let value = self.or_()?;
         // `a if c else b` continues only on the same line: an `if` that
         // starts the next line is the next statement.
@@ -1294,7 +1386,8 @@ impl Parser {
                 )
             } else {
                 Node::op(pos, "or", vec![left, right])
-            };
+            }
+            .within()?;
         }
         Ok(value)
     }
@@ -1313,7 +1406,8 @@ impl Parser {
                 )
             } else {
                 Node::op(pos, "and", vec![left, right])
-            };
+            }
+            .within()?;
         }
         Ok(value)
     }
@@ -1321,7 +1415,7 @@ impl Parser {
     fn not_(&mut self) -> P<Node> {
         if self.at_word("not") {
             let pos = self.bump().pos;
-            let operand = self.not_()?;
+            let operand = self.nested(Self::not_)?;
             let operand = self.truth(operand);
             return Ok(Node::op(pos, "not", vec![operand]));
         }
@@ -1426,7 +1520,7 @@ impl Parser {
         };
         for part in parts {
             let pos = part.pos;
-            value = Node::op(pos, "and", vec![value, part]);
+            value = Node::op(pos, "and", vec![value, part]).within()?;
         }
         Ok(value)
     }
@@ -1438,7 +1532,7 @@ impl Parser {
         while self.at_op("&") {
             let pos = self.bump().pos;
             let mask = self.py_shift()?;
-            value = Self::py_mask(pos, value, &mask)?;
+            value = Self::py_mask(pos, value, &mask)?.within()?;
         }
         Ok(value)
     }
@@ -1467,7 +1561,7 @@ impl Parser {
         while self.at_op("<<") || self.at_op(">>") {
             let tok = self.bump();
             let count = self.sum()?;
-            value = Self::py_shifted(tok.pos, &tok.text, value, count);
+            value = Self::py_shifted(tok.pos, &tok.text, value, count).within()?;
         }
         Ok(value)
     }
@@ -1491,7 +1585,7 @@ impl Parser {
             };
             let pos = self.bump().pos;
             let right = self.product()?;
-            value = Node::op(pos, op, vec![value, right]);
+            value = Node::op(pos, op, vec![value, right]).within()?;
         }
     }
 
@@ -1512,7 +1606,7 @@ impl Parser {
             };
             let pos = self.bump().pos;
             let right = self.unary()?;
-            value = Node::op(pos, op, vec![value, right]);
+            value = Node::op(pos, op, vec![value, right]).within()?;
         }
     }
 
@@ -1525,17 +1619,17 @@ impl Parser {
                     let tok = self.bump();
                     return Self::literal(&tok, Some(pos));
                 }
-                let operand = self.unary()?;
+                let operand = self.nested(Self::unary)?;
                 return Ok(Node::op(pos, "neg", vec![operand]));
             }
             if self.at_op("+") {
                 self.bump();
-                return self.unary();
+                return self.nested(Self::unary);
             }
             let base = self.postfix()?;
             if self.at_op("**") {
                 let pos = self.bump().pos;
-                let exponent = self.unary()?;
+                let exponent = self.nested(Self::unary)?;
                 return Ok(Node::op(pos, "pow", vec![base, exponent]));
             }
             return Ok(base);
@@ -1546,7 +1640,7 @@ impl Parser {
                 let tok = self.bump();
                 return Self::literal(&tok, Some(pos));
             }
-            let operand = self.unary()?;
+            let operand = self.nested(Self::unary)?;
             return Ok(Node::op(pos, "neg", vec![operand]));
         }
         self.postfix()
@@ -1605,7 +1699,8 @@ impl Parser {
                     pos,
                     "field",
                     vec![value, Node::atom(field_pos, Value::String(field))],
-                );
+                )
+                .within()?;
             } else if self.at_op("[") {
                 let pos = self.bump().pos;
                 if self.python
@@ -1624,7 +1719,8 @@ impl Parser {
                         pos,
                         "get",
                         vec![value, Node::op(pos, "sub", vec![length, k])],
-                    );
+                    )
+                    .within()?;
                     continue;
                 }
                 if self.python && (self.at_op(":") || self.peek_at(1).text == ":") {
@@ -1641,7 +1737,7 @@ impl Parser {
                         vec![Node::atom(pos, Value::String("u64".into())), index],
                     );
                 }
-                value = Node::op(pos, "get", vec![value, index]);
+                value = Node::op(pos, "get", vec![value, index]).within()?;
             } else {
                 return Ok(value);
             }
@@ -1829,7 +1925,7 @@ impl Parser {
         let mut any = false;
         for next in values {
             any = true;
-            value = Node::op(pos, "gcd", vec![value, next]);
+            value = Node::op(pos, "gcd", vec![value, next]).within()?;
         }
         if !any {
             value = Node::op(pos, "abs", vec![value]);
@@ -1841,15 +1937,21 @@ impl Parser {
         if !self.at_op("(") {
             return Ok(None);
         }
+        // Parse ahead only when the group holds a `for` of its own: trying
+        // every `(` and parsing it again on failure took time exponential
+        // in the nesting (`sum((sum((..)) + 1)) + 1)`). Without that `for`
+        // the group is no generator; with it, an error inside is the error
+        // the ordinary parse would reach too.
+        if !self.generator_ahead() {
+            return Ok(None);
+        }
         let saved = self.k;
         self.bump();
-        let value = match self.expr() {
-            Ok(value) if self.at_word("for") => value,
-            _ => {
-                self.k = saved;
-                return Ok(None);
-            }
-        };
+        let value = self.expr()?;
+        if !self.at_word("for") {
+            self.k = saved;
+            return Ok(None);
+        }
         let value = if kind == "count" {
             Node::atom(pos, Value::Bool(true))
         } else {
@@ -1858,6 +1960,27 @@ impl Parser {
         let node = self.py_generator(pos, kind, value)?;
         self.expect_op(")")?;
         Ok(Some(node))
+    }
+
+    /// Whether the group the `(` here opens holds a `for` at its own level,
+    /// scanning to the matching `)` without parsing.
+    fn generator_ahead(&self) -> bool {
+        let mut depth = 0_usize;
+        for tok in &self.toks[self.k..] {
+            match (tok.kind, tok.text.as_str()) {
+                (Kind::Op, "(" | "[" | "{") => depth += 1,
+                (Kind::Op, ")" | "]" | "}") => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return false;
+                    }
+                }
+                (Kind::Name, "for") if depth == 1 => return true,
+                (Kind::Eof, _) => return false,
+                _ => {}
+            }
+        }
+        false
     }
 
     /// `, default=v)` after a max/min generator, then the call's `)`.
@@ -1977,7 +2100,7 @@ impl Parser {
                 let mut args = args.into_iter();
                 let mut value = args.next().unwrap_or_else(|| Node::atom(pos, Value::Null));
                 for next in args {
-                    value = Node::op(pos, name, vec![value, next]);
+                    value = Node::op(pos, name, vec![value, next]).within()?;
                 }
                 return Ok(Some(value));
             }
@@ -2764,7 +2887,9 @@ impl Parser {
         self.expect_op("(")?;
         let mut args = Vec::new();
         while !self.at_op(")") {
-            args.push(self.py_test_value()?);
+            // The frame holds a test's arguments in a list: one level more
+            // than its expected value.
+            args.push(self.deeper(Self::py_test_value)?);
             if !self.at_op(")") {
                 self.expect_op(",")?;
             }
@@ -2793,16 +2918,19 @@ impl Parser {
                 return Ok(Value::String(text));
             }
             Kind::Op if tok.text == "[" => {
-                self.bump();
-                let mut items = Vec::new();
-                while !self.at_op("]") {
-                    items.push(self.py_test_value()?);
-                    if !self.at_op("]") {
-                        self.expect_op(",")?;
+                // Each list or record is one level of the frame's JSON.
+                return self.deeper(|parser| {
+                    parser.bump();
+                    let mut items = Vec::new();
+                    while !parser.at_op("]") {
+                        items.push(parser.py_test_value()?);
+                        if !parser.at_op("]") {
+                            parser.expect_op(",")?;
+                        }
                     }
-                }
-                self.bump();
-                return Ok(Value::Array(items));
+                    parser.bump();
+                    Ok(Value::Array(items))
+                });
             }
             Kind::Name if tok.text == "True" || tok.text == "False" => {
                 self.bump();
@@ -2816,7 +2944,7 @@ impl Parser {
                 );
             }
         }
-        self.py_test_record(&tok)
+        self.deeper(|parser| parser.py_test_record(&tok))
     }
 
     fn py_test_record(&mut self, tok: &Tok) -> P<Value> {
@@ -3130,7 +3258,7 @@ impl Parser {
             "str" => "text".to_owned(),
             "list" | "List" => {
                 self.expect_op("[")?;
-                let (inner, _) = self.py_type()?;
+                let (inner, _) = self.deeper(Self::py_type)?;
                 self.expect_op("]")?;
                 format!("Vec<{inner}>")
             }
@@ -3156,6 +3284,10 @@ impl Parser {
     /// `:` then a block: an indented statement list, or one simple statement
     /// on the same line.
     fn py_block(&mut self) -> P<Node> {
+        self.nested(Self::py_indented)
+    }
+
+    fn py_indented(&mut self) -> P<Node> {
         let colon = self.expect_op(":")?;
         self.scopes.push(Vec::new());
         let mut body = Vec::new();
@@ -3535,7 +3667,7 @@ impl Parser {
         let condition = self.truth(condition);
         let then = self.py_block()?;
         if self.at_word("elif") {
-            let nested = self.py_if()?;
+            let nested = self.nested(Self::py_if)?;
             return Ok(Node::list(
                 pos,
                 vec![keyword, condition, then, Node::list(pos, vec![nested])],
@@ -4254,7 +4386,7 @@ impl Parser {
             if let Some(c) = condition {
                 args.push(c);
             }
-            value = Node::op(pos, "fold", args);
+            value = Node::op(pos, "fold", args).within()?;
         }
         Ok(value)
     }
@@ -4648,5 +4780,152 @@ mod tests {
         assert_eq!(at("/fns/0/body/1/3/0/2"), (4, 11));
         assert_eq!(at("/fns/0/body/2"), (6, 3));
         assert_eq!(at("/fns/0/body/1/3/0/2/9/9"), (4, 11));
+    }
+
+    /// Deep parser recursion needs more than the 2 MiB test thread in an
+    /// unoptimized build.
+    fn on_main_sized_stack<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+        std::thread::Builder::new()
+            .stack_size(8 * 1024 * 1024)
+            .spawn(work)
+            .unwrap()
+            .join()
+            .unwrap()
+    }
+
+    #[test]
+    fn nesting_is_bounded_at_max_nesting() {
+        // A sum chain is parsed by a loop, but its tree nests one level per
+        // operator: with the statement and the body, 126 operators reach
+        // the limit exactly.
+        let chain = |terms: usize| {
+            format!(
+                "def f(x: int) -> int:\n    return x{}\n",
+                "+1".repeat(terms)
+            )
+        };
+        let deepest = parse(&chain(MAX_NESTING - 2)).unwrap();
+        assert_eq!(
+            deepest.frame["fns"][0]["body"][0][0],
+            json!("return"),
+            "{deepest:?}"
+        );
+        let error = refused(&chain(MAX_NESTING - 1));
+        assert!(
+            error.message.contains("nests more than 124 levels"),
+            "{error:?}"
+        );
+        // At the innermost operator, the one past the limit.
+        assert_eq!((error.at.line, error.at.column), (2, 13));
+
+        // Parentheses add no tree level; the written nesting counts the
+        // function's block, the returned expression and each parenthesis.
+        let parens = |depth: usize| {
+            format!(
+                "fn f(x: i64) -> i64 {{ return {}x{} }}",
+                "(".repeat(depth),
+                ")".repeat(depth)
+            )
+        };
+        on_main_sized_stack(move || {
+            parse(&parens(MAX_NESTING - 2)).unwrap();
+            let error = refused(&parens(MAX_NESTING - 1));
+            assert!(error.message.contains("nests more than"), "{error:?}");
+            // At the first token past the limit: the innermost `x`.
+            assert_eq!((error.at.line, error.at.column), (1, 30 + MAX_NESTING - 1));
+        });
+    }
+
+    #[test]
+    fn parenthesized_built_in_arguments_parse_once() {
+        // Each `sum((` and `max((` was parsed ahead as a generator and again
+        // on failure: 2^24 parses here, minutes of work for 240 bytes.
+        let program = |open: &str, inner: &str, close: &str| {
+            format!(
+                "def f(xs: list[int]) -> int:\n    return {}{inner}{}\n",
+                open.repeat(24),
+                close.repeat(24)
+            )
+        };
+        let start = std::time::Instant::now();
+        on_main_sized_stack(move || {
+            parse(&program("sum((", "1", ") + 1)")).unwrap();
+            parse(&program("max((", "v", " for v in xs))")).unwrap();
+            let error = refused(&program("max((", "1 +", " for v in xs))"));
+            assert!(
+                error.message.contains("cannot start an expression"),
+                "{error:?}"
+            );
+            // A group with a `for` of its own is still a generator.
+            let parsed =
+                parse("def f(xs: list[int]) -> int:\n    return sum((v + 1 for v in xs))\n")
+                    .unwrap();
+            assert_eq!(
+                parsed.frame["fns"][0]["body"][0][1][0],
+                json!("fold"),
+                "{parsed:?}"
+            );
+        });
+        assert!(start.elapsed().as_secs() < 30, "{:?}", start.elapsed());
+    }
+
+    #[test]
+    fn hostile_nesting_is_refused_in_both_dialects() {
+        on_main_sized_stack(|| {
+            for text in [
+                format!(
+                    "fn f(x: i64) -> i64 {{ return {}x{} }}",
+                    "(".repeat(5_000),
+                    ")".repeat(5_000)
+                ),
+                format!("fn f(x: i64) -> i64 {{ return {}x }}", "-".repeat(60_000)),
+                format!(
+                    "fn f(x: bool) -> bool {{ return {}x }}",
+                    "not ".repeat(15_000)
+                ),
+                format!("fn f(x: i64) -> i64 {{ return x{} }}", "+1".repeat(30_000)),
+                format!(
+                    "fn f(x: i64) -> i64 {{ return {}x{} }}",
+                    "abs(".repeat(5_000),
+                    ")".repeat(5_000)
+                ),
+                format!(
+                    "fn f(x: i64) -> i64 {{ {}return x{} }}",
+                    "if x > 0 { ".repeat(5_000),
+                    " }".repeat(5_000)
+                ),
+                format!(
+                    "fn f(x: i64) -> i64 {{ if x == 0 {{ return 0 }}{} else {{ return 1 }} }}",
+                    " else if x == 1 { return 1 }".repeat(5_000)
+                ),
+            ] {
+                let error = parse(&text).expect_err("refused");
+                assert!(error.message.contains("nests more than"), "{error:?}");
+                assert_eq!(error.at.line, 1, "{error:?}");
+            }
+            for text in [
+                format!(
+                    "fn f(x: {}i64{}) -> i64 {{ return 1 }}",
+                    "Vec<".repeat(30_000),
+                    ">".repeat(30_000)
+                ),
+                format!(
+                    "def f(x: {}int{}) -> int:\n    return 1\n",
+                    "list[".repeat(30_000),
+                    "]".repeat(30_000)
+                ),
+                format!(
+                    "def f(x: list[int]) -> int:\n    return 1\n\ndef test_f() -> None:\n    assert f({}1{}) == 1\n",
+                    "[".repeat(30_000),
+                    "]".repeat(30_000)
+                ),
+            ] {
+                let error = parse(&text).expect_err("refused");
+                assert!(error.message.contains("nests more than"), "{error:?}");
+            }
+            let body = format!("return {}1{}", "(".repeat(5_000), ")".repeat(5_000));
+            let error = parse_body(&body).expect_err("refused");
+            assert!(error.message.contains("nests more than"), "{error:?}");
+        });
     }
 }

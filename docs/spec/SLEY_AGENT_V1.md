@@ -2456,6 +2456,20 @@ languages (`elif`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
 their line and column, and the revision is recorded as a text draft: its `input.txt` keeps the
 text and no frame or candidate is made. A function may not be named after a built-in.
 
+Nesting is bounded by `familiar::MAX_NESTING` (124) in both dialects. The frontend counts the
+nesting the text writes (each nested or parenthesized expression, unary `-`, `not`, `**` exponent,
+block, `else if` / `elif` arm, nested type such as `Vec<Vec<T>>` or `list[list[T]]`, and nested test
+value) and the depth of the structured tree each function body becomes. In that tree an operator
+chain such as `a + b + c` nests one level per operator, and an `else if` / `elif` arm or a Python
+`and`, `or` or `not` nests two, so a sum of up to 122 terms and an `elif` chain or a run of Python
+boolean operators of up to 60 fit. Text past either bound is refused with `AGENT_FRAME_INVALID` at
+its line and column ("this nests more than 124 levels deep") before any recursive pass runs, so no
+text can exhaust the stack of the frontend or of the passes after it. The bound is the deepest body
+a JSON frame can carry: frames, including a draft's `frame.json`, are read with a 127-level JSON
+nesting limit, and a body lies three levels inside the frame. Every frame the frontend accepts
+therefore loads again on the next step. Typical programs nest fewer than 25 levels; deeper text can
+name an inner part with a variable or a helper function.
+
 The parsed frame then takes the ordinary path, so arithmetic, conversion, scoping and failure are
 exactly those of section 5.4. The draft revision keeps the text as `input.txt` and the structured
 frame as `frame.json`; later steps (`try --on`, `fill`, `submit`, `commit`) read the frame, never
