@@ -1937,15 +1937,21 @@ impl Parser {
         if !self.at_op("(") {
             return Ok(None);
         }
+        // Parse ahead only when the group holds a `for` of its own: trying
+        // every `(` and parsing it again on failure took time exponential
+        // in the nesting (`sum((sum((..)) + 1)) + 1)`). Without that `for`
+        // the group is no generator; with it, an error inside is the error
+        // the ordinary parse would reach too.
+        if !self.generator_ahead() {
+            return Ok(None);
+        }
         let saved = self.k;
         self.bump();
-        let value = match self.expr() {
-            Ok(value) if self.at_word("for") => value,
-            _ => {
-                self.k = saved;
-                return Ok(None);
-            }
-        };
+        let value = self.expr()?;
+        if !self.at_word("for") {
+            self.k = saved;
+            return Ok(None);
+        }
         let value = if kind == "count" {
             Node::atom(pos, Value::Bool(true))
         } else {
@@ -1954,6 +1960,27 @@ impl Parser {
         let node = self.py_generator(pos, kind, value)?;
         self.expect_op(")")?;
         Ok(Some(node))
+    }
+
+    /// Whether the group the `(` here opens holds a `for` at its own level,
+    /// scanning to the matching `)` without parsing.
+    fn generator_ahead(&self) -> bool {
+        let mut depth = 0_usize;
+        for tok in &self.toks[self.k..] {
+            match (tok.kind, tok.text.as_str()) {
+                (Kind::Op, "(" | "[" | "{") => depth += 1,
+                (Kind::Op, ")" | "]" | "}") => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return false;
+                    }
+                }
+                (Kind::Name, "for") if depth == 1 => return true,
+                (Kind::Eof, _) => return false,
+                _ => {}
+            }
+        }
+        false
     }
 
     /// `, default=v)` after a max/min generator, then the call's `)`.
@@ -4807,6 +4834,39 @@ mod tests {
             // At the first token past the limit: the innermost `x`.
             assert_eq!((error.at.line, error.at.column), (1, 30 + MAX_NESTING - 1));
         });
+    }
+
+    #[test]
+    fn parenthesized_built_in_arguments_parse_once() {
+        // Each `sum((` and `max((` was parsed ahead as a generator and again
+        // on failure: 2^24 parses here, minutes of work for 240 bytes.
+        let program = |open: &str, inner: &str, close: &str| {
+            format!(
+                "def f(xs: list[int]) -> int:\n    return {}{inner}{}\n",
+                open.repeat(24),
+                close.repeat(24)
+            )
+        };
+        let start = std::time::Instant::now();
+        on_main_sized_stack(move || {
+            parse(&program("sum((", "1", ") + 1)")).unwrap();
+            parse(&program("max((", "v", " for v in xs))")).unwrap();
+            let error = refused(&program("max((", "1 +", " for v in xs))"));
+            assert!(
+                error.message.contains("cannot start an expression"),
+                "{error:?}"
+            );
+            // A group with a `for` of its own is still a generator.
+            let parsed =
+                parse("def f(xs: list[int]) -> int:\n    return sum((v + 1 for v in xs))\n")
+                    .unwrap();
+            assert_eq!(
+                parsed.frame["fns"][0]["body"][0][1][0],
+                json!("fold"),
+                "{parsed:?}"
+            );
+        });
+        assert!(start.elapsed().as_secs() < 30, "{:?}", start.elapsed());
     }
 
     #[test]
