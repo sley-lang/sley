@@ -75,6 +75,17 @@ with `SCB_RESOURCE_LIMIT`.
 The grant is part of the genesis, so it changes `program_digest`. Its fuel ceiling bounds only
 `TestCases`, never `call`.
 
+### Nesting and stack use
+
+Text nested more than `familiar::MAX_NESTING` (128) levels deep, counting parentheses, unary
+operators, calls, blocks and `elif` arms, or an operator chain whose tree is that deep (a sum of
+more than about 125 terms), is refused with `AGENT_FRAME_INVALID` at its line and column before any
+recursive pass runs. Hostile text therefore gets an ordinary refusal instead of a stack overflow
+that would abort the host process. In a release build, `compile_python` at that limit fits a 2 MiB
+thread stack (the default for a spawned Rust thread), about twice what the deepest shape needs.
+Unoptimized builds use several times more stack, so a debug host or test that compiles text near the
+limit should run it on an 8 MiB thread.
+
 Refusals carry a stable `AGENT_*` symbol. No new symbol was added:
 
 | Symbol | When |

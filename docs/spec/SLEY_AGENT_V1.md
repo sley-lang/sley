@@ -2456,6 +2456,16 @@ languages (`elif`, `True`, `?`) are refused with `AGENT_FRAME_INVALID` at
 their line and column, and the revision is recorded as a text draft: its `input.txt` keeps the
 text and no frame or candidate is made. A function may not be named after a built-in.
 
+Nesting is bounded by `familiar::MAX_NESTING` (128) in both dialects. The frontend counts the
+nesting the text writes (each nested or parenthesized expression, unary `-`, `not`, `**` exponent,
+block, `else if` / `elif` arm, nested type such as `Vec<Vec<T>>` or `list[list[T]]`, and nested test
+argument) and the depth of the structured tree each function body becomes, where an operator chain
+such as `a + b + c` or a Python `and` chain nests one level per operator. Text past either bound is
+refused with `AGENT_FRAME_INVALID` at its line and column ("this nests more than 128 levels deep")
+before any recursive pass runs, so no text can exhaust the stack of the frontend or of the passes
+after it. Typical programs nest fewer than 25 levels; deeper text can name an inner part with a
+variable or a helper function.
+
 The parsed frame then takes the ordinary path, so arithmetic, conversion, scoping and failure are
 exactly those of section 5.4. The draft revision keeps the text as `input.txt` and the structured
 frame as `frame.json`; later steps (`try --on`, `fill`, `submit`, `commit`) read the frame, never
