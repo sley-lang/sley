@@ -31,9 +31,8 @@ the candidate build and reruns the staged checker.
   (`host_label` "primary") for commit `bdd73f4` with artifact digest
   `6ed337b0c6f77ca607e1ef1574dd9f4e98c159f5ecd5cfe30d771577610b76a4`,
   2,050,866 bytes, 14 members, cargo/rustc 1.93.0. `second_host` is
-  `GATED_OPERATOR_LANE`: the laptop is authorized for ZJX performance
-  qualification only, so a Sley build there is not authority-safe and is
-  recorded as a blocker rather than performed.
+  `GATED_OPERATOR_LANE`: the second host is reserved for other work, so a
+  Sley build there is recorded as a blocker rather than performed.
 - Independent conformance: `INDEPENDENT_CONFORMANCE_PARTIAL`. Nineteen
   fixture families; seventeen are checked by the independent Python oracle
   through named `make conformance` commands; two are native-only, the

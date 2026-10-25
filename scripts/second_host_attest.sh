@@ -3,13 +3,15 @@
 # Follows docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md section 5.1.
 #
 # Preconditions enforced here, never bypassed:
-#   1. The lab lease is NOT held (gf-lab-lease status .gate != "held"). ZJX_BREAKGLASS is never used.
-#   2. The lab host is reachable through lab-transport (ssh secondary-host) under the
-#      existing coordination rules; the timestamp alone is not availability.
+#   1. The lab lease is NOT held: "$LAB_LEASE_CMD status" prints "free" and exits 0.
+#   2. The lab host is reachable over SSH ($SLEY2_LAB_HOST) under the existing
+#      coordination rules; the timestamp alone is not availability.
 #   3. The candidate commit is exactly the one selected in the tracked report.
 # Usage: scripts/second_host_attest.sh [--phase check|build|merge] (default: check)
-#   Environment: SLEY2_LAB_HOST (ssh alias, default secondary-host), SLEY2_LAB_HOME
-#   (default /home/lab), SLEY2_SECOND_HOST_OUT (default
+#   Environment: LAB_LEASE_CMD (required: the lease status command, run as
+#   "$LAB_LEASE_CMD status"), SLEY2_LAB_HOST (ssh alias, default secondary-host),
+#   SLEY2_LAB_HOME (the second host's working directory, default $SECOND_HOST_HOME;
+#   required for the build and merge phases), SLEY2_SECOND_HOST_OUT (default
 #   evidence/runtime/second-host, gitignored runtime evidence).
 # Tracked since the 76ae15ab round (Nabu P4 carried from c04539b9: the runbook
 # lived outside the repository).
@@ -18,7 +20,7 @@ set -euo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 LABEL=secondary
 LAB_HOST=${SLEY2_LAB_HOST:-secondary-host}
-LAB_HOME=${SLEY2_LAB_HOME:-/home/lab}
+LAB_HOME=${SLEY2_LAB_HOME:-${SECOND_HOST_HOME:-}}
 # The candidate identity is read from the tracked report at run time (never
 # hard-coded: the a7852028 pin went stale at the 7426bc0b re-mint, Nabu/Vulcan
 # P3 at 92fa6646); the primary tree must be clean and at the candidate's
@@ -40,12 +42,17 @@ PHASE=${2:-check}; [[ "${1:-}" == "--phase" ]] && PHASE=$2
 
 mkdir -p "$OUT"
 echo "== lease gate"
-# gf-lab-lease: exit 0 = node free (prints "free"); 10 = lease held (prints gate JSON); 1 = unreachable.
+# $LAB_LEASE_CMD status: exit 0 = node free (prints "free"); 10 = lease held (prints gate JSON); 1 = unreachable.
 # Transport diagnostics stay on stderr; only stdout is the lease status.
-set +e; LEASE=$(gf-lab-lease status); RC=$?; set -e
+if [[ -z "${LAB_LEASE_CMD:-}" ]]; then
+  echo "REFUSED: set LAB_LEASE_CMD to the lab lease status command. Do not proceed." >&2
+  exit 3
+fi
+read -r -a LEASE_ARGV <<<"$LAB_LEASE_CMD"
+set +e; LEASE=$("${LEASE_ARGV[@]}" status); RC=$?; set -e
 echo "$LEASE"
 if [[ $RC -ne 0 || "$LEASE" != free* ]]; then
-  echo "REFUSED: lab lease gate rc=$RC (held or unreachable). Do not proceed; never use ZJX_BREAKGLASS." >&2
+  echo "REFUSED: lab lease gate rc=$RC (held or unreachable). Do not proceed." >&2
   exit 3
 fi
 
@@ -62,6 +69,7 @@ PY
 [[ "$PHASE" == "check" ]] && { echo "check OK (lease released, binding verified); rerun with --phase build"; exit 0; }
 
 echo "== lab reachability"
+[[ -n "$LAB_HOME" ]] || { echo "REFUSED: set SECOND_HOST_HOME (or SLEY2_LAB_HOME) to the second host's working directory" >&2; exit 7; }
 ssh -o BatchMode=yes -o ConnectTimeout=15 "$LAB_HOST" 'hostname; echo SSH_CONNECTION=$SSH_CONNECTION; nproc; df -h /home | tail -1' | tee "$OUT/lab-reach.txt"
 
 if [[ "$PHASE" == "build" ]]; then

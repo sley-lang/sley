@@ -22,9 +22,8 @@ host and toolchain and left the second host to S20-730. The independent SCB1
 oracle already checks seventeen fixture families under `make conformance`,
 but nothing recorded which families it covers, which are exercised only
 natively, and whether the oracle stayed free of Rust dependencies. The second
-host (`secondary-host`) is reachable but gated: the operator posture allows it
-only for ZJX performance qualification, so a Sley build there is not
-authority-safe today.
+host (`secondary-host`) is reachable but gated. The second host is reserved
+for other work, so a Sley build there is not authority-safe today.
 
 The Council lanes were still unavailable at this draft (see ADR-0026); the
 design is the integrator's and is submitted to Ariadne, Nabu, and Vulcan as

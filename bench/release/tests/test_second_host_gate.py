@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class SecondHostGateTests(unittest.TestCase):
-    def preflight(self, status: str, code: int) -> subprocess.CompletedProcess:
+    def preflight(self, status: str, code: int, lease_cmd: bool = True) -> subprocess.CompletedProcess:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "scripts").mkdir()
@@ -39,12 +39,14 @@ class SecondHostGateTests(unittest.TestCase):
                             "commit", "-q", "-m", "records"], cwd=root, check=True)
             tools = root / ".git/fixture-tools"
             tools.mkdir()
-            lease = tools / "gf-lab-lease"
+            lease = tools / "lab-lease"
             lease.write_text('#!/bin/sh\nprintf "transport diagnostic\\n" >&2\n'
                              'printf "%s\\n" "$LEASE_FIXTURE_STATUS"\nexit "$LEASE_FIXTURE_CODE"\n')
             lease.chmod(0o755)
-            env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
-                       LEASE_FIXTURE_STATUS=status, LEASE_FIXTURE_CODE=str(code))
+            env = dict(os.environ, LEASE_FIXTURE_STATUS=status, LEASE_FIXTURE_CODE=str(code))
+            env.pop("LAB_LEASE_CMD", None)
+            if lease_cmd:
+                env["LAB_LEASE_CMD"] = str(lease)
             return subprocess.run(["bash", str(script), "--phase", "check"], cwd=root,
                                   env=env, capture_output=True, text=True, timeout=15)
 
@@ -60,6 +62,12 @@ class SecondHostGateTests(unittest.TestCase):
                 result = self.preflight(status, code)
                 self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
                 self.assertNotIn("check OK", result.stdout)
+
+    def test_unset_lease_command_refuses(self):
+        result = self.preflight("free", 0, lease_cmd=False)
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("LAB_LEASE_CMD", result.stderr)
+        self.assertNotIn("check OK", result.stdout)
 
 
 if __name__ == "__main__":
