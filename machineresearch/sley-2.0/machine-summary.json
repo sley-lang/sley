@@ -22,8 +22,8 @@
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "2a8561dd59c2163249e9ccad6d84ec60bafc2909",
-    "final_commit_note": "the official Sley 2.1.5 release, built from commit 2a8561dd of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
+    "final_commit": "ad281d1b3ce6565dc63b67b463260f94df254a1a",
+    "final_commit_note": "the official Sley 2.1.6 release, built from commit ad281d1b of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
     "master_goal_checks_waiver": "Not needed for Sley 2.1.6: scripts/check_candidate_result_contract.py and scripts/check_transaction_contract.py ran on the maintainer host with the Sley 2.0 master goal (SLEY2_MASTER_GOAL) available and both passed. The waiver carried forward from the operator decision of 2026-10-19 (Magister) covered Sley 2.1.2 through 2.1.5 only and was not a pass for those releases.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
@@ -4984,8 +4984,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "ff003f03674b386d75f721319ff15d2ac019fa0cc4cb0d78554074466a2861ff",
-    "candidate_artifact_size_bytes": 7657333,
+    "candidate_artifact_sha256": "0751911baa8a74dbd5d9751c3ee0c65b9a91e70016b37540a155f318c3f1bfab",
+    "candidate_artifact_size_bytes": 7675247,
     "candidate_member_count": 17,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4993,15 +4993,15 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "f168ff54d8cae4a96574e52a822b48a9faca1c5d0ae5e9ee7cd207fbc0046e8d",
-    "candidate_commit": "2a8561dd59c2163249e9ccad6d84ec60bafc2909",
+    "candidate_manifest_digest": "b1c73504ca8e39a0ac1a503825fbb3473effd2adc83af827206bb8dd2ada928e",
+    "candidate_commit": "ad281d1b3ce6565dc63b67b463260f94df254a1a",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "2a8561dd59c2163249e9ccad6d84ec60bafc2909",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.1.5 release, built from commit 2a8561dd of sley-lang/sley: two clean static musl builds on the primary host produced the same archive. Secondary-host work stays excluded, as for 2.0.6, 2.0.7, 2.1.0, 2.1.1, 2.1.2, 2.1.3 and 2.1.4; cross-host reproducibility is not claimed and earlier attestations remain historical evidence only.",
+    "candidate_evidence_commit": "ad281d1b3ce6565dc63b67b463260f94df254a1a",
+    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.1.6 release, built from commit ad281d1b of sley-lang/sley: two clean static musl builds on the primary host produced the same archive. Secondary-host work stays excluded, as for 2.0.6, 2.0.7, 2.1.0, 2.1.1, 2.1.2, 2.1.3, 2.1.4 and 2.1.5; cross-host reproducibility is not claimed and earlier attestations remain historical evidence only.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -6367,7 +6367,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "2a8561dd59c2163249e9ccad6d84ec60bafc2909",
+    "attested_commit": "ad281d1b3ce6565dc63b67b463260f94df254a1a",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -7212,6 +7212,12 @@
       },
       {
         "commit": "2a8561dd59c2163249e9ccad6d84ec60bafc2909",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "ad281d1b3ce6565dc63b67b463260f94df254a1a",
         "hosts": [
           "primary"
         ]
