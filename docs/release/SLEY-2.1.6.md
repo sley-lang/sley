@@ -84,3 +84,12 @@ cargo fetch --locked
 python3 scripts/build_release_candidate.py --require-clean
 sha256sum dist/sley-2.1.6-linux-x86_64.tar.gz
 ```
+
+The Linux x86_64 archive was built from `ad281d1b3ce6565dc63b67b463260f94df254a1a`. Two clean
+builds on the primary host produced identical bytes. Cross-host reproducibility is not claimed.
+The archive SHA-256 is `0751911baa8a74dbd5d9751c3ee0c65b9a91e70016b37540a155f318c3f1bfab`
+(7,675,247 bytes, 17 members). Provenance remains unsigned.
+
+The persistent-fuzz proofs for this release (all 18 lanes) were run at the built commit with
+nightly-2026-02-27 and clang 18.1.8 on the runners' canonical toolchain layout. The GA acceptance
+report is unchanged from 2.1.5: of 52 criteria, 31 are evidenced, 17 await review and 4 are gated.
