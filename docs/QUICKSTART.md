@@ -178,7 +178,7 @@ The run ends with:
 {
   "result": "PASS",
   "problems": [],
-  "explicit_gap": "candidate construction, commit, test selection, and merge wait for the public candidate builder (S20-350 proposal-only)",
+  "explicit_gap": "candidate construction, commit, test selection, and merge wait for the public candidate builder …",
   "steps": {
     "query_root_matches_fixture": true,
     "execute_report_id_matches_fixture": true,
@@ -438,15 +438,9 @@ finishes.
 
 ### The maintainers' gate
 
-`make quick` is the maintainers' routine gate, and it doesn't pass on a fresh
-clone. It needs two things a contributor usually won't have:
-
-- **A local release build.** Some of its checkers read the outputs that
-  `make release-candidate-build` writes to `evidence/runtime/`, which isn't
-  tracked.
-- **The Sley 2.0 master goal.** Two of its checkers read this planning
-  document, which lives outside the repository. Maintainers point
-  `SLEY2_MASTER_GOAL` at it.
+`make quick` is the maintainers' routine gate, and it is not a fresh-clone
+gate. It reads untracked maintainer inputs, including the outputs that
+`make release-candidate-build` writes to `evidence/runtime/`.
 
 Contributors can run the gates listed above instead. If your change touches a
 spec or a checker, also run the matching `scripts/check_*.py` directly. Most
