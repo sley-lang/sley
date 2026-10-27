@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-420 SMP1 JSON bridge vectors.
+"""Independently reproduce the WP-420 SMP1 JSON bridge vectors.
 
 The oracle reads every fixture frame with its own SMP1 record reader,
 renders the `Frame` object with the contract's declared encodings (lowercase

@@ -1,6 +1,6 @@
 # ADR-0011: Restricted derived index snapshot domain
 
-Status: accepted for the S20-300 restricted epoch-1 profile
+Status: accepted for the WP-300 restricted epoch-1 profile
 
 ## Decision
 
@@ -27,5 +27,5 @@ restricted authority boundary.
 - missing, corrupt, stale, incompatible, or unequal cache bytes are discarded;
 - every admitted hit is already equal to a fresh authoritative modeled-request
   rebuild, so this conformance profile intentionally provides no speedup;
-- complete-root extraction and useful safe cache reuse remain S20-300-full
+- complete-root extraction and useful safe cache reuse remain WP-300-full
   work after all SSMC entity bodies are modeled.

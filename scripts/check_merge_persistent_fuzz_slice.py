@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the S20-520 merge-engine persistent fuzz slice (Section 18.5 surface eleven)."""
+"""Drift check for the WP-520 merge-engine persistent fuzz slice (Section 18.5 surface eleven)."""
 
 from __future__ import annotations
 

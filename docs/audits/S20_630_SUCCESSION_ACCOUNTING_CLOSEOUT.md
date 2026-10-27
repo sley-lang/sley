@@ -1,4 +1,4 @@
-# S20-630 Succession Accounting Closeout
+# WP-630 Succession Accounting Closeout
 
 Status: **implemented under the draft Succession Accounting v1 contract (revision 4); the Ariadne, Nabu, and Vulcan reviews returned FAIL against revision 2 and every P0 and every P1 lands in revision 3; revision 4 adds the FAIL-path end-to-end test through `derive_report` and the residual P2/P3 precision; the package is not complete until those lanes re-review; no trial exists and no accounting number is evidence; the Sley 2 goal remains incomplete**
 
@@ -36,7 +36,7 @@ The implementation provides:
   coverage, `derive_report`, `report_digest`, `verify_report`,
   `write_report`, and the `derive` and `smoke` commands;
 - `bench/accounting/tests/test_report.py`: eight offline tests;
-- `make accounting-smoke`: the report over the S20-620 scripted smoke run,
+- `make accounting-smoke`: the report over the WP-620 scripted smoke run,
   regenerable runtime evidence (digest below);
 - `scripts/check_succession_accounting.py` in `make quick`: contract
   markers, module markers and forbidden surfaces (no float construction,
@@ -68,11 +68,11 @@ The implementation provides:
   reserved-path, and evidence-mismatch closures all fail closed; a
   complete report through `derive_report` over two full chains verifies
   with `COMPLETE`, a `PASS` context row, and per-row evidence status; a
-  report over real raw and Sley 2 chains built through the S20-610 and
-  S20-620 append functions is exact, digested, repeatable, refuses a
+  report over real raw and Sley 2 chains built through the WP-610 and
+  WP-620 append functions is exact, digested, repeatable, refuses a
   complete-report demand, and fails closed on a tampered report, a
   tampered chain, and a missing run.
-- Accounting smoke over the S20-620 run: status `PARTIAL`, the Sley 2 arm
+- Accounting smoke over the WP-620 run: status `PARTIAL`, the Sley 2 arm
   with two attempts (one rejected, one harness failure), no accepted change
   and a null ACT with reason, the raw and legacy arms `NO_CLAIM_CHAIN`, and
   every evaluated threshold `UNDETERMINED` beside three `NOT_EVALUATED`
@@ -105,7 +105,7 @@ The implementation provides:
   section 22.4; no per-seed accounting) are now full metric coverage
   with latency and memory medians, a status derived from the claims'
   own statuses and re-derived on verify, per-class collateral sums with
-  the deferred conditions named, and per-seed grouping for S20-640.
+  the deferred conditions named, and per-seed grouping for WP-640.
   Every P1 lands with them: measured threshold legs, exact percent rows,
   every-attempt medians stated with companions, structural threshold
   coverage, per-arm fixture and per-row evidence status, a regenerable
@@ -113,7 +113,7 @@ The implementation provides:
   action budget read and recorded, and threshold evaluation over real
   arm outputs end to end.
 - Two review prescriptions were narrowed in flight with reasons in the
-  contract: corpus-declared critical classes would edit S20-610's frozen
+  contract: corpus-declared critical classes would edit WP-610's frozen
   input, so the plan flag is the control accounting reads and
   all-classes is recorded; the section 22.2 documented-reason override
   has no input to carry it, so a reasoned exception needs a plan
@@ -123,7 +123,7 @@ The implementation provides:
 
 - **Council re-reviews.** Ariadne, Nabu, and Vulcan re-review revision 3;
   the FAIL verdicts above stand until those lanes pass.
-- The legacy arm has no claim chain producer (S20-600 stops at the version
+- The legacy arm has no claim chain producer (WP-600 stops at the version
   smoke), so no threshold can leave `UNDETERMINED` except over synthetic
   arms, and the contract states that the PASS/FAIL paths are exercised by
   synthetic tests only; `S20_630_COMPLETE` must not claim
@@ -139,12 +139,12 @@ commit below (`make core`, `make conformance`, `make adversarial`,
 recorded in
 `machineresearch/sley-2.0/s20-630-succession-accounting-campaign-2026-09-03.md`.
 `make sley2-runner-smoke` FAILS identically with and without this slice
-(bisected: PASS at `9164ba3`, FAIL at `ed7fe87`): S20-330's per-instance
+(bisected: PASS at `9164ba3`, FAIL at `ed7fe87`): WP-330's per-instance
 server nonce makes pre-restart handshake names unknown by design, while
-the S20-620 smoke reuses a probe `handshake_id` in a later `serve`
+the WP-620 smoke reuses a probe `handshake_id` in a later `serve`
 invocation, so `session.open` is refused and the scripted trial dies
 with `SLEY2_TRIAL_HANDSHAKE_FAILED`. That integration break belongs to
-S20-330/S20-620 and is left untouched here; it is recorded, not repaired,
+WP-330/WP-620 and is left untouched here; it is recorded, not repaired,
 because a session-semantics fix from the accounting slice would be
 unreviewed scope. The full `make v1` gate was skipped because this is a
 subsystem handoff, not a release boundary; `make v2` and `make

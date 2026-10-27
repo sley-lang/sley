@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-320 full context capsule fixture."""
+"""Refresh the deterministic WP-320 full context capsule fixture."""
 
 from __future__ import annotations
 

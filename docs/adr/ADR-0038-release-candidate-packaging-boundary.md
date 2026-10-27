@@ -1,6 +1,6 @@
 # ADR-0038: release candidate mechanics without a release
 
-Status: proposed; the S20-720 contract is a draft at revision 6 with
+Status: proposed; the WP-720 contract is a draft at revision 6 with
 Council review pending; mechanics implemented (2026-09-03, revised
 2026-09-05) with a reproducible artifact, an unpacked demo, and
 `release-check` still fail-closed
@@ -15,7 +15,7 @@ The master goal ends at a clean, fully evidenced local Sley 2.0 candidate
 and names the packaging criteria: a named artifact built from the final
 commit, runnable with no source tree, free of secrets and local paths,
 recorded with manifest, checksums, SBOM, licenses, and provenance, and
-reproducible or precisely nondeterministic. The S20-430 endpoint now makes
+reproducible or precisely nondeterministic. The WP-430 endpoint now makes
 the source-independence demo possible, while the root license, standards
 SBOM, provenance, and succession thresholds remain gated.
 
@@ -41,7 +41,7 @@ soon as a lane returns.
    execute, branch, export, import of 20.12's eight — with create, modify,
    test, and merge residual; open question 1, covering create via
    `workspace.create` from a packaged trusted genesis, is answered yes.)
-5. **Inventory reused.** The S20-710 pre-release inventory travels
+5. **Inventory reused.** The WP-710 pre-release inventory travels
    verbatim as the SBOM with declared licenses and the root-license
    blocker; nothing is invented.
 6. **Codes.** Eight `PACKAGE_*` codes 72000 through 72007.

@@ -1,11 +1,11 @@
 # Independent SCB1 oracle
 
-This Python package is the S20-130 implementation-independent conformance
+This Python package is the WP-130 implementation-independent conformance
 oracle for SCB1. It consumes only the frozen JSON fixtures and implements the
 encoding, envelope hashing, strict decoding, and rejection taxonomy directly.
 It does not import, execute, or inspect the Rust codec.
 
-The package also checks the explicitly partial S20-350 mutation-value corpus.
+The package also checks the explicitly partial WP-350 mutation-value corpus.
 That isolated path covers 126 accepted and 18 rejected vectors for landed,
 unambiguous private codec families, including all twenty `TypeExpr` variants,
 eleven entity-body records, and exact declared-value fixtures for 65 of the 75

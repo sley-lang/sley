@@ -66,11 +66,11 @@ The native test supervisor is still source only, as in 2.1.2. It is not in the r
 not qualified on an installed host, so committing a candidate that selects TestCases still
 refuses with `TXN_TEST_EVIDENCE_UNSUPPORTED`.
 
-## Master-goal checks
+## Design-specification checks
 
 For Sley 2.1.6, `scripts/check_candidate_result_contract.py` and
-`scripts/check_transaction_contract.py` ran on the maintainer host with the Sley 2.0 master goal
-(`SLEY2_MASTER_GOAL`) available, and both passed. The waiver carried forward from the operator
+`scripts/check_transaction_contract.py` ran on the maintainer host with the
+Sley 2.0 design specification available, and both passed. The waiver carried forward from the operator
 decision of 2026-10-19 (Magister) covered 2.1.2 through 2.1.5 only and is not needed for this
 release. The machine summary's `release_decision` records this.
 

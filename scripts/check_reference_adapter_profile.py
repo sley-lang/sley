@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-280 deterministic reference-adapter profile."""
+"""Check the restricted WP-280 deterministic reference-adapter profile."""
 
 from __future__ import annotations
 

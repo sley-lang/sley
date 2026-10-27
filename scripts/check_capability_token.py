@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the narrow local S20-380 capability-token package."""
+"""Check the narrow local WP-380 capability-token package."""
 
 from __future__ import annotations
 

@@ -348,7 +348,7 @@ These omissions are constitutional, and they're enforced by tests
 | **Oracle** | The independent Python implementation of SCB1 and the vectors, used to cross-check the Rust kernel. |
 | **Policy root** | The protected, separately versioned set of rules a candidate is judged under. |
 | **Receipt** | The canonical record of a committed transaction. |
-| **REWEAVE** | The self-hosting plan: building the Sley toolchain with Sley. Targeted for 2.1. |
+| **Self-hosting plan** | Building the Sley toolchain with Sley. Targeted for 2.1. |
 | **SCB1** | Sley Canonical Binary: the only canonical byte encoding. |
 | **SMP1** | Sley Machine Protocol: the programming interface. |
 | **SSMC1** | Sley Semantic Machine Code: the only canonical program form. |

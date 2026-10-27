@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen S20-170 repository-pack contract surface."""
+"""Check the frozen WP-170 repository-pack contract surface."""
 
 from __future__ import annotations
 

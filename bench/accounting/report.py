@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-630 succession accounting: exact derivation from immutable claims.
+"""WP-630 succession accounting: exact derivation from immutable claims.
 
 The report reads one run's create-once manifest and each arm's claim chain,
 verified by that arm's own runner, and nothing else. It keeps every attempt
@@ -234,7 +234,7 @@ def arm_accounting(claims: list[Mapping[str, Any]], manifest: Mapping[str, Any],
                 clean_series[name].append(value)
         if metrics.get("accepted_change_tokens") is not None:
             # Both runners refuse a pre-derived ACT at the claim layer with
-            # "ACT is derived only by S20-630"; accounting restates that
+            # "ACT is derived only by WP-630"; accounting restates that
             # refusal so the two meanings of the name can never mix.
             _fail(AccountingErrorCode.METRIC_INVALID, "accepted_change_tokens")
         accepted_change = _require_int(metrics.get("accepted_correct_changes"), "accepted_correct_changes")
@@ -638,7 +638,7 @@ ARM_VERIFIERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     RAW_ARM: verify_digest_claim_directory,
     SLEY2_ARM: verify_trial_claims,
 }
-# LEGACY_ARM has no verifier until S20-600 supplies a chain producer; the
+# LEGACY_ARM has no verifier until WP-600 supplies a chain producer; the
 # registry stays the single place that fact lives, so the producer plugs in
 # without editing accounting. The legacy chain's reserved path is named here
 # so a chain that appears before its verifier fails closed instead of

@@ -1,13 +1,13 @@
 # ADR-0020: Candidate result and monotonic validation boundary
 
-Status: accepted for S20-360 implementation
+Status: accepted for WP-360 implementation
 
 Date: 2026-08-27
 
 ## Context
 
 The master goal describes fifteen candidate-validation steps, the M0
-transaction draft compressed them to thirteen, and the later S20-345
+transaction draft compressed them to thirteen, and the later WP-345
 validation-profile freeze names fourteen exact phase tags. Candidate
 construction is now implemented, but its fields remain unauthenticated proposal
 data. A result format must preserve invalid-input diagnostics without inventing
@@ -16,7 +16,7 @@ kernel judgment.
 
 ## Decision
 
-`VALIDATION_PROFILE_V1.md` is the phase authority. S20-360 runs exactly these
+`VALIDATION_PROFILE_V1.md` is the phase authority. WP-360 runs exactly these
 fourteen phases in order:
 
 1. canonical frame;
@@ -48,7 +48,7 @@ Malformed or noncanonical candidate bytes have no `CandidateId`; the raw
 attempt digest is causal evidence only. A candidate root is present exactly for
 `VALID`.
 
-S20-360 consumes an explicit trusted context containing the accepted base
+WP-360 consumes an explicit trusted context containing the accepted base
 transaction/root and exact object inventory, schema epoch, protected policy,
 principal, rebuilt authenticated capability summary, current time, tombstones,
 and hard ceilings. Candidate fields are comparisons against that context. The
@@ -58,15 +58,15 @@ CAS, filesystem access, or ambient clock read.
 
 ## Consequences
 
-- S20-360 may return `VALID` only after all fourteen phases execute from
+- WP-360 may return `VALID` only after all fourteen phases execute from
   validator-owned inputs. Unsupported semantic or resource analysis fails
   closed.
 - Existing restricted semantic profiles may validate only their explicitly
-  supported epoch subset; this does not turn S20-210 through S20-320 into GA.
+  supported epoch subset; this does not turn WP-210 through WP-320 into GA.
 - Validation is pure. It may build immutable candidate objects and a candidate
   root in memory, but it cannot mutate accepted state or consume a capability
   ledger.
-- S20-390 must recheck the exact candidate, base transaction/root, policy,
+- WP-390 must recheck the exact candidate, base transaction/root, policy,
   expiry, and result before any durable action. A result digest alone grants no
   commit authority.
 

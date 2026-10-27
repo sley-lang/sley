@@ -1,4 +1,4 @@
-# S20-300 Full Complete-Root Snapshot Closeout
+# WP-300 Full Complete-Root Snapshot Closeout
 
 Status: **implemented under the draft Complete-Root Index Snapshot Profile v1 contract (revision 3); the three Council review rounds landed 2026-09-04 (all FAIL) and revision 3 closes every report-grade finding below; the package awaits re-review, so it is not complete; the Sley 2 goal remains incomplete**
 
@@ -12,7 +12,7 @@ Validation tier: **Tier 1 plus query-and-repository-focused Tier 2 handoff**
 
 The frozen `SLEYIDX1` record gains completeness arm `2` (`CompleteRoot`):
 a snapshot bound to the exact `StateRoot` it indexes, carrying all eighteen
-SSMC1 entity kinds, derived only through the S20-250 full complete-root
+SSMC1 entity kinds, derived only through the WP-250 full complete-root
 judgment (closure rules C1 through C11) over a request whose inventory is
 the root's bindings. The restricted arm `1`, its vectors, its codes 30000
 through 30007, and its rebuild-first admission are byte-identical. The
@@ -44,27 +44,27 @@ The implementation provides:
   directory joins the frozen incomplete-clone layout allowlist in
   `exchange.rs`.
 
-The S20-250 full judgment, the S20-390 verified revision loader, and the
-restricted S20-300 record are consumed exactly as frozen; no validation,
+The WP-250 full judgment, the WP-390 verified revision loader, and the
+restricted WP-300 record are consumed exactly as frozen; no validation,
 comparison, merge, commit, exchange, GC, or recovery path reads the cache.
 
 ## Evidence
 
 - Contract draft revision 1 and ADR-0029 at `9111c0e`; implementation,
   corpus, oracle, and fuzz slice at `094a7bf`.
-- Fixed vector: the arm-`2` record over the frozen eighteen-kind S20-250
+- Fixed vector: the arm-`2` record over the frozen eighteen-kind WP-250
   fixture is 5,888 bytes with identity
   `8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d`,
   stable over 128 rebuilds, different from the arm-`1` record and from the
   same request under another root.
 - Conformance corpus: `conformance/complete-root-index-snapshot/v1/accepted.json`
-  (the record, identity, root, epoch, and a digest binding to the S20-250
+  (the record, identity, root, epoch, and a digest binding to the WP-250
   fixture request) and `rejected.json` (six discard candidates: trailer bit,
   format version, restricted arm tag, other root, rootless context,
   truncation), drift-gated by
   `scripts/generate_complete_root_index_snapshot_fixtures.py --check` in
   `make quick`; `scripts/check_complete_root_index_snapshot_vector.py`
-  rebuilds the record bytes and `IndexSnapshotId` from the S20-250 fixture's
+  rebuilds the record bytes and `IndexSnapshotId` from the WP-250 fixture's
   entities and frozen edge set with its own encoder and BLAKE3 domain, then
   classifies every rejected candidate with its own bounded inspector,
   registered in `make conformance` under the frozen oracle environment.
@@ -83,7 +83,7 @@ comparison, merge, commit, exchange, GC, or recovery path reads the cache.
   decoder in a direct lane and a trailer-rehash lane with the context read
   from the candidate header), smoke `PASS` over a 480-seed corpus
   (`docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md`);
-  sixteen scoped targets and fifteen smoke gates now stand; the S20-700
+  sixteen scoped targets and fifteen smoke gates now stand; the WP-700
   finding register and independent review remain deferred.
 - Tier 1: `make quick` green at every commit.
 - Tier 2: see the validation record below.
@@ -104,7 +104,7 @@ comparison, merge, commit, exchange, GC, or recovery path reads the cache.
 - **Closed with code.** Unique exclusive temp files (`create_new` over
   `<name>.tmp.<pid>.<counter>`); guard-held cache access (callers pass
   shared maintenance over the same repository, mismatch refused; threaded
-  through S20-310 queries, the server, and all tests); fail-open cache I/O
+  through WP-310 queries, the server, and all tests); fail-open cache I/O
   (read/metadata trouble rebuilds, write-back is best-effort, tampering
   still fails closed); handle-pinned bounded cache reads; fresh-only
   exported capsules (`run_root_query_fresh` + fresh `run_context_capsule`,
@@ -142,8 +142,8 @@ comparison, merge, commit, exchange, GC, or recovery path reads the cache.
   the server).
 - The repository builder is exercised over synthetic genesis repositories;
   no multi-transaction repository with a cache across heads exists yet.
-  S20-310 root-backed queries consume cache hits for transient reads
-  today; the full S20-320 capsule builds fresh.
+  WP-310 root-backed queries consume cache hits for transient reads
+  today; the full WP-320 capsule builds fresh.
 - Strict pedantic clippy debt in older `sley-repo` exchange and GC test
   modules is pre-existing; the new paths lint clean under `--no-deps`.
 

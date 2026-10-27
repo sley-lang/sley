@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Revert cases for the S20-620 checker's composed-pin anchor (revision 7).
+"""Revert cases for the WP-620 checker's composed-pin anchor (revision 7).
 
-A stale SMP1 or S20-300 pin in the trial-runner contract is refused
+A stale SMP1 or WP-300 pin in the trial-runner contract is refused
 against those documents' own Status lines. Inputs are served from memory;
 nothing here mutates the repository.
 """

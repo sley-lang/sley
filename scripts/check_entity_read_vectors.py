@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently check the S20-310 entity-read v2 vectors (stage A).
+"""Independently check the WP-310 entity-read v2 vectors (stage A).
 
 Normal mode is read-only: the oracle rebuilds every expected byte string
 from the hand-authored semantic inputs in

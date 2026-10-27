@@ -1,4 +1,4 @@
-"""Independent strict S20-390 transaction and receipt conformance oracle."""
+"""Independent strict WP-390 transaction and receipt conformance oracle."""
 
 from __future__ import annotations
 
@@ -227,7 +227,7 @@ def _decode_grant(payload: bytes) -> None:
 
 def _receipt_kind(transaction: dict[str, object]) -> str:
     """The corpus label: a genesis, an ordinary commit, or one validated by the
-    S20-360 full operation analysis (semantic profile 2)."""
+    WP-360 full operation analysis (semantic profile 2)."""
     if transaction["kind"] == 1:
         return "GENESIS"
     return "ORDINARY_EXTENDED" if transaction["semantic_profile"] == 2 else "ORDINARY"
@@ -349,7 +349,7 @@ def decode_transaction(data: bytes) -> dict[str, object]:
     tombstones = _decode_fixed_set(fields[17])
     metadata = [_complete_uvar(value, 32) for value in _record(fields[18], 3)]
     # Commit profile 1, semantic profile 1 (this transaction judged no
-    # semantic operation) or 2 (it judged at least one under the S20-360 full
+    # semantic operation) or 2 (it judged at least one under the WP-360 full
     # operation analysis), durability profile 1. A trusted genesis performs no
     # analysis, so only the restricted triple is a genesis wire state.
     if metadata not in ([1, 1, 1], [1, 2, 1]):

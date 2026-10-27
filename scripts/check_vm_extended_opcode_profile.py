@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-260/S20-270 extended opcode profile contract and its slices."""
+"""Check the WP-260/WP-270 extended opcode profile contract and its slices."""
 
 from __future__ import annotations
 

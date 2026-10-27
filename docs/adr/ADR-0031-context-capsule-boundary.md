@@ -1,6 +1,6 @@
 # ADR-0031: Context capsule provenance and omission boundary
 
-Status: proposed; the S20-320 full contract is a draft at revision 4 with
+Status: proposed; the WP-320 full contract is a draft at revision 4 with
 Council review pending; implemented under the draft
 (`docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md`)
 
@@ -8,14 +8,14 @@ Date: 2026-09-03
 
 ## Context
 
-The restricted S20-320 capsule wraps only complete restricted responses
+The restricted WP-320 capsule wraps only complete restricted responses
 with fixed no-omission, no-truncation, no-continuation status and a
 distinct identity domain, because the restricted queries could not page
 lawfully and no verified workspace, root, or session existed (ADR-0013).
-The full S20-310 engine now answers nineteen classes over a verified root
+The full WP-310 engine now answers nineteen classes over a verified root
 with exact `total_count` and typed continuation cursors, so a capsule can
 carry lawful omission status and verified provenance without inventing
-either. S20-330 owns negotiated session authority, and the capsule
+either. WP-330 owns negotiated session authority, and the capsule
 consumes its binding only through the authority's mint; the capsule
 itself stays evidence, never a handle.
 
@@ -50,7 +50,7 @@ soon as a lane returns.
 
 ## Consequences
 
-- SMP1 (S20-400) gains a self-describing evidence envelope to transport,
-  and S20-330 gains the exact field to bind a negotiated session into.
+- SMP1 (WP-400) gains a self-describing evidence envelope to transport,
+  and WP-330 gains the exact field to bind a negotiated session into.
 - A reader can prove a continuation walk complete from its capsules alone,
   which is what makes paged omission lawful under the T14 gate.

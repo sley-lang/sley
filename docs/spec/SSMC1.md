@@ -1,6 +1,6 @@
 # Sley Semantic Machine Code v1 (SSMC1)
 
-Status: S20-200 normative specification.
+Status: WP-200 normative specification.
 
 ## 1. Scope
 
@@ -10,9 +10,9 @@ AST, debug data, CPU code, Wasm, arbitrary bytes, or a serialization of host
 objects. Normal creation, query, mutation, validation, and execution paths
 never require or emit Sley source.
 
-S20-200 freezes the epoch-1 entity object contract, entity-kind tags,
+WP-200 freezes the epoch-1 entity object contract, entity-kind tags,
 structural type-expression tags, operation tags, terminator tags, and local
-signatures. S20-210 through S20-270 own type, CFG, effect, contract,
+signatures. WP-210 through WP-270 own type, CFG, effect, contract,
 fingerprint, lowering, and execution judgments. They must consume this schema
 without silently extending or reinterpreting it.
 
@@ -47,7 +47,7 @@ The payload is one closed Record:
 | 1 | entity_id | `FixedBytes<32>` / `EntityId` | required |
 | 2 | body | `EntityBody` closed Union | required |
 | 3 | label | `NormalizedLabel` | optional |
-| 4 | semantic_fingerprint | `FixedBytes<32>` | optional/reserved for S20-250 |
+| 4 | semantic_fingerprint | `FixedBytes<32>` | optional/reserved for WP-250 |
 
 The `EntityBody` tag is the entity kind and must equal the kind used to
 derive `entity_id`. There is no caller-supplied dependency list: references
@@ -92,7 +92,7 @@ sley2.ssmc1.v1.decoder-limits:scb1-epoch1;label_bytes=1024;type_depth=64;type_ar
 ```
 
 These are inputs to the eventual complete production epoch. They do not
-mutate the S20-140 conformance epoch or claim later descriptors already exist.
+mutate the WP-140 conformance epoch or claim later descriptors already exist.
 
 The generic `Option<T>` follows SCB1's special encoding: tag `0` with an empty
 payload is `None`, and tag `1` with one canonical payload is `Some<T>`. It is
@@ -143,7 +143,7 @@ Integer width is one of 8, 16, 32, 64, or 128. `Text` preserves its exact
 Unicode scalar sequence; it is never normalized. Only `NormalizedLabel`
 metadata uses epoch-pinned NFC. Structural depth is at most 64. Definition
 recursion is possible only through a named reference and is rejected until
-S20-210 freezes a termination-safe rule.
+WP-210 freezes a termination-safe rule.
 
 `LocalCell<T>`, adapter handles, and capability tokens cannot occur in
 `Constant`, test input/expectation, object metadata, or other persistable
@@ -155,7 +155,7 @@ nonce that is unique within its `TypeDef` and remains stable across versions.
 It is not globally addressed, is not an `EntityId` or `ObjectId`, and cannot
 be derived from a label or ordinal. Duplicate or reused member IDs are invalid.
 
-S20-210 owns kind checking, type equality, generic instantiation,
+WP-210 owns kind checking, type equality, generic instantiation,
 equality/order/hash traits, and constant/type agreement. It may reject more
 combinations but cannot renumber or reinterpret structural tags.
 
@@ -190,7 +190,7 @@ Its optional `ValueRef` payload must have a persistable static type; the trap
 does not embed a second object or permit a handle, token, or local cell to
 escape.
 
-S20-220 owns owner/ordinal consistency, reachability, edge typing, dominance,
+WP-220 owns owner/ordinal consistency, reachability, edge typing, dominance,
 use-before-definition, result bounds, switch exhaustiveness, and cycles.
 Structural decoding alone never claims CFG validity.
 
@@ -236,8 +236,8 @@ scope. Their immediate entity must be an `EffectDef`, `AdapterImport`, or
 `CapabilityRequirement`, respectively.
 
 `value_hash` is limited to canonically hashable types and returns exactly 32
-bytes in `Bytes`. Its S20-250 rule is not `ObjectId`, `EntityId`, host
-hashing, or object layout. The opcode is not executable before S20-250 freezes
+bytes in `Bytes`. Its WP-250 rule is not `ObjectId`, `EntityId`, host
+hashing, or object layout. The opcode is not executable before WP-250 freezes
 that rule.
 
 ## 8. Semantic boundaries
@@ -259,20 +259,20 @@ that rule.
 - `DependencyBinding` names an exact external `StateRoot`, never a path,
   Git ref, branch, network location, or mutable latest version.
 
-S20-230 owns effect closure/scope. S20-240 owns contract/test judgment.
-S20-250 owns fingerprints/impact. Field 4 must be absent until S20-250 provides
+WP-230 owns effect closure/scope. WP-240 owns contract/test judgment.
+WP-250 owns fingerprints/impact. Field 4 must be absent until WP-250 provides
 the exact verifier; GA-valid `TypeDef` and `Function` entities require it.
 
 ## 9. Limits
 
-All S20-140 SCB1 epoch-1 limits apply, plus the closed limits committed in
+All WP-140 SCB1 epoch-1 limits apply, plus the closed limits committed in
 Section 3. A stricter request/repository policy may reject a valid object but
 cannot make an invalid object valid or change identity.
 
 Decode/local checks are linear in fields/elements. Construction may sort
 unordered semantic sets/maps in `O(n log n)`; strict decode rejects
 noncanonical order. Cross-entity validation has a later bounded work budget
-and cannot be reported complete by S20-200.
+and cannot be reported complete by WP-200.
 
 ## 10. Stable failures
 
@@ -321,5 +321,5 @@ dependency graph.
 - no source, host, path, ambient authority, hidden exception, coercion, or
   undefined-behavior path exists;
 - independent review checks every master-goal Section 7 MUST;
-- no S20-200 result claims type, CFG, effect, contract, VM, or runtime
+- no WP-200 result claims type, CFG, effect, contract, VM, or runtime
   completion.

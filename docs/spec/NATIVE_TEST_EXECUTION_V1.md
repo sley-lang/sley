@@ -202,7 +202,7 @@ Host interruption affects measured evidence, not deterministic VM bytes.
 | wall_timeout_millis | Supervisor monotonic interval from launch to complete output and confirmed exit |
 
 Output bytes are exactly **`sley_mutate::encode_const_value`** output
-(`crates/sley-mutate/src/codec.rs`, public S20-350 mutation-value codec),
+(`crates/sley-mutate/src/codec.rs`, public WP-350 mutation-value codec),
 including its canonical type/value structure. This is not the private
 fingerprint encoding or a report/object envelope. The current public function
 allocates a Vec; N2 must first add a bounded counting path in that same pure
@@ -332,7 +332,7 @@ change the phase or code:
 | Effect(Type(e)) | 1 | e's TypeError code |
 | Effect(Cfg(Type(e))) | 1 | e's TypeError code |
 | Effect(Cfg(Cfg(e))) | 2 | e's CfgError code |
-| Effect(Effect(e)) | 7 | e's S20-230 EffectError code |
+| Effect(Effect(e)) | 7 | e's WP-230 EffectError code |
 | Profile(Unsupported) | 6 | 29200 / NATIVE_TEST_PROFILE_UNSUPPORTED |
 | Profile(InvalidContext) | 6 | 29208 / NATIVE_TEST_CONTEXT_MISMATCH |
 
@@ -575,7 +575,7 @@ are explicit. Independent vectors must pin the resulting unique observations.
 ## 10. Revision 3 refusal mapping and measurement precedence
 
 N0-04: §5 exhaustively maps every NativeExecutionError leaf, including nested
-effect Type/Cfg failures. Only true S20-230 errors use new phase7; tags1..6 and
+effect Type/Cfg failures. Only true WP-230 errors use new phase7; tags1..6 and
 all existing numeric/symbol identities remain unchanged. N1 vectors must cover
 every row, including both routes to nested Type/Cfg failures.
 

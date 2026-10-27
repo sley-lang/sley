@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the frozen BOOTSTRAP_PROFILE_1 closure vectors (RW-050 slice 2)."""
+"""Refresh the frozen BOOTSTRAP_PROFILE_1 closure vectors (TP-050 slice 2)."""
 
 from __future__ import annotations
 

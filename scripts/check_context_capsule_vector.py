@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-320 full context capsule vectors.
+"""Independently reproduce the WP-320 full context capsule vectors.
 
 The oracle rebuilds every `SLEYCCP1` record and `ContextCapsuleId` of
-`CONTEXT_CAPSULE_PROFILE_V1.md` from the frozen S20-310 fixture alone: the
+`CONTEXT_CAPSULE_PROFILE_V1.md` from the frozen WP-310 fixture alone: the
 question (class, body, limits, continuation flag, cursor), the provenance
 context, and the exact `SLEYRQR1` response record, whose payload it decodes
 by class to derive the entity, kind, relationship, root, object, and

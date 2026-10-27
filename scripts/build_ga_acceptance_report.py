@@ -7,7 +7,7 @@ repository, but nothing connected a criterion to the artifact that answers it,
 so "how much of GA is locally satisfied?" had no answer.
 
 Every state here is derived from a tracked artifact: the machine summary, the
-derived reports of S20-730 through S20-780, or a conformance corpus. A
+derived reports of WP-730 through WP-780, or a conformance corpus. A
 criterion whose evidence needs a human is `AWAITS_REVIEW`, and one whose
 evidence needs an authority this repository does not hold is `GATED`; neither
 is a pass. No criterion is a constant: each state is a function of the fact
@@ -61,7 +61,7 @@ SPDX = ROOT / "evidence/release/sbom/spdx-2.3.json"
 PROVENANCE = ROOT / "evidence/release/provenance.json"
 LICENSE_INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 LEGACY_ADR = ROOT / "docs/adr/ADR-0002-clean-room-legacy-boundary.md"
-# The one section 22 threshold verdict. The S20-630 accounting report of a
+# The one section 22 threshold verdict. The WP-630 accounting report of a
 # real trial campaign is tracked here (`sley2.succession-accounting-report.v1`);
 # the smoke report under evidence/runtime/ is untracked and never read. Until a
 # campaign tracks its report, the file is absent and the thresholds do not pass.
@@ -184,7 +184,7 @@ def verdict_complete_pass(register: dict, section: str, field: str) -> tuple[boo
 def succession_thresholds() -> dict:
     """The one section 22 threshold verdict the GA report and the dossier both read.
 
-    Derived from the tracked S20-630 accounting report only: every threshold
+    Derived from the tracked WP-630 accounting report only: every threshold
     row must read `PASS`, the report must be `COMPLETE` over verified claims.
     An absent, foreign, partial, or undetermined report does not pass. No
     machine-summary hand key is read.
@@ -718,7 +718,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = build_report()
     except ValueError as error:
-        # GA acceptance is an S20-750 input; reuse its governed source error.
+        # GA acceptance is a WP-750 input; reuse its governed source error.
         print(canonical({"mode": "check" if arguments.check else "write",
             "result": "FAIL", "code": 76001, "name": "DOSSIER_SOURCE_INVALID",
             "detail": str(error)}), end="")

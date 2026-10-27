@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze check for HOST_ABI_V1 (RW-070).
+"""Freeze check for HOST_ABI_V1 (TP-070).
 
 Coverage-mapped and therefore oracle-independent: this script never reads
 implementation sources. Production-code marker pins live in

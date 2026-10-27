@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-740 finding register contract and its stage."""
+"""Check the WP-740 finding register contract and its stage."""
 
 from __future__ import annotations
 

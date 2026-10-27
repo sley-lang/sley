@@ -1,6 +1,6 @@
 # ADR-0008: Dedicated VM bytecode cache-key domain
 
-Status: accepted for the S20-260 restricted epoch-1 profile
+Status: accepted for the WP-260 restricted epoch-1 profile
 
 ## Decision
 

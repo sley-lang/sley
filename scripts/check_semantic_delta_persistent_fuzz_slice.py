@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the scoped S20-510 semantic-delta decoder persistent fuzz slice."""
+"""Drift check for the scoped WP-510 semantic-delta decoder persistent fuzz slice."""
 
 from __future__ import annotations
 

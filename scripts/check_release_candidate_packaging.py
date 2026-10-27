@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-720 release candidate packaging contract and its stage."""
+"""Check the WP-720 release candidate packaging contract and its stage."""
 
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ def read(path: Path) -> str:
 
 
 def load_repro():
-    """The S20-730 builder: the owner of the attestation admissibility rule."""
+    """The WP-730 builder: the owner of the attestation admissibility rule."""
     spec = importlib.util.spec_from_file_location(
         "build_reproducibility_report", ROOT / "scripts/build_reproducibility_report.py"
     )
@@ -225,7 +225,7 @@ def main() -> int:
     # The register's candidate identity must name the tracked
     # reproducibility attestation: without this cross-check the section can
     # name any candidate while the checker stays green. Admissibility is
-    # the S20-730 builder's predicate (clean, REPRODUCIBLE, non-empty
+    # the WP-730 builder's predicate (clean, REPRODUCIBLE, non-empty
     # toolchain strings, contract shape), imported rather than restated, and
     # the quality fields the register hand-maintains must agree with it.
     repro_path = ROOT / "evidence/release/reproducibility-report.json"

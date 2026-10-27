@@ -42,7 +42,7 @@ than dispatching. `Server::offered_hello_versioned` exists but is test-only.
    `ServeOptions` and the `serve` legacy wrapper are preserved.
    CLI rev 5 to 6 retires the "declared, not implemented" caveat, and
    P1 synchronizes every record that repeats it: ADR-0035 (rev-6
-   record), the WORK_PACKAGES S20-430 row, the machine-summary `cli`
+   record), the WORK_PACKAGES WP-430 row, the machine-summary `cli`
    section (`contract_revision` 6, status, current-delta review, and
    the `offered_hello` field records BOTH the legacy default
    `Server::offered_hello` and the capable
@@ -134,7 +134,7 @@ than dispatching. `Server::offered_hello_versioned` exists but is test-only.
   untouched by this delta). Ariadne dispatch timed out; Vulcan dispatch
   timed out. Both retried as round 3.
 - Round 3 (2026-09-09, revision 2): Ariadne FAIL (1 blocker: CLI rev-6
-  must synchronize ADR-0035, WORK_PACKAGES S20-430 row, machine-summary
+  must synchronize ADR-0035, WORK_PACKAGES WP-430 row, machine-summary
   `cli` section, and `check_cli_contract.py` markers; serve route and
   ServeOptions compatibility otherwise pass). Vulcan FAIL (2 blockers:
   runner v2 path must launch profile `serve` and stamp the selected
@@ -172,13 +172,13 @@ name both methods. What I4b consumes:
   at 1 (`run_scripted_trial` enforces the version explicitly).
 
 Not claimed: I4b demonstrations themselves (no real entity read was
-performed; the round trip proves dispatch, not retrieval); S20-430
-rev-6 and S20-620 rev-4 Council contract reviews (machine-summary
+performed; the round trip proves dispatch, not retrieval); WP-430
+rev-6 and WP-620 rev-4 Council contract reviews (machine-summary
 `current_delta_review` stays PENDING on both — the P0 rounds reviewed
 this design, not the contract deltas); smoke fully green
 (`no_failed_answers` still red on the pre-existing scripted
 `handle.expand` body `00`, which fails identically under v1 and needs
-a genuine expected-root body under S20-620 maintenance); the
+a genuine expected-root body under WP-620 maintenance); the
 pre-existing `check_error_symbol_registration` drift (fails
 identically on the pristine base). Merge to main needs operator
 approval and is not taken here.

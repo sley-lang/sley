@@ -1,4 +1,4 @@
-"""Offline-only S20-610 raw-file baseline runner contract."""
+"""Offline-only WP-610 raw-file baseline runner contract."""
 
 from .runner import (
     AccountingClock,

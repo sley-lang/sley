@@ -1,6 +1,6 @@
 # ADR-0040: reproducibility attestations and independent conformance as derived evidence
 
-Status: proposed; the S20-730 contract is a draft at revision 11 with
+Status: proposed; the WP-730 contract is a draft at revision 11 with
 Council review pending; mechanics implemented (2026-09-03, revised
 2026-09-05) with a single-host reproducibility report, a tracked
 independent conformance report with coverage depths, and `release-check`
@@ -17,8 +17,8 @@ Date: 2026-09-03
 ## Context
 
 The master goal's GA candidate needs a reproducibility report and a final
-independent PASS. S20-720 established byte-for-byte reproducibility on one
-host and toolchain and left the second host to S20-730. The independent SCB1
+independent PASS. WP-720 established byte-for-byte reproducibility on one
+host and toolchain and left the second host to WP-730. The independent SCB1
 oracle already checks seventeen fixture families under `make conformance`,
 but nothing recorded which families it covers, which are exercised only
 natively, and whether the oracle stayed free of Rust dependencies. The second
@@ -32,7 +32,7 @@ soon as a lane returns.
 ## Decision
 
 1. **Attestations, not assertions.** A host contributes a small attestation
-   derived from its own S20-720 evidence record; the report merges
+   derived from its own WP-720 evidence record; the report merges
    attestations and computes the multi-host result. A single host yields
    `SINGLE_HOST_REPRODUCIBLE` and names the gated second host; nothing
    claims what was not attested.
@@ -48,7 +48,7 @@ soon as a lane returns.
    attested commit.
 5. **No identity leakage.** Neither report carries a host name, user name,
    path, or timestamp; host labels are operator-chosen.
-6. **Codes.** S20-730 reserves 73000 through 73007 for the exact failures of
+6. **Codes.** WP-730 reserves 73000 through 73007 for the exact failures of
    the two scripts.
 7. **Staging.** A staged checker in `make quick` tracks the contract from
    draft to complete; completion requires three Council `PASS` reviews.

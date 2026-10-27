@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-540 repository-exchange conformance fixture."""
+"""Refresh the deterministic WP-540 repository-exchange conformance fixture."""
 
 from __future__ import annotations
 

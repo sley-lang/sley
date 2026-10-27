@@ -4,7 +4,7 @@ Status: accepted architecture; current contract revision 17 (2026-09-17).
 Slices E1–E6, E7a and E8 are implemented. Revision 16 specified the E7
 capability-handle host-binding boundary. Revision 17 implements its recursive
 result-escape guard for `AdapterHandle` and `CapabilityToken`; 160/162
-execution remains deferred to S20-280/S20-380 owners.
+execution remains deferred to WP-280/WP-380 owners.
 Historical review records remain
 preserved; independent item-level review accepted the revision 15 corrections
 in `evidence/review/vm-nabu-correction-review-2026-09-15.md`.
@@ -15,10 +15,10 @@ Date: 2026-09-03
 
 ## Context
 
-The restricted S20-260 and S20-270 profiles lower and execute three Boolean
+The restricted WP-260 and WP-270 profiles lower and execute three Boolean
 opcodes and all five terminators, and their vectors, cache keys, and
 observation digests are frozen. Full GA is blocked on the other fifty-two
-opcodes, whose shapes and failure values the epoch-1 manifest and the S20-210
+opcodes, whose shapes and failure values the epoch-1 manifest and the WP-210
 type checker already fix. The candidate demo now executes through SMP1, so
 every new family becomes reachable end to end.
 
@@ -33,9 +33,9 @@ soon as a lane returns.
    and identity untouched.
 2. **The manifest and type checker are the authority.** Operand counts,
    immediates, result shapes, and builtin failure codes come from the
-   epoch-1 manifest and S20-210; the profile adds rules only where the
+   epoch-1 manifest and WP-210; the profile adds rules only where the
    manifest leaves runtime meaning open (order, overflow, NaN, map order).
-   Where the profile depends on a property S20-210 deliberately does not
+   Where the profile depends on a property WP-210 deliberately does not
    establish, it must verify that property rather than assume it. Ordered-map
    entry order is the case: `TYPE_SYSTEM_V1.md` section 5 reserves the byte
    ordering to the SCB codec, while `equal` and `value_hash` read it
@@ -52,11 +52,11 @@ soon as a lane returns.
    rejected as results and never hashed.
 6. **E7 waits for its owners, except where an owner already spoke.** Tests,
    effects, adapters, and capability narrowing stay unsupported until their
-   runtime owners exist. Contract assertions do not wait: S20-240 already
+   runtime owners exist. Contract assertions do not wait: WP-240 already
    accepts `contract_assert` statically under epoch 1 and assigns predicate
-   execution to S20-270, so slice E7a takes that assignment rather than
+   execution to WP-270, so slice E7a takes that assignment rather than
    leaving an owned operation unimplemented. The static typing stays with
-   S20-240 at candidate phase 10; the VM owns only the execution.
+   WP-240 at candidate phase 10; the VM owns only the execution.
 7. **Staging.** `scripts/check_vm_extended_opcode_profile.py` binds the
    contract, ADR, work-package rows, and the per-slice summary, and fails
    closed if `EXTENDED_V1` appears in the crate before a slice is allowed.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for scoped S20-700 semantic-checker persistent fuzz targets."""
+"""Drift check for scoped WP-700 semantic-checker persistent fuzz targets."""
 
 from __future__ import annotations
 
@@ -212,7 +212,7 @@ expected = {
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    # 406 generated + the two S20-700-GRAPH-CFG-001 regression seeds (V-02).
+    # 406 generated + the two `S20_700_GRAPH_CFG_001.json` regression seeds (V-02).
     "graph_cfg_seed_count": 408,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,

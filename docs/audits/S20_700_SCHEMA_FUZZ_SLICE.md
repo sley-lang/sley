@@ -1,8 +1,8 @@
-# S20-700 Bounded Schema Fuzz Slice
+# WP-700 Bounded Schema Fuzz Slice
 
-Status: bounded and persistent landed-surface slices; **full S20-700 remains incomplete**
+Status: bounded and persistent landed-surface slices; **full WP-700 remains incomplete**
 
-This slice hardens the completed S20-140 schema boundary without beginning any
+This slice hardens the completed WP-140 schema boundary without beginning any
 blocked mutation, transaction, protocol, merge, or release package.
 
 It adds:
@@ -34,7 +34,7 @@ issue. The decoder call counters make epoch/contract fallback assertions
 effective. That verdict predates the persistent target. A bounded review
 handoff for the new target was attempted but could not start because the local
 Forge OAuth session returned 401, so an additional Vulcan review remains
-deferred. Neither result is a full S20-700 or release disposition.
+deferred. Neither result is a full WP-700 or release disposition.
 
 Superseded 2026-09-11: Vulcan re-reviews of the repaired harness are filed (round 7 wave); see evidence/review/verdicts/s20_700_schema_persistent_fuzz_slice/.
 

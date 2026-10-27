@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze check for BOOTSTRAP_PROFILE_1 (RW-050 slice 2)."""
+"""Freeze check for BOOTSTRAP_PROFILE_1 (TP-050 slice 2)."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ for name, path in [("accepted.json", ACCEPTED), ("profile.json", PROFILE)]:
 
 manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 stage_p = manifest.get("stages", {}).get("P", {})
-# The manifest binds v1 or its frozen successor (BOOTSTRAP_PROFILE_2, RW-075
+# The manifest binds v1 or its frozen successor (BOOTSTRAP_PROFILE_2, TP-075
 # correction), and a successor binding must name v1 as superseded history.
 SUCCESSOR = ("BOOTSTRAP_PROFILE_2", "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459")
 if stage_p.get("value") == "BOOTSTRAP_PROFILE_1":

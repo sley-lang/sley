@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the independent supplemental S20-350 conformance corpus."""
+"""Generate the independent supplemental WP-350 conformance corpus."""
 
 from __future__ import annotations
 

@@ -1,26 +1,26 @@
 # ADR-0021: Transaction receipt and accepted-head boundary
 
-Status: accepted and implemented for restricted S20-390
+Status: accepted and implemented for restricted WP-390
 
 Date: 2026-08-28
 
 ## Context
 
 The master goal calls `TransactionId` the content address of a parent-bound
-transaction receipt. S20-110 separately froze `TransactionId` and `ReceiptId`
+transaction receipt. WP-110 separately froze `TransactionId` and `ReceiptId`
 domains and says the complete persisted receipt contains its `TransactionId`.
 Section 17.6 also lists both transaction identity and receipt digest. Putting
 both identifiers inside one preimage would create a self-hash cycle.
 
-The package graph has a second ambiguity. S20-390 must make a commit visible by
-durable compare-and-swap, while S20-500 owns native refs and depends on
-S20-390. Making S20-390 call an S20-500 ref implementation would reverse that
+The package graph has a second ambiguity. WP-390 must make a commit visible by
+durable compare-and-swap, while WP-500 owns native refs and depends on
+WP-390. Making WP-390 call a WP-500 ref implementation would reverse that
 dependency.
 
-Finally, S20-360 returns pure validation evidence. Imported result bytes are
+Finally, WP-360 returns pure validation evidence. Imported result bytes are
 not authority, and the current valid profile is restricted to executable
 programs containing no semantic operation entities. Candidate mutation
-operations are distinct and remain supported. S20-390 must not broaden that
+operations are distinct and remain supported. WP-390 must not broaden that
 claim while adding persistence.
 
 ## Decision
@@ -56,18 +56,18 @@ authenticates the complete evidence. Accepted-head loading compares each
 authenticated manifest length with the durable object bytes; the outer codec
 cannot infer that external filesystem fact by itself.
 
-S20-390 creates `sley-txn`. The crate owns commit orchestration, both canonical
+WP-390 creates `sley-txn`. The crate owns commit orchestration, both canonical
 records, receipt persistence, a single fixed durable accepted-head slot, and
-its compare-and-swap lock. It does not depend on `sley-repo`. S20-500 later
+its compare-and-swap lock. It does not depend on `sley-repo`. WP-500 later
 owns named refs, branches, ancestry queries, comparison, merge, and ref
-exchange on top of S20-390 transaction types. A fixed accepted-head slot is a
+exchange on top of WP-390 transaction types. A fixed accepted-head slot is a
 commit visibility primitive, not the native branch model.
 
 The transaction engine acquires exclusive accepted-head ownership before it
 reads live state. It resolves and verifies the current receipt, transaction,
 state root, policy root, tombstone set, and every bound object from durable
 bytes. It constructs a fresh `CandidateValidationContext` from those facts and
-runs the complete S20-360 pipeline under the lock. A validator-owned valid plan
+runs the complete WP-360 pipeline under the lock. A validator-owned valid plan
 may expose proposed immutable objects and the accepted candidate root to
 `sley-txn`; imported result bytes alone never create that plan.
 
@@ -116,8 +116,8 @@ no policy-transition authority.
 
 ## Review evidence
 
-Nabu recommended the non-cyclic crate boundary and S20-390-owned visibility
+Nabu recommended the non-cyclic crate boundary and WP-390-owned visibility
 CAS. Ariadne independently required fresh live-state recheck, exact
 changed-binding proof, fail-closed result handling, and interruption tests.
-Codex resolved their preimage alternatives against the already-frozen S20-110
+Codex resolved their preimage alternatives against the already-frozen WP-110
 identifier contract and remains implementation owner.

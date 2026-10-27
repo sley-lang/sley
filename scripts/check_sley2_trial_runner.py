@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-620 Sley 2 trial runner contract and its stage."""
+"""Check the WP-620 Sley 2 trial runner contract and its stage."""
 
 from __future__ import annotations
 
@@ -147,10 +147,10 @@ def _spec_allowlist(spec: str) -> list | None:
 
 
 def composed_pin_problems(spec: str, smp1: str, snapshot: str) -> list[str]:
-    """The composed SMP1 and S20-300 pins equal those documents' Status lines.
+    """The composed SMP1 and WP-300 pins equal those documents' Status lines.
 
     Every `SMP1 revision N defines`, `docs/spec/SMP1.md` revision N, and
-    `section 5, revision N` (S20-300) mention must name the current
+    `section 5, revision N` (WP-300) mention must name the current
     revision, so a composed authority moving leaves this contract red
     instead of silently stale (Ariadne P3 at 2b0f1c9)."""
     flat = re.sub(r"\s+", " ", spec)

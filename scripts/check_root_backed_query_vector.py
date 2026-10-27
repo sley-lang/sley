@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-310 full root-backed query vectors.
+"""Independently reproduce the WP-310 full root-backed query vectors.
 
-The oracle re-derives, from the frozen S20-250 complete-entity fixture bodies,
+The oracle re-derives, from the frozen WP-250 complete-entity fixture bodies,
 its frozen canonical edge set, and the fixture context (root, epoch,
 workspace, bindings, fingerprints, roots), every `RootQueryId` request
 identity and `SLEYRQR1` response record of `ROOT_BACKED_QUERY_PROFILE_V1.md`:

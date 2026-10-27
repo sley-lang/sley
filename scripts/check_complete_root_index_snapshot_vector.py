@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-300 full complete-root snapshot record.
+"""Independently reproduce the WP-300 full complete-root snapshot record.
 
 The oracle rebuilds the arm-2 `SLEYIDX1` record of
 `COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` sections 1 and 2 from the frozen
-S20-250 complete-entity fixture: the inventory is that fixture's entity
+WP-250 complete-entity fixture: the inventory is that fixture's entity
 identities and SSMC1 kinds in raw identity order, the direct edges are its
 frozen canonical edge set, and the reverse groups are their exact inversion.
 It derives the `IndexSnapshotId` under `sley2.index-snapshot.v1` and then
@@ -35,7 +35,7 @@ OPTION_SOME = 2
 COMPLETE_ROOT_ARM = 2
 MIN_RECORD_BYTES = 148
 MAX_RECORD_BYTES = 67_108_864
-# Frozen SSMC1 field schema hash (S20-250 fingerprint preimage constant).
+# Frozen SSMC1 field schema hash (WP-250 fingerprint preimage constant).
 FIELD_SCHEMA_HASH = bytes.fromhex(
     "1983bc8d6ad9ac3cb5390853f43959cf2c3dc0ae8e0ca18ca8264ca4960133ae"
 )

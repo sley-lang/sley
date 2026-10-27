@@ -1,22 +1,22 @@
 # ADR-0025: Repository exchange composition and clone trust boundary
 
-Status: accepted; the S20-540 contract is frozen at revision 6 (Ariadne and
+Status: accepted; the WP-540 contract is frozen at revision 6 (Ariadne and
 Vulcan PASS); implementation pending
 
 Date: 2026-09-03
 
 ## Context
 
-S20-170 froze a root/object-only pack whose field schema requires empty `refs`
+WP-170 froze a root/object-only pack whose field schema requires empty `refs`
 and `transaction_inventory` sets and whose conformance fixture, limits hash,
-and decoder are bound by `scripts/check_repository_pack_spec.py`. S20-390 owns
+and decoder are bound by `scripts/check_repository_pack_spec.py`. WP-390 owns
 receipts and the single fixed accepted head, and ADR-0021 forbids imported
-receipt bytes from becoming commit authority. S20-500 owns immutable
+receipt bytes from becoming commit authority. WP-500 owns immutable
 branch-origin records and mutable refs, and ADR-0022 says an origin record
 records exact ancestry facts inherited at creation that a replay cannot
-reproduce. S20-530 froze the exclusive-recovery matrix over those layers.
+reproduce. WP-530 froze the exclusive-recovery matrix over those layers.
 
-S20-540 must reconstruct a clone-equivalent repository in a clean location
+WP-540 must reconstruct a clone-equivalent repository in a clean location
 from one exchange artifact without weakening any of those boundaries. The
 Nabu design consult (session
 `forge-nabu-s20-540-design-20260903T013712-0fb98776`) recommended composition
@@ -30,9 +30,9 @@ unreachable receipt ceiling.
 
 1. **Composition.** Repository Exchange v1 (`docs/spec/REPOSITORY_EXCHANGE_V1.md`,
    contract tag 540, domain `sley2.repository-exchange.v1`,
-   `digest_domain_tag` 19) embeds one exact stored S20-170 pack and adds
+   `digest_domain_tag` 19) embeds one exact stored WP-170 pack and adds
    receipts, the accepted head, and visible branch pairs as new sections. The
-   S20-170 decoder, limits hash, and fixture are untouched. An exchange never
+   WP-170 decoder, limits hash, and fixture are untouched. An exchange never
    nests an exchange, and the embedded pack is a single SCB1 `Bytes` field,
    so it is capped at the frozen epoch-1 `Bytes` ceiling of `16,777,216`
    bytes, below the `67,108,864` outer ceiling, with one shared top-down
@@ -55,10 +55,10 @@ unreachable receipt ceiling.
    exclusive maintenance guard plus the exclusive accepted lock, a head that
    is absent or already exactly the exchange's head, parent-before-child
    installation with strict decoding and verification of every receipt
-   against the durable store and its durable parent, S20-390 durability
+   against the durable store and its durable parent, WP-390 durability
    orders, no candidate or policy authority. The dependency direction stays
-   `sley-repo -> sley-txn`. This is transaction-owner work inside the S20-540
-   slice, exactly as S20-500 added the verified revision lookup; the
+   `sley-repo -> sley-txn`. This is transaction-owner work inside the WP-540
+   slice, exactly as WP-500 added the verified revision lookup; the
    work-package row names it.
 4. **Byte-exact branch install.** `sley-repo` installs exported origin and ref
    records byte-exactly after full verification (fast-forward within the
@@ -73,7 +73,7 @@ unreachable receipt ceiling.
    defined over the exported set.
 6. **Interruption matrix.** Rows X-01 through X-07 freeze the retry behavior
    of an interrupted import; retrying identical bytes converges, retrying
-   different bytes fails closed. S20-530 rows are unchanged because an
+   different bytes fails closed. WP-530 rows are unchanged because an
    incomplete clone is never accepted state.
 7. **Limits.** `4,096` receipts and `4,096` branches are clone-profile
    limits consistent with the outer byte ceiling; deeper histories need a
@@ -105,11 +105,11 @@ unreachable receipt ceiling.
    and GC acquisition operate on a head-absent root, so a third party could
    adopt half-imported receipts and branches under a foreign genesis after a
    crash. Revision 4 makes the stage marker a write guard: those paths fail
-   closed with a new S20-390 code `TXN_INCOMPLETE_CLONE` (`39022`), added to
-   the frozen transaction error table by the S20-540 slice; read paths stay
+   closed with a new WP-390 code `TXN_INCOMPLETE_CLONE` (`39022`), added to
+   the frozen transaction error table by the WP-540 slice; read paths stay
    available and establish no acceptance. Revision 4 also re-classifies the
    target after ownership, adds symlink discipline, closed preflight work
-   ceilings mirroring the S20-530 recovery limits, one exact code for nested
+   ceilings mirroring the WP-530 recovery limits, one exact code for nested
    exchanges, the receipt ceiling as the fast-forward bound, the inner
    admissibility invariant, and a subset proof for incomplete clones. The
    Vulcan re-review of revision 4 (session
@@ -130,7 +130,7 @@ unreachable receipt ceiling.
 10. **Framing correction (revision 7).** Implementation proved that the
    revision-3 wording for branch order assumed a double length prefix on a
    `Bytes` record field. The frozen SCB1 encoder (`encode_record` over
-   `encode_sized`), its decoder, and the independent S20-170 Python oracle
+   `encode_sized`), its decoder, and the independent WP-170 Python oracle
    frame a `Bytes` field once (`uvar(tag) || len(bytes) || bytes`), so the
    canonical-set order of branch entries is plain length-then-bytes for
    every legal name length; the 254 and 255 byte anomaly does not exist.
@@ -142,8 +142,8 @@ unreachable receipt ceiling.
 
 ## Consequences
 
-- S20-540 can be frozen, implemented, and reviewed without amending S20-170,
-  S20-390, S20-500, or S20-530 contracts.
+- WP-540 can be frozen, implemented, and reviewed without amending WP-170,
+  WP-390, WP-500, or WP-530 contracts.
 - `sley-txn` acquires one bounded write path that shares nothing with
   candidate commit and cannot be reached from it.
 - A future streamed or compressed exchange profile is a new contract version
@@ -152,11 +152,11 @@ unreachable receipt ceiling.
 ## Rejected alternatives
 
 - Inline sections under one new decoder (would re-specify and re-fixture the
-  S20-170 sections, duplicating a frozen contract).
+  WP-170 sections, duplicating a frozen contract).
 - Replaying branch creation and advancement (cannot reproduce origin records;
   more invariants than byte-exact installation).
 - Importing into an existing repository or merging exchanged history (an
   authority claim over accepted state; belongs to later merge and fetch
   packages).
 - A single outer byte ceiling equal to the embedded pack's ceiling (a full
-  S20-170 pack could never be exchanged with any receipt).
+  WP-170 pack could never be exchanged with any receipt).

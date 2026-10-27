@@ -6,7 +6,7 @@ Revision 2 adds decision-only authoring: the AF1-X dialect and test tables
 (sections 5.1 and 5.2), drafts and delta repair (section 12), focused and
 AV1-X views (sections 4.1 and 4.2), the namespace opt-out, and authored
 locators. ADR-0051 records the boundary decisions and ADR-0053 the
-revision-2 decisions. Revision 3 registers the GHOSTWEAVE residual request
+revision-2 decisions. Revision 3 registers the residual-authoring request
 envelope, strict parser, read-only state binding, and deterministic fragment
 expansion APIs, with `residual try/plan/fill/show` using ordinary trials and
 an accepted/draft-graph integer-literal edit lens. Further sparse edit lenses,
@@ -177,7 +177,7 @@ identity derived from a genesis nonce (random, or `--seed`), the principal
 of that identity, and a policy that grants it the workbench ceilings
 (section 7). It then exports `base.pack`.
 
-### 2.1 GHOSTWEAVE residual request parser
+### 2.1 Residual request parser
 
 The Rust workbench API `sley_agent::residual::parse_request` accepts a UTF-8
 JSON object with exactly these required members: `residual` (integer `1`),
@@ -198,10 +198,10 @@ The parser rejects duplicate object members at every depth, unknown envelope
 and fragment members, floating-point values, invalid UTF-8, and requests over
 1 MiB, 32 container levels, or 100,000 JSON values. It does not bind a plan,
 expand a fragment, write workspace state, create a candidate, or add a CLI
-command. Those paths remain subject to the GHOSTWEAVE feature specification
+command. Those paths remain subject to the residual-authoring feature specification
 and must reuse the existing AF1-X, draft, and kernel flows.
 
-### 2.2 GHOSTWEAVE state binding API
+### 2.2 Residual state binding API
 
 `residual::binding::Binding::capture` snapshots an already initialized
 workspace without seeding it or creating local directories. It binds the
@@ -237,7 +237,7 @@ is the captured head. Existing draft revision and kernel mutation checks
 remain authoritative. Both explicit-decision and closed-relation plans persist
 this binding, including the complete original relation and its constraints.
 
-### 2.3 GHOSTWEAVE fragment expansion API
+### 2.3 Residual fragment expansion API
 
 `residual::fragments::expand` deterministically lowers a derive request to
 ordinary AF1-X. It returns the entire frame and a JSON-pointer provenance

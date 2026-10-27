@@ -1,6 +1,6 @@
 # ADR-0015: Protected policy roots are separate canonical authority data
 
-Status: accepted for S20-370
+Status: accepted for WP-370
 
 ## Decision
 
@@ -31,5 +31,5 @@ same policy data to every identity.
   exact root, while full candidate validation remains later;
 - all policy transitions remain unapproved until a separate authenticated
   higher-authority contract exists;
-- S20-380 owns tokens, authenticators, replay, live scope, expiry, and budgets;
+- WP-380 owns tokens, authenticators, replay, live scope, expiry, and budgets;
 - final production-epoch assembly remains a release blocker.

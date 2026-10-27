@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed frozen-artifact adapter and retained version smoke for S20-600.
+"""Fail-closed frozen-artifact adapter and retained version smoke for WP-600.
 
 This module has one executable command surface: the exact ``bin/sley
 --version`` smoke from a privately copied, fully verified, mode-hardened staging
@@ -48,7 +48,7 @@ O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
 
 class LegacyErrorCode(IntEnum):
-    """Stable S20-600 artifact-adapter failure codes."""
+    """Stable WP-600 artifact-adapter failure codes."""
 
     ARTIFACT_MISSING = 60_000
     ARTIFACT_IDENTITY_MISMATCH = 60_001
@@ -1091,7 +1091,7 @@ def run_version_smoke(
     timeout_seconds: float = 90.0,
     output_limit_bytes: int = 64 * 1024,
 ) -> dict[str, Any]:
-    """Run and retain the only allowed S20-600 executable smoke."""
+    """Run and retain the only allowed WP-600 executable smoke."""
 
     attempt_started = _utc_second()
     try:

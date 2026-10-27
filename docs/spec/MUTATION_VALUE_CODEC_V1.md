@@ -1,6 +1,6 @@
 # Mutation Value Codec v1
 
-Status: S20-350 complete as a proposal-only construction boundary; semantic
+Status: WP-350 complete as a proposal-only construction boundary; semantic
 validation, authority, apply, and commit remain later packages.
 
 ## Exact schema source
@@ -25,7 +25,7 @@ runtime model.
 
 An entity body is encoded as the exact manifest `EntityBody` union variant
 whose tag equals `target_kind`. A field value is encoded directly as the exact
-manifest type expression selected by the immutable S20-340 descriptor. It has
+manifest type expression selected by the immutable WP-340 descriptor. It has
 no self-declared type tag beyond tags already required by that manifest type.
 
 Generated host types must be equivalent to a closed per-field sum such as
@@ -33,30 +33,30 @@ Generated host types must be equivalent to a closed per-field sum such as
 Required/optional presence belongs to the owning entity record; an optional
 field replacement encodes the manifest `Option<T>` value, not field absence.
 
-The landed S20-350a slice generates the eighteen body structs,
+The landed WP-350a slice generates the eighteen body structs,
 `EntityBodyValue`, and a seventy-five-variant `FieldValue` directly from the
 digest-pinned manifest. It includes a canonical unique raw-ID-ordered
 `EntityIdSet`; it deliberately exposes no encoder, decoder, runtime type-name
-selector, precondition, or candidate builder. S20-350b adds a generated closed
+selector, precondition, or candidate builder. WP-350b adds a generated closed
 discriminant for every body and field plus one exact type-selection-only binding
-for each of S20-340's 179 immutable descriptors. Admission compares only those
+for each of WP-340's 179 immutable descriptors. Admission compares only those
 closed discriminants; it does not encode or validate value contents. Binary
 codecs and later candidate surfaces remain separate gates rather than implied
 behavior of the host representation.
 
-S20-350c exposes the already-frozen strict SCB primitive decoder through a
+WP-350c exposes the already-frozen strict SCB primitive decoder through a
 schema-neutral bounded cursor. It adds no SSMC, descriptor, mutation, or
 candidate selection. Recursive mutation value codecs remain private future
 work until every manifest type family closes.
 
-S20-350d adds a crate-private staged mutation codec for primitive leaves,
+WP-350d adds a crate-private staged mutation codec for primitive leaves,
 identities, direct body enums, lists, options, and canonical entity-ID sets.
 Decode owns a cumulative allocation budget, distinguishes the structural depth
 boundary from the allowed leaf boundary, rejects inner trailing bytes, and
 rejects unordered or duplicate set encodings. The module is intentionally not
 publicly descriptor-selectable while recursive manifest families remain open.
 
-S20-350e closes the complete twenty-variant `TypeExpr` union and its
+WP-350e closes the complete twenty-variant `TypeExpr` union and its
 `IntegerWidth`, `NamedType`, ordered-map, result, `FunctionType`, and
 `BuiltinFailureKind` dependencies inside that private module. It preserves raw
 integer widths without semantic normalization, enforces exact `UInt16` failure
@@ -102,24 +102,24 @@ identity is
 
 Value admission refuses closed with the symbols below. They are
 symbol-only at this revision (numeric `0`, per the SMP1 section 8
-symbol-only convention for S20-350 candidate failures); code spelling,
-precedence, and S20-340/S20-350 semantics are unchanged by this table.
+symbol-only convention for WP-350 candidate failures); code spelling,
+precedence, and WP-340/WP-350 semantics are unchanged by this table.
 The owner freezes numerics by amendment.
 
 | Numeric | Symbolic | Meaning |
 |---:|---|---|
-| 0 | `MUTATION_VALUE_DESCRIPTOR_UNKNOWN` | no immutable S20-340 descriptor has the supplied exact key |
+| 0 | `MUTATION_VALUE_DESCRIPTOR_UNKNOWN` | no immutable WP-340 descriptor has the supplied exact key |
 | 0 | `MUTATION_VALUE_KIND_MISMATCH` | proposal value has a different closed body or field kind than the descriptor binding |
 | 0 | `MUTATION_VALUE_SET_DUPLICATE` | `EntityIdSet` input contained one identity more than once |
 
 ## Completeness gate
 
 Generation emits a manifest-derived inventory proving 18 entity bodies, 75
-fields, and one exact codec binding for each of S20-340's 179 descriptors.
+fields, and one exact codec binding for each of WP-340's 179 descriptors.
 Drift checking regenerates committed artifacts byte-for-byte. The independent
 Python oracle, Rust corpus consumer, exact rejection matrix, production
 record/envelope libFuzzer target, and focused semantic/security review satisfy
-the S20-350 completeness gate. S20-360 may consume this proposal boundary but
+the WP-350 completeness gate. WP-360 may consume this proposal boundary but
 must not treat construction or hashing as semantic validity or authority.
 
 These codecs represent proposal values only. They perform no graph, type,

@@ -1,15 +1,15 @@
 # ADR-0044: candidate operation analysis runs through the VM judgment owner
 
-Status: accepted; implemented 2026-09-03 under the S20-260/S20-270 extended
+Status: accepted; implemented 2026-09-03 under the WP-260/WP-270 extended
 opcode profile draft with Council review pending; decision 4 corrected
-2026-09-05 after the S20-360 full review rounds; no commit,
+2026-09-05 after the WP-360 full review rounds; no commit,
 execution, or runtime authority is added
 
 Date: 2026-09-03
 
 ## Context
 
-S20-360 candidate validation could produce `VALID` only for programs whose
+WP-360 candidate validation could produce `VALID` only for programs whose
 projected SSMC1 graph contained no semantic `Operation` entity: anything else
 failed phase 12 with `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`. That limit
 existed because no owner judged opcode signatures; the restricted VM profile
@@ -30,7 +30,7 @@ needs nor may derive.
    another owner. `lower_function` is untouched, so the frozen restricted path
    and its vectors are unchanged.
 2. **Judged where the graph is known good.** The validator calls it in phase 7,
-   after the S20-220 report for the same unit, so a malformed graph is still a
+   after the WP-220 report for the same unit, so a malformed graph is still a
    graph failure and never surfaces as an opcode failure.
 3. **Codes are preserved, decisions are the phase's.** A signature or immediate
    mismatch becomes phase 7 `CONTROL_FLOW_ERROR` with the exact `VM_LOWER_*`
@@ -44,7 +44,7 @@ needs nor may derive.
    162 at phase 8 — so the phase 12 guard is the live refusal path for
    well-formed E7 programs, not defense in depth. Opcode 144 is owned since
    profile slice E7a; it stays excluded because its static typing belongs to
-   the S20-240 checker.
+   the WP-240 checker.
 5. **Work is accounted.** The judgment work joins the phase 7 evidence and the
    operation count joins the phase 12 graph-work total, so an operation-heavy
    candidate meets the same ceilings as any other work.
@@ -52,7 +52,7 @@ needs nor may derive.
 ## Consequences
 
 - Candidate validation now accepts real executable programs, which is the
-  precondition for S20-390 full commit of such candidates.
+  precondition for WP-390 full commit of such candidates.
 - The valid fixture's result identity changed, because phase 7 evidence gained
   two values; the recorded identity was updated in the same commit.
 - `sley-policy` now depends on `sley-vm` (acyclic: the VM depends on check,

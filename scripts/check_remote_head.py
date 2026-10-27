@@ -40,8 +40,13 @@ REQUIRED = (
     "last_updated_utc",
 )
 ENV_OVERRIDES = {
-    "canonical_spec": "SLEY2_MASTER_GOAL",
-    "reweave_master": "SLEY2_REWEAVE_MASTER",
+    "canonical_spec": "SLEY2_DESIGN_SPEC",
+    "reweave_master": "SLEY2_SELF_HOSTING_PLAN",
+}
+# Previous variable names, still read for one release so existing setups keep working.
+LEGACY_ENV = {
+    "SLEY2_DESIGN_SPEC": "SLEY2_MASTER_GOAL",
+    "SLEY2_SELF_HOSTING_PLAN": "SLEY2_REWEAVE_MASTER",
 }
 
 
@@ -90,7 +95,8 @@ def verify(locator: dict, summary: dict, repo: Path) -> tuple[list[str], dict]:
 
     for name, env in ENV_OVERRIDES.items():
         entry = locator[name]
-        path = Path(os.environ[env]) if os.environ.get(env) else Path(entry["path"])
+        override = os.environ.get(env) or os.environ.get(LEGACY_ENV[env])
+        path = Path(override) if override else Path(entry["path"])
         if path.is_file():
             actual = sha256(path)
             facts[f"{name}_state"] = "VERIFIED" if actual == entry["sha256"] else f"DRIFT:{actual[:12]}"

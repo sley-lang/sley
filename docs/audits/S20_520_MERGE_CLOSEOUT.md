@@ -1,4 +1,4 @@
-# S20-520 Merge Closeout
+# WP-520 Merge Closeout
 
 Status: **implemented under the draft Merge v1 contract (revision 5); all
 three Council reviews received (2026-09-04, all FAIL) and every P0 and P1
@@ -14,14 +14,14 @@ Validation tier: **Tier 1 plus repository-focused Tier 2 handoff**
 ## Claim under review
 
 Two complete roots compose against their verified exact common ancestor
-through the frozen S20-510 deltas: judgment rules J1 through J8 (J2 total,
+through the frozen WP-510 deltas: judgment rules J1 through J8 (J2 total,
 with convergent removal), set-valued field composition, and the
 non-ownership collateral rule over surviving identities decide
 disjointness or deterministic composition; composed objects carry
 ours-side metadata with divergence reported; the merged root is re-judged
-by the S20-250 full closure; the merge plan is an S20-350 candidate with
+by the WP-250 full closure; the merge plan is a WP-350 candidate with
 derived creation identities emitted in derivation order, committed through
-the frozen S20-390 path on ours with the branch pre-check and the S20-500
+the frozen WP-390 path on ours with the branch pre-check and the WP-500
 direct-parent advance; and every unproven composition yields one canonical
 conflict object with pinned identity-free entries. The contract is
 `docs/spec/MERGE_V1.md` with ADR-0028.
@@ -31,12 +31,12 @@ The implementation provides:
 - `sley-id`: the thirty-second domain `sley2.merge-conflict.v1` and
   `MergeConflictId` with its frozen vector;
 - `sley-repo`: `merge.rs` with `find_common_ancestor` over two head-first
-  S20-500 ancestries (bounded, work-charged), `transaction_ancestry`
+  WP-500 ancestries (bounded, work-charged), `transaction_ancestry`
   walking repository chains, `verify_merge_ancestor` proving the ancestor
   precondition, `judge_merge_verified` as the production entry point (bare
   `judge_merge` stays for synthetic inputs), `MergeSide` (from a verified
   revision or synthetic objects), field composition over the generated
-  proposal bodies, `build_merge_plan` with the S20-345 identity remap in
+  proposal bodies, `build_merge_plan` with the WP-345 identity remap in
   derivation-is-operation order, fail-closed reference rewriting, and the
   single-candidate entry-point bound, `commit_merge` with the branch
   pre-check, the empty-plan pairing check, and numeric-preserving
@@ -48,15 +48,15 @@ The implementation provides:
 - `sley-protocol`: both merge handlers verify the ancestor over
   server-walked ancestries before any composition.
 
-The S20-390 commit, the S20-360 validator, the S20-500 refs, and the
-S20-510 delta are consumed exactly as frozen; the merge writes no root,
+The WP-390 commit, the WP-360 validator, the WP-500 refs, and the
+WP-510 delta are consumed exactly as frozen; the merge writes no root,
 object, receipt, or ref itself.
 
 ## Evidence
 
 - Contract draft revision 1 at `ded0943`; revision 2 narrowed the
   collateral rule to non-ownership relations; revision 3 added the
-  created-identity remap the frozen S20-345 identity rule requires;
+  created-identity remap the frozen WP-345 identity rule requires;
   revision 4 closes every P0 and P1 from the three Council reviews (see
   below). Implementation, corpus, oracle, and fuzz slices in the revision
   4 commit. Revision 5 (2026-09-14) adds the kind-divergent `AddAdd`
@@ -93,7 +93,7 @@ object, receipt, or ref itself.
   `fuzz/targets/merge_judgment.rs` (mutation scripts over a fixed valid
   base root asserting deterministic well-formed outcomes or frozen-coded
   failures), both smoke `PASS`
-  (`docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`); the S20-700 finding
+  (`docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`); the WP-700 finding
   register and independent review remain deferred.
 - Tier 1: `make quick` green at every commit.
 - Tier 2: see the validation record below.
@@ -105,8 +105,8 @@ Seven P0s (Ariadne 3, Nabu 3, Vulcan 1):
 - **Kind-16 plan rule (Ariadne P0-1, Nabu P0-1/P0-4).** The draft's
   `AddEntryPoint`-creates-an-entity row was unexecutable, but the
   reviewers' suggested shape (derive, `CreateEntity`, then `AddEntryPoint`)
-  is also inexpressible: the frozen S20-350 descriptor binds
-  `AddEntryPoint` to `ExactEntityVersion`, and frozen S20-360 phase 3
+  is also inexpressible: the frozen WP-350 descriptor binds
+  `AddEntryPoint` to `ExactEntityVersion`, and frozen WP-360 phase 3
   checks every such precondition against the base state, so no single
   candidate binds what it creates (proven by a failing commit test during
   revision 4). The plan reports `MERGE_PLAN_UNSUPPORTED` with a documented
@@ -152,7 +152,7 @@ excluded from collateral; `A`'s label with report).
   in every constructed case. The contract carves it out of the corpus bar
   explicitly; its coverage is the strict-decoder rejection matrix and the
   pinned nonzero-detail rule.
-- Restricted S20-360 bounds committable merges to executable-program-
+- Restricted WP-360 bounds committable merges to executable-program-
   operation-free roots; the judgment and plan are exact regardless.
 - The merge judgment fuzz lane scripts stay within nine valid entities;
   resource-ceiling inputs are covered by native bound tests, not by fuzz.

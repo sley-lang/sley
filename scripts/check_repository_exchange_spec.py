@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-540 repository-exchange contract surface and its stage.
+"""Check the WP-540 repository-exchange contract surface and its stage.
 
 While the contract is a draft (no implementation), the check binds the frozen
 identity of the contract text, the ADR, the work-package row, and the

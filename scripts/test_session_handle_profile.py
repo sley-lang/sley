@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discriminating static tests for the S20-330 session checker.
+"""Discriminating static tests for the WP-330 session checker.
 
 Each mutation case serves one input from memory while every other file
 remains the real pinned input, runs the real checker entrypoint, captures

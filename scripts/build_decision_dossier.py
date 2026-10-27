@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""S20-750 decision dossier: every master-goal section 30 item and the state.
+"""WP-750 decision dossier: every master-goal section 30 item and the state.
 
 Derives `evidence/release/decision-dossier.json` from the machine summary and
-the tracked S20-710 full, S20-720, S20-730, and S20-740 reports. It reports;
+the tracked WP-710 full, WP-720, WP-730, and WP-740 reports. It reports;
 it never decides, approves, publishes, or opens a product gate.
 """
 
@@ -37,7 +37,7 @@ DECISION_AUTHORITY = "OPERATOR_DECISION_NOT_DELEGATED"
 
 
 class DossierErrorCode(IntEnum):
-    """S20-750 dossier failures (contract section 5)."""
+    """WP-750 dossier failures (contract section 5)."""
 
     SOURCE_MISSING = 76000
     SOURCE_INVALID = 76001
@@ -46,7 +46,7 @@ class DossierErrorCode(IntEnum):
 
 
 class DossierError(Exception):
-    """One exact S20-750 failure."""
+    """One exact WP-750 failure."""
 
     def __init__(self, code: DossierErrorCode, detail: str) -> None:
         super().__init__(f"{code.name}: {detail}")
@@ -623,7 +623,7 @@ def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]
     entries' backs: a missing decision-input entry fails closed, and a gated
     entry contributes its gated fact. Four inputs have no section 30 item that
     carries them (the release-check and v2 gate states, the succession
-    thresholds derived from the tracked S20-630 accounting report, the GA
+    thresholds derived from the tracked WP-630 accounting report, the GA
     acceptance states, and the approved conditional items), so those four
     rules read the tracked sources the contract names; everything else comes
     from the entries.
@@ -733,7 +733,7 @@ def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]
     if gate_failed:
         return "FAIL", [f"a required gate failed: {name}" for name in sorted(gate_failed)]
     # The one section 22 threshold verdict, derived by the GA builder from
-    # the tracked S20-630 accounting report; no summary hand key is read, and
+    # the tracked WP-630 accounting report; no summary hand key is read, and
     # an absent verdict is a non-passing one.
     thresholds = sources.get("thresholds")
     if thresholds is not None and not isinstance(thresholds, dict):

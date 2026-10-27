@@ -1,10 +1,10 @@
 # ADR-0017: Offline raw baseline evidence runner
 
-Status: accepted for S20-610
+Status: accepted for WP-610
 
 ## Decision
 
-Implement S20-610 as an offline-only manifest and append-only digest-claim contract.
+Implement WP-610 as an offline-only manifest and append-only digest-claim contract.
 The runner validates all frozen controls and records explicitly unverified injected observations, but
 ships no external command, provider, model, oracle, workspace-copy, network, or
 Sley 1.x adapter.
@@ -16,7 +16,7 @@ once in the manifest and a comparator rejects drift.
 
 ## Consequences
 
-- S20-610 mechanics can be tested without contaminating the benchmark.
+- WP-610 mechanics can be tested without contaminating the benchmark.
 - Local chains authenticate claim continuity only; they do not verify artifact
   bytes, oracle/accounting provenance, or resist whole-directory rollback
   without a later external head anchor.

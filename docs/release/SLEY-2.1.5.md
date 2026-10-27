@@ -167,7 +167,7 @@ refuses with `TXN_TEST_EVIDENCE_UNSUPPORTED`.
 Carried forward from the operator decision of 2026-10-19 (Magister) for Sley 2.1.2. The operator
 has not re-confirmed it for 2.1.3, 2.1.4 or 2.1.5. For Sley 2.1.5,
 `scripts/check_candidate_result_contract.py` and `scripts/check_transaction_contract.py` are not
-run because the Sley 2.0 master goal (`SLEY2_MASTER_GOAL`) is unavailable off the maintainer
+run because the Sley 2.0 design specification is unavailable off the maintainer
 host. This waives the two checks for this release only and is not a pass; both passed at v2.1.1
 on the maintainer host. The waiver is also recorded in the machine summary's `release_decision`.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the offline-only S20-610 raw baseline runner contract."""
+"""Check the offline-only WP-610 raw baseline runner contract."""
 
 from __future__ import annotations
 

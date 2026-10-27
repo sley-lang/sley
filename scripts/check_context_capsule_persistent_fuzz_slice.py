@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the scoped S20-320 full context capsule builder persistent fuzz slice."""
+"""Drift check for the scoped WP-320 full context capsule builder persistent fuzz slice."""
 
 from __future__ import annotations
 

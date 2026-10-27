@@ -1,6 +1,6 @@
 # ADR-0018: Frozen legacy artifact adapter
 
-Status: accepted for the scoped S20-600 artifact/version-smoke slice
+Status: accepted for the scoped WP-600 artifact/version-smoke slice
 
 ## Decision
 
@@ -18,7 +18,7 @@ checkout and does not import legacy source or semantics into the Sley 2 kernel.
 
 ## Consequences
 
-- S20-600 now has verified artifact, staging, failure-retention, and runner
+- WP-600 now has verified artifact, staging, failure-retention, and runner
   smoke mechanics.
 - On the origin host as of 2026-09-11, two 10-second timeouts, one
   30-second timeout, and a successful longer smoke are retained as runtime
@@ -37,5 +37,5 @@ checkout and does not import legacy source or semantics into the Sley 2 kernel.
 - The explicit `legacy-runner-smoke` target reruns the real command when that
   release-boundary evidence is needed.
 - No benchmark trial, oracle result, fairness result, or succession metric is
-  established. Full S20-600 remains pending the trial-specific surfaces named
+  established. Full WP-600 remains pending the trial-specific surfaces named
   in the normative spec.

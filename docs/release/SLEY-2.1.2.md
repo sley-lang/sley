@@ -79,8 +79,8 @@ advisories for either lockfile (RustSec database of 2026-10-17). `ga_claimed` re
 ## Waived checks
 
 Operator decision 2026-10-19 (Magister): for Sley 2.1.2, `scripts/check_candidate_result_contract.py`
-and `scripts/check_transaction_contract.py` are not run because the Sley 2.0 master goal
-(`SLEY2_MASTER_GOAL`) is unavailable off the maintainer host. This waives the two checks for this
+and `scripts/check_transaction_contract.py` are not run because the Sley 2.0 design specification
+is unavailable off the maintainer host. This waives the two checks for this
 release only and is not a pass; both passed at v2.1.1 on the maintainer host. The waiver is also
 recorded in the machine summary's `release_decision`.
 
@@ -103,5 +103,5 @@ The archive SHA-256 is `7e1e7d5e1ca12b6c82368ce9755db0005ce9f500126fefcdd2f525c6
 The persistent-fuzz proofs for this release were run at the built commit with nightly-2026-02-27
 and Debian clang 18.1.8 through the fuzz runners' documented toolchain override. Earlier releases
 used the canonical Arch toolchain layout on the maintainer host. The regenerated GA acceptance
-report records the CLI contract package (S20-430) back at contract-draft status since #23, so 22
+report records the CLI contract package (WP-430) back at contract-draft status since #23, so 22
 criteria are not evidenced (21 at 2.1.1) and 30 review obligations are open (27).

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate a persistent-fuzz slice's durable proof record against HEAD.
 
-Every `s20_700_*` slice (and the S20-350 mutation-candidate slice) records
+Every `s20_700_*` slice (and the WP-350 mutation-candidate slice) records
 `last_local_proof` in the machine summary. Until db53894e only the VM
 checker validated it (Vulcan V-01 at 178873d7 / db53894e); the other
 checkers pinned markers and accepted any proof, so a proof bound to a

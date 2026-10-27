@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-310 modeled-snapshot query profile."""
+"""Check the restricted WP-310 modeled-snapshot query profile."""
 
 from __future__ import annotations
 

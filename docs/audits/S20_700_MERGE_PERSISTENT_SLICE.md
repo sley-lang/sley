@@ -1,13 +1,13 @@
-# S20-700 Merge Persistent Slice
+# WP-700 Merge Persistent Slice
 
-Status: scoped persistent landed-surface slice for S20-520, the eleventh Section 18.5 surface (merge engine); **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for WP-520, the eleventh Section 18.5 surface (merge engine); **full WP-700 remains incomplete**
 
-This slice hardens the S20-520 merge engine's decoding and ancestor
+This slice hardens the WP-520 merge engine's decoding and ancestor
 surfaces (`crates/sley-repo/src/merge.rs`, `docs/spec/MERGE_V1.md`): the
 canonical conflict decoder and the exact common-ancestor rule. The merge
 judgment itself runs over three complete roots whose objects the frozen
-S20-390 loader verifies; its adversarial coverage comes from the frozen
-S20-250 complete-root judgment target, the S20-510 delta decoder target,
+WP-390 loader verifies; its adversarial coverage comes from the frozen
+WP-250 complete-root judgment target, the WP-510 delta decoder target,
 and the deterministic merge corpus, not from a synthetic-root harness.
 
 The libFuzzer target has three deterministic input lanes:

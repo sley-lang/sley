@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen S20-150 object-store contract and implementation surface."""
+"""Check the frozen WP-150 object-store contract and implementation surface."""
 
 from __future__ import annotations
 

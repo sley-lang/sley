@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-710 full: CycloneDX 1.6 and SPDX 2.3 documents from the T52 inventory.
+"""WP-710 full: CycloneDX 1.6 and SPDX 2.3 documents from the T52 inventory.
 
 Derives `evidence/release/sbom/cyclonedx-1.6.json` and
 `evidence/release/sbom/spdx-2.3.json` from the locked, offline dependency
@@ -46,7 +46,7 @@ LICENSE_OPERATORS = ("AND", "OR", "WITH")
 
 
 class SbomErrorCode(IntEnum):
-    """S20-710 full SBOM failures (contract section 6)."""
+    """WP-710 full SBOM failures (contract section 6)."""
 
     INVENTORY_MISSING = 74000
     INVENTORY_INVALID = 74001
@@ -55,7 +55,7 @@ class SbomErrorCode(IntEnum):
 
 
 class SbomError(Exception):
-    """One exact S20-710 full failure."""
+    """One exact WP-710 full failure."""
 
     def __init__(self, code: SbomErrorCode, detail: str) -> None:
         super().__init__(f"{code.name}: {detail}")
@@ -98,7 +98,7 @@ def load_inventory() -> dict:
 
 
 def load_candidate() -> dict:
-    """The S20-720 candidate facts the SBOM root component needs."""
+    """The WP-720 candidate facts the SBOM root component needs."""
     if not CANDIDATE.exists():
         raise SbomError(
             SbomErrorCode.INVENTORY_MISSING,
@@ -534,7 +534,7 @@ def tracked_candidate_facts() -> tuple[str, str] | None:
 
 
 def recorded_summary_facts(bom: dict, provenance: dict) -> dict:
-    """Summary mirrors of the emitted S20-710 documents, with required shape."""
+    """Summary mirrors of the emitted WP-710 documents, with required shape."""
     properties = {item["name"]: item["value"] for item in bom["metadata"]["properties"]}
     blocked = properties["sley2:license-disposition-blocked"]
     blockers = provenance["attestation"]["blockers"]

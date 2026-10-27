@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression controls for the S20-250 checker's lock-closure walk.
+"""Regression controls for the WP-250 checker's lock-closure walk.
 
 The transitive direction check once passed vacuously when the root package
 was absent from Cargo.lock (Ariadne P4 note N2 at 0bcc9c6): an empty closure

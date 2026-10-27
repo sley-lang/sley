@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-250 full complete-entity-impact fixture."""
+"""Refresh the deterministic WP-250 full complete-entity-impact fixture."""
 
 from __future__ import annotations
 

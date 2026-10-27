@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-260 VM lowering profile for drift."""
+"""Check the restricted WP-260 VM lowering profile for drift."""
 
 from __future__ import annotations
 

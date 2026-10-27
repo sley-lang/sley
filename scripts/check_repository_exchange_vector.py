@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-540 exchange ID, leaves, and digest tree."""
+"""Independently reproduce the WP-540 exchange ID, leaves, and digest tree."""
 
 from __future__ import annotations
 

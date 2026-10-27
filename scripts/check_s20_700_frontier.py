@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the honest S20-700 persistent-fuzz frontier and blockers."""
+"""Check the honest WP-700 persistent-fuzz frontier and blockers."""
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-420 SMP1 JSON bridge round-trip fixture."""
+"""Refresh the deterministic WP-420 SMP1 JSON bridge round-trip fixture."""
 
 from __future__ import annotations
 

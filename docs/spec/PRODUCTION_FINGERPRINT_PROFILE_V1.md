@@ -47,12 +47,12 @@ full-v1. The single additional rule: under the production-v1 identity, every
 `TypeDef` and `Function` entity in the proposed closure must carry a present
 semantic-fingerprint claim that recomputes exactly.
 
-- Phase 6 recomputes each proposed `TypeDef` claim after its owning S20-210
+- Phase 6 recomputes each proposed `TypeDef` claim after its owning WP-210
   checker passes. An absent claim fails the phase with terminal decision
   `TypeError` and source symbol `FINGERPRINT_CLAIM_MISSING` (numeric 25003,
   permanent). A present but inexact claim keeps the existing
   `FINGERPRINT_MISMATCH` path unchanged.
-- Phase 8 recomputes each proposed `Function` claim after the S20-230 effect
+- Phase 8 recomputes each proposed `Function` claim after the WP-230 effect
   report. An absent claim fails the phase with terminal decision
   `EffectError` and source symbol `FINGERPRINT_CLAIM_MISSING` (numeric 25003,
   permanent). A present but inexact claim keeps the existing
@@ -69,7 +69,7 @@ semantic-fingerprint claim that recomputes exactly.
   identity the candidate requested; result import accepts exactly the two
   pinned identities and refuses any other value with `ProfileInvalid`.
 - A profile ID is not evidence that its phases ran; the candidate result
-  must carry exact phase evidence under S20-360, exactly as under full-v1.
+  must carry exact phase evidence under WP-360, exactly as under full-v1.
 - Transaction binding checks compare the transaction's profile field against
   the candidate and result records for equality; they are profile-agnostic
   and unchanged.

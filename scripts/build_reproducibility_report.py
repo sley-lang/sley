@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""S20-730 reproducibility report: host attestations of the S20-720 candidate.
+"""WP-730 reproducibility report: host attestations of the WP-720 candidate.
 
-Derives this host's attestation from the S20-720 evidence record, merges it
+Derives this host's attestation from the WP-720 evidence record, merges it
 with attestations from other hosts, carries previously merged attestations
 no fresh input supersedes, and writes
 `evidence/release/reproducibility-report.json`. Nothing here builds, claims
@@ -49,7 +49,7 @@ BLOCKERS = [
 
 
 class ReproErrorCode(IntEnum):
-    """S20-730 reproducibility failures (contract section 7)."""
+    """WP-730 reproducibility failures (contract section 7)."""
 
     EVIDENCE_MISSING = 73000
     EVIDENCE_INVALID = 73001
@@ -58,7 +58,7 @@ class ReproErrorCode(IntEnum):
 
 
 class ReproError(Exception):
-    """One exact S20-730 failure."""
+    """One exact WP-730 failure."""
 
     def __init__(self, code: ReproErrorCode, detail: str) -> None:
         super().__init__(f"{code.name}: {detail}")
@@ -80,7 +80,7 @@ def digest_of(value: object) -> str:
 
 
 def local_attestation(host_label: str, evidence_path: Path = EVIDENCE) -> dict:
-    """Derives this host's attestation from the S20-720 evidence record."""
+    """Derives this host's attestation from the WP-720 evidence record."""
     if not evidence_path.exists():
         raise ReproError(
             ReproErrorCode.EVIDENCE_MISSING,
@@ -349,7 +349,7 @@ def verify_report(report: object, *, previous_release_ok: bool = False) -> list[
     """Hermetic integrity problems of a tracked report: digest plus shapes.
 
     Reads only the report itself, so it runs on a clean checkout with no
-    local S20-720 evidence: a hand-edited file fails the digest, and a
+    local WP-720 evidence: a hand-edited file fails the digest, and a
     malformed attestation fails the section 1 shape. Freshness against the
     filing tree is the checker's job, not this function's.
     """

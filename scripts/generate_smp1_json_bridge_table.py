@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the S20-420 JSON bridge method tables from the frozen SMP1 method tables.
+"""Generate the WP-420 JSON bridge method tables from the frozen SMP1 method tables.
 
 Versions 1 and 2 come from `docs/spec/SMP1.md` alone; version 3 unions those
 frozen tables with the bounded additions in the native draft contract
@@ -52,7 +52,7 @@ EXPECTED_V1_TAGS = (
 EXPECTED_V2_ADDITIONS = ((306, "entity.version"), (307, "entity.signature"))
 V2_OWNER = "S20-310"
 # The version 3 additions are exactly the five native rows owned by the
-# S20-620 test-selection seam: the two selection reads live since N7c
+# WP-620 test-selection seam: the two selection reads live since N7c
 # revision 3, report paging live since N7d-1 revision 4, and the
 # replay/status rows live since N7d-2 revision 5.
 EXPECTED_V3_ADDITIONS = (

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate S20-040 without external packages or executing benchmark arms."""
+"""Validate WP-040 without external packages or executing benchmark arms."""
 
 from __future__ import annotations
 

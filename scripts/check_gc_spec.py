@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen S20-180 GC/retention contract surface."""
+"""Check the frozen WP-180 GC/retention contract surface."""
 
 from __future__ import annotations
 

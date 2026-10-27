@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Aggregate REWEAVE R2 exit decision (RW-075 repair of AR-06).
+"""Aggregate the self-hosting plan R2 exit decision (TP-075 repair of AR-06).
 
 The staged bootstrap-capability checker (`scripts/check_bootstrap_capability.py`)
 remains the capability/profile audit result (READY is a profile audit, not
 the R2 exit). This script is the separate aggregate R2 exit decision: it
-consumes actual package evidence for P / RW-060 / RW-070+RW-075 successor /
-independent review state, and nothing else. S/C0/C1/C2/C3 and RW-080+ are
+consumes actual package evidence for P / TP-060 / TP-070+TP-075 successor /
+independent review state, and nothing else. S/C0/C1/C2/C3 and TP-080+ are
 later R3 evidence and MUST NOT block R2 (they are explicitly skipped).
 
 The aggregate R2 gate FAILS when any of these hold:
-- RW-060 evidence is missing or mismatched;
+- TP-060 evidence is missing or mismatched;
 - the current ABI successor is not frozen/accepted;
 - the execution closure is incomplete;
 - a current architecture BLOCKER exists;
 - required review does not pass.
 
-The historical BOOTSTRAP_READY TRUE record (RW-070) is preserved but marked
+The historical BOOTSTRAP_READY TRUE record (TP-070) is preserved but marked
 superseded/invalidated for R3 advancement by R2_ARCHITECTURE_FAIL. This
 script never relabels the capability checker as the exit gate.
 """
@@ -57,7 +57,7 @@ FROZEN = {
     "raw_hash": "785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72",
 }
 
-# Successor (RW-075 correction, current R2 candidate). V1 above stays as
+# Successor (TP-075 correction, current R2 candidate). V1 above stays as
 # preserved history; READY requires the successor below.
 FROZEN_V2 = {
     "profile": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
@@ -100,7 +100,7 @@ except FileNotFoundError:
     boundary_ok = False
 check("P_host_boundary", boundary_ok, FROZEN["boundary"][:12])
 
-# RW-060 lifecycle execution, bound to the source reviewed for this R2 exit.
+# TP-060 lifecycle execution, bound to the source reviewed for this R2 exit.
 try:
     summary = json.loads(SUMMARY.read_bytes().decode("utf-8"))
 except (FileNotFoundError, json.JSONDecodeError):
@@ -127,7 +127,7 @@ check("RW060_lifecycle", lifecycle["pass"], json.dumps(lifecycle, sort_keys=True
 successor = run_successor(ROOT, current_source)
 check("RW075_current_execution", successor["pass"], json.dumps(successor, sort_keys=True))
 
-# RW-070 + RW-075 successor closure (v1 preserved, v2 current).
+# TP-070 + TP-075 successor closure (v1 preserved, v2 current).
 try:
     abi_ok = sha(HOST_ABI_JSON) == FROZEN["host_abi"]
 except FileNotFoundError:

@@ -1,4 +1,4 @@
-"""Offline tests of the S20-720 packaging primitives: determinism, manifest, scan, comparison."""
+"""Offline tests of the WP-720 packaging primitives: determinism, manifest, scan, comparison."""
 
 from __future__ import annotations
 

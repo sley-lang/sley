@@ -3,7 +3,7 @@
 Status: accepted at contract revision 3 (2026-09-05), closing the
 Ariadne, Nabu, and Vulcan review findings; implemented at
 `bench/accounting/report.py` with eight offline tests and a smoke over
-the S20-620 run
+the WP-620 run
 
 Date: 2026-09-03
 
@@ -12,7 +12,7 @@ Date: 2026-09-03
 The master goal defines Accepted Change Tokens as total observable model
 tokens over accepted correct changes, requires every attempted trial to
 stay in the denominator, and sets section 22 thresholds that the plan
-freezes. S20-610 and S20-620 store per-arm digest-chained claims with
+freezes. WP-610 and WP-620 store per-arm digest-chained claims with
 integer metrics and forbid floats so that accounting can derive ratios
 later. Nothing has run a trial; the dossier's succession fields are null.
 

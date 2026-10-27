@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently reconstruct the S20-160 registered StateRoot vector."""
+"""Independently reconstruct the WP-160 registered StateRoot vector."""
 
 from __future__ import annotations
 

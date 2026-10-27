@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen S20-140 bootstrap, registry, and migration contract."""
+"""Check the frozen WP-140 bootstrap, registry, and migration contract."""
 
 from __future__ import annotations
 

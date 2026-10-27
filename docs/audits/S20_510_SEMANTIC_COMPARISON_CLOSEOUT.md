@@ -1,4 +1,4 @@
-# S20-510 Semantic Comparison Closeout
+# WP-510 Semantic Comparison Closeout
 
 Status: **implemented under the draft Semantic Comparison v1 contract (revision 3); the three Council review rounds landed 2026-09-04 with four freeze-blocking findings, all closed by revision 2; revision 3 closes every remaining report-grade finding below; the package awaits re-review, so it is not complete; the Sley 2 goal remains incomplete**
 
@@ -17,7 +17,7 @@ complete-root indexes, and root-set plus collateral deltas from the record
 facts and the restricted transitive impact. The contract is
 `docs/spec/SEMANTIC_COMPARISON_V1.md` with ADR-0027. It is a draft: every
 Council lane was unavailable when it was written and when the implementation
-landed (see the S20-250 and S20-510 campaign records), so the reviews that
+landed (see the WP-250 and WP-510 campaign records), so the reviews that
 freeze it and complete the package are pending and must pass before the
 status above changes.
 
@@ -26,14 +26,14 @@ The implementation provides:
 - `sley-id`: the thirty-first domain `sley2.semantic-delta.v1` and
   `SemanticDeltaId` with its frozen vector;
 - `sley-repo`: `compare.rs` with `compare_complete_roots` over two
-  `CompleteRootRequest` values (both judged by the S20-250 full closure
+  `CompleteRootRequest` values (both judged by the WP-250 full closure
   first), `encode_semantic_delta`, `decode_semantic_delta`, the delta epoch
   record (tag 510, digest domain 20), and the eleven `COMPARE_*` codes
   51000 through 51010 with wrapped `SCB_*`, `IMPACT_*`, and `FINGERPRINT_*`
   codes preserved; `CompleteRootRequest::from_parts` for callers that hold a
   complete root outside a repository.
 
-`sley-query`, `sley-ssmc`, and the S20-250 profiles are unchanged; the
+`sley-query`, `sley-ssmc`, and the WP-250 profiles are unchanged; the
 dependency direction `sley-repo -> sley-query -> sley-check -> sley-ssmc`
 holds, and `sley-ssmc` is now a production dependency of `sley-repo`.
 
@@ -61,7 +61,7 @@ holds, and `sley-ssmc` is now a production dependency of `sley-repo`.
   extraction adapter); `sley-repo` 332 tests and `sley-id` 7 tests pass.
 - Persistent fuzz: `fuzz/targets/semantic_delta_decoder.rs`, smoke `PASS`
   over a 322-seed two-lane corpus
-  (`docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md`); S20-700
+  (`docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md`); WP-700
   scoped counts are fourteen targets, thirteen smoke gates, fifteen landed
   surfaces.
 - Tier 1: `make quick` green at every commit.
@@ -82,7 +82,7 @@ The three Council review rounds landed 2026-09-04 with four freeze-blocking
 findings, all closed by contract revision 2 with a small implementation
 change; the corpus bytes are unchanged (nine pairs, five mutations):
 
-- the owned inventory is exactly the forward closure the frozen S20-250
+- the owned inventory is exactly the forward closure the frozen WP-250
   fingerprint walks, and the body-delta counts are the lengths of the
   fingerprint input vectors (`crates/sley-repo/src/compare.rs`,
   `owned_inventory`); disagreement fails `COMPARE_INVENTORY_INVALID` with
@@ -151,7 +151,7 @@ rule — remain open and are tracked in the finding register.
   later contract revisions.
 - The oracle decides body-delta membership from a slot-normalized inventory
   projection and takes the restricted fingerprint bytes from the corpus; a
-  Python reproduction of the S20-250 `Function` fingerprint remains outside
+  Python reproduction of the WP-250 `Function` fingerprint remains outside
   this package.
 - Block-level CFG alignment, rename and move detection, and cross-epoch
   comparison are excluded by the contract.

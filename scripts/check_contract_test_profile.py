@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-240 contract/test profile."""
+"""Check the restricted WP-240 contract/test profile."""
 
 from __future__ import annotations
 

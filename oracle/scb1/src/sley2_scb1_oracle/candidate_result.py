@@ -1,4 +1,4 @@
-"""Independent strict S20-360 candidate-result conformance oracle."""
+"""Independent strict WP-360 candidate-result conformance oracle."""
 
 from __future__ import annotations
 

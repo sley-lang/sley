@@ -1,11 +1,11 @@
 # ADR-0007: Dedicated value-hash domain
 
-Status: accepted for the S20-250 restricted epoch-1 profile
+Status: accepted for the WP-250 restricted epoch-1 profile
 
 ## Context
 
 SSMC1 freezes opcode 192, `value_hash`, but delegates its exact hash rule to
-S20-250. `sley2.semantic-fingerprint.v1` is already assigned to entity semantic
+WP-250. `sley2.semantic-fingerprint.v1` is already assigned to entity semantic
 fingerprints. The identifier contract forbids reusing a domain for a different
 preimage purpose, even when an inner discriminator would make collisions
 impractical.

@@ -1,4 +1,4 @@
-"""Offline tests of the S20-740 finding register: derivation, states, invariants."""
+"""Offline tests of the WP-740 finding register: derivation, states, invariants."""
 
 from __future__ import annotations
 
@@ -560,6 +560,10 @@ class InvariantTests(unittest.TestCase):
         self.assertEqual(register.claim_finding_ids("the V-02 regression"), {"V-02"})
         self.assertEqual(register.claim_finding_ids("the ADR-0040 note"), set())
         self.assertEqual(register.claim_finding_ids("the S20-540 note"), set())
+        # Work-package and toolchain-package ids are document ids too.
+        self.assertEqual(register.claim_finding_ids("the WP-540 note"), set())
+        self.assertEqual(register.claim_finding_ids("the TP-080 note"), set())
+        self.assertEqual(register.claim_finding_ids("the AR-700-PACK-001 scope"), {"AR-700-PACK-001"})
         # Verdict-bearing field names are the ledger's own vocabulary, never
         # an identity (Ariadne P4 at 8966da2e).
         self.assertTrue(register.is_lane_field_name("final_vulcan_disposition"))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the scoped S20-250 full complete-root judgment persistent fuzz slice."""
+"""Drift check for the scoped WP-250 full complete-root judgment persistent fuzz slice."""
 
 from __future__ import annotations
 

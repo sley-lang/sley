@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh deterministic S20-390 transaction and receipt fixtures."""
+"""Refresh deterministic WP-390 transaction and receipt fixtures."""
 
 from __future__ import annotations
 

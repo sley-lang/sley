@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the specification-only S20-345 candidate contract freeze."""
+"""Check the specification-only WP-345 candidate contract freeze."""
 
 from __future__ import annotations
 

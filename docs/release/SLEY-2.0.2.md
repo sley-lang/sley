@@ -175,6 +175,6 @@ and `bin/sley-agent try` run the guide's first example with no source tree.
   test evidence (N5). You can commit code and tests in separate candidates.
 - The dev loop cannot execute functions that declare type parameters,
   effects or contracts. That is the VM lowering profile's limit.
-- The S20-640 trial tool (`bench/live/sley2_tool.py`) is unchanged, which keeps
+- The WP-640 trial tool (`bench/live/sley2_tool.py`) is unchanged, which keeps
   its preregistration pins valid. Moving the mediated campaign harness onto
   `sley-agent` belongs to the next campaign's preregistration.

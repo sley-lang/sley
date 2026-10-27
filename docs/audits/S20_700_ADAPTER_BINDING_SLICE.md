@@ -1,8 +1,8 @@
-# S20-700 Authorized Adapter Binding Slice
+# WP-700 Authorized Adapter Binding Slice
 
-Status: bounded landed-surface slice; **full S20-700 remains incomplete**
+Status: bounded landed-surface slice; **full WP-700 remains incomplete**
 
-This slice hardens the narrow local S20-380 authorized reference-adapter
+This slice hardens the narrow local WP-380 authorized reference-adapter
 wrapper. It introduces no VM integration, live host authority, candidate
 admission, transaction, provider, or deployment surface.
 
@@ -27,7 +27,7 @@ make adversarial
 ```
 
 This is an adversarial regression slice, not a persistent fuzz harness or full
-S20-700 finding register. VM-integrated/live adapters and the other master-goal
+WP-700 finding register. VM-integrated/live adapters and the other master-goal
 fuzz surfaces remain deferred.
 
 Vulcan's independent review found no open P0, P1, or P2 issue in this bounded

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The contract text a completion review names, across the public-history cut.
 
-The S20-300 and S20-620 checkers bind a lane's `<key>_revision_<N>` PASS
+The WP-300 and WP-620 checkers bind a lane's `<key>_revision_<N>` PASS
 to the commit its note names and read that commit's copy of the contract.
 A commit in the repository is read with git. A commit that exists only in
 the archived history (see `history_ledger`) cannot be, so its contract's

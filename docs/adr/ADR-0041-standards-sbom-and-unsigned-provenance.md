@@ -1,9 +1,9 @@
 # ADR-0041: standards SBOM and unsigned provenance derived from local evidence
 
-Status: proposed; the S20-710 full-audit contract is a draft at revision 6
+Status: proposed; the WP-710 full-audit contract is a draft at revision 6
 (2026-09-15) with Council review pending; mechanics implemented with
 deterministic CycloneDX 1.6 and SPDX 2.3 documents, an unsigned in-toto
-statement, and the S20-710 audit still blocked. Revision 3 normalizes
+statement, and the WP-710 audit still blocked. Revision 3 normalizes
 Cargo-style `/` license separators to `OR` chains, validates every emitted
 expression, binds the SPDX namespace to the candidate artifact as well as the
 inventory, and fails `--check` closed where candidate evidence is missing
@@ -16,9 +16,9 @@ Date: 2026-09-03
 ## Context
 
 The packaging criteria require an SBOM, a license inventory, and provenance
-alongside the artifact digest and the reproducibility result. S20-710 already
+alongside the artifact digest and the reproducibility result. WP-710 already
 produces a locked, offline dependency inventory with purls, versions, source
-URLs, digests, and declared license expressions, and S20-720 already produces
+URLs, digests, and declared license expressions, and WP-720 already produces
 a reproducible candidate with a manifest digest and toolchain record. What was
 missing was the standards-format expression of that evidence, which the audit
 document names as a remaining blocker together with the root license decision.
@@ -34,7 +34,7 @@ soon as a lane returns.
 ## Decision
 
 1. **Derive, never restate.** Both documents are pure functions of the T52
-   inventory and the S20-720 evidence record; nothing is hand-maintained, and
+   inventory and the WP-720 evidence record; nothing is hand-maintained, and
    `--check` fails on drift.
 2. **Two formats, one inventory.** CycloneDX 1.6 and SPDX 2.3 are emitted from
    the same components so a consumer of either sees the same graph; the
@@ -45,13 +45,13 @@ soon as a lane returns.
    the Unix epoch. No random or clock state enters an artifact of record.
 4. **No legal opinion.** `licenseConcluded` is `NOASSERTION` and
    `Apache-2.0` is an extracted licensing info naming the operator-approved
-   root license (S20-710 license decision 2026-09-14), so the license state
+   root license (WP-710 license decision 2026-09-14), so the license state
    stays visible instead of being papered over by a format conversion.
 5. **The statement is signable later.** The provenance file wraps a pure
    in-toto statement next to a local `attestation` block that records
    `signed: false` and the open blockers, so a future signing step consumes
    the statement verbatim.
-6. **Honest audit state.** These documents do not complete S20-710: the
+6. **Honest audit state.** These documents do not complete WP-710: the
    summary keeps `standards_sbom` and `release_provenance` false, adds
    pointers to the draft documents, and the audit keeps its blocker.
 7. **Codes and staging.** 74000 through 74007 name the exact failures; a

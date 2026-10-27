@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RW-040 staged bootstrap-capability checker (audit scope only).
+"""TP-040 staged bootstrap-capability checker (audit scope only).
 
 Checks evidence bindings, coverage, prerequisites, and stage status for the
 bootstrap-capability audit. It NEVER executes bytecode, judges opcodes, or
@@ -9,7 +9,7 @@ which this checker does not duplicate. It only verifies that audit rows bind
 to committed evidence (vector ids/digests in
 `conformance/vm-extended/v1/accepted.json`), that every gap is routed, that
 the stage manifest is structurally honest (no invented hashes), and that
-readiness cannot pass while stages are unbound or RW-030 is unchartered.
+readiness cannot pass while stages are unbound or TP-030 is unchartered.
 
 Two outputs: `audit` (PASS/FAIL, exit code) and `readiness` (READY/NOT_READY
 with reasons; informational -- NOT_READY is the expected audit-scope outcome
@@ -19,7 +19,7 @@ unconditionally: each corpus case declares its expected verdict and any
 mismatch fails this checker, including one synthetic positive proving the
 readiness path is not rigged to NOT_READY.
 
-Phase rule (RW-030 charter repair, 2026-09-06): BOOTSTRAP_READY-proxy
+Phase rule (TP-030 charter repair, 2026-09-06): BOOTSTRAP_READY-proxy
 requires exactly the R2 preconditions -- audit rows complete, no open
 blockers, P (profile) frozen, boundary chartered, H manifest pinned to the
 boundary bytes. S/C0-C3 (toolchain program root, preserved image, staged
@@ -54,7 +54,7 @@ CHARTER_CANDIDATES = (
 
 STAGES = ("S", "P", "C0", "C1", "C2", "C3")
 # R2 readiness stages: only the frozen profile gates BOOTSTRAP_READY. S and
-# C0-C3 are R3-and-later evidence (RW-080+); requiring them would make
+# C0-C3 are R3-and-later evidence (TP-080+); requiring them would make
 # readiness depend on artifacts creatable only after readiness.
 READINESS_STAGES = ("P",)
 LATER_STAGES = ("S", "C0", "C1", "C2", "C3")
@@ -117,8 +117,8 @@ def check_manifest_structure(stages: dict, chartered: bool) -> list[str]:
 def check_exercise_bindings(doc, accepted_ids: set[str], accepted_digests: dict) -> list[str]:
     """Every PASS-exists row binds committed vectors; every digest-shaped
     claim keyed by a vector id must prefix-match the committed digest. An
-    audit may document missing capabilities (REWEAVE 24.1: an audit is not a
-    readiness claim), so PARTIAL-documented / FAIL-missing-capability rows
+    audit may document missing capabilities (self-hosting plan section
+    24.1: an audit is not a readiness claim), so PARTIAL-documented / FAIL-missing-capability rows
     pass binding only when routed (routes_to + gap); unrouted gaps fail."""
     problems: list[str] = []
     exercises = doc.get("exercises", []) if isinstance(doc, dict) else []

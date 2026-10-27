@@ -1,6 +1,6 @@
 # Execution Model v1
 
-Status: M0 broad normative draft; restricted S20-270 profile frozen separately.
+Status: M0 broad normative draft; restricted WP-270 profile frozen separately.
 
 `VM_EXECUTION_PROFILE_V1.md` is the implemented restricted epoch-1 contract.
 It does not satisfy every requirement below and records each deferred GA gap.

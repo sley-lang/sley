@@ -1,7 +1,7 @@
 # S3 benchmark fixtures + owner oracles — build contract (2026-09-17)
 
-Scope: S20-640 succession campaign inputs. Corpus `bench/corpus/v1/tasks.json`
-is FROZEN (pinned by `bench/corpus/v1/SHA256SUMS` and the S20-610 manifest
+Scope: WP-640 succession campaign inputs. Corpus `bench/corpus/v1/tasks.json`
+is FROZEN (pinned by `bench/corpus/v1/SHA256SUMS` and the WP-610 manifest
 controls): never edit it. All S3 authoring lives under `bench/fixtures/`.
 
 ## Directory layout (normative)

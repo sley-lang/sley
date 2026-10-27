@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discriminating static tests for the S20-770 required-contract index checker.
+"""Discriminating static tests for the WP-770 required-contract index checker.
 
 Each mutation case serves one summary input from memory while every other
 file remains the real pinned input, runs the real checker entrypoint,

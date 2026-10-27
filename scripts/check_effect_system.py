@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen S20-230 static effect-system surface."""
+"""Check the frozen WP-230 static effect-system surface."""
 
 from __future__ import annotations
 

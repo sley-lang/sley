@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the scoped S20-300 full complete-root snapshot decoder persistent fuzz slice."""
+"""Drift check for the scoped WP-300 full complete-root snapshot decoder persistent fuzz slice."""
 
 from __future__ import annotations
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""S20-730 independent conformance report: coverage of every fixture family.
+"""WP-730 independent conformance report: coverage of every fixture family.
 
 Derives `evidence/conformance/independent-conformance-report.json` from
 tracked files only: every `conformance/<family>/v<N>` directory, its file
 digests, the pinned version's declared coverage (an independent oracle
 command of the `make conformance` recipe at a declared semantic or
-codec-and-identity depth, or native-only), and the S20-130 oracle
+codec-and-identity depth, or native-only), and the WP-130 oracle
 independence scan. Tracked sibling versions are digested, summed, and
 declared without a depth claim. Nothing here runs cargo or the oracle.
 """
@@ -86,7 +86,7 @@ COVERAGE: dict[str, str | None] = {
     "entity-read": f"{ORACLE_RUNNER} python scripts/check_entity_read_vectors.py",
 }
 # Pinned corpus version per family (contract section 3). Every family pins
-# `v1` except `entity-read`, whose S20-310 vectors pin `v2` by the
+# `v1` except `entity-read`, whose WP-310 vectors pin `v2` by the
 # entity-read contract, and `exec-package-envelope`, whose only corpus is the
 # EXEC_PACKAGE_V2 `v2` framing vectors. A family without an entry pins `v1`; a family whose
 # pinned version directory is absent is CONFORMANCE_FIXTURE_UNREADABLE.
@@ -143,7 +143,7 @@ NATIVE_ONLY_NOTES: dict[str, str] = {}
 
 
 class ConformanceErrorCode(IntEnum):
-    """S20-730 independent conformance failures (contract section 7)."""
+    """WP-730 independent conformance failures (contract section 7)."""
 
     FIXTURE_UNREADABLE = 73004
     SUMS_MISMATCH = 73005
@@ -152,7 +152,7 @@ class ConformanceErrorCode(IntEnum):
 
 
 class ConformanceError(Exception):
-    """One exact S20-730 failure."""
+    """One exact WP-730 failure."""
 
     def __init__(self, code: ConformanceErrorCode, detail: str) -> None:
         super().__init__(f"{code.name}: {detail}")
@@ -428,7 +428,7 @@ def pinned_coverage(name: str, recipe: str) -> dict:
 
 
 def oracle_independence() -> dict:
-    """Re-applies the S20-130 forbidden marker scan over every oracle.
+    """Re-applies the WP-130 forbidden marker scan over every oracle.
 
     Many of the independent checks live under `scripts/`, so a scan of the
     package alone would vouch for oracles it never read.

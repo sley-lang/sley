@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-250 full direct edges and closure judgment.
+"""Independently reproduce the WP-250 full direct edges and closure judgment.
 
 The oracle re-derives, from the frozen fixture's compact JSON bodies, the
 canonical direct edge set of `COMPLETE_ENTITY_IMPACT_PROFILE_V1.md` section

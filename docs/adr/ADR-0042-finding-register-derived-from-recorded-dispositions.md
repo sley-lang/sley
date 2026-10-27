@@ -1,6 +1,6 @@
 # ADR-0042: the finding register is derived from recorded dispositions
 
-Status: proposed; the S20-740 contract is a draft at revision 11 with Council
+Status: proposed; the WP-740 contract is a draft at revision 11 with Council
 review pending; register mechanics implemented (2026-09-05, revised
 2026-09-11 with enforced round ordering, lane-core compatibility, and
 lane-leaf collection) with the
@@ -10,7 +10,7 @@ Date: 2026-09-03
 
 ## Context
 
-S20-740 owes an independent review dossier whose named input is a finding
+WP-740 owes an independent review dossier whose named input is a finding
 register. Every package already records its review obligations and their
 dispositions in the machine summary, in the exact strings the reviewers
 returned, and the pattern that a package reaches `COMPLETE` only with three
@@ -43,7 +43,7 @@ unavailable (ADR-0026), so most obligations are legitimately open.
    same section; an unre-reviewed failure stays open even when it names
    itself `FAIL`.
 4. **Open is the honest state.** `FINDING_REGISTER_OPEN` is expected while the
-   lanes are down and is not a gate failure; S20-740 completes only when the
+   lanes are down and is not a gate failure; WP-740 completes only when the
    register is clear and an independent reviewer records a PASS.
 5. **Codes and staging.** 75000 through 75003 name the exact failures, and a
    staged checker carries the contract from draft to complete.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the bounded S20-710 pre-release audit without claiming release PASS."""
+"""Validate the bounded WP-710 pre-release audit without claiming release PASS."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ EXPECTED_ANCHOR = "7804f665e0ee65de240c43fe3b56dc89cf7e9d80"
 # live from the public root commit.
 PRE_PUBLIC_SCAN_PATH = ROOT / "evidence/history/supply-chain-pre-public-history-scan.json"
 EXPECTED_PUBLIC_ANCHOR = history_ledger.public_root() or ""
-# The exact installed root license bytes (S20-710 license decision
+# The exact installed root license bytes (WP-710 license decision
 # 2026-09-14): the inventory records these digests and the checker pins
 # them, so a modified LICENSE or NOTICE fails instead of passing open.
 EXPECTED_ROOT_LICENSE_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
@@ -254,7 +254,7 @@ def check_summary_reconciles_inventory(summary: dict[str, Any], inventory: dict[
     """The machine-summary mirror must agree with the T52 inventory it
     cites. Pinned constants alone once passed over a stale mirror (the
     summary carried an older lock hash and edge count than T52), so the
-    reconciliation is explicit rather than assumed (RW-050 slice 1)."""
+    reconciliation is explicit rather than assumed (TP-050 slice 1)."""
     profile = summary.get("s20_710_pre_release_audit", {})
     for field in ("cargo_lock_sha256", "uv_lock_sha256"):
         if profile.get(field) != inventory.get(field):

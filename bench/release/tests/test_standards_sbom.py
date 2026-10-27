@@ -1,4 +1,4 @@
-"""Offline tests of the S20-710 full standards SBOM and unsigned provenance."""
+"""Offline tests of the WP-710 full standards SBOM and unsigned provenance."""
 
 from __future__ import annotations
 
@@ -653,7 +653,7 @@ class ValidateTrackedTests(unittest.TestCase):
             self.assertIn(pair, admitted)
 
     def test_admission_predicate_directly(self) -> None:
-        # The predicate is the S20-730 attestation contract shape, owned by
+        # The predicate is the WP-730 attestation contract shape, owned by
         # build_reproducibility_report (revision 7): a full clean
         # REPRODUCIBLE attestation admits; a dirty, unreproduced, partial,
         # toolchain-less, or non-object entry does not.
@@ -763,7 +763,7 @@ class RecordsClosureTests(unittest.TestCase):
         self.assertIn("records-closure-unverifiable", status.reason)
 
     def test_bound_paths_are_the_records_eligible_artifact_inputs(self) -> None:
-        # The bound inputs are derived from the S20-720 artifact surface,
+        # The bound inputs are derived from the WP-720 artifact surface,
         # not restated: every surface member under a records-eligible
         # prefix is bound, nothing else is, and the T52 inventory (the one
         # such member today) is present, so a surface addition under

@@ -1,6 +1,6 @@
 # ADR-0029: Complete-root index snapshot and cache reuse boundary
 
-Status: proposed; the S20-300 full contract is a draft at revision 1 with
+Status: proposed; the WP-300 full contract is a draft at revision 1 with
 Council review pending; implemented under the draft
 (`docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md`)
 
@@ -8,10 +8,10 @@ Date: 2026-09-03
 
 ## Context
 
-The restricted S20-300 profile froze a rebuild-first `SLEYIDX1` record over
+The restricted WP-300 profile froze a rebuild-first `SLEYIDX1` record over
 modeled kinds 4 through 15 with an unverified root claim and no useful cache
 reuse, naming three gaps: the six missing bodies, strict root and object
-extraction, and useful safe cache reuse. The full S20-250 profile now
+extraction, and useful safe cache reuse. The full WP-250 profile now
 supplies the eighteen-kind complete-root judgment over verified objects, so
 the first two gaps close by composition. The work-package row names "cache
 becomes authority" as the primary risk.
@@ -52,8 +52,8 @@ soon as a lane returns.
 
 ## Consequences
 
-- Root-backed S20-310 queries become dependency-complete once this profile
-  and its reviews land; the restricted S20-310 and S20-320 surfaces are
+- Root-backed WP-310 queries become dependency-complete once this profile
+  and its reviews land; the restricted WP-310 and WP-320 surfaces are
   unchanged and reject arm `2`.
 - The residual cache risk is stated, bounded, and auditable rather than
   hidden behind a rebuild that would make the cache useless.

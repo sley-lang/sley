@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the full S20-340 generated mutation-schema package."""
+"""Check the full WP-340 generated mutation-schema package."""
 
 from __future__ import annotations
 

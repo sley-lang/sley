@@ -34,7 +34,7 @@ current passing evidence.
 
 ## Consequences
 
-- S20-350 may implement `TrapTerminator`, `Terminator`, `ConstValue`, the
+- WP-350 may implement `TrapTerminator`, `Terminator`, `ConstValue`, the
   remaining body and field codecs, preconditions, and the candidate record
   without choosing between conflicting tag systems.
 - Strict fixtures must cover both valid tags, malformed `None` payloads,

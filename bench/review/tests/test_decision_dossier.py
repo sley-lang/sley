@@ -1,4 +1,4 @@
-"""Offline tests of the S20-750 decision dossier: coverage, gating, decision state."""
+"""Offline tests of the WP-750 decision dossier: coverage, gating, decision state."""
 
 from __future__ import annotations
 

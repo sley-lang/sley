@@ -4,7 +4,7 @@
 The independent oracles live partly under `oracle/scb1/src` and partly as
 `scripts/check_*_vector.py` files run through the same environment. Scanning
 only the package left the script oracles outside the check that vouches for
-them, so this audit reads every oracle the S20-730 coverage map names,
+them, so this audit reads every oracle the WP-730 coverage map names,
 wherever it lives.
 """
 
@@ -34,7 +34,7 @@ forbidden = (
     "popen",
 )
 def coverage_oracles() -> list[Path]:
-    """Every `scripts/` oracle the S20-730 coverage map runs."""
+    """Every `scripts/` oracle the WP-730 coverage map runs."""
     import re
 
     builder = (ROOT / "scripts/build_independent_conformance_report.py").read_text(

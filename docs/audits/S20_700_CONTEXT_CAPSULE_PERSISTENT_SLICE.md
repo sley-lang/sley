@@ -1,12 +1,12 @@
-# S20-700 Context Capsule Builder Persistent Slice
+# WP-700 Context Capsule Builder Persistent Slice
 
-Status: scoped persistent landed-surface slice for the full S20-320 profile; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for the full WP-320 profile; **full WP-700 remains incomplete**
 
-This slice hardens the full S20-320 context capsule builder
+This slice hardens the full WP-320 context capsule builder
 (`crates/sley-query/src/context_capsule.rs`,
 `docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md`): source binding, fact
 dictionaries, omission and continuation status, and the `SLEYCCP1` record
-encoder. The restricted S20-320 capsule keeps its own coverage. It does not
+encoder. The restricted WP-320 capsule keeps its own coverage. It does not
 begin sessions, protocol, or release packaging.
 
 The libFuzzer target reuses the root-backed query engine grammar: a

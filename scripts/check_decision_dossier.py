@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-750 decision dossier contract and its stage."""
+"""Check the WP-750 decision dossier contract and its stage."""
 
 from __future__ import annotations
 

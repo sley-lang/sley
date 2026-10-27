@@ -1,4 +1,4 @@
-"""Offline tests for the S20-620 runner: trace chain, guard, metrics, claims, and a fake endpoint."""
+"""Offline tests for the WP-620 runner: trace chain, guard, metrics, claims, and a fake endpoint."""
 
 from __future__ import annotations
 
@@ -173,7 +173,7 @@ class Sley2RunnerTests(unittest.TestCase):
         self.assertEqual(metrics["entities_inspected"], 5)
         self.assertEqual(metrics["relationships_inspected"], 7)
         self.assertEqual(metrics["compile_or_check_attempts"], 2)
-        # invalid_candidates and repair_loops are S20-360 candidate verdicts,
+        # invalid_candidates and repair_loops are WP-360 candidate verdicts,
         # which the trace cannot see: SMP1's failed flag marks a ProtocolFailure
         # envelope, not an invalid candidate. The oracle owns them now.
         self.assertNotIn("invalid_candidates", metrics)

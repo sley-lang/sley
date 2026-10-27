@@ -1,14 +1,14 @@
 # Candidate Record v1
 
-Status: S20-345 normative contract freeze; S20-350 proposal-only construction
+Status: WP-345 normative contract freeze; WP-350 proposal-only construction
 implemented and independently conformant; no candidate authority.
 
 ## Boundary
 
 A candidate is an immutable, canonical proposal to transform one exact state.
 Possessing, constructing, hashing, or decoding it grants no authority and
-changes no state. S20-350 constructs this record with the typed codecs frozen
-here. S20-360 must independently validate it; S20-390 alone may durably commit
+changes no state. WP-350 constructs this record with the typed codecs frozen
+here. WP-360 must independently validate it; WP-390 alone may durably commit
 a `VALID` result.
 
 No field may contain source text, a path, a label used as identity, a session
@@ -45,7 +45,7 @@ digest and therefore has no self-hash cycle.
 | 13 | expiry | `CandidateExpiry` | exact half-open deadline |
 
 Unknown, missing, duplicate, or out-of-order fields fail closed. Candidate
-bytes are bounded by the selected validation profile and the S20-140
+bytes are bounded by the selected validation profile and the WP-140
 standalone-value ceiling. All thirteen fields enter `CandidateId`.
 
 ## Mutation operation
@@ -55,7 +55,7 @@ standalone-value ceiling. All thirteen fields enter `CandidateId`.
 | Tag | Field | Type |
 |---:|---|---|
 | 1 | ordinal | `UInt32` |
-| 2 | class | `MutationClass` tags 1 through 16 from S20-340 |
+| 2 | class | `MutationClass` tags 1 through 16 from WP-340 |
 | 3 | target_kind | `EntityKind` tags 1 through 18 |
 | 4 | target_entity | `EntityId` |
 | 5 | field_tag | `Option<UInt32>` |
@@ -64,11 +64,11 @@ standalone-value ceiling. All thirteen fields enter `CandidateId`.
 
 Ordinals are contiguous from zero and define semantic order. They are never
 re-sorted by host iteration or encoded bytes. Descriptor lookup by
-`(class,target_kind,field_tag)` must succeed in the exact generated S20-340
+`(class,target_kind,field_tag)` must succeed in the exact generated WP-340
 table before payload decode. The descriptor selects the only lawful payload
 codec; a payload cannot select or describe its own type.
 
-For class 1 `create entity`, `target_entity` must equal the S20-110 derivation
+For class 1 `create entity`, `target_entity` must equal the WP-110 derivation
 from workspace, candidate nonce, target kind, and the zero-based ordinal among
 class-1 operations. Validation must collision-check live and tombstoned IDs.
 Other classes target an already-bound logical identity.
@@ -104,14 +104,14 @@ add/replace payload carries a body, never nested standalone-object bytes.
 - principal and capability summary are comparisons against host-authenticated
   facts, never candidate-origin authority;
 - each operation has exactly one same-ordinal precondition of the requirement
-  named by its S20-340 descriptor;
+  named by its WP-340 descriptor;
 - the profile and expiry must be recognized before deeper judgment;
 - ordinary candidates cannot modify the bound policy root, schema epoch,
   validator/kernel, mandatory contract root, or mandatory test root;
 - decode/import/build APIs expose no apply, commit, receipt, CAS, session,
   provider, network, process, or filesystem operation.
 
-S20-345 froze this record only. ADR-0019 and independent review resolved the
-generic `Option<T>` contradiction, and S20-350 now implements the referenced
+WP-345 froze this record only. ADR-0019 and independent review resolved the
+generic `Option<T>` contradiction, and WP-350 now implements the referenced
 codecs and record. Construction still grants no authority and remains separate
-from S20-360 validation and S20-390 commit.
+from WP-360 validation and WP-390 commit.

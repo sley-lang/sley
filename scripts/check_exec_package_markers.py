@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Production-code marker pins for EXEC_PACKAGE_V1 / RAW_HASH_V1 (RW-075).
+"""Production-code marker pins for EXEC_PACKAGE_V1 / RAW_HASH_V1 (TP-075).
 
 Not coverage-mapped (it reads implementation sources by design): the same
 split as `scripts/check_host_abi_markers.py` beside `check_host_abi_v1.py`.
@@ -155,7 +155,7 @@ for marker in [
     "AUTHORITY_GATE_REFUSED",
     "pub enum AuthorityError",
     # The reserved post-C1 ingress shape carries exactly the handoff the
-    # RW-080 contract section 1.6 names (judged-closure digest, gate counts
+    # TP-080 contract section 1.6 names (judged-closure digest, gate counts
     # and fingerprints, reference-image digest, complete table digests);
     # every field is private and the struct is sealed.
     "pub struct SleyAdmissionEvidence",

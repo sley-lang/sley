@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the bounded, explicitly incomplete S20-700 schema fuzz slice."""
+"""Check the bounded, explicitly incomplete WP-700 schema fuzz slice."""
 
 from __future__ import annotations
 

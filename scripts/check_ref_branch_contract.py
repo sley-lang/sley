@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the S20-500 native branch/ref contract and honest implementation state."""
+"""Validate the WP-500 native branch/ref contract and honest implementation state."""
 
 from __future__ import annotations
 

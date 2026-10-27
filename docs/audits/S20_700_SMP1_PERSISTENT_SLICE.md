@@ -1,11 +1,11 @@
-# S20-700 SMP1 Frame Decoder Persistent Slice
+# WP-700 SMP1 Frame Decoder Persistent Slice
 
-Status: scoped persistent landed-surface slice for S20-410; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for WP-410; **full WP-700 remains incomplete**
 
-This slice hardens the S20-410 SMP1 frame decoder, hello decoder, and
+This slice hardens the WP-410 SMP1 frame decoder, hello decoder, and
 derived negotiation (`crates/sley-protocol/src/lib.rs`,
 `docs/spec/SMP1.md`). It does not cover the deterministic server dispatch,
-cancellation and streaming semantics (S20-440), the JSON bridge, or the
+cancellation and streaming semantics (WP-440), the JSON bridge, or the
 explicit-version V2 negotiation path (deferred; `negotiate_identity`
 only).
 
@@ -21,7 +21,7 @@ The libFuzzer target has four deterministic input lanes:
   the rejection arm) while framed hello records decoded in the frame lane
   run the shared negotiation oracle, asserting a repeatable
   `ProtocolHandshakeId` and a selection drawn only from the intersections;
-- stream bytes decode as an S20-440 chunk record and reassemble, or are
+- stream bytes decode as a WP-440 chunk record and reassemble, or are
   split under a small ceiling and reassembled to the same body.
 
 Every accepted frame must bind the exact derived identity, re-encode to the

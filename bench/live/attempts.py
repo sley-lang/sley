@@ -1,4 +1,4 @@
-"""Append-only attempt custody and verification for live S20-640 runs."""
+"""Append-only attempt custody and verification for live WP-640 runs."""
 
 from __future__ import annotations
 

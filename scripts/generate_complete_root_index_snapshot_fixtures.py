@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-300 full complete-root index snapshot fixture."""
+"""Refresh the deterministic WP-300 full complete-root index snapshot fixture."""
 
 from __future__ import annotations
 

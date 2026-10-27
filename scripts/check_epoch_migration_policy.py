@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-760 epoch migration policy and its stage."""
+"""Check the WP-760 epoch migration policy and its stage."""
 
 from __future__ import annotations
 

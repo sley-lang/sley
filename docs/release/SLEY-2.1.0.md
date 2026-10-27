@@ -8,8 +8,8 @@ pinned native host, it rebuilds its own executable closure from its
 canonical graph root, without the Rust seed compiler. The rebuild is a
 byte-identical fixed point.
 
-This meets REWEAVE's `SH2_SELF_HOSTED_TOOLCHAIN` level (REWEAVE §10–15).
-The decision record is
+This meets the `SH2_SELF_HOSTED_TOOLCHAIN` level of the self-hosting plan
+(sections 10–15). The decision record is
 [ADR-0056](../adr/ADR-0056-sh2-self-hosted-toolchain.md); the full
 implementation and evidence record is
 [SH2_SELF_HOSTING.md](SH2_SELF_HOSTING.md).
@@ -128,7 +128,7 @@ README and the license notices; `./rebuild.sh` (bubblewrap required) prints
 
 ## Scope
 
-The native remainder is the one REWEAVE §10.3 allows:
+The native remainder is the one section 10.3 of the self-hosting plan allows:
 - bounded execution of the derived image;
 - primitive values;
 - the byte bridges;

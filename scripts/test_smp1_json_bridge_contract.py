@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Revert cases for the S20-420 checker's pin anchors (revision 12).
+"""Revert cases for the WP-420 checker's pin anchors (revision 12).
 
 The SMP1 pin is read from the one composition sentence, so a stale pin
 there fails even while a history line carries the current revision; the

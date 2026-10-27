@@ -1,4 +1,4 @@
-"""Unit tests for finding-register round semantics (S20-740 builder).
+"""Unit tests for finding-register round semantics (WP-740 builder).
 
 Covers field_core/supersedes/classify_token directly: a scoped PASS must
 never fold a round from another subject, while the established patterns

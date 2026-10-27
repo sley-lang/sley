@@ -1,6 +1,6 @@
 # Optional external comparison arm
 
-S20-650 records whether this repository has enough frozen evidence to run the
+WP-650 records whether this repository has enough frozen evidence to run the
 optional external comparison arm fairly. `availability.json` currently records
 `EXPLICIT_UNAVAILABLE` because no exact version, runnable artifact digest,
 equivalent fixture, tool-description digest, environment digest, or equivalent
@@ -12,5 +12,5 @@ artifact acquisition, installation, provider use, or spend. It authorizes no
 performance, superiority, or public comparison claim.
 
 The arm can be reconsidered only through a new reviewed record that binds all
-six missing controls before any trial. The frozen S20-040 benchmark plan and
+six missing controls before any trial. The frozen WP-040 benchmark plan and
 corpus must not be rewritten to manufacture availability.

@@ -1,4 +1,4 @@
-# S20-310 Full Root-Backed Query Closeout
+# WP-310 Full Root-Backed Query Closeout
 
 Status: **implemented under the draft Root-Backed Query Profile v1 contract (revision 7, 2026-09-15; revision 3 on 2026-09-03, revision 5 on 2026-09-13, revisions 6 and 7 on 2026-09-15); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
@@ -17,7 +17,7 @@ class completely under the work ceiling, and pages the result by canonical
 key with typed `after` and `next_after` cursors and an exact `total_count`
 on every page, only when the caller allows continuation. The repository
 surface in `sley-repo` is the only producer of that input from persistent
-state, over an S20-390 verified revision and the S20-300 cache, and is the
+state, over a WP-390 verified revision and the WP-300 cache, and is the
 first and only consumer of a cache hit (edges only). The contract is
 `docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md` with ADR-0030. It is a draft:
 every Council lane was unavailable when it was written and when the
@@ -37,8 +37,8 @@ The implementation provides:
   `RootQueryErrorCode` with all eleven codes 31000 through 31010; the
   restricted helpers are shared inside the crate and the restricted
   `SLEYQRY1`/`SLEYQRS1` surfaces are untouched;
-- `sley-repo`: `root_query.rs` with `run_root_query` over the S20-250
-  extraction adapter, `stored_fingerprints`, and the S20-300 cache, with
+- `sley-repo`: `root_query.rs` with `run_root_query` over the WP-250
+  extraction adapter, `stored_fingerprints`, and the WP-300 cache, with
   extraction, cache, and query failure namespaces preserved.
 
 ## Evidence
@@ -59,8 +59,8 @@ The implementation provides:
   `InventoryEntries` arms). Implementation, corpus, oracle, and fuzz slice
   refreshed accordingly.
 - Conformance corpus: `conformance/root-backed-query/v1/accepted.json`
-  (twenty-seven vectors: all nineteen classes over the frozen S20-250
-  fixture with the S20-300 snapshot, the honestly recomputed root, epoch,
+  (twenty-seven vectors: all nineteen classes over the frozen WP-250
+  fixture with the WP-300 snapshot, the honestly recomputed root, epoch,
   workspace, synthetic bindings, fingerprints, and roots, plus four two-page
   continuation walks, one per cursor key type and the section 9 single-item
   classes: entities (`page-namespaces`), edges (`page-edges`), dependency
@@ -72,7 +72,7 @@ The implementation provides:
   `QUERY_PROFILE_UNSUPPORTED` arm-1 snapshot), drift-gated by
   `scripts/generate_root_backed_query_fixtures.py --check` in `make quick`;
   `scripts/check_root_backed_query_vector.py` recomputes every
-  `RootQueryId` and response record from the S20-250 fixture bodies, its
+  `RootQueryId` and response record from the WP-250 fixture bodies, its
   frozen edge set, and the fixture context with its own encoder, work
   accounting, paging, and precedence, registered in `make conformance`
   under the frozen oracle environment.
@@ -100,7 +100,7 @@ The implementation provides:
   the honestly recomputed digest so mutated roots keep reaching the engine
   instead of dying at binding), smoke `PASS` over a
   971-seed corpus (`docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md`);
-  seventeen scoped targets and sixteen smoke gates now stand; the S20-700
+  seventeen scoped targets and sixteen smoke gates now stand; the WP-700
   finding register and independent review remain deferred.
 - Tier 1: `make quick` green at every commit.
 - Tier 2: see the validation record below.
@@ -136,10 +136,10 @@ The implementation provides:
 ## Explicitly open and deferred
 
 - **Council reviews.** Ariadne, Nabu, and Vulcan reviews are queued behind
-  the S20-250, S20-510, S20-520, and S20-300 reviews and land as contract
+  the WP-250, WP-510, WP-520, and WP-300 reviews and land as contract
   revisions; the campaign record lists the open questions, above all
   whether the nineteen classes are the right enumeration.
-- The S20-320 capsule consumes the root-backed response: a context capsule
+- The WP-320 capsule consumes the root-backed response: a context capsule
   builds only from a `RootQueryRequest` and the `RootQueryResponse`
   produced for it (`crates/sley-query/src/context_capsule.rs`).
 - Strict pedantic clippy debt in older `sley-repo` exchange and GC test
@@ -179,7 +179,7 @@ when they land.
 
 Commit `a10d871` shortened the explanatory comment on the paging walk test
 in `crates/sley-query/src/root_query.rs` after the development review. The
-S20-310 owner records that editorial change here: revision-7 section 9
+WP-310 owner records that editorial change here: revision-7 section 9
 remains the evidence rule; the engine, fixture obligations and test behavior
 were unchanged. The `c1d4177` review round and its `ede5ef0` closeout repair
 are now registered explicitly in the machine summary.

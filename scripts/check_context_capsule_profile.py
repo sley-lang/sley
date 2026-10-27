@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-320 full context capsule contract and its stage."""
+"""Check the WP-320 full context capsule contract and its stage."""
 
 from __future__ import annotations
 

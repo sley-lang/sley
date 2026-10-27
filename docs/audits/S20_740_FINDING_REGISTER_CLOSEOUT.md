@@ -1,4 +1,4 @@
-# S20-740 Finding Register Closeout
+# WP-740 Finding Register Closeout
 
 Status: **implemented under the draft Finding Register v1 contract (revision 2); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
@@ -91,7 +91,7 @@ the status above changes.
 
 ## Findings closed in revision 2
 
-All eight S20-740 P0s (2 Ariadne, 2 Nabu, 4 Vulcan), listed under the claim
+All eight WP-740 P0s (2 Ariadne, 2 Nabu, 4 Vulcan), listed under the claim
 above. No P0 was closed by editing a disposition: the two reconciliations
 are new recorded verdicts from the lane that issued the originals.
 
@@ -102,7 +102,7 @@ are new recorded verdicts from the lane that issued the originals.
 - The independent review is pending; `S20_740_COMPLETE` stays unreachable by
   design until it records `PASS` against a clear register.
 - The per-finding record (id, title, severity, disposition, owning package,
-  closing commit) that an independent review starts from is future S20-740
+  closing commit) that an independent review starts from is future WP-740
   work, named in contract section 7.
 - Completion is tested by status suffix; mid-string boundary statuses are
   not treated as complete for the violation check, though their

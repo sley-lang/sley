@@ -1,4 +1,4 @@
-# S20-250 Full Entity Bodies Closeout
+# WP-250 Full Entity Bodies Closeout
 
 Status: **implemented under the draft Complete Entity Model and Impact Profile v1 (revision 2); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
@@ -8,7 +8,7 @@ Validation tier: **Tier 1 plus semantics-focused Tier 2 handoff**
 
 ## Claim under review
 
-The six SSMC1 entity bodies that the restricted S20-250 profile left outside
+The six SSMC1 entity bodies that the restricted WP-250 profile left outside
 the semantic core now exist in one normative model, the impact request covers
 all eighteen kinds, and one strictly decoded `StateRoot` record plus the
 objects it binds yield an exact complete-root impact index after eleven
@@ -25,7 +25,7 @@ The implementation provides:
   `NamespaceDefinition`, `EntryPointDefinition`, `PolicyBindingDefinition`,
   `DependencyBindingDefinition`, and `EntryExposure`, which `sley-mutate`
   re-exports so the generated proposal codec is byte-identical;
-- `sley-policy`: the S20-360 projection maps all eighteen bodies, and the
+- `sley-policy`: the WP-360 projection maps all eighteen bodies, and the
   public `complete_entities::project_complete_entities` exposes the owned
   definitions plus the validator's private reference graph as evidence;
 - `sley-query`: `ModeledEntityKind` over tags 1 through 18 with the
@@ -42,7 +42,7 @@ Fingerprints, `value_hash`, and the restricted profile's bytes are unchanged.
 The dependency direction `sley-query -> sley-check -> sley-ssmc` is unchanged;
 `sley-repo` now depends on `sley-policy` and `sley-query` in production.
 
-Lineage (recorded 2026-09-18; Nabu carried #4 at 92fa6646): the S20-250
+Lineage (recorded 2026-09-18; Nabu carried #4 at 92fa6646): the WP-250
 implementation once breached the AT-MW-02 dependency boundary by reading
 entity bodies through the store from `sley-query`; commit `7169639c`
 (rebased twin `4a04c7ff` after the 2026-09-14 attribution rewrite,
@@ -80,7 +80,7 @@ reports every Cargo.lock-reachable forbidden crate.
 - Persistent fuzz: `fuzz/targets/complete_root_judgment.rs`, smoke `PASS`
   over a 191-seed corpus in four flag lanes
   (`docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md`); the
-  S20-700 scoped counts are thirteen targets, twelve smoke gates, fourteen
+  WP-700 scoped counts are thirteen targets, twelve smoke gates, fourteen
   landed surfaces.
 - Tier 1: `make quick` green at every commit.
 - Tier 2: see the validation record below.
@@ -90,7 +90,7 @@ reports every Cargo.lock-reachable forbidden crate.
 - The design brief proposed six new fingerprint projections; SSMC1 section 8
   requires field 4 only on GA-valid `TypeDef` and `Function`, so the six
   kinds carry no fingerprint and no preimage changed.
-- The brief assumed `Package.dependencies` name packages; the frozen S20-360
+- The brief assumed `Package.dependencies` name packages; the frozen WP-360
   reference graph resolves them to `DependencyBinding` entities, which the
   contract adopts.
 - The edge-agreement test proved the validator's private graph and the
@@ -127,8 +127,8 @@ reports every Cargo.lock-reachable forbidden crate.
   four long functions and the one cfg-gated `self` carry a reason with
   their allow, and `make lint` now denies every warning and checks
   formatting, so the debt cannot silently return.
-- Full S20-300 (complete-root snapshot), root-backed S20-310 queries, and
-  S20-510 comparison remain separate packages.
+- Full WP-300 (complete-root snapshot), root-backed WP-310 queries, and
+  WP-510 comparison remain separate packages.
 
 ## Validation record
 
