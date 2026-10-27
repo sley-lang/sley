@@ -117,8 +117,8 @@ def check_manifest_structure(stages: dict, chartered: bool) -> list[str]:
 def check_exercise_bindings(doc, accepted_ids: set[str], accepted_digests: dict) -> list[str]:
     """Every PASS-exists row binds committed vectors; every digest-shaped
     claim keyed by a vector id must prefix-match the committed digest. An
-    audit may document missing capabilities (the self-hosting plan 24.1: an audit is not a
-    readiness claim), so PARTIAL-documented / FAIL-missing-capability rows
+    audit may document missing capabilities (self-hosting plan section
+    24.1: an audit is not a readiness claim), so PARTIAL-documented / FAIL-missing-capability rows
     pass binding only when routed (routes_to + gap); unrouted gaps fail."""
     problems: list[str] = []
     exercises = doc.get("exercises", []) if isinstance(doc, dict) else []

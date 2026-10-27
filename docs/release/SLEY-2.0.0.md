@@ -115,8 +115,8 @@ make quick                          # the maintainers' routine gate (see below)
 
 The digest printed by `sha256sum` must equal the `artifact_sha256` that the
 reproducibility report records for the release commit. `make quick` reads the
-outputs of the build above and the Sley 2.0 design specification, which lives outside
-the repository (`SLEY2_DESIGN_SPEC`), so it passes only on a maintainer's
+outputs of the build above and the Sley 2.0 design specification, which lives
+outside the repository, so it passes only on a maintainer's
 machine. [QUICKSTART](../QUICKSTART.md#6-run-the-test-gates) lists the gates
 anyone can run.
 
@@ -169,7 +169,7 @@ them together in one candidate needs the native test supervisor.
 the deterministic refusal `VM_LOWER_OPCODE_UNSUPPORTED`, so the EFFECT and CAP
 succession tasks have no positive result.
 
-**Self-hosting (SH2)** is the 2.1 goal. The self-hosting plan seed artifacts (canonical
+**Self-hosting (SH2)** is the 2.1 goal. The seed artifacts of the self-hosting plan (canonical
 S, C0 and the C1 candidate) are preserved, but the official C1 is not claimed.
 
 **Also not claimed:** signed provenance or a transparency-log entry

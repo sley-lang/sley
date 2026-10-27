@@ -58,7 +58,7 @@ Current records:
 - ADR-0046: profile separation is preferred to an epoch bump, and migrations are additive
 - ADR-0047: the required contracts are indexed, not restated
 - ADR-0048: the hash domain registry covers every crate that hashes
-- ADR-0049: Self-hosting plan 1.0 scope adoption (SH2 campaign path)
+- ADR-0049: REWEAVE-1.0 scope adoption (SH2 campaign path)
 - ADR-0050: native test evidence, measured execution and authenticated admission (N0 proposal; implementation pending)
 - ADR-0051: the agent workbench as a separate tool over the kernel libraries (Sley 2.0.2)
 - ADR-0052: the sley-agent binary's allocator, the workspace's one unsafe exception (Sley 2.0.2)

@@ -1,4 +1,4 @@
-# WP-640 live succession campaign record
+# S20-640 live succession campaign record
 
 Append-only. Branch `campaign/s20-640-live`, based on `ba9ebf49` (the
 integrated succession arm). The preregistration is
@@ -8,8 +8,8 @@ attempt. No counted attempt has run. `ga_claimed=false`.
 ## Operator decisions
 
 - 2026-09-24, verbatim: Council reviews "no longer required" — 2026-09-24.
-  Every Council-transcript prerequisite of the campaign (WP-620 revision 8
-  lane verdicts, the TYPE fixture packet revision 3 review, the WP-630
+  Every Council-transcript prerequisite of the campaign (S20-620 revision 8
+  lane verdicts, the TYPE fixture packet revision 3 review, the S20-630
   review line) is waived by this decision. The waiver removes a process
   gate only; it changes no oracle, fixture, threshold, or task.
 - 2026-09-24, verbatim: "you always have my permission" (campaign and

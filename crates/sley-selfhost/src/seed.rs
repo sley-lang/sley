@@ -38,7 +38,7 @@ thread_local! {
     static FAULTS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Whether the named fault seed is active (the self-hosting plan §15 fault seeding).
+/// Whether the named fault seed is active (fault seeding, section 15 of the self-hosting plan).
 ///
 /// Fault seeds construct deliberately defective toolchains so the
 /// differential corpus can prove it detects them. They are build-time

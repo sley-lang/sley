@@ -814,10 +814,11 @@ fn cli_failures_carry_their_exit_status_and_one_stderr_object() {
     assert_eq!(report["frames_written"], 1);
 }
 
-/// WP-700-SMP1-002 end to end: a client hello frame whose bounds are not
-/// the zero bounds `encode_hello_frame` emits is refused at the handshake
-/// with the codec's `PROTOCOL_FRAME_INVALID` as the cause. Through 2.0.0
-/// the codec dropped such bounds and the server negotiated.
+/// Regression `S20_700_SMP1_002.json` end to end: a client hello frame
+/// whose bounds are not the zero bounds `encode_hello_frame` emits is
+/// refused at the handshake with the codec's `PROTOCOL_FRAME_INVALID` as
+/// the cause. Through 2.0.0 the codec dropped such bounds and the server
+/// negotiated.
 #[test]
 fn a_hello_frame_with_nonzero_bounds_is_refused_at_the_handshake() {
     let (_temp, path) = repository("cli-hello-bounds");

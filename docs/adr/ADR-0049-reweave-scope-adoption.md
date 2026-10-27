@@ -1,11 +1,11 @@
-# ADR-0049: Self-hosting plan 1.0 scope adoption (SH2 campaign path)
+# ADR-0049: REWEAVE-1.0 scope adoption (SH2 campaign path)
 
-Status: accepted 2026-09-06 by operator decision ADOPT-SELF-HOSTING-2026-09-06.
+Status: accepted 2026-09-06 by operator decision ADOPT-REWEAVE-2026-09-06.
 Contract review (Ariadne) PASS, architecture review (Nabu) PASS round 2,
 security-surface review (Vulcan) PASS round 2; transcripts in
 `machineresearch/sley-2.0/reviews/reweave-adoption-*-2026-09-06.log`.
 Implementation under this ADR is the governance amendment only; engine
-promotion stays a separate future authorization (the self-hosting plan section 14).
+promotion stays a separate future authorization (REWEAVE section 14).
 
 Date: 2026-09-06
 
@@ -16,11 +16,11 @@ and `docs/ANTI_GOALS.md:30` denied native/JIT/AOT/marketplace/self-hosting
 before GA. The mechanical checker (`scripts/build_anti_goal_conformance.py`)
 scanned `Cargo.lock` only for six codegen crates
 (`cranelift, inkwell, llvm-sys, wasmtime, wasmer, cranelift-jit`), so it
-never enforced the prose self-hosting ban. Both texts blocked the self-hosting plan
-SH2 campaign path (TP-030 and all R2+ implementation).
+never enforced the prose self-hosting ban. Both texts blocked the REWEAVE
+SH2 campaign path (RW-030 and all R2+ implementation).
 
-The operator adopted the self-hosting plan 1.0 as the dispatch goal for the sley2 lineage
-under the previous controlling policy (decision ADOPT-SELF-HOSTING-2026-09-06,
+The operator adopted REWEAVE-1.0 as the dispatch goal for the sley2 lineage
+under the previous controlling policy (decision ADOPT-REWEAVE-2026-09-06,
 recorded verbatim in
 `evidence/release/operator-decision-ADOPT-REWEAVE-2026-09-06.md`). This ADR
 is the append-only record of that adoption. It supersedes no prior ADR; it
@@ -41,7 +41,7 @@ No revised request or expanded diff was substituted.
 
 1. **C-01 narrowed to the frozen line.** The CONTRIBUTING prohibition keeps
    every clause and now ends at the 2.0 GA path: self-hosting toolchain work
-   adopted under the self-hosting plan 1.0 (SH2 campaign) is governed by
+   adopted under REWEAVE-1.0 (SH2 campaign) is governed by
    `host-boundary.json`, `BOOTSTRAP_PROFILE_1`, and the staged SH2 gates
    instead of that paragraph. Every other prohibition in the paragraph is
    unchanged (Ariadne-verified byte-identical).
@@ -60,7 +60,7 @@ No revised request or expanded diff was substituted.
    digest mismatch; unnamed gate) violates. No SH2 work is declared today,
    so the check holds vacuously. Semantic authorization of SH2 work stays
    with human review; the checker verifies citation, not permission.
-4. **C-03 recorded.** Self-hosting plan 1.0 is the internal campaign identity; 2.1.0
+4. **C-03 recorded.** REWEAVE-1.0 is the internal campaign identity; 2.1.0
    is the naming proposal with availability unverified. Only
    version/publishing operations are affected; no version or release byte
    changes under this ADR.
@@ -70,18 +70,18 @@ No revised request or expanded diff was substituted.
    (OVR-07 stands), no compiler rewrite, no retroactive approval, no blanket
    permission. The current implementation stays the bootstrap/reference
    foundation. SH2_SELF_HOSTED_TOOLCHAIN and amended WITNESS are required
-   campaign outcomes; the TP-240 Coherence design-only audit stays required.
+   campaign outcomes; the RW-240 Coherence design-only audit stays required.
 
 ## Consequences
 
-- TP-010 closeout is unblocked: the protected adoption record is the
-  operator-decision file named above. TP-030 may start; TP-040 is
-  dependency-ready once TP-020 finalizes. TP-050 still requires TP-030 and
-  TP-040 both.
-- TP-030 charters `host-boundary.json`, `BOOTSTRAP_PROFILE_1` references,
+- RW-010 closeout is unblocked: the protected adoption record is the
+  operator-decision file named above. RW-030 may start; RW-040 is
+  dependency-ready once RW-020 finalizes. RW-050 still requires RW-030 and
+  RW-040 both.
+- RW-030 charters `host-boundary.json`, `BOOTSTRAP_PROFILE_1` references,
    and the staged SH2 gate set; until then any declared SH2 work item fails
    the campaign check. Validating a gate name against the authorized gate
-   set stays review-owned until TP-030 makes the set mechanical.
+   set stays review-owned until RW-030 makes the set mechanical.
 - The dossier stays derived-not-decided (ADR-0043): this adoption changes no
    GA release-decision input, and the regenerated dossier is byte-identical.
 - Ownership and residuals are bound in the operator-decision record:

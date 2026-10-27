@@ -135,7 +135,7 @@ problems.extend(_slice_proof_problems(ROOT, "s20_700_smp1_persistent_fuzz_slice"
 
 
 # Tracked regression records: present, well-formed, and bound to this
-# slice's target. WP-700-SMP1-002 is a production defect (a hello frame
+# slice's target. `S20_700_SMP1_002.json` is a production defect (a hello frame
 # with nonzero bounds decoded and re-encoded differently), so its lane-0
 # minimized input must also be the conformance rejection it pins.
 for _name in ["S20_700_SMP1_001.json", "S20_700_SMP1_002.json"]:

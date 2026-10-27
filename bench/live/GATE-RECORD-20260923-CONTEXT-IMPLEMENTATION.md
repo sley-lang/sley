@@ -21,7 +21,7 @@ acceptance.
   `REVISE_0_P0_1_P1_1_P2_3_P3_2_P4`).
 - Toolchain `1.93.0`, `--locked --offline`,
   `CARGO_TARGET_DIR=/home/dev/Work/checkpoints/target-succ-context`,
-  `SLEY2_DESIGN_SPEC=.../greyforge-managed-home/machineresearch/Sley2.0mastergoal.md`,
+  `SLEY2_MASTER_GOAL=.../greyforge-managed-home/machineresearch/Sley2.0mastergoal.md`,
   `UV_OFFLINE=true`; long Python suites ran with
   `TMPDIR=/home/dev/Work/checkpoints/succ-context-tmp` after one `/tmp`
   ENOSPC (section 5). Binaries: `sley` and
@@ -31,7 +31,7 @@ acceptance.
 
 Rust (`c2e37384`):
 - `crates/sley-repo/src/index_cache.rs:256` `cached_complete_root_snapshot_id`:
-  the Merlin-owned (WP-300) metadata-only probe — `read_record` +
+  the Merlin-owned (S20-300) metadata-only probe — `read_record` +
   `accept_cached`, no `fresh_snapshot` fallthrough, no write-back; absent /
   unreadable / non-file / discarded records are `None`; only a guard naming
   another repository is an error. Test `:569`
@@ -67,7 +67,7 @@ Trial runner, checker, spec, records (`44f18e2b`):
   (test count stays 23).
 - `scripts/check_sley2_trial_runner.py:134-135` docstring and anchor
   `holds nineteen names`; `:182-186` Fix 1: one anchored
-  (`^Status: WP-620 contract draft, revision (\d+)`, `re.M`), converted
+  (`^Status: S20-620 contract draft, revision (\d+)`, `re.M`), converted
   extraction after `status = section.get("status")` and before the
   `IMPLEMENTATION_STATUSES` block, plus the drift assertion
   `machine-summary:contract_revision:{summary!r}!=spec:{spec!r}`;
@@ -93,7 +93,7 @@ Trial runner, checker, spec, records (`44f18e2b`):
   what the WORK_PACKAGES row and closeout now read). Base review fields keep
   `PASS_0_P0_0_P1_0_P2_0_P3` byte-exact. No `_revision_4` fields and no
   `_revision_5` fields were written (section 7).
-- `docs/WORK_PACKAGES.md:59` WP-620 row: revision 5, status
+- `docs/WORK_PACKAGES.md:59` S20-620 row: revision 5, status
   `S20_620_IMPLEMENTED_REVIEW_PENDING`, revision 5 lane reviews pending;
   revision 4 facts kept as a labelled history clause.
 - `docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md:3` new Revision 5
@@ -374,7 +374,7 @@ exit 0
 Tokens: `revision 4`, `S20_620_COMPLETE`, `reviews PASS`, `Council reviews
 PASS`, `implementation_complete`, `eighteen-method`, `eighteen`
 (`git grep -n -F` over tracked files at `44f18e2b`; 585 hit lines before this
-record). WP-620-domain hits, each dispositioned:
+record). S20-620-domain hits, each dispositioned:
 
 | Hit | Disposition |
 |---|---|
@@ -394,7 +394,7 @@ Every other hit is listed in Appendix A by file and line with a rule-based
 disposition: review transcripts, gate records, campaign records, and retained
 logs are frozen history; the rest are other packages, contracts, sections, or
 the eighteen SSMC1 entity kinds. The rule was checked per line: no hit line
-classified "unrelated" mentions WP-620, `sley2_trial_runner`, the trial
+classified "unrelated" mentions S20-620, `sley2_trial_runner`, the trial
 runner, the allowlist, `ARM_AFFORDANCES`, or `TOOL_METHODS` (the eight lines
 that did were all review logs / campaign records / a retained quick log and
 are classified frozen history).
@@ -528,8 +528,8 @@ keeps the three REVISE rounds open (without them the register folded the
 REVISE rounds under the undated base PASS — a misrepresentation this
 avoids). Status stays `S20_620_IMPLEMENTED_REVIEW_PENDING`.
 
-Repair commits: `dda51a16` (Rust), `a8b4cddb` (SMP1 revision 13, WP-300
-revision 4, WP-620 section 9, summaries, register), `2563d577` (judge,
+Repair commits: `dda51a16` (Rust), `a8b4cddb` (SMP1 revision 13, S20-300
+revision 4, S20-620 section 9, summaries, register), `2563d577` (judge,
 tool, gateway, capture, TOOLING, stand-in, tests, records), `2485d350`
 (register/GA/dossier/sync chain, two passes to convergence), `1450577a`
 (`generate_supply_chain_evidence.py`, last), and this record's commit.
@@ -538,14 +538,14 @@ tool, gateway, capture, TOOLING, stand-in, tests, records), `2485d350`
 
 | Finding | Disposition | Where / evidence |
 |---|---|---|
-| Ariadne P1 / Nabu P2 — SMP1 owns method 201 | FIXED. SMP1 revision 13: row 201 request corrected to none; appendix A row 201 and `open_summary` grammar (WP-390 fields 1-8 + optional WP-300 field 9, version 2 selections only, structural absence, one item, non-empty body refused); revision-12 "unchanged" statements amended; version 1 bytes unchanged (now true by a version gate). Owning package moved: `protocol` status `S20_400_COMPLETE` → `S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING`, `contract_revision` 13, `current_delta_review` 13 PENDING×3, `contract_complete` false; WORK_PACKAGES WP-400 row, ADR-0032. WP-620 §9 now cites SMP1; Boundary sentence true. | `a8b4cddb`, `dda51a16`; `check_smp1_contract.py` PASS rev 13; `workspace_open_under_version_1_never_carries_field_9`, `workspace_open_v2_discloses_only_the_materialized_head_snapshot`. Owner-lane (Ariadne) review of revision 13 NOT run. |
-| Ariadne P2 — WP-300 admits the probe | FIXED. Profile revision 4 §5 "Identity probe": exact rules (four acceptance rules, at most one file read, no object, no build, no write-back, no delete, discard = absence, guard rule), sole consumer, pointer-not-evidence; §8 evidence, §9 exclusion corrected; checker revision 4 with a probe-caller allowlist gate (`server.rs` only); summary `S20_300_FULL_COMPLETE` → `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`, `cache_consumers` updated; ADR-0029, WORK_PACKAGES row. | `a8b4cddb`; `check_complete_root_index_snapshot_profile.py` PASS rev 4. Revision 4 reviews NOT run. |
+| Ariadne P1 / Nabu P2 — SMP1 owns method 201 | FIXED. SMP1 revision 13: row 201 request corrected to none; appendix A row 201 and `open_summary` grammar (S20-390 fields 1-8 + optional S20-300 field 9, version 2 selections only, structural absence, one item, non-empty body refused); revision-12 "unchanged" statements amended; version 1 bytes unchanged (now true by a version gate). Owning package moved: `protocol` status `S20_400_COMPLETE` → `S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING`, `contract_revision` 13, `current_delta_review` 13 PENDING×3, `contract_complete` false; WORK_PACKAGES S20-400 row, ADR-0032. S20-620 §9 now cites SMP1; Boundary sentence true. | `a8b4cddb`, `dda51a16`; `check_smp1_contract.py` PASS rev 13; `workspace_open_under_version_1_never_carries_field_9`, `workspace_open_v2_discloses_only_the_materialized_head_snapshot`. Owner-lane (Ariadne) review of revision 13 NOT run. |
+| Ariadne P2 — S20-300 admits the probe | FIXED. Profile revision 4 §5 "Identity probe": exact rules (four acceptance rules, at most one file read, no object, no build, no write-back, no delete, discard = absence, guard rule), sole consumer, pointer-not-evidence; §8 evidence, §9 exclusion corrected; checker revision 4 with a probe-caller allowlist gate (`server.rs` only); summary `S20_300_FULL_COMPLETE` → `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`, `cache_consumers` updated; ADR-0029, WORK_PACKAGES row. | `a8b4cddb`; `check_complete_root_index_snapshot_profile.py` PASS rev 4. Revision 4 reviews NOT run. |
 | Ariadne P3 — §9 precision | FIXED. "Only when … any probe failure is absence"; warm-up refusal is `QUERY_SNAPSHOT_MISMATCH` only when the engine answers, else the owner code, and materialization only if the cache write succeeds. Pinned by a test that observed the owner-code case on the TYPE fixture (`INDEX_SNAPSHOT_ROOT_INCOMPLETE`, no snapshot ever disclosed). | `a8b4cddb`; `test_mediated_gateway.test_warm_up_owner_refusal_wins_and_materializes_nothing` |
 | Ariadne P3 — one-shot route cannot page | FIXED by the alternative the finding allows: the multi-invocation continuation decision landed (chain-bound audit, Vulcan P2 row); TOOLING states the rule; sentence pins in `test_documented_layout_is_pinned`. Review of that decision is the next round's. | `2563d577` |
 | Ariadne P3 / Nabu P3 — stale records | FIXED. SUCCESSION-COVERAGE CONTEXT row and MEDIATED-INPUT-ACCOUNTING corrected (layout documented, 8 integrated proofs, live-model usability documented not demonstrated). | `2563d577` |
 | Ariadne P4 / Vulcan P4 — `workspace.open` ignores a body | FIXED for `workspace.open` (non-empty → `PROTOCOL_PAYLOAD_INVALID`, both versions, tested). The other body-ignoring methods named (session.capabilities/budgets, exchange.export, refs.recover, recovery) are unchanged pre-existing behavior, not agent-reachable except via denied methods / the two session reads. | `dda51a16` |
 | Ariadne P4 — ADR-0036 status, §9 heading | FIXED. ADR status refreshed to revision 5; heading "9. Clarifications (revision 2 onward)"; checker anchors verbatim (PASS). | `a8b4cddb` |
-| Nabu P3 — opener lock behavior | FIXED in part, premise corrected. The probe now takes the boundary shared **without waiting** and never initializes it (no create_dir/fsync). Correction: the opener already took a blocking shared maintenance lock before this change — `head()` → `accepted_head()` acquires it (`crates/sley-txn/src/repository.rs:881-884`) — so blocking behind an exclusive GC/import owner is pre-existing WP-390 behavior, now stated in the docstring and §9. A protocol-level contention test is not possible for the probe alone (the head load blocks first); I wrote one, it hung for exactly that reason, and it was removed. | `dda51a16`, `a8b4cddb` |
+| Nabu P3 — opener lock behavior | FIXED in part, premise corrected. The probe now takes the boundary shared **without waiting** and never initializes it (no create_dir/fsync). Correction: the opener already took a blocking shared maintenance lock before this change — `head()` → `accepted_head()` acquires it (`crates/sley-txn/src/repository.rs:881-884`) — so blocking behind an exclusive GC/import owner is pre-existing S20-390 behavior, now stated in the docstring and §9. A protocol-level contention test is not possible for the probe alone (the head load blocks first); I wrote one, it hung for exactly that reason, and it was removed. | `dda51a16`, `a8b4cddb` |
 | Nabu P3 — continuation scope authority | FIXED (option (a)): cursor-bound audit, trial-wide, works on the documented one-shot route. | `2563d577` (Vulcan P2 row) |
 | Nabu P3 — tool identity | FIXED. `TOOL_VERSION` "2"; `MEDIATED_TOOL_VERSION` derived from it; prior-version rejection tests on both routes. | `2563d577`; `test_agent_access.test_prior_tool_version_rejects`, `test_mediated_access.test_prior_tool_version_rejects` |
 | Nabu P4 — witness logs lack identity | FIXED. The witness emits `source <commit>` (and whether tracked files differed); logs re-run at the repair head (section 11.3). | `2563d577` + log commit |
@@ -556,14 +556,14 @@ tool, gateway, capture, TOOLING, stand-in, tests, records), `2485d350`
 | Vulcan P3 — open capture labels | FIXED. `audit_label` closed set; denied/unknown commands record as `denied` on every capture path (handle, gateway loop, pump, ingress server); the mediated audit rejects any label outside `AUDIT_LABELS`. | `2563d577`; `test_denied_commands_record_under_the_fixed_label`, `test_forged_continue_label_rejects` |
 | Vulcan P3 — surface contract / scope | FIXED. Continuation no longer depends on scope; TOOLING says so; regressions: cross-scope bound continue accepted, cross-scope wrong cursor rejected. The staged transport is not documented in TOOLING (no longer needed for paging). | `2563d577` |
 | Vulcan P3 — budget units | FIXED. TOOLING states the per-reply bound in reply bytes (hex doubles the body) with the safe `max_response_bytes` 524000 and the 8388608 capture backstop; the stand-in requests 524000; `test_a_maximal_documented_page_fits_the_per_reply_bound` covers both routes' envelopes. | `2563d577` |
-| Vulcan P4 — probe resource claims | FIXED. Non-waiting guard; §9 and WP-300 §5 state the one-file bounded decode (≤ `MAX_SNAPSHOT_RECORD_BYTES`) instead of "metadata-only". | `dda51a16`, `a8b4cddb` |
+| Vulcan P4 — probe resource claims | FIXED. Non-waiting guard; §9 and S20-300 §5 state the one-file bounded decode (≤ `MAX_SNAPSHOT_RECORD_BYTES`) instead of "metadata-only". | `dda51a16`, `a8b4cddb` |
 
 Deviation to disclose: the consumer contracts that pin the SMP1 revision
 (`SMP1_JSON_BRIDGE_V1.md`, `SLEY_CLI_V1.md`, `SESSION_HANDLE_PROFILE_V1.md`,
 ADR-0033, and their checkers' `SMP1_REVISION`) were re-pinned to 13 as
 pin-only edits with an explicit re-pin sentence and no consumer revision
 bump or status move. The CLI's own precedent re-pinned through a CLI
-revision (revision 4 and 5). The WP-330, WP-420 and WP-430 owners should
+revision (revision 4 and 5). The S20-330, S20-420 and S20-430 owners should
 confirm or require revisions; `test_smp1_contract.py` now derives the SMP1
 revision from its Status line instead of the literal 12.
 
@@ -574,9 +574,9 @@ revision from its Status line instead of the literal 12.
 | server tests | `cargo test --locked --offline -p sley-protocol --lib workspace_open` | 0 | 2 passed |
 | touched crates | `cargo test --locked --offline --no-fail-fast -p sley-repo -p sley-protocol -p sley-cli` | 101 | 640 passed, 1 failed (`debug_commit_repro`, documented diagnostic), 25 ignored |
 | SMP1 family | `check_smp1_contract.py`, `check_cli_contract.py`, `check_smp1_json_bridge_contract.py`, `check_session_handle_profile.py`, `test_smp1_contract.py`, `test_current_contract_review.py`, `test_session_handle_profile.py`, `test_cli_contract.py`, `generate_smp1_json_bridge_table.py --check` | 0 each | PASS / OK |
-| WP-300 | `check_complete_root_index_snapshot_profile.py` | 0 | PASS, revision 4 |
+| S20-300 | `check_complete_root_index_snapshot_profile.py` | 0 | PASS, revision 4 |
 | trial runner | `check_sley2_trial_runner.py` | 0 | PASS, revision 5 |
-| register | `check_finding_register.py` | 0 | PASS (28 open reviews incl. the 3 WP-620 REVISE rounds and 3 SMP1 current-delta PENDING) |
+| register | `check_finding_register.py` | 0 | PASS (28 open reviews incl. the 3 S20-620 REVISE rounds and 3 SMP1 current-delta PENDING) |
 | live suites | `python3 -m unittest discover -s bench/live/tests -t .` at `1450577a` (binaries bound, bwrap, `TMPDIR` on `/home`) | 0 | Ran 243 tests, OK (includes the 8 integrated CONTEXT proofs) |
 | integrated CONTEXT proofs | `python3 -m unittest -v bench.live.tests.test_mediated_context` (repair tree) | 0 after one rerun | 8 tests: 7 OK in the first run, `test_context_exceeded_budget_rejects` failed on a binary relink by a concurrent cargo run (environment note below) and passed alone; all 8 pass again inside the 243-test run |
 | trial-runner tests | `python3 -m unittest discover -s bench/sley2/tests -t .` | 0 | Ran 23 tests, OK |
@@ -594,7 +594,7 @@ deleted before any commit (never tracked).
 ### 11.4 Still open
 
 - Re-review of revision 5 (all three lanes), SMP1 revision 13 current-delta
-  review, WP-300 revision 4 reviews; consumer-owner confirmation of the
+  review, S20-300 revision 4 reviews; consumer-owner confirmation of the
   pin-only re-pins.
 - Fuzz refresh for the seven affected lanes.
 - Corpus task-input amendment ratification (Nabu P4).
@@ -606,24 +606,24 @@ deleted before any commit (never tracked).
 
 Transcripts committed unchanged in `1a32ceca` with the index
 `evidence/review/rounds/context-r6-f073811.json`. The index lists eight
-reviews. The Ariadne WP-620 revision-6 NO_VERDICT stub is a process
+reviews. The Ariadne S20-620 revision-6 NO_VERDICT stub is a process
 artifact: it is listed under `omitted_process_artifacts` and not filed,
 and the coordinator re-dispatches that lane. Verdicts:
 
 - SMP1 revision 13: Ariadne REVISE (1 P1, 4 P3, 3 P4); Nabu REVISE (1 P1,
   1 P2, 4 P3, 1 P4); Vulcan REVISE (1 P2, 3 P3, 2 P4).
-- WP-300 revision 4: Ariadne PASS (2 P3, 3 P4); Nabu REVISE (2 P3, 2 P4);
+- S20-300 revision 4: Ariadne PASS (2 P3, 3 P4); Nabu REVISE (2 P3, 2 P4);
   Vulcan REVISE (1 P2, 2 P3, 1 P4).
-- WP-620 revision 6: Nabu PASS (2 P3, 3 P4); Vulcan PASS (3 P4).
+- S20-620 revision 6: Nabu PASS (2 P3, 3 P4); Vulcan PASS (3 P4).
 
 Each verdict is recorded as `<lane>_revision_<N>` with a dated, scoped note.
 
 Repair commits:
 
-- `40a84a5c`: WP-300 revision 5 (code, spec, checker, checker tests,
+- `40a84a5c`: S20-300 revision 5 (code, spec, checker, checker tests,
   server tests).
 - `8357c243`: SMP1 revision 14, NATIVE_TEST_ADMISSION revision 6, consumer
-  re-pins, WP-620 revision 6, summary, WORK_PACKAGES.
+  re-pins, S20-620 revision 6, summary, WORK_PACKAGES.
 - `c21ff945`: judge docstrings, coverage record, witness provenance.
 - `df3a45ac`: witness logs at `c21ff945`.
 - `46118639`: fuzz lockfile.
@@ -631,12 +631,12 @@ Repair commits:
 - `50fca15f`: entrypoints anchor.
 - `59a26519`: register/GA/dossier/sync chain.
 - `5f501d39`: T54.
-- `7fcb313b`: WP-710 mirror of the new lock digest and edge.
+- `7fcb313b`: S20-710 mirror of the new lock digest and edge.
 - `746d5b30`: T54, last.
 - `d307a22f`: scratch-workspace leak fix (section 12.6).
 - This record's commit.
 
-### 12.2 The version rule (all three SMP1 P1/P2 findings, WP-300 Ariadne P4)
+### 12.2 The version rule (all three SMP1 P1/P2 findings, S20-300 Ariadne P4)
 
 One rule, code unchanged: `workspace.open` answers `open_summary` (fields
 1-8 plus optional field 9) under version 2 and under every later selection
@@ -650,7 +650,7 @@ text and its pins changed:
   scope paragraph, in row 201 and in the history. It also says the explicit
   entrypoints admit selections 1, 2 and 3, with version 3 defined in
   NATIVE_TEST_ADMISSION appendices C/D.
-- WP-300 revision 5 §5 names the consumer the same way.
+- S20-300 revision 5 §5 names the consumer the same way.
 - NATIVE_TEST_ADMISSION revision 6 (dated amendment) re-pins appendix D
   from SMP1 revision 12 to revision 14. It also names the version 3 effect:
   row 201 answers `open_summary` under version 3 as under version 2.
@@ -677,37 +677,37 @@ The table generator keys on it, and the table itself did not change.
 | SMP1 Ariadne P3 / Nabu P3 — SMP1-family fuzz proofs stale | FIXED. Fresh proofs for all eighteen persistent-fuzz slices at the clean head `46118639`. Seven were staled by the round-6 delta and eleven more by the new `libc` dependency of `sley-repo`. Every slice checker exits 0. | `c2664f10` |
 | SMP1 Ariadne P3 — entrypoints "admit only 1 and 2" (pre-existing) | FIXED. SMP1 now says the explicit entrypoints admit selections 1, 2 and 3, with version 3 defined by NATIVE_TEST_ADMISSION appendices C/D. The checker anchors this as `entrypoints-admit-version-3`, with a revert case. | `8357c243`, `50fca15f` |
 | SMP1 Nabu P3 / Vulcan P4 — undefined `-- field 9 optional` notation | FIXED. The appendix A preamble defines optional-by-omission `[n: T]` record fields, and `open_summary` uses `[9: IndexSnapshotId]`. | `8357c243` |
-| SMP1 Vulcan P3 — field 9 is "the identity the queries bind" | FIXED. The text now reads "Field 9 is a pointer, not evidence". It equals the bound identity only when the cache is honest (the WP-300 §5 residual). `capsule` always binds a fresh snapshot, so a client that adopts field 9 keeps the `QUERY_SNAPSHOT_MISMATCH` cross-check. | `8357c243` |
-| SMP1 Ariadne P4 / Nabu P4 — non-waiting overstated; head load blocks | FIXED. One sentence states that the opener still loads the head under the WP-390 blocking shared acquisition and that only the probe adds no wait. New test `workspace_open_probe_is_non_waiting_and_never_rewrites_a_discarded_record`: while an exclusive guard is held, `materialized_head_snapshot` returns None promptly, and a corrupted cache yields an 8-field body with the cache bytes unchanged. | `8357c243`, `40a84a5c` |
+| SMP1 Vulcan P3 — field 9 is "the identity the queries bind" | FIXED. The text now reads "Field 9 is a pointer, not evidence". It equals the bound identity only when the cache is honest (the S20-300 §5 residual). `capsule` always binds a fresh snapshot, so a client that adopts field 9 keeps the `QUERY_SNAPSHOT_MISMATCH` cross-check. | `8357c243` |
+| SMP1 Ariadne P4 / Nabu P4 — non-waiting overstated; head load blocks | FIXED. One sentence states that the opener still loads the head under the S20-390 blocking shared acquisition and that only the probe adds no wait. New test `workspace_open_probe_is_non_waiting_and_never_rewrites_a_discarded_record`: while an exclusive guard is held, `materialized_head_snapshot` returns None promptly, and a corrupted cache yields an 8-field body with the cache bytes unchanged. | `8357c243`, `40a84a5c` |
 | SMP1 Nabu P4 / Vulcan P4 — determinism scope | FIXED. The body is deterministic given the head plus the derived cache state. Appendix B's "equal repository state" and section 10's byte-identity now include that state for this body. | `8357c243` |
 | SMP1 Ariadne P4 — owner column | FIXED. The v1-table preamble states the row 201 owner-cell exception. | `8357c243` |
 | SMP1 Ariadne P4 — no anchors for revision-13 text | FIXED. `WORKSPACE_OPEN_ANCHORS` covers the row 201 cells, the `open_summary` grammar and scope, optionality, the pointer sentence, the version 1 statement, the entrypoints and the native pin. Matching flattens whitespace. Revert cases are in `test_smp1_contract.py`. | `8357c243`, `50fca15f` |
 | SMP1 Vulcan P4 — other "empty" rows ignore a body | RECORDED, not changed. Appendix A states that rows 102, 103, 104, 210, 214 and 504 still ignore a non-empty body, a pre-existing deviation from section 4. | `8357c243` |
-| WP-300 Ariadne P3 — "only read-only derived query surfaces" | FIXED. The profile preamble, the ERROR_CODES WP-300 paragraph, the WORK_PACKAGES row and the `index_cache.rs` module doc now name the identity probe as the one non-query hit reader. | `40a84a5c`, `8357c243` |
-| WP-300 Ariadne P3 / Nabu P3 / Vulcan P2 — completion accepts the revision-3 base PASS | FIXED (the trial-runner Fix 2 pattern). COMPLETE now requires `<lane>_revision_5` PASS; without it the checker reports `completion-unbound-review:<lane>`. `test_complete_root_index_snapshot_profile.py`, now in `make quick`, covers four cases: the baseline passes, a flip on the base fields is refused, a flip on revision-4 fields is refused, and a bound PASS is admitted. | `40a84a5c` |
-| WP-300 Ariadne P4 / Nabu P4 / Vulcan P3 — probe gate bypassable | FIXED. `probe_gate_problems` scans `crates/` and `fuzz/` for the identifier, with comments and `use` items stripped. Only `crates/sley-repo/src/index_cache.rs` and crate `tests/` directories are exempt, and aliases are refused. The consumer must reference the probe exactly once, inside `fn materialized_head_snapshot(`. That function must call `acquire_shared_repository_maintenance_nonblocking(` and must never initialize or wait. Eight negative tests. | `40a84a5c` |
-| WP-300 Ariadne P4 / Vulcan P3 — lstat→open TOCTOU (symlink/FIFO) | FIXED. `read_record` opens with `O_NOFOLLOW \| O_NONBLOCK` and checks `is_file` on the open handle. Tests: `a_symlink_to_a_valid_record_is_absence_for_the_probe` and `a_fifo_at_the_cache_path_answers_at_once`. New direct dependency `libc =0.2.189` in `sley-repo`; it was already in the registry set, and both lockfiles plus the WP-710 mirror are updated. | `40a84a5c`, `46118639`, `7fcb313b` |
-| WP-300 Nabu P3 — raw root equality instead of `covers` | FIXED. All three guard checks now use `RepositoryMaintenanceGuard::covers`. `a_non_canonical_repository_spelling_is_covered_by_its_guard` covers a parent-symlink spelling and a `..` spelling; `covers` itself refuses a final-component symlink. | `40a84a5c` |
-| WP-300 Nabu P4 — no contention / discarded-record test | FIXED by the server test in the SMP1 Ariadne P4 / Nabu P4 row. | `40a84a5c` |
-| WP-300 Vulcan P4 — "metadata-only"; module doc | FIXED. The docs now describe a bounded decode of one file (at most `MAX_SNAPSHOT_RECORD_BYTES`) with no build, write-back or delete. The module doc names the probe. | `40a84a5c` |
-| WP-620 Nabu P3 — field-9 version gate | FIXED by section 12.2. | — |
-| WP-620 Nabu P3 — in-place amendment under revision 5 | FIXED by a revision bump. WP-620 is now revision 6, with a status sentence naming the §9 text it answers. The `_revision_5` REVISE history is kept, and the round-6 PASS verdicts bind as `_revision_6`. The checker passes and still refuses COMPLETE until Ariadne files a revision-6 verdict. | `8357c243` |
-| WP-620 Nabu P4 — CLI :26; consumer confirmations untracked | FIXED. CLI :26 now pins SMP1 revision 14, through CLI revision 9. The three owner confirmations are now `current_delta_review` PENDING records on WP-330/420/430, and the register lists them as open reviews. | `8357c243`, `59a26519` |
-| WP-620 Nabu P4 / Vulcan P4 — witness dirty flag; SIG/TYPE-FULL lack a source line | FIXED. `bench/live/witness_provenance.py` records the source commit and the exact tracked dirty paths, excluding the `bench/live/succ-trials-*` outputs (4 tests). All three witness scripts emit this line. The four logs were re-run at `c21ff945`; each reads "clean apart from witness outputs", CONTEXT pos, SIG and TYPE-FULL finish with judge exit 0, and CONTEXT neg is refused at validation phase 6 (tag 9). | `c21ff945`, `df3a45ac` |
-| WP-620 Vulcan P4 — judge docstrings describe the old scope rule | FIXED. Both audit docstrings now describe `_ContinuationLedger`: query-key and cursor binding across the trial, with `after` verified equal to the previous page's `next`. The SUCCESSION-COVERAGE paragraph is marked superseded. | `c21ff945` |
-| WP-620 Vulcan P4 — SMP1 version-1 overclaim | FIXED (see the SMP1 row). | `8357c243` |
-| WP-620 Nabu P4 — corpus amendment ratification | OPEN. Only the corpus owner can ratify it; no implementation change closes it. | — |
+| S20-300 Ariadne P3 — "only read-only derived query surfaces" | FIXED. The profile preamble, the ERROR_CODES S20-300 paragraph, the WORK_PACKAGES row and the `index_cache.rs` module doc now name the identity probe as the one non-query hit reader. | `40a84a5c`, `8357c243` |
+| S20-300 Ariadne P3 / Nabu P3 / Vulcan P2 — completion accepts the revision-3 base PASS | FIXED (the trial-runner Fix 2 pattern). COMPLETE now requires `<lane>_revision_5` PASS; without it the checker reports `completion-unbound-review:<lane>`. `test_complete_root_index_snapshot_profile.py`, now in `make quick`, covers four cases: the baseline passes, a flip on the base fields is refused, a flip on revision-4 fields is refused, and a bound PASS is admitted. | `40a84a5c` |
+| S20-300 Ariadne P4 / Nabu P4 / Vulcan P3 — probe gate bypassable | FIXED. `probe_gate_problems` scans `crates/` and `fuzz/` for the identifier, with comments and `use` items stripped. Only `crates/sley-repo/src/index_cache.rs` and crate `tests/` directories are exempt, and aliases are refused. The consumer must reference the probe exactly once, inside `fn materialized_head_snapshot(`. That function must call `acquire_shared_repository_maintenance_nonblocking(` and must never initialize or wait. Eight negative tests. | `40a84a5c` |
+| S20-300 Ariadne P4 / Vulcan P3 — lstat→open TOCTOU (symlink/FIFO) | FIXED. `read_record` opens with `O_NOFOLLOW \| O_NONBLOCK` and checks `is_file` on the open handle. Tests: `a_symlink_to_a_valid_record_is_absence_for_the_probe` and `a_fifo_at_the_cache_path_answers_at_once`. New direct dependency `libc =0.2.189` in `sley-repo`; it was already in the registry set, and both lockfiles plus the S20-710 mirror are updated. | `40a84a5c`, `46118639`, `7fcb313b` |
+| S20-300 Nabu P3 — raw root equality instead of `covers` | FIXED. All three guard checks now use `RepositoryMaintenanceGuard::covers`. `a_non_canonical_repository_spelling_is_covered_by_its_guard` covers a parent-symlink spelling and a `..` spelling; `covers` itself refuses a final-component symlink. | `40a84a5c` |
+| S20-300 Nabu P4 — no contention / discarded-record test | FIXED by the server test in the SMP1 Ariadne P4 / Nabu P4 row. | `40a84a5c` |
+| S20-300 Vulcan P4 — "metadata-only"; module doc | FIXED. The docs now describe a bounded decode of one file (at most `MAX_SNAPSHOT_RECORD_BYTES`) with no build, write-back or delete. The module doc names the probe. | `40a84a5c` |
+| S20-620 Nabu P3 — field-9 version gate | FIXED by section 12.2. | — |
+| S20-620 Nabu P3 — in-place amendment under revision 5 | FIXED by a revision bump. S20-620 is now revision 6, with a status sentence naming the §9 text it answers. The `_revision_5` REVISE history is kept, and the round-6 PASS verdicts bind as `_revision_6`. The checker passes and still refuses COMPLETE until Ariadne files a revision-6 verdict. | `8357c243` |
+| S20-620 Nabu P4 — CLI :26; consumer confirmations untracked | FIXED. CLI :26 now pins SMP1 revision 14, through CLI revision 9. The three owner confirmations are now `current_delta_review` PENDING records on S20-330/420/430, and the register lists them as open reviews. | `8357c243`, `59a26519` |
+| S20-620 Nabu P4 / Vulcan P4 — witness dirty flag; SIG/TYPE-FULL lack a source line | FIXED. `bench/live/witness_provenance.py` records the source commit and the exact tracked dirty paths, excluding the `bench/live/succ-trials-*` outputs (4 tests). All three witness scripts emit this line. The four logs were re-run at `c21ff945`; each reads "clean apart from witness outputs", CONTEXT pos, SIG and TYPE-FULL finish with judge exit 0, and CONTEXT neg is refused at validation phase 6 (tag 9). | `c21ff945`, `df3a45ac` |
+| S20-620 Vulcan P4 — judge docstrings describe the old scope rule | FIXED. Both audit docstrings now describe `_ContinuationLedger`: query-key and cursor binding across the trial, with `after` verified equal to the previous page's `next`. The SUCCESSION-COVERAGE paragraph is marked superseded. | `c21ff945` |
+| S20-620 Vulcan P4 — SMP1 version-1 overclaim | FIXED (see the SMP1 row). | `8357c243` |
+| S20-620 Nabu P4 — corpus amendment ratification | OPEN. Only the corpus owner can ratify it; no implementation change closes it. | — |
 
-Register note. On the first regeneration, the register folded the WP-300
+Register note. On the first regeneration, the register folded the S20-300
 revision-4 REVISE rounds and the SMP1 revision-13 REVISE rounds as
 historical. The cause was older PASS fields that carried no date: the
-WP-300 `*_final_review` fields and the protocol base and `*_review` fields.
+S20-300 `*_final_review` fields and the protocol base and `*_review` fields.
 Each of those fields now has a note naming the commit and date it was last
 set (`e73644ce`, 2026-09-14; `5e2f2b93`, 2026-09-10; `7221dd6e`,
 2026-09-05). Their values are unchanged. With the notes, the register keeps
 all five rounds open: 42 open reviews and 31 complete packages, and
 `ga_claimed` stays false. The session stale-safety GA criterion moves to
-AWAITS_REVIEW together with WP-330.
+AWAITS_REVIEW together with S20-330.
 
 ### 12.4 Gates at the repair head
 
@@ -715,7 +715,7 @@ AWAITS_REVIEW together with WP-330.
 |---|---|---|
 | `cargo fmt --check`; `cargo clippy -D warnings` (sley-repo, sley-protocol, sley-cli, all targets) | 0 | clean |
 | `cargo test --offline --locked --no-fail-fast -p sley-repo -p sley-protocol -p sley-cli -- --skip debug_commit_repro` | 0 | 645 passed, 0 failed |
-| SMP1 family, WP-300, trial runner, capsule, root-backed and required-index checkers, plus their `test_*.py` (including the new `test_complete_root_index_snapshot_profile.py`) | 0 each | PASS / OK |
+| SMP1 family, S20-300, trial runner, capsule, root-backed and required-index checkers, plus their `test_*.py` (including the new `test_complete_root_index_snapshot_profile.py`) | 0 each | PASS / OK |
 | all 18 persistent-fuzz slice checkers | 0 each | PASS at `46118639` |
 | `check_finding_register.py`, `check_supply_chain_audit.py` | 0 | PASS |
 | witnesses (4) at `c21ff945` | 0 each | see the witness row in 12.3 |
@@ -723,15 +723,15 @@ AWAITS_REVIEW together with WP-330.
 | `bench/live/tests`, first run at `5f501d39` | 1 | 247 tests, 246 OK. `test_context_incomplete_discovery_rejects` returned `harness_failure` while `/tmp` was out of inodes (tmpfs 100% IUse; see 12.6). Re-run alone after `/tmp` was freed, it passed (OK, 174 s). |
 | `bench/live/tests` at `d307a22f` (leak fix; binaries copied out of the target directory; private `TMPDIR=/home/dev/Work/checkpoints/sct-r6`) | 0 | Ran 254 tests, OK (includes the 8 integrated CONTEXT proofs and `test_scratch_cleanup`). `/tmp` inodes went from 101471 to 101472 across the run. The private root held only a `uv-*.lock` afterwards, with no `sley2-*` directory. |
 | `bench/live/tests`, discarded attempt at `d307a22f` | 1 | Run under a longer private `TMPDIR` (`…/succ-context-tmp/live-r6b`). 8 mediated CONTEXT and 13 mediated-attempt tests failed with `harness_failure` or an empty capture. The same single test failed under `…/live-r6c` and passed under `…/succ-context-tmp`, which is consistent with the mediated gateway's AF_UNIX socket path exceeding the 108-byte limit. That cause is inferred and not otherwise verified. The full suite then passed under the shorter root (row above). |
-| `make quick` recipe, keep-going (131 lines, at `5f501d39`) | — | 124 exit 0. Failing: the candidate-bound #82 (the only failing release test is `namespace-not-attestation-bound`), #83, #84, #85 and #88 (`test-inventory:drift`). #106 failed on the WP-710 lock-digest mirror; `7fcb313b` fixed it and it now exits 0. #131 `cargo test --workspace`: 1031 passed, 1 failed (`debug_commit_repro`, the documented env-bound diagnostic), 31 ignored. |
+| `make quick` recipe, keep-going (131 lines, at `5f501d39`) | — | 124 exit 0. Failing: the candidate-bound #82 (the only failing release test is `namespace-not-attestation-bound`), #83, #84, #85 and #88 (`test-inventory:drift`). #106 failed on the S20-710 lock-digest mirror; `7fcb313b` fixed it and it now exits 0. #131 `cargo test --workspace`: 1031 passed, 1 failed (`debug_commit_repro`, the documented env-bound diagnostic), 31 ignored. |
 | `make lint` at `d307a22f` | 0 | PASS: fmt clean, 0 clippy warnings, lint inputs clean. The only dirty path was this record, uncommitted at the time, so `working_tree_clean` was false. `lint-report.json` was restored and not committed. |
 | CONTEXT witness pos at `d307a22f` (untracked log) | 0 | judge exit 0; the workspace line reads "(removed at exit)" and the private root held no `sley2-*` directory afterwards |
 
 ### 12.5 Still open
 
-- Re-dispatch Ariadne on WP-620 revision 6 (the round-6 stub is a
+- Re-dispatch Ariadne on S20-620 revision 6 (the round-6 stub is a
   process artifact).
-- Reviews of SMP1 revision 14, WP-300 revision 5, and the consumer
+- Reviews of SMP1 revision 14, S20-300 revision 5, and the consumer
   re-pins (bridge 11, CLI 9, session handle 5). All sit at
   `*_IMPLEMENTED_REVIEW_PENDING` / PENDING.
 - Corpus task-input amendment ratification.
@@ -792,11 +792,11 @@ are recorded as lane fields with dated, scoped notes in `1d8086fc`:
 
 - **SMP1 revision 14:** PASS x3. Ariadne has 1 P3 and 1 P4, Nabu 2 P3 and
   2 P4, Vulcan 1 P3 and 2 P4.
-- **WP-300 revision 5:** PASS x3. Ariadne has 3 P4, Nabu 4 P4, Vulcan
+- **S20-300 revision 5:** PASS x3. Ariadne has 3 P4, Nabu 4 P4, Vulcan
   3 P4.
 - **Bridge revision 11:** PASS x3. Ariadne has 3 P3 and 3 P4, Nabu 2 P3
   and 2 P4, Vulcan 2 P3 and 2 P4.
-- **WP-620:** Ariadne revision 6 PASS (1 P3, 2 P4), so every lane now has
+- **S20-620:** Ariadne revision 6 PASS (1 P3, 2 P4), so every lane now has
   a PASS `_revision_6` field. The round-7 Vulcan review of the leak fix,
   recorded as `vulcan_surface_review_revision_7`, is PASS (2 P3, 3 P4).
 - **CLI revision 9:** REVISE x3 (2 P2 each). Ariadne and Nabu also have
@@ -815,12 +815,12 @@ a new revision:
 | Package | Revision | Review status |
 |---|---|---|
 | SMP1 | 15 | pending |
-| WP-300 | 6 | pending |
+| S20-300 | 6 | pending |
 | Bridge | 12 | pending |
 | CLI | 10 | pending |
 | Session handle | 6 | pending |
 | NATIVE_TEST_ADMISSION | 7 | dated re-pin |
-| WP-620 | 7 | pending |
+| S20-620 | 7 | pending |
 
 Each package's `current_delta_review` is PENDING at its new revision, with
 a history note. None of these statuses moved to COMPLETE.
@@ -910,16 +910,16 @@ required a code change.
 | Session Vulcan P4: `session.close` ignores a body | RECORDED. Section 2 notes the deviation; the behavior is not changed. | `60be11c8` |
 | SMP1 Ariadne/Nabu/Vulcan P3: per-selection negotiation filter | FIXED. SMP1 revision 15 states the filter for version 1, version 2, and version 3 without the bit, citing NATIVE appendix C. The version 1 compatibility statement counts the native-tag drop (handshake identity and capabilities bytes). Three anchors with revert cases. | `60be11c8` |
 | SMP1 Ariadne/Nabu P4: ADR-0034/0035 records and session/CLI histories | FIXED (rows above and bridge rows below) | `60be11c8` |
-| SMP1 Nabu P3: WP-300 evidence item contradicts SMP1 | FIXED. The WP-300 revision 6 evidence names the consumer wrapper and says `workspace.open` waits. | `60be11c8` |
+| SMP1 Nabu P3: S20-300 evidence item contradicts SMP1 | FIXED. The S20-300 revision 6 evidence names the consumer wrapper and says `workspace.open` waits. | `60be11c8` |
 | SMP1 Nabu P4: bridge generator comment says SMP1 13 | FIXED (the comment no longer names a revision) | `60be11c8` |
 | SMP1 Nabu P4: ENTITY_READ and NATIVE statuses unscoped | FIXED. ENTITY_READ flags its dated amendment as covered only by the SMP1 rounds. NATIVE scopes its review to the first commit (`76cd3dc4`). | `60be11c8` |
 | SMP1 Vulcan P4: server_tests docstring says "version 2 only" | FIXED | `004cf5be` |
-| SMP1 Vulcan P4 / WP-300 Nabu P4: `pub(crate)` wrapper not gated | FIXED by the gate option. `materialized_head_snapshot` has exactly one production caller inside `workspace_open`. Only the server's `#[cfg(test)]` module and crate integration tests may name it. The body may make no blocking or exclusive acquisition. Negative tests. | `60be11c8` |
-| WP-300 Ariadne/Nabu/Vulcan P4: coverage, gate, and evidence overclaims | FIXED. Coverage lists relative, parent-symlink, and `..` spellings and says a final-component symlink is refused (relative spelling now tested). The gate sentence states the exemptions and the `use` import. The evidence names the wrapper. | `004cf5be`, `60be11c8` |
-| WP-300 Vulcan P4: literal and comment bypasses | FIXED. `strip_rust` blanks comments and string, char, and raw-string literals, so `/**/as` and `"use "` bypasses are refused. Seven token-aware negative tests. | `60be11c8` |
-| WP-300 Vulcan P4: TOCTOU through the caller's spelling | FIXED. The cache path is derived from `guard.repository_root()` after `covers` (asserted in the spelling test). | `004cf5be` |
-| WP-300 Nabu P4: symlinked `index`/`index/v1`; Unix-only flags | FIXED. Both components must be real directories on read and write-back (`a_symlinked_cache_directory_is_never_read_or_written_through`). The spec scopes the `O_NOFOLLOW`/`O_NONBLOCK` sentence to Unix. | `004cf5be`, `60be11c8` |
-| WP-300 Nabu P4: T54 drift at the scope | FIXED by process: T54 is regenerated as the final commit after this record | final commit |
+| SMP1 Vulcan P4 / S20-300 Nabu P4: `pub(crate)` wrapper not gated | FIXED by the gate option. `materialized_head_snapshot` has exactly one production caller inside `workspace_open`. Only the server's `#[cfg(test)]` module and crate integration tests may name it. The body may make no blocking or exclusive acquisition. Negative tests. | `60be11c8` |
+| S20-300 Ariadne/Nabu/Vulcan P4: coverage, gate, and evidence overclaims | FIXED. Coverage lists relative, parent-symlink, and `..` spellings and says a final-component symlink is refused (relative spelling now tested). The gate sentence states the exemptions and the `use` import. The evidence names the wrapper. | `004cf5be`, `60be11c8` |
+| S20-300 Vulcan P4: literal and comment bypasses | FIXED. `strip_rust` blanks comments and string, char, and raw-string literals, so `/**/as` and `"use "` bypasses are refused. Seven token-aware negative tests. | `60be11c8` |
+| S20-300 Vulcan P4: TOCTOU through the caller's spelling | FIXED. The cache path is derived from `guard.repository_root()` after `covers` (asserted in the spelling test). | `004cf5be` |
+| S20-300 Nabu P4: symlinked `index`/`index/v1`; Unix-only flags | FIXED. Both components must be real directories on read and write-back (`a_symlinked_cache_directory_is_never_read_or_written_through`). The spec scopes the `O_NOFOLLOW`/`O_NONBLOCK` sentence to Unix. | `004cf5be`, `60be11c8` |
+| S20-300 Nabu P4: T54 drift at the scope | FIXED by process: T54 is regenerated as the final commit after this record | final commit |
 | Bridge Nabu/Vulcan/Ariadne P3: undeclared v3 surface | FIXED. Bridge revision 12 section 11 names the table and its NATIVE owner, every versioned export, and the render-only `native_tests` key (`the_version_3_hello_rendering_is_render_only`). The checker requires the exports, including `METHOD_TABLE_V2_JSON`. | `004cf5be`, `60be11c8` |
 | Bridge Nabu/Vulcan/Ariadne P3: ADR-0034 stuck at revision 10; revision-agnostic markers | FIXED. ADR-0034 has revision 11 and 12 records and names the current revision. `pin_problems` anchors the ADR line and record, with revert tests (`test_smp1_json_bridge_contract.py`, added to quick). | `60be11c8` |
 | Bridge Ariadne P3: oracle judges the header before the version | FIXED. The oracle now checks the hello version before the header. New vector `hello-version-above-with-request-id` (the old oracle would refuse it with `PROTOCOL_FRAME_INVALID`). | `004cf5be` |
@@ -927,15 +927,15 @@ required a code change.
 | Bridge Nabu/Vulcan P4: generator comment; qualifier; "no body columns" | FIXED. The comment no longer names a revision. The status quotes the qualifier and cites the drift gate deriving `reserved` from the body cells. | `60be11c8` |
 | Bridge Ariadne P4: authority-rule quotation | FIXED (marked as the bridge's paraphrase of SMP1 section 8) | `60be11c8` |
 | Bridge Ariadne P4: closeout names revision 9 | FIXED. The closeout says it records the revision 9 implementation and points to the summary. | `60be11c8` |
-| WP-620 Ariadne P3: stale SMP1 13 / WP-300 4 pins | FIXED. Revision 7 pins SMP1 15 and WP-300 6. `composed_pin_problems` reads both status lines, with revert tests (`test_sley2_trial_runner.py`, added to quick). | `60be11c8` |
-| WP-620 Ariadne P4: absent boundary counted as probe absence | FIXED (section 9 and the server docstring) | `004cf5be`, `60be11c8` |
-| WP-620 Ariadne P4: SUCCESSION-COVERAGE stale row and gate paragraph | FIXED (row refreshed; paragraph marked historical and superseded by REQ-10) | `60be11c8` |
-| WP-620 Vulcan r7 P3: unreaped serve child | FIXED. `Session.__init__` kills and reaps on failure. The stalled-serve test fails on the old tool (child left running) and passes now. | `236b7640` |
-| WP-620 Vulcan r7 P3: merge-prover stages | FIXED. Stages are registered as created, every tree is attempted, and the prover runs under `scratch_root`. The failing-side-read test fails on the old prover. | `236b7640` |
-| WP-620 Vulcan r7 P4: `_grant` widens the parent and file modes | FIXED. Only in-tree directories are touched (hard-link and parent-mode tests). | `236b7640` |
-| WP-620 Vulcan r7 P4: path-based retry TOCTOU | FIXED by the documented precondition (no concurrent writer; all callers remove their own scratch after the last user exits) | `236b7640` |
-| WP-620 Vulcan r7 P4: "(removed at exit)" logged before removal | FIXED (worded as scheduled; a failed removal exits nonzero) | `236b7640` |
-| WP-620 Nabu P4 (carried): corpus amendment ratification | OPEN (corpus owner) | — |
+| S20-620 Ariadne P3: stale SMP1 13 / S20-300 4 pins | FIXED. Revision 7 pins SMP1 15 and S20-300 6. `composed_pin_problems` reads both status lines, with revert tests (`test_sley2_trial_runner.py`, added to quick). | `60be11c8` |
+| S20-620 Ariadne P4: absent boundary counted as probe absence | FIXED (section 9 and the server docstring) | `004cf5be`, `60be11c8` |
+| S20-620 Ariadne P4: SUCCESSION-COVERAGE stale row and gate paragraph | FIXED (row refreshed; paragraph marked historical and superseded by REQ-10) | `60be11c8` |
+| S20-620 Vulcan r7 P3: unreaped serve child | FIXED. `Session.__init__` kills and reaps on failure. The stalled-serve test fails on the old tool (child left running) and passes now. | `236b7640` |
+| S20-620 Vulcan r7 P3: merge-prover stages | FIXED. Stages are registered as created, every tree is attempted, and the prover runs under `scratch_root`. The failing-side-read test fails on the old prover. | `236b7640` |
+| S20-620 Vulcan r7 P4: `_grant` widens the parent and file modes | FIXED. Only in-tree directories are touched (hard-link and parent-mode tests). | `236b7640` |
+| S20-620 Vulcan r7 P4: path-based retry TOCTOU | FIXED by the documented precondition (no concurrent writer; all callers remove their own scratch after the last user exits) | `236b7640` |
+| S20-620 Vulcan r7 P4: "(removed at exit)" logged before removal | FIXED (worded as scheduled; a failed removal exits nonzero) | `236b7640` |
+| S20-620 Nabu P4 (carried): corpus amendment ratification | OPEN (corpus owner) | — |
 
 ### 13.4 Gates at the repair head
 
@@ -944,7 +944,7 @@ required a code change.
 | `cargo fmt --check`; `cargo clippy --workspace --all-targets -D warnings` | 0 | clean |
 | `cargo test --offline --locked --no-fail-fast` on sley-repo, sley-protocol, sley-cli, sley-json-bridge, and sley-test-runner (skipping `debug_commit_repro`) | 0 | 685 passed, 0 failed |
 | All 18 persistent-fuzz slice checkers | 0 each | PASS at `60be11c8` |
-| SMP1, bridge, CLI, CLI-rules, session, WP-300, and trial-runner checkers, with their `test_*.py` suites (including the new `test_smp1_json_bridge_contract.py` and `test_sley2_trial_runner.py`) | 0 each | PASS / OK |
+| SMP1, bridge, CLI, CLI-rules, session, S20-300, and trial-runner checkers, with their `test_*.py` suites (including the new `test_smp1_json_bridge_contract.py` and `test_sley2_trial_runner.py`) | 0 each | PASS / OK |
 | `uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py` | 0 | PASS, 37 rejections |
 | `check_finding_register.py`; `check_supply_chain_audit.py` (at `4e9cdeda`) | 0 | PASS |
 | `bench/live/tests` (binaries copied out of the target directory; `TMPDIR=/home/dev/Work/checkpoints/sct-r7`) | 0 | 258 tests, OK. `/tmp` inodes went from 101620 to 101626. The private root gained only a `uv-*.lock`, no `sley2-*` directory. |
@@ -954,8 +954,8 @@ required a code change.
 
 ### 13.5 Still open
 
-- New-delta reviews of SMP1 revision 15, WP-300 revision 6, bridge
-  revision 12, CLI revision 10, session handle revision 6, and WP-620
+- New-delta reviews of SMP1 revision 15, S20-300 revision 6, bridge
+  revision 12, CLI revision 10, session handle revision 6, and S20-620
   revision 7. None of these statuses moved to COMPLETE.
 - Corpus task-input amendment ratification.
 - The empty-request rows other than 201 still ignore a body (recorded).
@@ -968,41 +968,41 @@ required a code change.
 
 The 18 transcripts and their index (`evidence/review/rounds/context-r8-26d050e.json`, each transcript's sha256 matching it) were committed unchanged in `6d57eab0`. The verdicts were recorded in `83bace58`:
 
-- PASS in all three lanes: CLI revision 10, WP-300 revision 6, bridge revision 12, SMP1 revision 15, and session handle revision 6.
-- WP-620 revision 7: Vulcan PASS; Ariadne and Nabu REVISE, one P2 each.
+- PASS in all three lanes: CLI revision 10, S20-300 revision 6, bridge revision 12, SMP1 revision 15, and session handle revision 6.
+- S20-620 revision 7: Vulcan PASS; Ariadne and Nabu REVISE, one P2 each.
 
 The historical 2b0f1c9 Vulcan delta verdict, which reviewed the revision 6 text, moved out of `vulcan_surface_review_revision_7` into `vulcan_surface_review_delta_2b0f1c9`, with a note saying so. The genuine revision 7 Vulcan PASS now holds `vulcan_surface_review_revision_7`.
 
-Per the coordinator, no other package was bumped or reopened for this round's P3/P4 notes. They are recorded as open claims (`p3_open`/`p4_open` with counts) in the protocol, bridge, CLI, session, WP-300, and WP-620 sections, and they do not block completion. Only the findings fixed below are left out of those claims.
+Per the coordinator, no other package was bumped or reopened for this round's P3/P4 notes. They are recorded as open claims (`p3_open`/`p4_open` with counts) in the protocol, bridge, CLI, session, S20-300, and S20-620 sections, and they do not block completion. Only the findings fixed below are left out of those claims.
 
 ### 14.2 Repairs
 
 | Finding | Disposition | Commit / evidence |
 |---|---|---|
-| WP-620 Ariadne P2, Nabu P2 (and the matching Vulcan P3): the completion gate bound `<lane>_revision_<N>` by field name only | FIXED. `scope_bound_problems` requires the field's note to name the reviewed commit, and `git show <commit>:<contract>` must show revision N on its Status line. An unscoped note or an unknown commit fails closed. The same binding applies to the WP-300 gate, which had the same shape. Regression tests: the reviewers' probe (the 2b0f1c9 verdict under the revision 7 name gives `completion-scope-mismatch:…:reviewed-revision-6`), plus unscoped, unknown-commit, and older-scope cases for both gates. | `22971434` |
-| WP-620 Ariadne P3, Vulcan P3; SMP1 Vulcan P3; WP-300 Nabu P4; session Vulcan P4: "an absent maintenance boundary fails the method" is false | FIXED in all three places. The session check's `head_mixed` calls `Server::maintenance()`, which creates an absent boundary (`initialize_repository_maintenance`) before the shared acquire. So an absent boundary never reaches the probe and never fails the method. SMP1 revision 16 is errata-only over normative revision 15 (a dated text correction with no behaviour change). WP-620 is now revision 8. The server docstring is corrected. | `6519f6e0` |
-| WP-620 Ariadne P4: the revision 7 history sentence gave one scope for all three lanes | FIXED. Revision 8 names the per-lane scopes and the delta verdict. | `6519f6e0` |
-| WP-620 Nabu P4: `_abandon` reaches into runner-owned Endpoint internals | OPEN (recorded as a claim) | — |
-| WP-620 Nabu P4: corpus amendment ratification | OPEN (corpus owner) | — |
+| S20-620 Ariadne P2, Nabu P2 (and the matching Vulcan P3): the completion gate bound `<lane>_revision_<N>` by field name only | FIXED. `scope_bound_problems` requires the field's note to name the reviewed commit, and `git show <commit>:<contract>` must show revision N on its Status line. An unscoped note or an unknown commit fails closed. The same binding applies to the S20-300 gate, which had the same shape. Regression tests: the reviewers' probe (the 2b0f1c9 verdict under the revision 7 name gives `completion-scope-mismatch:…:reviewed-revision-6`), plus unscoped, unknown-commit, and older-scope cases for both gates. | `22971434` |
+| S20-620 Ariadne P3, Vulcan P3; SMP1 Vulcan P3; S20-300 Nabu P4; session Vulcan P4: "an absent maintenance boundary fails the method" is false | FIXED in all three places. The session check's `head_mixed` calls `Server::maintenance()`, which creates an absent boundary (`initialize_repository_maintenance`) before the shared acquire. So an absent boundary never reaches the probe and never fails the method. SMP1 revision 16 is errata-only over normative revision 15 (a dated text correction with no behaviour change). S20-620 is now revision 8. The server docstring is corrected. | `6519f6e0` |
+| S20-620 Ariadne P4: the revision 7 history sentence gave one scope for all three lanes | FIXED. Revision 8 names the per-lane scopes and the delta verdict. | `6519f6e0` |
+| S20-620 Nabu P4: `_abandon` reaches into runner-owned Endpoint internals | OPEN (recorded as a claim) | — |
+| S20-620 Nabu P4: corpus amendment ratification | OPEN (corpus owner) | — |
 
-**Errata and consumer pins.** An errata-only SMP1 revision has no behaviour change. Its Status line declares `errata-only over normative revision 15`, and the CLI, bridge, and session checkers now compare their pins with that normative revision, so none of those packages reopened. The SMP1 checker requires the declaration and has a revert test for it. NATIVE keeps its pin at 15. WP-620, which cites the corrected sentence, pins revision 16.
+**Errata and consumer pins.** An errata-only SMP1 revision has no behaviour change. Its Status line declares `errata-only over normative revision 15`, and the CLI, bridge, and session checkers now compare their pins with that normative revision, so none of those packages reopened. The SMP1 checker requires the declaration and has a revert test for it. NATIVE keeps its pin at 15. S20-620, which cites the corrected sentence, pins revision 16.
 
-The SMP1 `current_delta_review` moved to revision 16 PENDING, with a history note. WP-300 now has scoped PASS `_revision_6` fields in all three lanes; its status was left at `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`. The docstring edit staled the two SMP1-family fuzz slices, which were re-proofed at `6519f6e0` (`33864b96`). The register chain is `44b13be0` (40 open reviews, 31 complete packages, `ga_claimed` false). T54 is the final commit.
+The SMP1 `current_delta_review` moved to revision 16 PENDING, with a history note. S20-300 now has scoped PASS `_revision_6` fields in all three lanes; its status was left at `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`. The docstring edit staled the two SMP1-family fuzz slices, which were re-proofed at `6519f6e0` (`33864b96`). The register chain is `44b13be0` (40 open reviews, 31 complete packages, `ga_claimed` false). T54 is the final commit.
 
 ### 14.3 Gates
 
 | Check | Exit | Result |
 |---|---|---|
-| Checkers and tests for SMP1, bridge, CLI, session, WP-300, WP-620, and the required index (including `test_sley2_trial_runner.py` with the new completion-binding cases and `test_smp1_contract.py` errata cases) | 0 | PASS / OK |
+| Checkers and tests for SMP1, bridge, CLI, session, S20-300, S20-620, and the required index (including `test_sley2_trial_runner.py` with the new completion-binding cases and `test_smp1_contract.py` errata cases) | 0 | PASS / OK |
 | All 18 fuzz slice checkers | 0 | PASS |
 | `make quick`, line by line with keep-going (133 lines, TMPDIR on /home) | — | 126 lines exit 0. Known candidate-bound lines #82 to #85 and #88 fail. #108 (T54 drift) is fixed by the final T54 commit. `cargo test --workspace`: 1036 passed, 1 failed (`debug_commit_repro`), 31 ignored. |
 | `make lint` at `44b13be0` | 0 | PASS: 0 clippy warnings, clean tree. `lint-report.json` restored and not committed. |
 
 ### 14.4 Still open
 
-- The WP-620 revision 8 and SMP1 revision 16 reviews.
+- The S20-620 revision 8 and SMP1 revision 16 reviews.
 - The recorded round-8 P3/P4 claims.
-- The finding register never lets a later `_revision_N` PASS supersede an earlier same-lane `_revision_M` REVISE. Both tokens count as early rounds, so earlier REVISE rounds, for example CLI revision 9 and session revision 5, stay listed as open reviews. This is a register (WP-740) rule and is not changed here.
+- The finding register never lets a later `_revision_N` PASS supersede an earlier same-lane `_revision_M` REVISE. Both tokens count as early rounds, so earlier REVISE rounds, for example CLI revision 9 and session revision 5, stay listed as open reviews. This is a register (S20-740) rule and is not changed here.
 - Corpus task-input amendment ratification.
 - Live-model trial.
 
@@ -1015,22 +1015,22 @@ The coordinator's request named this "section 14"; section 14 already records ro
 The six transcripts and their index (`evidence/review/rounds/context-r9-03b25eb.json`; each transcript's sha256 matches the index) were committed unchanged in `13a81f23`. Their verdicts were recorded in `63ab759f`, with notes naming 03b25eb9. Every verdict is PASS:
 
 - **SMP1 revision 16:** Ariadne 1 P3 and 3 P4; Nabu 2 P3 and 2 P4; Vulcan 2 P3 and 3 P4.
-- **WP-620 revision 8:** Ariadne 1 P3 and 2 P4; Nabu 1 P3 and 7 P4; Vulcan 2 P3.
+- **S20-620 revision 8:** Ariadne 1 P3 and 2 P4; Nabu 1 P3 and 7 P4; Vulcan 2 P3.
 
 All of these findings are recorded as open `p3_open`/`p4_open` claims and none is fixed here, as instructed.
 
 ### 15.2 Completion moves (`b71e1ae9`)
 
-Each of these packages' current revisions has scoped PASS verdicts in all three lanes. Before moving any of them, I ran each package checker in memory at its COMPLETE status. All six returned exit 0, and the WP-300 and WP-620 gates also verified each lane's reviewed commit.
+Each of these packages' current revisions has scoped PASS verdicts in all three lanes. Before moving any of them, I ran each package checker in memory at its COMPLETE status. All six returned exit 0, and the S20-300 and S20-620 gates also verified each lane's reviewed commit.
 
 | Package | Revision | Reviewed at | Status |
 |---|---|---|---|
-| SMP1 (WP-400) | 16 | 03b25eb | `S20_400_COMPLETE` (with `contract_complete`) |
-| WP-300 | 6 | 26d050e | `S20_300_FULL_COMPLETE` |
-| Bridge (WP-420) | 12 | 26d050e | `S20_420_COMPLETE` |
-| CLI (WP-430) | 10 | 26d050e | `S20_430_COMPLETE` |
-| Session handle (WP-330) | 6 | 26d050e | `S20_330_COMPLETE` |
-| Trial runner (WP-620) | 8 | 03b25eb | `S20_620_COMPLETE` |
+| SMP1 (S20-400) | 16 | 03b25eb | `S20_400_COMPLETE` (with `contract_complete`) |
+| S20-300 | 6 | 26d050e | `S20_300_FULL_COMPLETE` |
+| Bridge (S20-420) | 12 | 26d050e | `S20_420_COMPLETE` |
+| CLI (S20-430) | 10 | 26d050e | `S20_430_COMPLETE` |
+| Session handle (S20-330) | 6 | 26d050e | `S20_330_COMPLETE` |
+| Trial runner (S20-620) | 8 | 03b25eb | `S20_620_COMPLETE` |
 
 For every package, `implementation_complete` is set, the status notes and WORK_PACKAGES rows are updated, and each of the five closeouts carries a dated completion record. The open P3/P4 claims stay recorded.
 
@@ -1061,7 +1061,7 @@ After the change the register chain (`367a65b3`) shows 22 open reviews and 37 co
 - **Reviewed.** Nine review rounds (sections 11 to 15) brought every contract that REQ-10 touched to PASS in all three lanes at its current revision:
   - trial runner revision 8;
   - SMP1 revision 16;
-  - WP-300 revision 6;
+  - S20-300 revision 6;
   - JSON bridge revision 12;
   - CLI revision 10;
   - session handle revision 6.
@@ -1209,7 +1209,7 @@ After the change the register chain (`367a65b3`) shows 22 open reviews and 37 co
 - `machineresearch/sley-2.0/s20-620-sley2-trial-runner-campaign-2026-09-03.md` [revision 4]: L51
 - `machineresearch/sley-2.0/s20-630-succession-accounting-campaign-2026-09-03.md` [revision 4]: L3,4,8
 
-### A.2 Unrelated (another package, contract, or summary section, or the eighteen SSMC1 entity kinds; no WP-620 reference on the line)
+### A.2 Unrelated (another package, contract, or summary section, or the eighteen SSMC1 entity kinds; no S20-620 reference on the line)
 
 - `.forge/slices/at-mw-02-implement-reviewed-entity-and-signature-protocol-reads.json` [reviews PASS]: L43
 - `README.md` [eighteen]: L56,60,90

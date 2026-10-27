@@ -913,15 +913,15 @@ def kind_phrase_of(claim: str) -> str:
 
 def claim_finding_ids(body: str) -> set[str]:
     """Finding ids the claim's leading text names (`V-02`, `RW090-DEV-01`,
-    `WP-700-PACK-001`): never a document id (`ADR-0040`, `WP-540`) and
-    never a number carried by a cited path (Ariadne/Nabu P3 at 79fdcc63;
-    Ariadne P4 at 8966da2e: digit-led middle segments such as `700` had
-    split the id, so `WP-700-PACK-001` read as `PACK-001`)."""
+    `AR-700-PACK-001`): never a document id (`ADR-0040`, `WP-540`,
+    `TP-080`) and never a number carried by a cited path (Ariadne/Nabu P3
+    at 79fdcc63; Ariadne P4 at 8966da2e: digit-led middle segments such as
+    `700` had split an id, so `AR-700-PACK-001` read as `PACK-001`)."""
     leading = body[:200].split(";")[0]
     path_text = " ".join(PATH_TOKEN.findall(body))
     return {
         fid for fid in re.findall(r"\b[A-Z](?:[A-Z0-9]+-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", leading)
-        if not re.fullmatch(r"(?:ADR|S20|RW|T|S)[0-9]*-[0-9]+", fid) and fid not in path_text
+        if not re.fullmatch(r"(?:ADR|S20|RW|WP|TP|T|S)[0-9]*-[0-9]+", fid) and fid not in path_text
     }
 
 
@@ -1235,7 +1235,7 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
       (`fail-closed-gap`, `list-depth creep`, `contract-vs-mechanics`);
     - an identifier the claim names (a field, function or variable with an
       underscore, eight characters or more), a commit id, a finding id
-      (`RW090-DEV-01`, `V-02`, `AR-06`, `WP-700-PACK-001`), a file anchor
+      (`RW090-DEV-01`, `V-02`, `AR-06`, `AR-700-PACK-001`), a file anchor
       with its line numbers (`exchange.rs:2974-3001`), or a quoted phrase
       of the finding repeated verbatim;
     - or a path the claim names together with a word of its tag (a path

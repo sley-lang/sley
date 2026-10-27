@@ -33,7 +33,7 @@ completed work.
   `CARGO_TARGET_DIR=/home/dev/.cache/sley-agg-b0e52e00/target` (lint)
   and `/home/dev/.cache/sley-succ-native-test/target` (txn tests),
   both on /home outside the repository; repo `target/` fingerprints not
-  rebuilt. `SLEY2_DESIGN_SPEC=.../greyforge-managed-home/.../Sley2.0mastergoal.md`
+  rebuilt. `SLEY2_MASTER_GOAL=.../greyforge-managed-home/.../Sley2.0mastergoal.md`
   (sha256 `07791368...aace`); no new master goal created.
 
 ## 1. Review submissions (actual requests, pinned inputs, verdicts)
@@ -154,7 +154,7 @@ This pass (1 dispatch, 1 verdict, no failure):
 
 | Check | Exact command (workdir wt-succ unless noted) | Exit | Result |
 |---|---|---|---|
-| Formatting+clippy+checkers | `SLEY2_DESIGN_SPEC=... CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/home/dev/.cache/sley-agg-b0e52e00/target UV_OFFLINE=true make lint` | 0 | PASS (`fmt_clean`, 0 clippy warnings, commit `c1e8db56`, `lint_inputs_clean`; 2 new untracked review paths noted immaterial) |
+| Formatting+clippy+checkers | `SLEY2_MASTER_GOAL=... CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/home/dev/.cache/sley-agg-b0e52e00/target UV_OFFLINE=true make lint` | 0 | PASS (`fmt_clean`, 0 clippy warnings, commit `c1e8db56`, `lint_inputs_clean`; 2 new untracked review paths noted immaterial) |
 | Native commit route | `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/home/dev/.cache/sley-succ-native-test/target cargo test -p sley-txn --lib --locked --offline native_commit_` | 0 | 25 passed, 0 failed |
 | Legacy refusal pin | `... cargo test -p sley-txn --lib --locked --offline transaction_shape_rejects_self_equal_binding_and_test_claims` | 0 | 1 passed (`TXN_TEST_EVIDENCE_UNSUPPORTED`) |
 | Full `make quick` (130-line) | — | not rerun | Reused `quick-Skeep-b0e52e00.log` per freshness rules: no Rust sources, fuzz targets, or lint inputs changed since (this successor adds records only). Candidate-bound rows (#84/#85/#88/#105) stay fail-closed until operator-owned refresh/re-attestation. No exemption taken |

@@ -66,7 +66,7 @@ FORBIDDEN_DEPENDENCIES = {
     "greyforge_product": ("zjx", "siglum", "forge", "openclaw"),
 }
 # The authorized campaign boundary record that declared SH2 work items must
-# cite (self-hosting plan 1.0 scope adoption, ADR-0049). The record itself is chartered
+# cite (the self-hosting plan's 1.0 scope adoption, ADR-0049). The record itself is chartered
 # by TP-030; until it exists, no SH2 work item can be authorized.
 BOUNDARY_RECORD = "host-boundary.json"
 # The optional familiar authoring frontend (ADR-0055): the one parser of

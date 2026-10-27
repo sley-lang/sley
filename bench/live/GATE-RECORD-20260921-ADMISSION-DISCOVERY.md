@@ -176,7 +176,7 @@ It is not a requirement that current HEAD be main.
 
 ## 4. Environmental check failures resolved where possible
 
-- `SLEY2_DESIGN_SPEC` located through the continuation records:
+- `SLEY2_MASTER_GOAL` located through the continuation records:
   `/home/dev/managed-home/machineresearch/Sley2.0mastergoal.md`
   (sha256 `077913685537541154a6da758fd64a9997d9e023952ba03e28527a5bfd74aace`,
   identical to `/home/dev/machinelibrary/Sley2.0mastergoal.md`). No
@@ -184,7 +184,7 @@ It is not a requirement that current HEAD be main.
   checkers PASS at this commit, exit 0:
   `scripts/check_transaction_contract.py` → PASS
   (`s20-390-restricted-atomic-commit-v1`); without it → FAIL
-  `master:unavailable:…:set-SLEY2_DESIGN_SPEC`, exit 1 (original failure
+  `master:unavailable:…:set-SLEY2_MASTER_GOAL`, exit 1 (original failure
   preserved). `scripts/check_candidate_result_contract.py` → PASS
   (`s20-360-restricted-candidate-validation-v1`, 16 decisions, 37 validator
   symbols); without it → `master:unavailable`, exit 1 (original failure
@@ -207,8 +207,8 @@ It is not a requirement that current HEAD be main.
 | Mediated access audit regressions | `SLEY2_SLEY_BINARY=…/target/debug/sley python3 -m unittest bench.live.tests.test_mediated_access -v` | 0 | 13 tests OK |
 | Native commit route (test-only provisioning, external target) | `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/home/dev/.cache/sley-succ-native-test/target cargo test -p sley-txn --lib --locked --offline native_commit_` | 0 | 25 passed, 0 failed |
 | Legacy refusal pin | `… cargo test -p sley-txn --lib --locked --offline transaction_rejects` (codec `selected_tests` → `TXN_TEST_EVIDENCE_UNSUPPORTED`) | 0 | 1 passed |
-| Transaction contract (env-gated) | `SLEY2_DESIGN_SPEC=…/Sley2.0mastergoal.md python3 scripts/check_transaction_contract.py` | 0 | PASS |
-| Candidate-result contract (env-gated) | `SLEY2_DESIGN_SPEC=… python3 scripts/check_candidate_result_contract.py` | 0 | PASS |
+| Transaction contract (env-gated) | `SLEY2_MASTER_GOAL=…/Sley2.0mastergoal.md python3 scripts/check_transaction_contract.py` | 0 | PASS |
+| Candidate-result contract (env-gated) | `SLEY2_MASTER_GOAL=… python3 scripts/check_candidate_result_contract.py` | 0 | PASS |
 | Formatting | `cargo fmt --all --check` | 0 | PASS |
 | Release content gate (restored inputs, disposable tree) | `python3 scripts/build_candidate_content_report.py --check` (in `/tmp/sley-gate-restore-988edf15`) | 0 | PASS (preserved artifact only; see §3) |
 | Full `make quick` / `make lint` aggregates | — | not run | Not claimed; D4 evidence reused per freshness rules (§0). No exemption taken |

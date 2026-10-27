@@ -43,7 +43,7 @@
    decision through the owning review lane — never a silent exemption),
    then `make lint` (exit 0 required) in that worktree.
 2. `make quick` in the clean detached worktree at the post-lint
-   checkpoint (needs `SLEY2_DESIGN_SPEC=.../greyforge-managed-home/
+   checkpoint (needs `SLEY2_MASTER_GOAL=.../greyforge-managed-home/
    machineresearch/Sley2.0mastergoal.md`, user-owned `CARGO_TARGET_DIR`
    on `/home`).
 3. Source-bound fuzz refresh: `fuzz-refresh.sh` in `sley2-c0-mint`
@@ -99,7 +99,7 @@ development evidence.
 | `make lint` | `make lint` (clean tree, user-owned target dir) | 0 | PASS: fmt clean, clippy 0 warnings (`lint-report.v1`) |
 | `make quick` lines 1–86 | `make quick` (clean tree) | stops 45 | all spec/fixture checks PASS; all fuzz slices PASS incl. 7 refreshed lanes (exchange, merge, merge_judgment, pack, semantic_delta, smp1, smp1_json_bridge re-proofed at 7bcc5a89 and transcribed) |
 | `make quick` line 87 | `build_candidate_content_report.py --check` | 1 | BLOCKED (structural, pre-existing): missing ignored `evidence/runtime/s20-720-release-candidate/evidence.json` in a fresh tree; satisfying it needs `release-candidate-build`, which rebinds candidate-bound release reports and needs main-line attestation — forbidden/out-of-scope for a work branch (would fail identically on any work-branch commit) |
-| quick remainder (88+) | explicit per-line runs (clean tree) | 0 except noted | contract/invariant/freeze/frontier checks PASS; `git diff --check` PASS; `cargo check --workspace` PASS; `cargo test --workspace` all ok EXCEPT pre-existing env-gated `succ_debug_commit::debug_commit_repro` (missing `SUCC_DEBUG_*` env; untouched temporary helper) and one environmental `check_transaction_contract` FAIL (absent operator `SLEY2_DESIGN_SPEC` file) |
+| quick remainder (88+) | explicit per-line runs (clean tree) | 0 except noted | contract/invariant/freeze/frontier checks PASS; `git diff --check` PASS; `cargo check --workspace` PASS; `cargo test --workspace` all ok EXCEPT pre-existing env-gated `succ_debug_commit::debug_commit_repro` (missing `SUCC_DEBUG_*` env; untouched temporary helper) and one environmental `check_transaction_contract` FAIL (absent operator `SLEY2_MASTER_GOAL` file) |
 | `cargo test --workspace` | `-- --skip debug_commit_repro` (clean tree) | 0 | 74 result lines, all ok, zero failures |
 | bench/live suites | `python3 -m unittest discover -s bench/live/tests` (wt-succ, binaries bound) | 0 | 198 tests OK (incl. 10 driver-unit, 23 judge-unit, 13 mediated-audit-unit, 3 context_pos + TYPE/STALE campaign-path integration proofs) |
 
