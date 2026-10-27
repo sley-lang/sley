@@ -48,8 +48,8 @@ the maintainers ask for it. The
 pass on a fresh clone: some checkers read the outputs of a local release
 build under `evidence/runtime/`, which isn't tracked, and two read the Sley
 2.0 design specification, which lives outside the repository
-(`SLEY2_DESIGN_SPEC` points at it). `make v2` is a placeholder for the full product gate and fails
-closed with `NOT_IMPLEMENTED` until that gate exists.
+(`SLEY2_DESIGN_SPEC` points at it). `make v2` is a placeholder for the full
+product gate and fails closed with `NOT_IMPLEMENTED` until that gate exists.
 
 Say in the pull request which checks you ran and what they returned. Never
 weaken a check or a test to make a change pass.
@@ -70,8 +70,8 @@ hosting work to the 2.0 GA path.
 Self-hosting toolchain work adopted under version 1.0 of the self-hosting
 plan (the SH2 campaign) is governed by host-boundary.json,
 BOOTSTRAP_PROFILE_2 (the frozen successor of BOOTSTRAP_PROFILE_1), and the
-staged SH2 gates instead of this paragraph. Every other prohibition in this paragraph is
-unchanged.
+staged SH2 gates instead of this paragraph. Every other prohibition in this
+paragraph is unchanged.
 
 An optional, noncanonical authoring frontend adopted under ADR-0055 is
 governed by that ADR instead of the words "Sley source syntax" and "parser"

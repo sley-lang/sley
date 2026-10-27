@@ -33,7 +33,9 @@ CLOSEOUT = ROOT / "docs/audits/S20_390_ATOMIC_COMMIT_CLOSEOUT.md"
 EVIDENCE = ROOT / "evidence/validation/s20-390-atomic-commit-closeout-v1.json"
 # The Sley 2.0 design specification lives outside the repository.
 # SLEY2_DESIGN_SPEC names it for maintainers, worktrees, and remote reviewers.
-MASTER = Path(os.environ.get("SLEY2_DESIGN_SPEC", ""))
+# SLEY2_MASTER_GOAL is still read for one release so existing setups keep working.
+MASTER_ENV = os.environ.get("SLEY2_DESIGN_SPEC") or os.environ.get("SLEY2_MASTER_GOAL", "")
+MASTER = Path(MASTER_ENV)
 
 
 ERROR_CODES = (
@@ -119,7 +121,7 @@ def main() -> int:
     for path in paths:
         if not path.is_file():
             problems.append(f"missing:{path}")
-    if not os.environ.get("SLEY2_DESIGN_SPEC") or not MASTER.is_file():
+    if not MASTER_ENV or not MASTER.is_file():
         problems.append(f"master:unavailable:{MASTER}:set-SLEY2_DESIGN_SPEC")
     if problems:
         print(json.dumps({"problems": problems, "result": "FAIL"}, indent=2))
