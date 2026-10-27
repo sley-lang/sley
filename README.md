@@ -23,7 +23,8 @@
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
   <a href="docs/release/SLEY-2.1.6.md"><b>Release notes</b></a> ·
-  <a href="https://sleylang.org/faq"><b>FAQ</b></a>
+  <a href="https://sleylang.org/faq"><b>FAQ</b></a> ·
+  <a href="https://sleylang.org/arena"><b>Arena</b></a>
 </p>
 
 ---
@@ -63,13 +64,23 @@ none alone establishes correctness against user requirements. The
 ## Quickstart
 
 > **Requirements:** Linux x86_64. To build from source you also need the Rust
-> toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
-> and Python 3 for the demo.
+> toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0).
+> The protocol demo needs Python 3.
 
-Install first, then [write and test your first program](#write-and-test-your-first-program).
+**1. Get the `sley` binary.** Download the release archive from
+[Releases](https://github.com/sley-lang/sley/releases), check it, and put its
+`bin/` directory on your `PATH`:
 
-**1. Get the `sley` binary.** Download `sley-2.1.6-linux-x86_64.tar.gz` from
-[Releases](https://github.com/sley-lang/sley/releases), or build it from source:
+```sh
+curl -fLO https://github.com/sley-lang/sley/releases/download/v2.1.6/sley-2.1.6-linux-x86_64.tar.gz
+curl -fLO https://github.com/sley-lang/sley/releases/download/v2.1.6/SHA256SUMS
+sha256sum -c SHA256SUMS
+tar xzf sley-2.1.6-linux-x86_64.tar.gz
+export PATH="$PWD/sley-2.1.6-linux-x86_64/bin:$PATH"
+sley version
+```
+
+Or build it from source and put `target/release/` on your `PATH` instead:
 
 ```sh
 git clone --branch v2.1.6 --depth 1 https://github.com/sley-lang/sley.git
@@ -82,21 +93,30 @@ under the same workspace version, so omit it only when you want that work.
 
 ### Write and test your first program
 
-**2. Start with `sley-agent`.** This is the recommended first authoring path.
-It compiles the shipped guide's `area` example into a candidate, validates it,
-and runs three advisory tests. Run these commands in a new directory after
-putting the absolute path of your chosen binary directory on `PATH`: `bin/`
-from the extracted release archive, or `target/release/` from your source
-checkout.
+**2. Write a function in Sley's Python dialect.** `sley-agent` compiles typed
+Python into a Sley candidate, validates it, and runs its tests. Save this as
+`area.py` in an empty directory:
+
+```python
+def area(w: int, h: int) -> int:
+    return w * h
+
+def test_area():
+    assert area(3, 4) == 12
+    assert area(0, 9) == 0
+    assert area(5, 5) == 25
+```
+
+Then, from that directory:
 
 ```console
 $ sley-agent init demo && cd demo
-$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../area.json
-$ sley-agent try ../area.json
+$ sley-agent try --familiar ../area.py
 c1: 3 passed (advisory) d1@r1
 $ sley-agent call area 3 4 --on c1
-{"Ok":12}
+12
 $ sley-agent submit d1
+submitted c1 from d1@r1 -> final_candidate.hex (2787-byte candidate, hex); resubmit any time, the last submission wins
 ```
 
 Use the candidate and draft handles printed by your own `try` command if
@@ -109,10 +129,10 @@ with `TXN_TEST_EVIDENCE_UNSUPPORTED` until supported native admission is
 available. Validation, advisory execution, submission and authoritative
 commit are separate outcomes.
 
-`sley-agent help` is the full guide (under 8 KiB). The
+`sley-agent help python` lists what the dialect accepts. `sley-agent help`
+is the full guide (under 8 KiB), including the JSON authoring form, and the
 [Quickstart authoring section](docs/QUICKSTART.md#7-write-and-test-a-program-with-sley-agent)
-walks through inspection and submission. `sley-agent help python` documents
-the optional typed Python authoring dialect.
+walks through inspection and submission.
 
 ### Inspect the protocol and imported fixtures
 
@@ -147,7 +167,7 @@ $ python3 bench/release/run_demo.py --sley target/release/sley \
     --fixture conformance/release-demo/v1/demo.json
 {
   "result": "PASS",
-  "explicit_gap": "candidate construction, commit, test selection, and merge wait for the public candidate builder (S20-350 proposal-only)",
+  "explicit_gap": "candidate construction, commit, test selection, and merge wait for the public candidate builder …",
   "steps": {
     "query_root_matches_fixture": true,
     "execute_response_matches_fixture": true,
@@ -171,6 +191,23 @@ candidate through the public builder, which is still proposal-only.
 ➡️ **The [full Quickstart](docs/QUICKSTART.md)** covers verifying the
 download, driving `sley serve` by hand over JSON lines, exit codes, and the
 full test gates.
+
+## Play in the Sley Arena
+
+[Sley Arena](https://sleylang.org/arena) is a bot league for Sley programs.
+Bots are written in the same Python dialect, weave for territory on a shared
+loom, and climb a public ladder. Hand your coding agent the
+[player guide](https://arena-api.greyforge.tech/agent.md), or start from the
+one-file kit (Node.js 18 or newer):
+
+```sh
+curl -fsSLO https://arena-api.greyforge.tech/kit/sley-arena.mjs
+node sley-arena.mjs init    # writes bot.py, a working starter bot
+node sley-arena.mjs test    # duels against every practice bot
+```
+
+The [rules](https://sleylang.org/arena/rules), the ladder and match replays
+are at [sleylang.org/arena](https://sleylang.org/arena).
 
 ## How it works
 
@@ -202,82 +239,18 @@ Sley has three canonical layers:
 Read **[Concepts](docs/CONCEPTS.md)** for the full model: identities, state
 roots, the change lifecycle, sessions, and the glossary.
 
-## New in 2.1.6: clear diagnostics for deeply nested source, and the embed API
+## Recent releases
 
-A point release for the familiar frontend. Deeply nested source now gets a clear diagnostic with
-its line and column: nesting is bounded at `familiar::MAX_NESTING` (124 levels, far above the fewer
-than 25 that typical programs use), and text past it is refused with `AGENT_FRAME_INVALID` and a
-hint to name the inner part with a variable or helper. Every program the frontend accepts also
-reloads as a draft. Nested built-in calls parse in linear time. The new `sley_agent::embed` API
-lets a Rust host compile Python-dialect source in memory and call its functions with an exact fuel
-limit, natively or in `wasm32-unknown-unknown` ([embedding guide](docs/EMBEDDING.md)). See the
-[2.1.6 release notes](docs/release/SLEY-2.1.6.md).
+- [2.1.6](docs/release/SLEY-2.1.6.md): deeply nested source gets a diagnostic with its line and column, nested built-in calls parse in linear time, and the `sley_agent::embed` API runs Sley inside Rust hosts and WebAssembly ([embedding guide](docs/EMBEDDING.md)).
+- [2.1.5](docs/release/SLEY-2.1.5.md): the VM's word tier runs all-integer programs on plain 64-bit registers; `try` prints only failures; `file:line:col` diagnostics with a caret; `struct` and `enum` in the Python dialect.
+- [2.1.4](docs/release/SLEY-2.1.4.md): faster loops, plus pytest-style tests and `@dataclass` records in the Python dialect.
+- [2.1.3](docs/release/SLEY-2.1.3.md): recursive and call-heavy programs run in the VM's compact scalar plan.
+- [2.1.2](docs/release/SLEY-2.1.2.md): tuple assignment to parameters and clearer test-limit reporting.
+- [2.1.1](docs/release/SLEY-2.1.1.md): write Sley in a typed Python dialect with `sley-agent try --familiar`.
+- [2.1.0](docs/release/SLEY-2.1.0.md): Sley builds Sley. The toolchain is a Sley program that rebuilds itself from its canonical graph to a byte-identical fixed point; reproduce it with `scripts/sh2_bootstrap.sh`.
+- [2.0.0](docs/release/SLEY-2.0.0.md): the semantic kernel, repository, protocol, CLI and reproducible packaging, with fixes in [2.0.1](docs/release/SLEY-2.0.1.md) and the agent workbench in [2.0.2](docs/release/SLEY-2.0.2.md).
 
-## New in 2.1.5: the word tier and quieter agent output
-
-A point release. When every value in a program fits a machine word (integers, booleans and checked
-results), the VM now runs it on plain 64-bit registers, fuses whole blocks into fast blocks, and
-runs calls and returns inside prepaid bursts with exactly the same fuel and instruction totals. The
-release binary is built with fat LTO and one codegen unit. The runtime benchmarks run 2.2-2.9x
-faster than in 2.1.4. Against CPython 3.13, with process start included, Sley is now faster on
-three of the five (loopsum, primes, gcdsum), at parity on `fib(30)` and 1.07x slower on collatz.
-`try` now prints only failures and one count line, familiar text is refused with `file:line:col`
-diagnostics and a caret, and familiar syntax declares `struct` and `enum` types. In a scripted
-token-count harness, a write-test-fix loop in the dialect costs 0.95x, 0.74x and 0.46x the tokens
-of the same loop in Python (clean, logic bug, typo), and less than C, Rust, Go and TypeScript. See
-the [2.1.5 release notes](docs/release/SLEY-2.1.5.md) for the tables and their caveats.
-
-## New in 2.1.4: faster loops and cheaper agent loops
-
-A point release. The VM's compact scalar plan coalesces registers that block edges would copy,
-and it charges fuel for runs of steps in prepaid batches with exactly the same totals. Loop
-benchmarks run about 1.6-1.9x faster than in 2.1.3 (`fib(30)`, which is call-bound, is
-unchanged), and Sley is still about 1.9-2.7x slower than CPython 3.13 on every benchmark. The Python dialect now accepts pytest-style tests (`def test_*():` with
-`assert` and `with pytest.raises(E):`) and `@dataclass` record classes in the same file. A
-passing `try` prints one line, and a failing test names its source line. In a scripted
-token-count harness, a write-test-fix loop in the dialect costs 1.10x, 1.08x and 0.73x the tokens
-of the same loop in Python (clean, logic bug, typo). See the
-[2.1.4 release notes](docs/release/SLEY-2.1.4.md) for both tables and their caveats.
-
-## New in 2.1.3: faster execution
-
-A performance point release. The VM's compact scalar plan now runs `call_direct`, so recursive and
-call-heavy programs no longer fall back to the general reference interpreter. Its 64-bit integer
-arithmetic, block-edge moves and register layout are faster, and the Python dialect computes
-`%` and `//` with one remainder instead of up to three. `fib(30)` runs about 13x faster than in 2.1.2,
-and loop benchmarks run about 3x faster. Sley is still 2.7-4.6x slower than CPython 3.13 on the
-measured programs. Fuel and instruction accounting are unchanged. See the
-[2.1.3 release notes](docs/release/SLEY-2.1.3.md#benchmarks) for the table and how it was measured.
-
-## New in 2.1.2
-
-A point release. The Python dialect now accepts tuple assignment to parameters
-(`a, b = b, a % b`), which 2.1.1 listed but refused. Saving a candidate after the last handle is used now refuses
-cleanly instead of panicking, and existing records are kept. `try` and `test` report which
-declared test limits the advisory runner applies. The native test supervisor ships as source with
-registered diagnostics and documented limits; it is not in the release archive and is not yet
-qualified on an installed host. See the [2.1.2 release notes](docs/release/SLEY-2.1.2.md).
-
-## New in 2.1.1: write Sley like Python
-
-Agents can now write Sley in a typed Python dialect. `sley-agent try --familiar` compiles it into
-the same verified Sley graph. Python's meaning is kept where Sley can express it exactly, and
-anything else is refused at its line and column. On the maintainers' cross-language benchmark,
-2.1.1 cuts the cost of a correct Sley answer by roughly 40–50% compared with 2.1.0, and brings it
-level with Rust and C++. See the [2.1.1 release notes](docs/release/SLEY-2.1.1.md) and
-`sley-agent help python`.
-
-## New in 2.1: Sley builds Sley
-
-Sley's own toolchain is a Sley program. Decoding, type and graph checking,
-operation judgment, lowering, fingerprints and package assembly all run as
-Sley. On a pinned host with no compiler inside, the toolchain rebuilds itself
-from its canonical graph to a byte-identical fixed point. The previous Sley
-toolchain rebuilds a typed change to it, and the result matches the Rust
-seed's build exactly. Reproduce it with `scripts/sh2_bootstrap.sh`, or read
-the [2.1.0 release notes](docs/release/SLEY-2.1.0.md).
-
-## What's in 2.0
+## What Sley 2 includes
 
 - **A deterministic semantic kernel.** Type system, control-flow and
   value-use validation, exact effect closure, contracts and tests, semantic
@@ -297,47 +270,30 @@ the [2.1.0 release notes](docs/release/SLEY-2.1.0.md).
 - **Policy and capabilities.** Protected policy roots, scoped capability
   tokens, and bounded adapters. There is no arbitrary shell.
 - **A reproducible release.** Two clean musl builds compared member by member,
-  CycloneDX and SPDX SBOMs, and recorded (unsigned) provenance. Releases
-  2.0.0 through 2.0.5 also carried a second-host rebuild attestation
-  (`MULTI_HOST_REPRODUCIBLE`); 2.0.6 through 2.1.6 were reproduced on the
-  primary host only (`SINGLE_HOST_REPRODUCIBLE`), so cross-host verification
-  of the current release remains open.
+  CycloneDX and SPDX SBOMs, and recorded (unsigned) provenance. Each release's
+  notes give its reproducibility record.
 - **Independent conformance.** A separate Python oracle reproduces the Rust
   kernel's bytes exactly, backed by persistent fuzz targets across ten
   surfaces.
 
-See the **[2.0.0 release notes](docs/release/SLEY-2.0.0.md)** for the complete
-list, including the known limits, and the
-**[2.0.1 release notes](docs/release/SLEY-2.0.1.md)** for the fixes since, and
-the **[2.0.2 release notes](docs/release/SLEY-2.0.2.md)** for the agent
-workbench.
+The **[2.0.0 release notes](docs/release/SLEY-2.0.0.md)** have the complete
+list, including the known limits.
 
 ## Project status
 
-**Sley 2.1.6** is a point release: deeply nested familiar source gets a clear diagnostic with its
-line and column, nested built-in calls parse in linear time, and the new embed API runs Sley inside
-Rust hosts and WebAssembly, with no change to program meaning or resource accounting. Sley 2.1.5
-added a word tier in the VM that runs all-integer programs on plain machine words, and quieter
-`try` output, compiler-style diagnostics and `struct`/`enum` in familiar syntax. Sley 2.1.4 brought faster loops and inline
-pytest-style tests for the Python dialect. Sley 2.1.3 ran direct calls in the compact scalar plan. Sley 2.1.2 brought fixes,
-clearer test-limit reporting and the native test supervisor source. Sley 2.1.1 added the Python dialect of the
-familiar frontend and shorter, more forgiving authoring, cutting what it costs an agent to write
-Sley. Sley 2.1.0 made the toolchain
-self-hosted: the semantic toolchain is a Sley program that rebuilds itself to a byte-identical
-fixed point. See the [2.1.6 release notes](docs/release/SLEY-2.1.6.md) and the
-[self-hosting record](docs/release/SH2_SELF_HOSTING.md). It's a *release*, not a GA claim: the
+**Sley 2.1.6** is the current release; [Recent releases](#recent-releases)
+lists what each point release added. The
 [2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
-list every acceptance criterion that wasn't met at 2.0.0 and every open finding.
+list the acceptance criteria and findings still open from 2.0.0.
 
 The [initial workload and adoption roadmap](docs/ADOPTION_ROADMAP.md) focuses
-evaluation on short function authoring, then separately measured changes to
-existing programs. It orders economic evidence, authoritative tested commits
-and a useful application, while preserving the accepted self-hosting work.
+evaluation on short function authoring, then on separately measured changes to
+existing programs.
 
 | Track | State |
 |---|---|
 | **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1 and the agent workbench in 2.0.2. The kernel, repository, protocol, CLI, agent workbench, and reproducible packaging are in place. |
-| **Sley 2.1** | Released as 2.1.0, with the Python dialect in 2.1.1, fixes in 2.1.2, faster execution in 2.1.3, faster loops and dialect tests in 2.1.4, the word tier in 2.1.5, and nesting diagnostics and the embed API in 2.1.6. **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
+| **Sley 2.1** | Released as 2.1.0, with point releases through 2.1.6 ([Recent releases](#recent-releases)). **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
 | **Sley 1.x** | Frozen at [v1.2.1](https://github.com/GreyforgeLabs/sley-legacy/tree/v1.2.1), the final 1.x tag, in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
 
@@ -365,8 +321,8 @@ make contributor-check
 
 It checks formatting, strict workspace Clippy, all workspace tests,
 conformance, adversarial tests and bounded fuzz smoke, stopping on failure.
-It uses tracked fixtures and locked dependencies; it needs no external master
-goal, generated release evidence, credentials or installed native supervisor.
+It uses tracked fixtures and locked dependencies; it needs no generated
+release evidence, credentials or installed native supervisor.
 The first run may download dependencies and creates ignored build/cache files,
 but does not rewrite tracked evidence. This is source validation, not release
 or native-host qualification.
@@ -396,11 +352,9 @@ cargo fetch --locked
 make release-candidate-smoke          # two clean musl builds + every release record, then verify
 ```
 
-Maintainers run `make quick` as the routine gate. It doesn't pass on a fresh
-clone: some of its checkers read the outputs of a local
-`make release-candidate-build` under `evidence/runtime/`, which isn't tracked,
-and two read the Sley 2.0 master goal, which lives outside the repository
-(`SLEY2_MASTER_GOAL` points at it). The
+Maintainers run `make quick` as the routine gate. It is not a fresh-clone
+gate: it reads untracked inputs, including the outputs of a local
+`make release-candidate-build` under `evidence/runtime/`. The
 [Quickstart](docs/QUICKSTART.md#6-run-the-test-gates) has the details.
 
 The repository is a Cargo workspace of 23 crates under [`crates/`](crates/).
@@ -413,6 +367,7 @@ Each crate owns exactly one authority, from `sley-scb1` (canonical bytes) to
 | Where | Link |
 |---|---|
 | 🌐 **Website** | [sleylang.org](https://sleylang.org) |
+| 🏟️ **Sley Arena** | [sleylang.org/arena](https://sleylang.org/arena) · [player guide](https://arena-api.greyforge.tech/agent.md) |
 | 📖 **Docs & walkthrough** | [sleylang.org/docs](https://sleylang.org/docs) · [sleylang.org/tutorial](https://sleylang.org/tutorial) · [sleylang.org/faq](https://sleylang.org/faq) |
 | 🤖 **For LLMs** | [sleylang.org/llms.txt](https://sleylang.org/llms.txt) |
 | 𝕏 **Sley on X** | [@SleyLanguage](https://x.com/SleyLanguage) |
@@ -421,6 +376,9 @@ Each crate owns exactly one authority, from `sley-scb1` (canonical bytes) to
 | 📰 **Background** | [The machine-native break](https://greyforge.tech/chronicles/sley-120-machine-native-break), on why Sley left source code behind |
 | 🐙 **GitHub** | [sley-lang](https://github.com/sley-lang) · [GreyforgeLabs](https://github.com/GreyforgeLabs) |
 | 🏛️ **Sley 1.x (legacy)** | [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy) · [sleylang.org/legacy](https://sleylang.org/legacy) |
+
+**Following Sley?** [Star sley-lang/sley](https://github.com/sley-lang/sley) and
+follow [@SleyLanguage](https://x.com/SleyLanguage) for each release.
 
 ## License
 
