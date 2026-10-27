@@ -1,4 +1,4 @@
-//! S20-430 endpoint tests over a trusted genesis repository: every judgment
+//! WP-430 endpoint tests over a trusted genesis repository: every judgment
 //! observed through the CLI must equal a direct `Server` over the same
 //! repository, and every CLI failure must carry its exit status.
 
@@ -150,7 +150,7 @@ fn direct_with(path: &PathBuf, server_hello: &Hello) -> Direct {
 
 #[test]
 fn handshake_identity_does_not_depend_on_the_transport_flag() {
-    // S20-430 P0-1: --json is a transport flag, so the same client hello
+    // WP-430 P0-1: --json is a transport flag, so the same client hello
     // over the same repository must negotiate the same handshake identity
     // in both modes, and that identity must equal a direct server built
     // from the unedited offer.
@@ -207,7 +207,7 @@ fn handshake_identity_does_not_depend_on_the_transport_flag() {
 
 #[test]
 fn the_binary_delivers_byte_frames_across_the_process_boundary() {
-    // S20-430 nabu P0: the S20-620 runner consumes the `sley` process,
+    // WP-430 nabu P0: the WP-620 runner consumes the `sley` process,
     // not the library, so byte-mode answers must cross the real stdout
     // pipe unfragmented and the exit status must propagate.
     let (_temp, path) = repository("cli-process");
@@ -287,7 +287,7 @@ fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
     let frames = split_frames(&stdout);
     assert_eq!(frames.len(), 1 + direct.frames.len());
     assert_eq!(frames[0], encode_hello_frame(&offered()).unwrap().bytes);
-    // Session identities are per server instance (S20-330 section 1): the
+    // Session identities are per server instance (WP-330 section 1): the
     // CLI server mints a fresh 32-byte identity no other instance shares,
     // so a session transplanted from the direct server is unknown here
     // rather than silently accepted.
@@ -331,10 +331,10 @@ fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
 
 #[test]
 fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
-    // S20-430 section 6: the same request frames over the same repository
+    // WP-430 section 6: the same request frames over the same repository
     // get byte-identical answers in both modes. Both runs transplant the
     // same direct-server session, which is unknown to either CLI server
-    // instance (S20-330 section 1), so every post-open answer is the same
+    // instance (WP-330 section 1), so every post-open answer is the same
     // deterministic SESSION_UNKNOWN failure; only the session-open answers
     // differ, each carrying its own freshly minted 32-byte identity.
     let (temp, path) = repository("cli-json");
@@ -423,7 +423,7 @@ fn batch_mode_answers_one_batch_per_server() {
     // Cancellation-before-execution across one batch is covered at the
     // owning layer (`batch_cancel_precedes_execution_in_one_batch` in
     // sley-protocol): a batch cannot transplant a session across server
-    // instances (S20-330 section 1), so the CLI batch test proves the
+    // instances (WP-330 section 1), so the CLI batch test proves the
     // plumbing instead. One batch carrying the hello and two opens is
     // answered frame for frame with two distinct fresh identities.
     let (_temp, path) = repository("cli-batch");
@@ -500,7 +500,7 @@ fn a_failed_negotiation_is_answered_once_and_ends_the_input() {
 
 #[test]
 fn a_json_line_at_the_element_ceiling_is_refused_and_ends_the_input() {
-    // S20-430 section 8 (revision 8): a JSON line the bridge refuses with
+    // WP-430 section 8 (revision 8): a JSON line the bridge refuses with
     // JSON_BRIDGE_RESOURCE_LIMIT for any ceiling ends the input. The
     // element ceiling is inclusive (bridge contract section 3), so a line
     // holding exactly MAX_JSON_ELEMENTS value positions is refused, and the
@@ -557,7 +557,7 @@ fn a_json_line_at_the_element_ceiling_is_refused_and_ends_the_input() {
 
 #[test]
 fn a_json_line_above_the_text_ceiling_that_is_not_utf8_is_refused_and_ends_the_input() {
-    // S20-430 section 8: a line the bridge refuses with
+    // WP-430 section 8: a line the bridge refuses with
     // JSON_BRIDGE_RESOURCE_LIMIT for any ceiling ends the input. The text
     // ceiling is judged on the bytes read, so a line above it whose read
     // part is not valid UTF-8 is refused by the ceiling, never answered
@@ -623,7 +623,7 @@ fn a_json_line_above_the_text_ceiling_that_is_not_utf8_is_refused_and_ends_the_i
 
 #[test]
 fn an_argument_that_is_not_unicode_is_a_usage_failure_not_a_panic() {
-    // S20-430 sections 3 and 4: every deviation on the command line is
+    // WP-430 sections 3 and 4: every deviation on the command line is
     // CLI_USAGE_INVALID with exit status 2 and one JSON object on standard
     // error. A path argument is raw bytes on Linux, so a word that is not
     // valid Unicode takes that exit, never the runtime's panic status 101.
@@ -814,7 +814,7 @@ fn cli_failures_carry_their_exit_status_and_one_stderr_object() {
     assert_eq!(report["frames_written"], 1);
 }
 
-/// S20-700-SMP1-002 end to end: a client hello frame whose bounds are not
+/// WP-700-SMP1-002 end to end: a client hello frame whose bounds are not
 /// the zero bounds `encode_hello_frame` emits is refused at the handshake
 /// with the codec's `PROTOCOL_FRAME_INVALID` as the cause. Through 2.0.0
 /// the codec dropped such bounds and the server negotiated.
@@ -1499,7 +1499,7 @@ fn v3_serve_reports_legacy_selection_and_native_refusal() {
     let repo = path.to_str().unwrap();
     // A legacy client hello against the v3-capable server still selects 1,
     // opens a version 1 session, and is refused the reserved native rows
-    // with the S20-620 seam named: exit 0 alone would also satisfy a
+    // with the WP-620 seam named: exit 0 alone would also satisfy a
     // NO_COMMON_PROFILE rejection, so the selection, the open, and the 605
     // refusal are all asserted.
     let legacy_report = path
@@ -1588,7 +1588,7 @@ fn v3_serve_refuses_reserved_native_calls_with_the_seam_named() {
     let repo = path.to_str().unwrap().to_string();
     // A v3 client opens a version 3 session, then calls the still-reserved
     // diagnostics row 305: the tag is admitted at v3, so dispatch refuses
-    // with the S20-620 seam named, never a silent success.
+    // with the WP-620 seam named, never a silent success.
     let client = offered_v3();
     let (_, handshake) = sley_protocol::negotiate_identity_versioned(&client, &client).unwrap();
     let mut input = encode_hello_frame(&client).unwrap().bytes;
@@ -2450,7 +2450,7 @@ fn capable_code_counts_sum_to_failed_answers_under_selection_2() {
     // ordinary refusal satisfies sum(codes) == failed_answers under
     // selection 2 (a dispatched refusal, 40008). The version 2 probe is
     // session-bound, so the test drives one live capable serve
-    // interactively, the way the S20-620 runner consumes it.
+    // interactively, the way the WP-620 runner consumes it.
     use std::io::{BufRead, BufReader};
 
     let (_temp, path) = repository("cli-codes-v2");

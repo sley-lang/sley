@@ -1,4 +1,4 @@
-"""Independent conformance oracle for the S20-260/S20-270 extended bytecode.
+"""Independent conformance oracle for the WP-260/WP-270 extended bytecode.
 
 This module decodes the `SLEYBC02` container and re-derives the bytecode cache
 key from the frozen preimage, implemented from the contracts alone

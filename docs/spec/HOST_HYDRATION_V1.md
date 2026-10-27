@@ -1,6 +1,6 @@
-# HOST_HYDRATION_V1 (RW-075 structural hydration contract)
+# HOST_HYDRATION_V1 (TP-075 structural hydration contract)
 
-Status: frozen with `EXEC_PACKAGE_V1` (RW-075, 2026-09-06). This document
+Status: frozen with `EXEC_PACKAGE_V1` (TP-075, 2026-09-06). This document
 is the explicit host-hydration contract: for every operation performed
 after the execution package is supplied, it classifies the operation and
 states the structural/semantic boundary. Anything not listed here requires

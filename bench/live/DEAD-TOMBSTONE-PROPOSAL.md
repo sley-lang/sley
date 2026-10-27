@@ -5,8 +5,8 @@
 > `crates/sley-policy/src/candidate_validation.rs`
 > (`live_selection_functions`, commits 883361e3 + f7f9af90) projects the
 > affected-Function union onto identities still bound in the proposed
-> state before S20-240 selection. The checker-side tombstone index
-> proposed below in `contracts.rs` was NOT built; the S20-240 checker and
+> state before WP-240 selection. The checker-side tombstone index
+> proposed below in `contracts.rs` was NOT built; the WP-240 checker and
 > its contract are untouched. Review: `evidence/review/requests/REQ-11-dead-function-deletion-selection.md`
 > (Amendment 1 records the deviation), Ariadne PASS and Nabu PASS
 > (revision 2) under `evidence/review/verdicts/dead_function_deletion_selection/`.

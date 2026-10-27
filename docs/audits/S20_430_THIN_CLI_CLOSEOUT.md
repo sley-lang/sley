@@ -1,4 +1,4 @@
-# S20-430 Thin CLI Closeout
+# WP-430 Thin CLI Closeout
 
 Status: **implemented under the draft Thin Machine-Oriented CLI v1 contract (revision 3); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
@@ -12,9 +12,9 @@ Validation tier: **Tier 1 plus protocol-focused Tier 2 handoff**
 
 `sley` is a transport endpoint and nothing else. `sley serve` moves SMP1
 frames between standard input, standard output, and the deterministic
-S20-410 server over one repository path, in byte form or in the S20-420
+WP-410 server over one repository path, in byte form or in the WP-420
 JSON form, answering each frame as it arrives or, under `--batch`, every
-frame together so S20-440 cancellation can precede execution. The endpoint
+frame together so WP-440 cancellation can precede execution. The endpoint
 offers the server's own hello (`Server::offered_hello`: version 1, the
 conformance schema epoch, the limit ceilings, the dispatched
 methods, cancel and stream, no adapters or effects),
@@ -68,7 +68,7 @@ The implementation provides:
   thirteen usage, handshake, and input failures with their exit status,
   cause, and single stderr object, plus a short frame after the handshake
   recorded in the report; `frame decode` and `frame encode` reproducing
-  the S20-420 fixture; and `methods`, `hello`, `hello --json`, and
+  the WP-420 fixture; and `methods`, `hello`, `hello --json`, and
   `version`.
 - `sley-protocol` gains one test that the offered hello names exactly the
   dispatched methods (37) and that each answers something other than an
@@ -97,7 +97,7 @@ The implementation provides:
 - **Council reviews.** Ariadne, Nabu, and Vulcan reviews land as contract
   revisions; the campaign record lists the open questions (per-frame
   versus batch default, and whether `Server::offered_hello` belongs to
-  the S20-400 contract). The `json_bridge` offering question is decided
+  the WP-400 contract). The `json_bridge` offering question is decided
   by revision 3: neither always nor only under `--json` — the offer
   carries no transport feature in either mode, so the handshake and
   session identity do not depend on the transport flag.
@@ -167,5 +167,5 @@ Validation on this tree (sibling lane repair/cli-r6-council, this commit): `carg
 self-test), and `scripts/test_cli_contract.py` (7 cases) all pass;
 the pre-existing `check_error_symbol_registration` FAIL (unregistered
 `sley-vm` `PACKAGE_*` symbols) is untouched by this delta and stays with
-the registry owner. Council re-review of revision 6 stays with the S20-430
+the registry owner. Council re-review of revision 6 stays with the WP-430
 queue.

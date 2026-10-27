@@ -40,8 +40,8 @@ REQUIRED = (
     "last_updated_utc",
 )
 ENV_OVERRIDES = {
-    "canonical_spec": "SLEY2_MASTER_GOAL",
-    "reweave_master": "SLEY2_REWEAVE_MASTER",
+    "canonical_spec": "SLEY2_DESIGN_SPEC",
+    "reweave_master": "SLEY2_SELF_HOSTING_PLAN",
 }
 
 

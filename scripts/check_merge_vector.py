@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-520 merge judgment over the frozen corpus.
+"""Independently reproduce the WP-520 merge judgment over the frozen corpus.
 
-For every corpus case the oracle recomputes both S20-510 deltas from the
+For every corpus case the oracle recomputes both WP-510 deltas from the
 compact root descriptions (reusing the comparison oracle), applies judgment
 rules J1 through J8, set-valued field composition, and the non-ownership
 collateral rule of `MERGE_V1.md`, and checks the outcome: for a merged case

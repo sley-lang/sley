@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-630 accounting over a live S20-640 run (contract section 11).
+"""WP-630 accounting over a live WP-640 run (contract section 11).
 
 The live campaign records every attempt of one model tier in one
 ``attempts.jsonl`` under a ``sley2.live-campaign-manifest.v1`` run

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-170 pack ID and digest tree."""
+"""Independently reproduce the WP-170 pack ID and digest tree."""
 
 from __future__ import annotations
 

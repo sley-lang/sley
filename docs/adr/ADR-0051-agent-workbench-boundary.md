@@ -116,7 +116,7 @@ transport endpoint with no semantics (ADR-0035).
   typical exchange is one call per fix, and every refusal names its symbol,
   its locator and a hint.
 - The 2.0.0 trial tool (`bench/live/sley2_tool.py`) is unchanged. Its
-  S20-640 preregistration pins stay valid. Moving the mediated harness onto
+  WP-640 preregistration pins stay valid. Moving the mediated harness onto
   the workbench binary belongs to the next campaign's preregistration.
 - Opcodes, entity kinds or refusal symbols added in later versions need rows
   in `crates/sley-agent/src/opcodes.rs` and `crates/sley-agent/data/hints.json`.

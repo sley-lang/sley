@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-160 StateRoot contract, fixture, and implementation surface."""
+"""Check the WP-160 StateRoot contract, fixture, and implementation surface."""
 
 from __future__ import annotations
 

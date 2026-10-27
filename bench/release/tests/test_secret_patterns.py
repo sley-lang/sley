@@ -1,4 +1,4 @@
-"""Positive controls for the S20-710 secret-scan patterns.
+"""Positive controls for the WP-710 secret-scan patterns.
 
 Each high-confidence pattern must fire on a synthetic token: a guard
 that has only ever produced zero findings cannot distinguish a clean

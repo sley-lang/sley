@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-750 source: the tracked inventory of tests and conformance vectors.
+"""WP-750 source: the tracked inventory of tests and conformance vectors.
 
 Counts, from tracked sources only, the Rust unit tests per crate, the ignored
 fixture-refresh emitters, the persistent fuzz targets, the Python test

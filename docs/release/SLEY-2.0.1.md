@@ -73,7 +73,7 @@ in review. Thank you, Fred.
   likewise refuses a chunk event that carries bounds. The independent Python
   oracle had the same gap; it now decodes the frame record itself and
   refuses both. Pinned by a new rejected vector, `hello-nonzero-bounds`, and
-  the fuzz regression `S20-700-SMP1-002`
+  a new SMP1 fuzz regression
   ([SMP1](../spec/SMP1.md) errata to revision 16).
 - **Hardening of caller-supplied runtime inputs.** The VM's approved-package
   execution path judged caller-supplied inputs structurally only. It now

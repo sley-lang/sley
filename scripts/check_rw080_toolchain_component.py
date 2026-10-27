@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the retained RW-080 partial-component construction manifest."""
+"""Validate the retained TP-080 partial-component construction manifest."""
 
 from __future__ import annotations
 

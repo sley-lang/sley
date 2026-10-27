@@ -1,6 +1,6 @@
 # ADR-0012: Restricted modeled-snapshot query authority
 
-Status: accepted for the S20-310 restricted epoch-1 profile
+Status: accepted for the WP-310 restricted epoch-1 profile
 
 ## Decision
 
@@ -17,14 +17,14 @@ search, root/object lookup, capsule, diagnostic, or mutation-affordance API.
 
 ## Rationale
 
-Full S20-310 depends on a full S20-300 root-backed index and nineteen master-
+Full WP-310 depends on a full WP-300 root-backed index and nineteen master-
 goal query classes. Those prerequisites do not exist. A smaller typed surface
 can still freeze exact ordering, request identity, context binding, and query-
 explosion controls without converting a claimed root or snapshot digest into
 semantic provenance.
 
 Hard failure is required when a caller limit would omit a required fact. A
-partial result without S20-320 omission/continuation semantics would be
+partial result without WP-320 omission/continuation semantics would be
 indistinguishable from a complete answer.
 
 ## Consequences
@@ -36,4 +36,4 @@ indistinguishable from a complete answer.
 - query candidate bytes, snapshot IDs, and response bytes grant no root,
   policy, mutation, execution, or persistence authority;
 - the nineteen root-backed query classes, continuation, context capsules, and
-  full S20-310/M3 completion remain blocked.
+  full WP-310/M3 completion remain blocked.

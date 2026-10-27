@@ -1,6 +1,6 @@
 # Immutable Object Store v1
 
-Status: S20-150 normative contract; implementation pending.
+Status: WP-150 normative contract; implementation pending.
 
 This contract defines persistence for already validated SCB1 standalone
 objects. It is newly designed for Sley 2.0. It does not import a Sley 1.x
@@ -98,13 +98,13 @@ Failure precedence is deterministic:
 `STORE_OBJECT_SUBSTITUTION` never collapses into not-found, success, or a
 generic unknown result. A validation failure before promotion cannot create a
 final object. An interruption after atomic promotion may leave an unreachable
-object, but no S20-150 outcome can advance accepted state.
+object, but no WP-150 outcome can advance accepted state.
 
 ## Crash and recovery boundary
 
 A crash before promotion may leave only a staging file. A crash after
 promotion may leave an unreachable valid immutable object and a staging hard
-link. Neither case advances accepted state because S20-150 owns no ref or
+link. Neither case advances accepted state because WP-150 owns no ref or
 transaction operation.
 
 Recovery enumerates only files matching the store-owned staging convention in
@@ -112,16 +112,16 @@ canonical object fan-out directories. It may remove those files after bounded
 inspection, and it emits one `RECOVERY_STAGED_OBJECT` event per remnant. It
 MUST NOT infer acceptance or reachability from timestamps and MUST NOT remove
 final `.scb1` object paths. Full reachability and garbage collection belong to
-S20-180.
+WP-180.
 
 Recovery is an exclusive startup operation. Its caller MUST prove that no
-writer is active for the store root. S20-150 does not add a cross-process
+writer is active for the store root. WP-150 does not add a cross-process
 repository lock, and a recovery scan MUST NOT race a live stage operation.
 Recovery events are sorted by relative staging path.
 
 ## Required evidence
 
-S20-150 is complete only when tests cover:
+WP-150 is complete only when tests cover:
 
 - write/read round trip and exact path derivation;
 - same-object idempotence without replacement;

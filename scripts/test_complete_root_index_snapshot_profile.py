@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regressions for the S20-300 stage checker's revision-5 and revision-6 gates.
+"""Regressions for the WP-300 stage checker's revision-5 and revision-6 gates.
 
 Completion binding: a COMPLETE status backed only by the historical
 base-field PASS values (revision 3) is refused with

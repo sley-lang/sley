@@ -4,7 +4,7 @@
 Runs the frozen Sley 1.2.0 artifact out-of-process through
 ``bench.legacy.runner.staged_frozen_artifact`` (which verifies the pinned
 outer hash, archive safety, release identity, and every payload byte on
-every staging) with the same containment posture as the S20-600 runner:
+every staging) with the same containment posture as the WP-600 runner:
 
 - scrubbed environment (no inheritance), private HOME/TMPDIR/source cache
 - cwd is always the private stage root (fixture targets are absolute paths)
@@ -49,7 +49,7 @@ class TaskRunnerError(ValueError):
 
 
 def _scrubbed_env(scratch_home: Path, scratch_tmp: Path, source_cache: Path) -> dict[str, str]:
-    # PATH keeps the S20-600 system directories plus the pinned user node
+    # PATH keeps the WP-600 system directories plus the pinned user node
     # toolchain directory. Rationale (engine fact): `sley machine` shells out
     # to `node` (NodeTextRuntime spawns `node -e ...`; without it every
     # machine invocation dies with FileNotFoundError). No system node exists

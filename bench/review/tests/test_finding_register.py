@@ -1,4 +1,4 @@
-"""Offline tests of the S20-740 finding register: derivation, states, invariants."""
+"""Offline tests of the WP-740 finding register: derivation, states, invariants."""
 
 from __future__ import annotations
 

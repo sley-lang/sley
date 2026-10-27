@@ -1,6 +1,6 @@
 # Deterministic State Root v1
 
-Status: S20-160 normative contract; implementation pending.
+Status: WP-160 normative contract; implementation pending.
 
 ## Scope and authority
 
@@ -18,7 +18,7 @@ construct the registry, descriptor, decoder, or interpretation-flag policy.
 
 The descriptor's `field_schema_hash` commits to the complete field schema and
 allowed interpretation-flag tags. The preserved decoder enforces that
-allowlist. This uses the existing S20-140 descriptor shape; it does not add or
+allowlist. This uses the existing WP-140 descriptor shape; it does not add or
 reinterpret descriptor fields. Epoch 1 accepts only an empty interpretation
 flag set until a descriptor-bound decoder explicitly declares tags.
 
@@ -34,7 +34,7 @@ decoder limits preimage = sley2.state-root.v1.decoder-limits:scb1-epoch1
 decoder_limits_hash = c4831bde6913620994ab5a226fc2868e626e0dd07b9524bd3d7293fbd8ae0623
 ```
 
-S20-160 proves root construction and strict import. Object existence,
+WP-160 proves root construction and strict import. Object existence,
 cross-object semantic validity, ref movement, transaction ancestry, and commit
 authority remain later validation/transaction obligations.
 
@@ -157,7 +157,7 @@ digest. Accepted-state conformance additionally requires a nonzero registered
 epoch fixture containing the exact tag-160 descriptor and matching decoder;
 the implementation package must freeze that fixture before completion.
 
-## S20-160 acceptance
+## WP-160 acceptance
 
 - synthetic bytes and digest match the fixed vector, but authorization rejects
   its unregistered zero epoch;
@@ -171,6 +171,6 @@ the implementation package must freeze that fixture before completion.
   fields, epoch mismatch, digest mismatch, trailing bytes, and limit breaches;
 - API and dependency review confirm that excluded ancestry, repository, host,
   source, Git, cache, and model facts cannot enter the preimage;
-- S20-170 later proves pack reconstruction of exact standalone root bytes;
-- S20-390 later proves ancestry changes transaction/receipt identity without
+- WP-170 later proves pack reconstruction of exact standalone root bytes;
+- WP-390 later proves ancestry changes transaction/receipt identity without
   changing an otherwise identical semantic `StateRoot`.

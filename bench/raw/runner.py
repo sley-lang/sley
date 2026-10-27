@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed, offline-only S20-610 raw baseline evidence runner.
+"""Fail-closed, offline-only WP-610 raw baseline evidence runner.
 
 This module validates frozen controls and stores digest-chained observations.
 It deliberately contains no subprocess, provider, model, shell, network, or
@@ -85,7 +85,7 @@ OPTIONAL_ARTIFACT_DIGESTS = {
 
 
 class RawErrorCode(IntEnum):
-    """Stable S20-610 offline runner failure codes."""
+    """Stable WP-610 offline runner failure codes."""
 
     MANIFEST_INVALID = 61_000
     CONTROL_MISMATCH = 61_001
@@ -120,7 +120,7 @@ class RawRunnerError(ValueError):
 
 @runtime_checkable
 class AgentAdapter(Protocol):
-    """Injected agent interface; no implementation is supplied by S20-610."""
+    """Injected agent interface; no implementation is supplied by WP-610."""
 
     def run(self, task: Mapping[str, Any], controls: Mapping[str, Any], workspace: Any) -> Any:
         """Return an adapter-owned observation without ambient authority."""

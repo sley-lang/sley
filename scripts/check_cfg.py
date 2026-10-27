@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen S20-220 CFG/value-use validation surface."""
+"""Check the frozen WP-220 CFG/value-use validation surface."""
 
 from __future__ import annotations
 

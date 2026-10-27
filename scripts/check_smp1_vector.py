@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-410 SMP1 frame, hello, and handshake vectors.
+"""Independently reproduce the WP-410 SMP1 frame, hello, and handshake vectors.
 
 The oracle rebuilds every frame of `docs/spec/SMP1.md` from the fixture's
 frozen inputs (the client and server hellos and the request, response, and

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record the S20-330 T15/T47/T56 threat matrices as evidence.
+"""Record the WP-330 T15/T47/T56 threat matrices as evidence.
 
 Runs the focused native tests that prove each matrix and writes one
 `matrix.json` per threat under `evidence/security/T{15,47,56}/` with the

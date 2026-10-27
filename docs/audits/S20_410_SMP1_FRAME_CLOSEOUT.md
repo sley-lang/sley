@@ -1,6 +1,6 @@
-# S20-410 SMP1 Frame and Deterministic Server Closeout
+# WP-410 SMP1 Frame and Deterministic Server Closeout
 
-Status: **implemented under the draft SMP1 contract (S20-400, revision 3); Council reviews pending, so S20-400 and S20-410 are not complete; four methods stay deferred on owner gaps; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft SMP1 contract (WP-400, revision 3); Council reviews pending, so WP-400 and WP-410 are not complete; four methods stay deferred on owner gaps; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -21,7 +21,7 @@ frozen record, copying the owner's counts into the bounded context, and
 preserving the owner's failure code. The contract is `docs/spec/SMP1.md`
 with ADR-0032. It is a draft: every Council lane was unavailable when it
 was written and when the implementation landed, so the Ariadne, Nabu, and
-Vulcan reviews that freeze it and complete S20-400 and S20-410 are pending
+Vulcan reviews that freeze it and complete WP-400 and WP-410 are pending
 and must pass before the status above changes.
 
 The implementation provides, in `crates/sley-protocol`:
@@ -62,7 +62,7 @@ The implementation provides, in `crates/sley-protocol`:
   the request-identity matrix, the method table and failure envelope) and
   five server tests (session, repository, and transaction methods with
   byte-identical answers from a second server and 128 repeated reads; the
-  query family transporting the exact S20-310, S20-320, and restricted
+  query family transporting the exact WP-310, WP-320, and restricted
   records with paging and the owner's mismatch code; identity, session,
   downgrade, and frame rules at the server; a dependency-free root exported
   as a pack byte for byte; the mutation-side family with the genesis
@@ -85,25 +85,25 @@ The implementation provides, in `crates/sley-protocol`:
   one contract tag with the hello as frame kind 4.
 - Record fields are already length-delimited, so branch names travel as
   raw bytes inside records; the first server test encoded them twice.
-- The S20-360 validator renders every outcome as a result record, so
+- The WP-360 validator renders every outcome as a result record, so
   `candidate.validate` over malformed bytes succeeds with an invalid
   result rather than failing; the test and appendix state this.
 
 ## Explicitly open and deferred
 
 - **Council reviews.** Ariadne (owner), Nabu, and Vulcan reviews of
-  S20-400 are queued and land as contract revisions. Revision 9
+  WP-400 are queued and land as contract revisions. Revision 9
   (2026-09-05) lands the eight P0s: the transcript-bound handshake with
   per-peer re-derivation, the valued envelope epoch, the scoped cancel
   wording, the completed zero-code table, the all-session gc pins, and
   the freeze-gate fix, with the server, CLI, bridge, fuzz target,
   fixtures, and oracle following.
 - **Owner gaps that blocked four methods (closed by slice C, 2026-09-03).**
-  `gc.dry_run` and `gc.collect` waited for a production S20-560
-  `GcObjectVerifier`; `execute` and `report` waited for a public S20-380
-  `ConstValue` bytes codec and a stored-bytes form of the S20-290 execution
+  `gc.dry_run` and `gc.collect` waited for a production WP-560
+  `GcObjectVerifier`; `execute` and `report` waited for a public WP-380
+  `ConstValue` bytes codec and a stored-bytes form of the WP-290 execution
   report envelope. SMP1 revision 7 (appendix C) defines their bodies, the
-  S20-560 `RepositoryObjectVerifier` and execution report store, the public
+  WP-560 `RepositoryObjectVerifier` and execution report store, the public
   `sley_mutate::{encode_const_value, decode_const_value}`, and the server
   dispatches all thirty-seven non-reserved methods; see the slice C addendum
   below.
@@ -112,12 +112,12 @@ The implementation provides, in `crates/sley-protocol`:
   symbols only; commit, branch, exchange, query, and capsule failures carry
   their exact numerics.
 - **Session issuance** is provisional (derived from the handshake identity
-  and an issue counter) until S20-330 owns it; the server holds no
+  and an issue counter) until WP-330 owns it; the server holds no
   candidate state, so `candidate.discard` verifies and acknowledges.
 - A server request/response conformance corpus with an independent oracle
   is not attempted: the responses are the owners' frozen records, each
   already covered by its own corpus and oracle.
-- S20-440 freezes cancellation latency and streaming; the single-frame
+- WP-440 freezes cancellation latency and streaming; the single-frame
   `Server::answer` entry answers each request before reading the next
   frame, so a lone `cancel` acknowledges, while cancellation before
   execution lives in multi-frame `answer_batch` under SMP1 section 7 and
@@ -146,14 +146,14 @@ SMP1 revision 7 adds appendix C and the server dispatches `gc.dry_run`
 
 - the server derives the retention snapshot from its accepted head and
   named branches and lets a request only add session pins, verifies every
-  object through the S20-560 `RepositoryObjectVerifier` (entity objects
+  object through the WP-560 `RepositoryObjectVerifier` (entity objects
   under the conformance epoch, no object references), and answers the
-  S20-180 report verbatim; `gc.collect` holds the exclusive guard for the
+  WP-180 report verbatim; `gc.collect` holds the exclusive guard for the
   request;
-- `execute` is head-bound: it projects the bound root with the S20-250 full
+- `execute` is head-bound: it projects the bound root with the WP-250 full
   projection, lowers and executes the named Function under the restricted
-  profile, builds the S20-290 report, and stores its preimage create-once
-  under `reports/execution/<id hex>` (S20-560 report store, codes 56000
+  profile, builds the WP-290 report, and stores its preimage create-once
+  under `reports/execution/<id hex>` (WP-560 report store, codes 56000
   through 56002) before answering `record(id, preimage)`; a rejected
   execution is still a report; an unknown Function is
   `PROTOCOL_PAYLOAD_INVALID` with detail `FUNCTION-UNKNOWN`;
@@ -175,22 +175,22 @@ does not hold, so its dry run fails closed with `GC_DEPENDENCY_MISSING`.
 Slice C landed at `49c06f7` with `make quick` green; Tier 2 at that commit
 (`make core` 985 tests, `make conformance` 19 oracles, `make adversarial`
 597 tests, `make fuzz-smoke`, both SMP1 persistent smoke gates, and the
-S20-620 and S20-630 smokes, all exit 0) is recorded in
+WP-620 and WP-630 smokes, all exit 0) is recorded in
 `machineresearch/sley-2.0/s20-410-smp1-frame-campaign-2026-09-03.md`.
 
 ## Revision 8 addendum: execute profile selector (2026-09-03)
 
 SMP1 revision 8 adds field 6 to the appendix C `limits` record: a uvar cache
 profile selector (1 `RESTRICTED_V1`, 2 `EXTENDED_V1`). The server decodes
-exactly six fields, maps the selector onto the S20-260/S20-270 cache profile,
+exactly six fields, maps the selector onto the WP-260/WP-270 cache profile,
 and fails any other value or a five-field record closed with
-`PROTOCOL_PAYLOAD_INVALID`. Execution, the S20-290 report, and the stored
+`PROTOCOL_PAYLOAD_INVALID`. Execution, the WP-290 report, and the stored
 report bytes otherwise follow the revision 7 rules; the report's cache key
 names the selected profile, so the two profiles never share a report
 identity. The release demo fixture and the server tests carry the selector;
 `execute_selects_the_cache_profile_from_limits_field_six` covers both
 profiles and both rejections. Council review of revisions 7 and 8 stays
-pending with the S20-400 queue.
+pending with the WP-400 queue.
 
 ## Revision 12 addendum: versioned server and selection-domain gate (2026-09-10)
 
@@ -238,5 +238,5 @@ dispatch, and framing even under an above-1 opaque selection.
   is green (23 cases, 91 rejections), and the staged refresh derivation
   reproduces the corpus exactly.
 
-Council review of revision 12 stays with the S20-400 queue; this addendum
+Council review of revision 12 stays with the WP-400 queue; this addendum
 changes no version 1 row, byte, or helper.

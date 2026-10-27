@@ -1,6 +1,6 @@
 # Capability Summary v1
 
-Status: S20-345 normative proposal-binding contract; not authority.
+Status: WP-345 normative proposal-binding contract; not authority.
 
 The session capability summary is a canonical projection of authenticated
 capability-token bodies made available by a trusted host/session boundary. A
@@ -51,12 +51,12 @@ digests are forbidden. Empty summaries are canonical and mean no proposed
 capability. All outer principal/workspace/policy/root fields must agree with
 every grant body.
 
-During S20-360, a trusted validation context must independently rebuild this
+During WP-360, a trusted validation context must independently rebuild this
 summary from authenticated, unexpired, exact-root tokens and compare the digest
 before policy judgment. A digest match is necessary but never sufficient:
 individual capability verification, scope, budget, replay, and use-ledger
-checks still apply. S20-330 must later bind the authenticated session; until
-then S20-350 can only construct an unauthoritative proposal record.
+checks still apply. WP-330 must later bind the authenticated session; until
+then WP-350 can only construct an unauthoritative proposal record.
 
 ## Fixed empty-summary vector
 
@@ -70,5 +70,5 @@ For principal bytes `01*32`, workspace bytes `02*32`, policy-root bytes
 
 `sley-policy::build_capability_summary_projection` implements this projection.
 It performs binding and duplicate-digest checks but deliberately performs no
-MAC, expiry, scope, ledger, or candidate-authority judgment; S20-360 owns those
+MAC, expiry, scope, ledger, or candidate-authority judgment; WP-360 owns those
 checks with trusted key material.

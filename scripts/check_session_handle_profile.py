@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-330 negotiated session and handle contract and its stage."""
+"""Check the WP-330 negotiated session and handle contract and its stage."""
 
 from __future__ import annotations
 
@@ -139,7 +139,7 @@ CAPSULE_MARKERS = ("pub fn build_context_capsule_session", "Negotiated")
 ID_MARKERS = ('b"sley2.session.v1"', "digest_type!(SessionId, Domain::Session);")
 # Implemented under a draft means tracked, never silently pending: a FAIL
 # round is itemized in same-lane register-first open lists, or superseded
-# by the same lane's re-review PASS obligation (S20-740 register rule).
+# by the same lane's re-review PASS obligation (WP-740 register rule).
 LANE_PASS_FIELD = {
     "ariadne_contract_review": "ariadne_review",
     "nabu_architecture_review": "nabu_review",

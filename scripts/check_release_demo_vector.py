@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently inspect the S20-720 release demo vectors.
+"""Independently inspect the WP-720 release demo vectors.
 
 The demo fixture is the source-independence proof of the packaged binary: the
 exchange the endpoint exported, the bound `query.root` request and response,

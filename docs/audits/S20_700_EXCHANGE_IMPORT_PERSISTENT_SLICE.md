@@ -1,8 +1,8 @@
-# S20-700 Repository-Exchange Import Persistent Slice
+# WP-700 Repository-Exchange Import Persistent Slice
 
-Status: scoped persistent landed-surface slice for S20-540; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for WP-540; **full WP-700 remains incomplete**
 
-This slice hardens the S20-540 repository-exchange preflight and importer
+This slice hardens the WP-540 repository-exchange preflight and importer
 (`crates/sley-repo/src/exchange.rs`, `docs/spec/REPOSITORY_EXCHANGE_V1.md`).
 It does not begin merge, comparison, protocol, or release packaging.
 

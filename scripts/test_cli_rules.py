@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discriminating static tests for the S20-430 rule audit (contract section 5).
+"""Discriminating static tests for the WP-430 rule audit (contract section 5).
 
 Each mutation case serves one adulterated production source from memory
 while the method truth stays derived from the real frozen `Method` table,

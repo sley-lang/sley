@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-420 SMP1 JSON bridge contract and its stage."""
+"""Check the WP-420 SMP1 JSON bridge contract and its stage."""
 
 from __future__ import annotations
 

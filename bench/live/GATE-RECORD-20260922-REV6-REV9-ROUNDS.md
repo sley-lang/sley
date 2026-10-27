@@ -19,7 +19,7 @@ carries the round records; this record lands in the successor.
   REQ-09 not redispatched).
 - Toolchain pinned `1.93.0`, `--locked`, `CARGO_NET_OFFLINE=true`,
   user-owned target dirs under `/home` outside the repo;
-  `SLEY2_MASTER_GOAL` stable (`07791368...aace`). Tracked
+  `SLEY2_DESIGN_SPEC` stable (`07791368...aace`). Tracked
   `evidence/build/lint-report.json` still names `69907ddf` per
   succession convention (re-filed only at release-candidate mints);
   restored after each lint run, never committed.

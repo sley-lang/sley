@@ -1,6 +1,6 @@
 # Canonical Identifiers and Hash Domains v1
 
-Status: S20-110 implementation contract
+Status: WP-110 implementation contract
 
 ## Invariants
 
@@ -46,13 +46,13 @@ part of the `sley-id` kernel API.
 | test report | `sley2.test-report.v1` |
 | repository pack | `sley2.repository-pack.v1` |
 | protocol handshake | `sley2.protocol-handshake.v1` |
-| repository exchange (S20-540) | `sley2.repository-exchange.v1` |
-| semantic delta (S20-510) | `sley2.semantic-delta.v1` |
-| merge conflict (S20-520) | `sley2.merge-conflict.v1` |
-| candidate attempt (S20-360) | `sley2.candidate-attempt.v1` |
-| protocol frame (S20-410) | `sley2.protocol-frame.v1` |
-| root-backed query (S20-310 full) | `sley2.root-query.v1` |
-| negotiated session (S20-330) | `sley2.session.v1` |
+| repository exchange (WP-540) | `sley2.repository-exchange.v1` |
+| semantic delta (WP-510) | `sley2.semantic-delta.v1` |
+| merge conflict (WP-520) | `sley2.merge-conflict.v1` |
+| candidate attempt (WP-360) | `sley2.candidate-attempt.v1` |
+| protocol frame (WP-410) | `sley2.protocol-frame.v1` |
+| root-backed query (WP-310 full) | `sley2.root-query.v1` |
+| negotiated session (WP-330) | `sley2.session.v1` |
 | native test execution profile | `sley2.native-test-execution-profile.v1` |
 | native test observation | `sley2.native-test-observation.v1` |
 | native test plan | `sley2.native-test-plan.v1` |
@@ -66,21 +66,21 @@ part of the `sley-id` kernel API.
 | supervisor config | `sley2.native-test-supervisor-config.v1` |
 | native admission profile | `sley2.native-test-admission-profile.v1` |
 | native exchange profile (N6) | `sley2.native-test-exchange-profile.v1` |
-| repository pack leaf (S20-170) | `sley2.repository-pack-leaf.v1` |
-| repository pack node (S20-170) | `sley2.repository-pack-node.v1` |
-| repository exchange leaf (S20-540) | `sley2.repository-exchange-leaf.v1` |
-| repository exchange node (S20-540) | `sley2.repository-exchange-node.v1` |
-| exchanged accepted head (S20-540) | `sley2.accepted-head.v1` |
-| branch record (S20-500) | `sley2.branch-record.v1` |
-| branch ref (S20-500) | `sley2.branch-ref.v1` |
-| branch name path key (S20-500) | `sley2.branch-name-path.v1` |
-| validation context (S20-345) | `sley2.validation-context.v1` |
-| validation context inventory (S20-360) | `sley2.validation-context-inventory.v1` |
-| validation context tombstones (S20-360) | `sley2.validation-context-tombstones.v1` |
-| candidate phase evidence (S20-360) | `sley2.candidate-phase-evidence.v1` |
-| merge plan nonce (S20-520) | `sley2.merge-plan-nonce.v1` |
-| reference adapter deterministic randomness (S20-280) | `sley2.reference-random.v1` |
-| S20-530 recovery ancestry test plan | `sley2.s20-530.recovery-ancestry-test-plan.v1` |
+| repository pack leaf (WP-170) | `sley2.repository-pack-leaf.v1` |
+| repository pack node (WP-170) | `sley2.repository-pack-node.v1` |
+| repository exchange leaf (WP-540) | `sley2.repository-exchange-leaf.v1` |
+| repository exchange node (WP-540) | `sley2.repository-exchange-node.v1` |
+| exchanged accepted head (WP-540) | `sley2.accepted-head.v1` |
+| branch record (WP-500) | `sley2.branch-record.v1` |
+| branch ref (WP-500) | `sley2.branch-ref.v1` |
+| branch name path key (WP-500) | `sley2.branch-name-path.v1` |
+| validation context (WP-345) | `sley2.validation-context.v1` |
+| validation context inventory (WP-360) | `sley2.validation-context-inventory.v1` |
+| validation context tombstones (WP-360) | `sley2.validation-context-tombstones.v1` |
+| candidate phase evidence (WP-360) | `sley2.candidate-phase-evidence.v1` |
+| merge plan nonce (WP-520) | `sley2.merge-plan-nonce.v1` |
+| reference adapter deterministic randomness (WP-280) | `sley2.reference-random.v1` |
+| WP-530 recovery ancestry test plan | `sley2.s20-530.recovery-ancestry-test-plan.v1` |
 | diagnostic report bearer token (SMP 605) | `sley2.diagnostic-report-token.v1` |
 
 Historical additions are recorded by ADR-0047, ADR-0048, and each later owning
@@ -124,13 +124,13 @@ the live domain set above continues to match the existing crate implementation.
 `PrincipalId` is a distinct opaque 32-byte host-supplied identity value, not a
 content-addressed identifier and not a new hash domain. It never derives from a
 username, path, label, prompt, model output, repository metadata, or session
-text. Possessing or naming it grants no authority; S20-370 policy data and
-later authenticated S20-380 capability evidence perform exact matching.
+text. Possessing or naming it grants no authority; WP-370 policy data and
+later authenticated WP-380 capability evidence perform exact matching.
 
 `CapabilitySummaryDigest` and `ValidationProfileId` are content-addressed
-proposal bindings introduced by S20-345. Neither proves that capabilities were
+proposal bindings introduced by WP-345. Neither proves that capabilities were
 authenticated or validation phases ran. Their owning contracts define exact
-preimages; S20-360 must compare them with trusted recomputation/evidence.
+preimages; WP-360 must compare them with trusted recomputation/evidence.
 
 ## Digest domain tags
 

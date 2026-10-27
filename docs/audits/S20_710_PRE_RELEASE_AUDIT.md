@@ -1,8 +1,8 @@
-# S20-710 Pre-Release Supply-Chain Audit
+# WP-710 Pre-Release Supply-Chain Audit
 
 Status: **BLOCKED - operator-approved root license text required**
 
-This is a bounded, offline pre-release audit. It is not the S20-710 acceptance
+This is a bounded, offline pre-release audit. It is not the WP-710 acceptance
 record, a legal opinion, a standards SBOM, release provenance, or permission to
 publish. The audit is frozen through Git commit
 `db1bc623d01e838d49c153feb0be05a7502b8794` (the pushed head at re-anchor);
@@ -50,7 +50,7 @@ notice language. The implementation must not invent these legal facts.
 
 After that decision, Argus must re-run license and secret review, approve the
 release-standard SBOM/provenance artifacts, re-anchor history at the release
-candidate, and disposition every finding before S20-710 can pass.
+candidate, and disposition every finding before WP-710 can pass.
 
 ### What happens mechanically after the text lands
 
@@ -84,7 +84,7 @@ The mechanics of the standards formats now exist under
 CycloneDX 1.6 (`evidence/release/sbom/cyclonedx-1.6.json`) and SPDX 2.3
 (`evidence/release/sbom/spdx-2.3.json`) from this inventory, and
 `scripts/build_release_provenance.py` derives an unsigned in-toto statement
-(`evidence/release/provenance.json`) for the S20-720 candidate. They are
+(`evidence/release/provenance.json`) for the WP-720 candidate. They are
 deterministic, carry no host path or wall clock, assert no license conclusion,
 and are signed by nobody. They do not lift this audit's blocker: the machine
 summary keeps `standards_sbom` and `release_provenance` false until the
@@ -128,7 +128,7 @@ execution; the pre-decision record above is preserved unchanged.
   pins the exact approved bytes.
 - Still required after this execution: Argus license-and-secret re-review on
   the new anchor, SBOM/provenance approval, history re-anchor at the release
-  candidate, and disposition of every finding before S20-710 can pass. No
+  candidate, and disposition of every finding before WP-710 can pass. No
   legal compatibility opinion is offered here.
 
 ## Attribution rewrite anchor mapping — 2026-09-15

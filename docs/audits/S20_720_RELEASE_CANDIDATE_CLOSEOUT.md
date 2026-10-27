@@ -1,4 +1,4 @@
-# S20-720 Release Candidate Closeout
+# WP-720 Release Candidate Closeout
 
 Status: **mechanics implemented under the draft Release Candidate Packaging v1 contract (revision 5); current delta Council reviews pending, so the package is not complete; no release, no GA, `release-check` fail-closed; the Sley 2 goal remains incomplete**
 
@@ -24,7 +24,7 @@ The clean-room release candidate is mechanical evidence, not a release.
 `scripts/build_release_candidate.py` builds `sley-cli` twice in fresh
 target directories with the working tree, the cargo registry sources, and
 the home directory remapped, stages the fourteen members the contract
-names (the endpoint binary, canonical manifest, the S20-710 inventory as
+names (the endpoint binary, canonical manifest, the WP-710 inventory as
 SBOM, declared licenses with the root-license blocker, the SMP1, bridge,
 and demo fixtures, and the self-contained demo), packages a deterministic
 gzip tar, unpacks it outside the tree, runs the conformance subset and the
@@ -88,21 +88,21 @@ are pending and must pass before the status above changes.
 - **Council reviews.** Ariadne, Nabu, and Vulcan reviews land as contract
   revisions; the campaign record lists the open questions.
 - **Gated blockers.** Root license text (operator), standards SBOM and
-  provenance (S20-710 full), succession thresholds (S20-640), and the GA
-  decision (S20-750) remain closed; `machine-summary.json` `artifact` stays
+  provenance (WP-710 full), succession thresholds (WP-640), and the GA
+  decision (WP-750) remain closed; `machine-summary.json` `artifact` stays
   null and no push, tag, upload, or publication exists.
 - The demo cannot construct, commit, test, or merge candidates until a
-  public candidate builder exists (S20-350 is proposal-only); it says so in
+  public candidate builder exists (WP-350 is proposal-only); it says so in
   its output.
 - Reproducibility is established on this host and toolchain only; a
-  second host is S20-730.
+  second host is WP-730.
 
 ## Validation record
 
 Tier 1 `make quick` passed at the commit. Tier 2 ran on 2026-09-03 at
 `cb51cb0` (`make core` 985 tests, `make conformance` 19 oracles,
 `make adversarial` 597 tests, `make fuzz-smoke`,
-`make release-candidate-smoke` reproducible, and the S20-620 and S20-630
+`make release-candidate-smoke` reproducible, and the WP-620 and WP-630
 smokes, all exit 0 in 61 seconds of wall time) and is recorded in
 `machineresearch/sley-2.0/s20-720-release-candidate-campaign-2026-09-03.md`.
 The full `make v1` gate was skipped because this is a subsystem handoff,
@@ -147,7 +147,7 @@ facts without contradicting any recorded disposition.
   answered yes: covering create via `workspace.create` from a packaged
   trusted genesis lands as a demo extension, with create residual until
   then.
-- Demo repair (blocking, new): the S20-330 `max_sessions` limit broke
+- Demo repair (blocking, new): the WP-330 `max_sessions` limit broke
   every demo frame at bridge shape validation (the demo's hardcoded limit
   set fossilized at seven), so the smoke could not produce evidence. The
   demo now zeroes the governed eight with a unit test pinning its names to
@@ -168,7 +168,7 @@ blockers inside the digest; conformance subset PASS; demo PASS on all
 twelve steps; forbidden content findings 0; reproducibility
 `REPRODUCIBLE` with no differing member. `strings` on the staged binary:
 4 `/sley2` references (remap engaged), 0 `/home-remapped`, 0 build
-username. The S20-730 staleness gate on the fresh attestation is green,
+username. The WP-730 staleness gate on the fresh attestation is green,
 and `make quick` is fully green with it.
 
 ## Superseded-by note (round 7, 2026-09-11)

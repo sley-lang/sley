@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-410 SMP1 frame, hello, and handshake fixture."""
+"""Refresh the deterministic WP-410 SMP1 frame, hello, and handshake fixture."""
 
 from __future__ import annotations
 

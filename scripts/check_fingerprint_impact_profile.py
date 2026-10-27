@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-250 fingerprint/impact profile for drift."""
+"""Check the restricted WP-250 fingerprint/impact profile for drift."""
 
 from __future__ import annotations
 

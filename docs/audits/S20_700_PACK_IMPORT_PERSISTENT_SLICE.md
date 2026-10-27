@@ -1,8 +1,8 @@
-# S20-700 Repository-Pack Import Persistent Slice
+# WP-700 Repository-Pack Import Persistent Slice
 
-Status: scoped persistent landed-surface slice; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice; **full WP-700 remains incomplete**
 
-This slice hardens the completed S20-170 root/object-only repository-pack
+This slice hardens the completed WP-170 root/object-only repository-pack
 importer. It does not begin refs, transactions, compression, signatures,
 clone-equivalent exchange, merge, or release packaging.
 
@@ -17,7 +17,7 @@ Both lanes are bounded to 65,536 payload bytes. A failed import must leave the
 clean store without an `objects` tree. A successful import must bind the exact
 pack ID, find no preexisting objects, and import a second time with identical
 roots and present-only object accounting. The fixture verifier is intentionally
-limited to the two S20-170 conformance object contracts. It is not a production
+limited to the two WP-170 conformance object contracts. It is not a production
 object-schema registry or authority.
 
 The deterministic corpus comes from
@@ -26,7 +26,7 @@ canonical, truncation, trailing-byte, and single-bit mutation seeds. Runtime
 corpus, binaries, artifacts, and evidence remain under ignored
 `evidence/runtime/` paths.
 
-This slice does not cover the deferred full S20-540 pack, merge, protocol,
+This slice does not cover the deferred full WP-540 pack, merge, protocol,
 mutation-candidate, VM-input, or adapter-response surfaces. A bounded Vulcan
 handoff could not start because the local Forge OAuth session returned 401, so
 independent review of this persistent addition remains deferred.

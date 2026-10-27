@@ -1,6 +1,6 @@
 # Sley Canonical Binary v1 (SCB1)
 
-Status: S20-100 normative encoding specification
+Status: WP-100 normative encoding specification
 
 ## 1. Scope and notation
 
@@ -49,7 +49,7 @@ stored_bytes = envelope_preimage || digest
 `contract_domain` is the exact non-NUL-terminated ASCII byte string assigned by
 the contract registry. Semantic entity objects use `sley2.object.v1`, so their
 digest is their `ObjectId`. Roots, transactions, candidates, receipts, packs,
-and reports use distinct domains frozen by S20-110. A decoder verifies the
+and reports use distinct domains frozen by WP-110. A decoder verifies the
 trailer before exposing a successful standalone value.
 
 Nested values never contain the standalone magic, epoch, or digest trailer
@@ -232,8 +232,8 @@ normalization are forbidden.
 
 ## 12. Conformance obligation
 
-S20-100 fixtures under `conformance/scb1/v1/` freeze primitive and structural
-examples plus rejection classes. S20-120’s Rust codec and S20-130’s independent
+WP-100 fixtures under `conformance/scb1/v1/` freeze primitive and structural
+examples plus rejection classes. WP-120’s Rust codec and WP-130’s independent
 oracle must produce byte-identical accepted vectors and the same stable failure
 codes for rejected vectors. Neither implementation may derive expected bytes
 from the other.

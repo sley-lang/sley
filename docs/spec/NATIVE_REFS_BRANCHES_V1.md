@@ -1,12 +1,12 @@
 # Native Refs and Branches v1
 
-Status: S20-500 implemented locally against the frozen contract. Tier 2 and
+Status: WP-500 implemented locally against the frozen contract. Tier 2 and
 independent implementation review are pending.
 
 ## 1. Scope and authority
 
 This contract defines repository-local named branch refs over complete
-S20-390 transaction receipts. It does not create a second transaction engine.
+WP-390 transaction receipts. It does not create a second transaction engine.
 
 `sley-repo` owns:
 
@@ -16,7 +16,7 @@ S20-390 transaction receipts. It does not create a second transaction engine.
 - named-ref locking and compare-and-swap;
 - branch enumeration and resolution;
 - bounded transaction ancestry traversal;
-- cleanup of S20-500-owned temporary files.
+- cleanup of WP-500-owned temporary files.
 
 `sley-txn` continues to own transaction and receipt codecs, receipt storage,
 complete revision verification, candidate commit, and the fixed `accepted`
@@ -150,17 +150,17 @@ owned fan-out depth.
 The repository root and its owned directories are trusted local storage. The
 concurrent threat model covers cooperating Sley callers that use the frozen
 locks. A privileged or external actor that renames or replaces repository
-directory entries while an operation holds those locks is outside S20-500.
+directory entries while an operation holds those locks is outside WP-500.
 Static symlinks and non-regular entries are still rejected before use. A later
 host-hardening package may add descriptor-relative no-follow operations without
 changing the repository record or error contract.
 
 ## 7. New verified revision lookup
 
-The public lookup does not exist at contract-freeze time. S20-500
+The public lookup does not exist at contract-freeze time. WP-500
 implementation must add a read-only `sley-txn` lookup by arbitrary
 `TransactionId` and export its `VerifiedRevision` return type. This is
-transaction-owner work inside the S20-500 slice, not a pre-existing API and not
+transaction-owner work inside the WP-500 slice, not a pre-existing API and not
 named-ref logic inside `sley-txn`.
 
 Successful lookup proves:
@@ -171,13 +171,13 @@ Successful lookup proves:
 - object-manifest identities and stored lengths;
 - complete live object closure and entity/object bindings;
 - sorted non-reusable tombstones;
-- current direct-parent relationship supported by S20-390.
+- current direct-parent relationship supported by WP-390.
 
 The result is a `VerifiedRevision`, not an accepted-head claim. Fixed-head
 acceptance still requires the separate durable `accepted` pointer.
 
 Every upstream transaction, SCB1, state-root, policy, or store failure is
-preserved. S20-500 does not collapse it into a generic target-not-found result.
+preserved. WP-500 does not collapse it into a generic target-not-found result.
 
 ## 8. Branch operations
 
@@ -201,7 +201,7 @@ for a stale, corrupt, conflicting, or merely existing branch.
    `locks/refs.lock` exclusively;
 3. classifies and strictly imports any existing origin/ref topology before
    loading an unrelated proposed target;
-4. verifies the selected origin revision from durable S20-390 evidence;
+4. verifies the selected origin revision from durable WP-390 evidence;
 5. derives and persists the immutable branch-origin record when absent;
 6. derives and persists the visible ref record pointing at the origin;
 7. syncs each reused or newly installed file and containing directory before
@@ -256,7 +256,7 @@ branch layer evaluates a missing direct-parent edge. This ordering makes the
 workspace result reachable for a valid foreign genesis revision. Otherwise,
 zero occurrences of `expected_head` in the new transaction parent list returns
 `BRANCH_NOT_FAST_FORWARD`. A duplicate parent ID is an invalid transaction and
-preserves the earlier S20-390 `TXN_PARENT_SHAPE` failure; branch logic does not
+preserves the earlier WP-390 `TXN_PARENT_SHAPE` failure; branch logic does not
 reinterpret it. Arbitrary
 rewinds, sideways moves, skipped parent edges, and last-write-wins updates are
 not supported.
@@ -291,16 +291,16 @@ case. No condition maps to both success and an error.
 
 ## 9. Locking and durability
 
-Every transaction and S20-500 ref operation holds shared
+Every transaction and WP-500 ref operation holds shared
 `locks/maintenance.lock` ownership. GC holds the same file exclusively. Every
-S20-500 operation then uses one exclusive repository-wide refs lock. The frozen
+WP-500 operation then uses one exclusive repository-wide refs lock. The frozen
 lock order is:
 
 ```text
 GC witness or future recovery owner
   -> maintenance.lock (exclusive for GC, shared for transactions/refs)
   -> refs.lock
-  -> S20-390 accepted.lock
+  -> WP-390 accepted.lock
 ```
 
 The fixed accepted-head commit path acquires shared maintenance ownership and
@@ -319,10 +319,10 @@ temporary ref file before atomic rename before ref-directory sync. A failure
 may leave an owned temporary or an orphan immutable origin record. It may not
 make malformed or unverified ref bytes visible as a successful branch.
 
-`recover_refs` removes only S20-500-owned temporary files, syncs changed
+`recover_refs` removes only WP-500-owned temporary files, syncs changed
 directories, and verifies every visible ref. It reports orphan origin records
 without promoting, deleting, or guessing them. Full cross-component recovery
-and the complete fault matrix remain S20-530.
+and the complete fault matrix remain WP-530.
 
 ## 10. Ancestry
 
@@ -341,7 +341,7 @@ commits, and reflogs never establish ancestry.
 
 ## 11. Fixed accepted-head interaction
 
-The fixed `heads/accepted` slot remains solely owned by S20-390. S20-500:
+The fixed `heads/accepted` slot remains solely owned by WP-390. WP-500:
 
 - may create a named branch at its verified transaction;
 - may advance a branch to another already durable verified transaction;
@@ -352,17 +352,17 @@ The fixed `heads/accepted` slot remains solely owned by S20-390. S20-500:
 
 ## 12. GC, recovery, and pack boundaries
 
-Verified visible branch heads may be projected into the explicit S20-180
+Verified visible branch heads may be projected into the explicit WP-180
 retention-snapshot input. Collection owns exclusive repository-maintenance
 access, so a successful transaction or ref mutation cannot interleave object
 promotion/verification and GC deletion. The caller still owns a complete
 retention snapshot acquired under that boundary or an enclosing recovery
-owner. S20-500 does not run GC, infer retention from record age, or treat orphan
+owner. WP-500 does not run GC, infer retention from record age, or treat orphan
 origin records as live anchors.
 
-S20-530 owns interruption injection across transaction and ref locks and any
-repair policy beyond owned temporary cleanup. S20-540 owns transaction/ref pack
-sections and clone-equivalent exchange. S20-170 packs continue to reject refs
+WP-530 owns interruption injection across transaction and ref locks and any
+repair policy beyond owned temporary cleanup. WP-540 owns transaction/ref pack
+sections and clone-equivalent exchange. WP-170 packs continue to reject refs
 and transactions.
 
 ## 13. Frozen limits
@@ -382,7 +382,7 @@ The standalone-byte ceiling intentionally matches the epoch-1 SCB1 ceiling.
 Implementations should reject impossible branch/ref shapes before allocating
 that amount.
 
-## 14. Frozen S20-500 error range
+## 14. Frozen WP-500 error range
 
 Numeric codes 50000 through 50020 are exact:
 

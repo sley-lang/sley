@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-720 release demo fixture from the executable genesis."""
+"""Refresh the deterministic WP-720 release demo fixture from the executable genesis."""
 
 from __future__ import annotations
 

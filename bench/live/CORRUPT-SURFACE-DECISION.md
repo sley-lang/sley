@@ -115,7 +115,7 @@ regression.
 
 Owner observation (revision 2; since ruled `RULING_ORDER: CODE`, see
 section 5). The spec's import-phase list put
-"the complete digest tree" (step 2) before "the complete S20-170 preflight
+"the complete digest tree" (step 2) before "the complete WP-170 preflight
 ... over the embedded pack" (step 3) (REPOSITORY_EXCHANGE_V1.md:348-352).
 The code runs the pack preflight first (exchange.rs:1384, then the tree
 check at :1386-1396), because the pack leaf is keyed by the pack's
@@ -131,7 +131,7 @@ check at :1386-1396), because the pack leaf is keyed by the pack's
   shape check (`EXCHANGE_PACK_INVALID`, exchange.rs:1381-1383) ahead of the
   digest tree (:1386-1396).
 - No mutation alters embedded-pack content under a valid tag-170 header, so
-  no frozen vector pins the S20-170 preflight (`PACK_DIGEST_MISMATCH`)
+  no frozen vector pins the WP-170 preflight (`PACK_DIGEST_MISMATCH`)
   against the digest tree.
 - The new Rust pin fixes the implemented behavior. It does not settle the
   spec reading.
@@ -224,7 +224,7 @@ names no actor. The claim is withdrawn and restated as section 4.
   pack **trailer** byte, not a canonical object byte.
 - The conformance-pack object-byte pin is `s3_g2_corrupt.rs`
   `flip_object_byte` / `s3_corrupt_fixture_conformance`.
-- At the pack layer "ref advances 0" is vacuous: S20-170 writes no ref
+- At the pack layer "ref advances 0" is vacuous: WP-170 writes no ref
   (REPOSITORY_PACK_V1.md:143-144). So library pack pins cannot demonstrate
   ref or head retention.
 - Head retention is now demonstrated at the exchange layer, by
@@ -371,7 +371,7 @@ changed.
     step 5).
 - Step 3 becomes ordered sub-steps:
   - 3.1, the tag-170 check (`EXCHANGE_PACK_INVALID`);
-  - 3.2, the S20-170 preflight, with `PACK_*` preserved;
+  - 3.2, the WP-170 preflight, with `PACK_*` preserved;
   - 3.3, leaf recomputation from the declared identifiers, with section-3
     name keys recomputed, then the leaf list and root, keyed by the
     `RepositoryPackId` from 3.2.

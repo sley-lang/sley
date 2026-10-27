@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""S20-530 acceptance anchor (ADR-0024 historical acceptance).
+"""WP-530 acceptance anchor (ADR-0024 historical acceptance).
 
-The S20-530 crash-recovery package was accepted at commit 034cc75 (validated
+The WP-530 crash-recovery package was accepted at commit 034cc75 (validated
 commit 8f7c763) and its full contract checker,
 `scripts/check_s20_530_crash_recovery.py`, passed at commit cc0f92f. That
 checker binds every non-narrative workspace path to the validated commit, so it
@@ -12,14 +12,14 @@ This anchor is the `make quick` gate at every later HEAD. It verifies that the
 accepted state is intact as immutable history:
 
 1. the validated, acceptance, and confirmation commits are ancestors of HEAD;
-2. every frozen S20-530 authority and evidence path at HEAD is the same Git
+2. every frozen WP-530 authority and evidence path at HEAD is the same Git
    blob as at the acceptance commit, and the working-tree bytes equal that blob;
 3. the retained final-checker confirmation log has its recorded digest;
-4. the machine summary still records the accepted S20-530 facts exactly,
+4. the machine summary still records the accepted WP-530 facts exactly,
    including the six receipt rows byte-for-byte as in the frozen evidence;
    all 419 mapped tests still carry `#[test]` in their owner crates; and
    ADR-0024 and the verify script match the digests pinned here;
-5. the work-package table and the closeout audit still carry the S20-530
+5. the work-package table and the closeout audit still carry the WP-530
    fact markers, and the Makefile still registers this anchor in `quick` and
    the `s20-530-verify` target.
 

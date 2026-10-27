@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-770 required contract index against the repository."""
+"""Check the WP-770 required contract index against the repository."""
 
 from __future__ import annotations
 

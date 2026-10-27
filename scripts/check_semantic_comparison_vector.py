@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently reproduce the S20-510 semantic delta over the frozen corpus.
+"""Independently reproduce the WP-510 semantic delta over the frozen corpus.
 
 For every corpus pair the oracle re-derives, from the two compact root
 descriptions, the change classes, the field deltas, the relation deltas, the
@@ -27,7 +27,7 @@ DOMAIN = b"sley2.semantic-delta.v1"
 MAGIC = b"SLEYSCB1"
 CONTRACT_TAG = 510
 MAX_DELTA_BYTES = 67_108_864
-# Frozen delta schema epoch pin (S20-510 revision 2, nabu P0-3): the
+# Frozen delta schema epoch pin (WP-510 revision 2, nabu P0-3): the
 # `schema_epoch_id()` of the standalone epoch-1 record stated in
 # `SEMANTIC_COMPARISON_V1.md`. Stored deltas carry these bytes at
 # `stored[11:43]`; the oracle compares against the pin below rather than

@@ -1,4 +1,4 @@
-"""Offline tests of the S20-730 reproducibility and independent conformance evidence."""
+"""Offline tests of the WP-730 reproducibility and independent conformance evidence."""
 
 from __future__ import annotations
 
@@ -547,7 +547,7 @@ class IndependentConformanceTests(unittest.TestCase):
         )
         self.assertEqual(report["fixture_directories"], len(directories))
         # The pinned corpus version per family is itself pinned: only
-        # entity-read (S20-310 contract) and exec-package-envelope (its only
+        # entity-read (WP-310 contract) and exec-package-envelope (its only
         # corpus is EXEC_PACKAGE_V2) check their vectors at v2; sibling
         # v2 corpora are digested, summed, and declared without a depth
         # claim (contract revision 5).

@@ -1,4 +1,4 @@
-# S20-320 Full Context Capsule Closeout
+# WP-320 Full Context Capsule Closeout
 
 Status: **implemented under the draft Context Capsule Profile v1 contract (revision 4); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
@@ -10,7 +10,7 @@ Validation tier: **Tier 1 plus query-and-repository-focused Tier 2 handoff**
 
 The master context capsule under the registered `sley2.context-capsule.v1`
 domain now exists: over one `RootQueryRequest` and the `RootQueryResponse`
-the S20-310 full engine produced for it (bound by query identity), it
+the WP-310 full engine produced for it (bound by query identity), it
 restates the question, copies the engine-bound provenance (workspace,
 epoch, root, snapshot, query identity), states completeness, truncation,
 exact `total_count`, `returned`, `omitted`, and `next_after`, copies the
@@ -33,12 +33,12 @@ The implementation provides:
   `ContextCapsule` and its getters, `CapsuleCompleteness`,
   `ContextRelationship`, the `SLEYCCP1` record encoder, and
   `ContextCapsuleErrorCode` with the four codes 32008 through 32011; the
-  S20-310 question encoder is shared inside the crate and the restricted
+  WP-310 question encoder is shared inside the crate and the restricted
   `SLEYRQC1` capsule is untouched;
 - `sley-protocol`: `SessionAuthority::bind_context_capsule`, the only
   supported path to the `Negotiated` arm, verifying session liveness and
   the authority-held binding before delegating the encoding;
-- `sley-repo`: `run_context_capsule` over the S20-310 full surface, with
+- `sley-repo`: `run_context_capsule` over the WP-310 full surface, with
   the request now carried in the repository query outcome and the capsule
   failure namespace preserved.
 
@@ -49,11 +49,11 @@ The implementation provides:
 - Conformance corpus: `conformance/context-capsule/v1/accepted.json`
   (twenty-four vectors: all nineteen classes, one `Negotiated`-arm vector
   over the class-01 question under a fixed fixture session, and both pages of the
-  entity and edge continuation walks, each bound to its S20-310 fixture
+  entity and edge continuation walks, each bound to its WP-310 fixture
   vector by query identity), drift-gated by
   `scripts/generate_context_capsule_fixtures.py --check` in `make quick`;
   `scripts/check_context_capsule_vector.py` rebuilds every record and
-  `ContextCapsuleId` from the S20-310 fixture alone by decoding each
+  `ContextCapsuleId` from the WP-310 fixture alone by decoding each
   `SLEYRQR1` payload by class, including the arm bytes and session
   identity of the bound vector, registered in `make conformance` under the
   frozen oracle environment.
@@ -84,7 +84,7 @@ The implementation provides:
   fingerprints and class-2 objects have an index; a namespace named by
   class 8 therefore carries kind `0` in the dictionary while every member
   carries its stated kind, and the oracle reproduces that rule.
-- Review slice 2026-09-05 (contract revision 3, closing the seven S20-320
+- Review slice 2026-09-05 (contract revision 3, closing the seven WP-320
   P0s): section 6 spells the `u64be(response_bytes)` record prefix both
   encoders emit and defines `bytes(x)`; the `Negotiated` arm is kept and
   minted only by `SessionAuthority::bind_context_capsule` over a live
@@ -101,8 +101,8 @@ The implementation provides:
   the earlier draft packages and land as contract revisions; the campaign
   record lists the open questions (chained page lineage, question entities
   in the dictionary, sparse versus parallel kinds).
-- No consumer of a capsule exists yet: S20-400 SMP1 transports it and
-  S20-330 mints a negotiated session binding through the session
+- No consumer of a capsule exists yet: WP-400 SMP1 transports it and
+  WP-330 mints a negotiated session binding through the session
   authority into its `Negotiated` arm.
 - Strict pedantic clippy debt in older `sley-repo` exchange and GC test
   modules is pre-existing; the new paths lint clean under `--no-deps`.

@@ -7,7 +7,7 @@ section 7 asks for: 66 identity records with all ten fields, the edge list
 (about 130 edges, no cycles), the duplicate-definition table with its
 divergence checkers, and the section 8 hygiene matrix.
 `machineresearch/sley-2.0/reweave/rw-075-hash-inventory.md` remains the
-RW-075 compiler-closure inventory (8 items); it is not superseded, this map
+TP-075 compiler-closure inventory (8 items); it is not superseded, this map
 contains it. Git is authoritative for every path and line cited here at the
 baseline commit; later slices of the campaign repaired `AT-HH-01` and
 `AT-EC-04` (see the audit record).
@@ -77,7 +77,7 @@ Shared facts used below:
 - CANONICAL_PREIMAGE: `WorkspaceId[32] || CandidateNonce[32] || entity_kind_u32_be || creation_ordinal_u64_be` (76 bytes, `crates/sley-id/src/lib.rs:358-372`)
 - DIRECT_DEPENDENCIES: WorkspaceId, CandidateNonce, epoch entity-kind tag, ordinal among class-1 create operations (CANDIDATE_RECORD_V1 "Mutation operation")
 - INVALIDATED_BY: any of the four inputs
-- DOES_NOT_DEPEND_ON: labels, content, position, SCB1 varint (fixed-width BE is deliberate, IDENTIFIERS_V1 "Entity identity"); never regenerated after creation (REWEAVE 6)
+- DOES_NOT_DEPEND_ON: labels, content, position, SCB1 varint (fixed-width BE is deliberate, IDENTIFIERS_V1 "Entity identity"); never regenerated after creation (the self-hosting plan 6)
 - VERSIONING_RULE: domain frozen; deletion never permits reuse (tombstone ledger, `crates/sley-txn/src/repository.rs`)
 - OWNER_SPEC: `docs/spec/IDENTIFIERS_V1.md` "Entity identity"
 - OWNER_CODE: `crates/sley-id/src/lib.rs:360`
@@ -101,7 +101,7 @@ Shared facts used below:
 - CANONICAL_PREIMAGE: `"SLEYSCB1" || uvar(1) || uvar(160) || SchemaEpochId[32] || len(payload) || payload`, payload = 9 required fields `{1 workspace_id, 2 schema_epoch_id, 3 entity_bindings Map<fixed32,fixed32>, 4 entry_points set, 5 dependency_roots set, 6 contract_root, 7 test_root, 8 policy_root, 9 interpretation_flags set u32}` (`crates/sley-state-root/src/lib.rs:451-467`)
 - DIRECT_DEPENDENCIES: WorkspaceId, SchemaEpochId (twice: envelope and payload, must agree), EntityId -> ObjectId bindings, entry EntityIds, dependency StateRoots, contract_root ObjectId, test_root ObjectId, PolicyRootId
 - INVALIDATED_BY: any binding, entry, dependency root, contract or test root object, policy root, epoch, flag
-- DOES_NOT_DEPEND_ON: ancestry, TransactionId, receipts, refs, branch names, actors, timestamps, paths, Git, caches (STATE_ROOT_V1 "Identity exclusions"; test `crates/sley-state-root/src/lib.rs:1127-1130` and S20-390 ancestry test)
+- DOES_NOT_DEPEND_ON: ancestry, TransactionId, receipts, refs, branch names, actors, timestamps, paths, Git, caches (STATE_ROOT_V1 "Identity exclusions"; test `crates/sley-state-root/src/lib.rs:1127-1130` and WP-390 ancestry test)
 - VERSIONING_RULE: descriptor `field_schema_hash 93583a07...` and `decoder_limits_hash c4831bde...` frozen in the registry row for tag 160; flags empty in epoch 1
 - OWNER_SPEC: `docs/spec/STATE_ROOT_V1.md`
 - OWNER_CODE: `crates/sley-state-root/src/lib.rs:451` (`stored_bytes`), `:470` (`decode_envelope`)
@@ -454,10 +454,10 @@ Notation: `u32`/`u64` are big-endian fixed width; `list(x)` is `u64be(count) || 
 - TEST_VECTOR: none frozen in conformance/; scripts/check_sley2_trial_runner.py and check_raw_baseline_runner.py are marker checks (they pin contract strings and function names, plus benchmark-plan/corpus SHA-256 values at check_raw_baseline_runner.py:115-117).
 
 ### B15 Witness / provenance root / discharge receipt
-- Absent at this commit. Evidence: no `sley2.witness*`, `provenance`, or `discharge` domain in IDENTIFIERS_V1.md or any crate; the only mentions are prohibitions of a native `discharge_witness(program/value)` service (HOST_ABI_V1.md:175; host_abi.rs:11; tests/rw070_host_abi_freeze.rs:816-817) and the RW-170 reservation in rw-075-hash-inventory.md "Method". REWEAVE section 16 Witness integration has no repository identity yet. No record can be filled; nothing to audit for hygiene.
+- Absent at this commit. Evidence: no `sley2.witness*`, `provenance`, or `discharge` domain in IDENTIFIERS_V1.md or any crate; the only mentions are prohibitions of a native `discharge_witness(program/value)` service (HOST_ABI_V1.md:175; host_abi.rs:11; tests/rw070_host_abi_freeze.rs:816-817) and the TP-170 reservation in rw-075-hash-inventory.md "Method". The self-hosting plan section 16 Witness integration has no repository identity yet. No record can be filled; nothing to audit for hygiene.
 
-### B16 Toolchain / program root (REWEAVE 13.1 `S`, 21.2 "toolchain-program root")
-- No dedicated identity exists. bootstrap-manifest.json `S.value = null`, `status: "does not exist (SH0: no Sley toolchain program)"`; check_bootstrap_capability.py reports `later_stages_unbound: [S, C0, C1, C2, C3]` and by design (docstring lines 21-27) does not gate readiness on them. The program root of any executed closure is the `StateRoot` bound in the cache key (B03), dependency section and package digest (B05), observation (B06/B07) and report (B09). REWEAVE 21.2's "toolchain-program root" therefore maps to `StateRoot` plus the dependency-section closure (entry, globals, contracts by reference, closure fingerprints), and no separate root is defined because no toolchain program exists (SH0).
+### B16 Toolchain / program root (the self-hosting plan 13.1 `S`, 21.2 "toolchain-program root")
+- No dedicated identity exists. bootstrap-manifest.json `S.value = null`, `status: "does not exist (SH0: no Sley toolchain program)"`; check_bootstrap_capability.py reports `later_stages_unbound: [S, C0, C1, C2, C3]` and by design (docstring lines 21-27) does not gate readiness on them. The program root of any executed closure is the `StateRoot` bound in the cache key (B03), dependency section and package digest (B05), observation (B06/B07) and report (B09). The self-hosting plan 21.2's "toolchain-program root" therefore maps to `StateRoot` plus the dependency-section closure (entry, globals, contracts by reference, closure fingerprints), and no separate root is defined because no toolchain program exists (SH0).
 
 
 ### Group C: repository, query, protocol and adapter identities
@@ -478,7 +478,7 @@ Notation: `uvar` = SCB1 shortest-form varint; `u32be`/`u64be` = fixed-width big 
 
 ### C02 Pack digest-tree leaf and node
 - NAME: pack leaf digest / pack node digest (sub-digests of C01, not sley-id identifiers)
-- DOMAIN_SEPARATOR: `sley2.repository-pack-leaf.v1`, `sley2.repository-pack-node.v1` (lib.rs:59-60; registered in IDENTIFIERS_V1.md as S20-170 rows)
+- DOMAIN_SEPARATOR: `sley2.repository-pack-leaf.v1`, `sley2.repository-pack-node.v1` (lib.rs:59-60; registered in IDENTIFIERS_V1.md as WP-170 rows)
 - CANONICAL_PREIMAGE: leaf = H(leaf_domain, uvar(section) || id[32] || uvar(len(bytes)) || bytes) with section 1 epoch, 2 root, 3 object (lib.rs:898-931, content_leaf :922-931); node = H(node_domain, left[32] || right[32]) (lib.rs:934-955); unpaired final digest promoted unchanged (lib.rs:942-943).
 - DIRECT_DEPENDENCIES: SchemaEpochId bootstrap preimage bytes, StateRoot stored bytes, ObjectId stored bytes.
 - INVALIDATED_BY: any content byte, id, section tag, or leaf order change.
@@ -589,7 +589,7 @@ Notation: `uvar` = SCB1 shortest-form varint; `u32be`/`u64be` = fixed-width big 
 - DOMAIN_SEPARATOR: `sley2.semantic-delta.v1` (sley-id :119)
 - CANONICAL_PREIMAGE: `SCB1 env(510, DeltaSchemaEpochId, payload)`; payload = 14 required fields (1 version, 2 workspace_id, 3 root_schema_epoch, 4 base_root, 5 target_root, 6 entities, 7 fields, 8 bodies, 9 relations, 10..13 root/entry-point sets, 14 collateral) (crates/sley-repo/src/compare.rs:1245-1276).
 - DIRECT_DEPENDENCIES: WorkspaceId, root SchemaEpochId, two StateRoots, EntityIds, ObjectIds, SemanticFingerprints (body deltas), delta epoch pinned 25b186d5... (compare.rs:415, SEMANTIC_COMPARISON_V1.md "Inputs").
-- INVALIDATED_BY: either root or the S20-250 derivation rules (derivation_semantics_hash pin).
+- INVALIDATED_BY: either root or the WP-250 derivation rules (derivation_semantics_hash pin).
 - DOES_NOT_DEPEND_ON: labels, source, paths, timestamps, ref names, ancestry, Git (spec Scope).
 - VERSIONING_RULE: delta_version 1; COMPARE_VERSION_UNSUPPORTED otherwise (compare.rs:1344-1346).
 - OWNER_SPEC: docs/spec/SEMANTIC_COMPARISON_V1.md "Envelope and identity", "Payload".
@@ -750,7 +750,7 @@ Notation: `uvar` = SCB1 shortest-form varint; `u32be`/`u64be` = fixed-width big 
 - TEST_VECTOR: lib.rs:1660, :1845.
 
 ### C25 Complete-root and complete-entity-impact profiles
-- No new digest. crates/sley-query/src/complete_root.rs and crates/sley-repo/src/complete_root.rs derive nothing (grep for derive/blake3/digest: only test constants at complete_root.rs:396, :611-643, :1655). COMPLETE_ENTITY_IMPACT_PROFILE_V1.md line 56: "No preimage, domain, or profile version changes." The arm-2 IndexSnapshotId (C17) and the existing S20-250 fingerprints and value hashes are reused. conformance/complete-entity-impact/v1 (41 rejected judgment cases, no byte identity) is checked by scripts/check_complete_entity_impact_vector.py without hashing.
+- No new digest. crates/sley-query/src/complete_root.rs and crates/sley-repo/src/complete_root.rs derive nothing (grep for derive/blake3/digest: only test constants at complete_root.rs:396, :611-643, :1655). COMPLETE_ENTITY_IMPACT_PROFILE_V1.md line 56: "No preimage, domain, or profile version changes." The arm-2 IndexSnapshotId (C17) and the existing WP-250 fingerprints and value hashes are reused. conformance/complete-entity-impact/v1 (41 rejected judgment cases, no byte identity) is checked by scripts/check_complete_entity_impact_vector.py without hashing.
 
 
 ## 2. Dependency edge list (A -> B means A's preimage includes B)
@@ -1010,7 +1010,7 @@ Items: R recursion; I inclusion/exclusion ambiguity; F field order; L length amb
 | identity | R | I | F | L | D | RD | DB | SB | P | M | U | W | S | T | N |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | SemanticFingerprint | OK (self ref encoded as u32(2), spec s.1; no Merkle expansion) | OK (spec s.1 exclusions; tests :965-1055) | OK (fixed order, Appendix A) | OK (`bytes()` u64 length on projection and every text/bytes; lists u64 count) | OK | OK (kind u32 4 vs 5 inside preimage) | OK (external EntityIds exact) | OK (epoch + field schema hash) | OK (all BE fixed width, fingerprint.rs Encoder) | OK (sets must be pre-sorted raw-ID order, Appendix A; slices reordered for locals) | OK (Text hashed as exact UTF-8 bytes, no normalization; labels excluded) | OK (u16 widths, u128/i128 fixed) | OK (i128 two's complement explicit) | n/a (never decoded from bytes) | n/a |
-| ValueHash | OK | OK (requires S20-210 hashable judgment before call; caller contract) | OK | OK (`bytes()` on type and data) | OK (own domain, ADR-0007) | OK | OK | OK (epoch + field schema hash) | OK | OK (canonical map order required upstream, VM_EXECUTION_PROFILE s.1; not sorted here) | OK (exact scalar sequence) | OK | OK | n/a | GAP-note: canonical form is a precondition enforced by callers (`VM_EXEC_INPUT_NOT_CANONICAL`), not by `hash_validated_value` itself; documented at spec s.6 "Only a constant that passes S20-210..." |
+| ValueHash | OK | OK (requires WP-210 hashable judgment before call; caller contract) | OK | OK (`bytes()` on type and data) | OK (own domain, ADR-0007) | OK | OK | OK (epoch + field schema hash) | OK | OK (canonical map order required upstream, VM_EXECUTION_PROFILE s.1; not sorted here) | OK (exact scalar sequence) | OK | OK | n/a | GAP-note: canonical form is a precondition enforced by callers (`VM_EXEC_INPUT_NOT_CANONICAL`), not by `hash_validated_value` itself; documented at spec s.6 "Only a constant that passes WP-210..." |
 | BytecodeCacheKey | OK | OK (twelve fields listed in three places) | OK | OK (fixed 224 bytes, debug_assert) | OK | OK | OK (epoch, both schema hashes, root, entry, profile) | OK | OK | n/a | n/a | OK | OK (all unsigned) | n/a (never decoded) | n/a |
 | ImageDigest SLEYBC02 | OK | OK (exact bytes) | OK (loader :232 parses in emitter order) | OK (u64 counts; loader end-of-input) | Deliberate none (HOST_ABI_V1.md:132, hash-inventory item 4) | n/a | OK via package/observation binding (image digest alone binds no epoch/root; spec says so and the cache key/observation carry them) | see DB | OK (BE) | n/a | n/a | OK | OK | OK: rw070_host_abi_freeze.rs:1065-1068 `ImageError::TrailingData`; rejected.json `trailing-byte` | OK: `magic`, `format-version`, `truncated` vectors; loader refuses malformed tags (:1075) |
 | Section digests | OK | OK (each section a fixed field list) | OK | OK (u64 len prefixes per row; u64 counts) | Deliberate none (SHA-256 host mechanic) | n/a between sections (sections are separately digested then bound by position in the package preimage) | OK | OK (dependency section binds epoch, root, profile) | OK (BE; `as u64` on usize is lossless on supported targets) | n/a (inventories are given in canonical program order by the builder; not sorted here) | n/a (no text) | OK (u16 width, u16 failure code) | OK | n/a (no decoder; see AT-HH-B02) | n/a |

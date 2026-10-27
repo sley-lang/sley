@@ -1,6 +1,6 @@
-# S20-700 SCB1 Decoder Persistent Slice
+# WP-700 SCB1 Decoder Persistent Slice
 
-Status: scoped persistent landed-surface slice; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice; **full WP-700 remains incomplete**
 
 This slice hardens the SCB1 standalone decoder
 (`crates/sley-scb1`, fixture contract `sley2-scb1-v1`): twenty-two

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-290 deterministic report-envelope profile."""
+"""Check the restricted WP-290 deterministic report-envelope profile."""
 
 from __future__ import annotations
 

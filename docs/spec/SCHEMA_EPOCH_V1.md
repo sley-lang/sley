@@ -1,14 +1,14 @@
 # Schema Epoch Registry and Migration Contract v1
 
-Status: S20-140 normative specification
+Status: WP-140 normative specification
 
 ## 1. Scope
 
 This contract defines immutable schema-epoch identity, exact registry lookup,
 decoder preservation, and the evidence-only migration boundary. It does not
 define production SSMC contracts, construct state roots, persist objects, move
-refs, or commit migration transactions; those belong to S20-160, S20-200, and
-S20-390.
+refs, or commit migration transactions; those belong to WP-160, WP-200, and
+WP-390.
 
 An implementation must not select a latest epoch, fall back to a nearby epoch,
 reinterpret a tag, register schemas from environment or repository input, or
@@ -107,7 +107,7 @@ separately frozen exact field schema; it does not make SCB1 self-describing.
 is unsupported unless the target epoch contains an exact descriptor match.
 
 Production descriptor rows are added only by their owning semantic work
-packages. S20-140 freezes the representation and lookup rules, not premature
+packages. WP-140 freezes the representation and lookup rules, not premature
 SSMC contract contents.
 
 The global assignment of `digest_domain_tag` integers across contracts is
@@ -133,7 +133,7 @@ preserved decoder. There is no retry under another decoder after any failure.
 
 ## 6. Migration skeleton
 
-Until S20-160 supplies canonical state construction, S20-140 migrations are
+Until WP-160 supplies canonical state construction, WP-140 migrations are
 plans and validation evidence only:
 
 ```text
@@ -185,7 +185,7 @@ evidence digest must equal the draft before validation succeeds.
 SCB1 byte failures retain their `SCB_*` codes and are never collapsed into a
 schema success or generic unknown state.
 
-## 8. S20-140 acceptance
+## 8. WP-140 acceptance
 
 - bootstrap preimage and fixed meta-schema have deterministic vectors;
 - record changes alter `SchemaEpochId`;
@@ -194,4 +194,4 @@ schema success or generic unknown state.
 - preserved old and new decoders remain separately selected by ID;
 - migration plan validation rejects missing descriptors, same epochs, same
   roots, verifier mismatch, and occupied target slots;
-- no S20-140 test claims durable state migration or root construction.
+- no WP-140 test claims durable state migration or root construction.

@@ -15,8 +15,8 @@ transport replaceable outside them. This closeout adds no production code.
 ## 1. What this closeout states, and what it does not
 
 - The byte-oriented boundary the amendment requires already exists in
-  `sley-repo` for both supported artifact profiles (S20-170 repository packs,
-  S20-540 repository exchanges). It is proven by production symbols, existing
+  `sley-repo` for both supported artifact profiles (WP-170 repository packs,
+  WP-540 repository exchanges). It is proven by production symbols, existing
   tests, and a new executable witness, not by a diagram.
 - No ZJX release, edition, backend, profile, ABI, packaging, wire format,
   dictionary scheme, codec, FFI boundary, subprocess backend, or license tier
@@ -46,7 +46,7 @@ transport replaceable outside them. This closeout adds no production code.
 | Fixture digests | pack `accepted.json` `35685f78…6963`, `rejected.json` `9a08dc59…8b60`; exchange `accepted.json` `a0674fb8…e31a`, `rejected.json` `bbf81297…dbe0`; both `SHA256SUMS` verify |
 | Attested release candidate | commit `7a94a4a`, artifact `6d970bf4…e159`, MULTI_HOST_REPRODUCIBLE; already stale versus HEAD before this closeout (attestation-bound changes landed at `f7df74f` and `70283ce`) |
 | Qualification state at activation | finding register 375 obligations, 1 PENDING; dossier BLOCKED; GA report 48 EVIDENCED / 2 AWAITS_REVIEW / 2 GATED |
-| Supported artifact profiles at this baseline | S20-170 pack (`S20_170_COMPLETE`) and S20-540 exchange (`S20_540_COMPLETE`, contract revision 7); both frozen at compression profile `0` |
+| Supported artifact profiles at this baseline | WP-170 pack (`S20_170_COMPLETE`) and WP-540 exchange (`S20_540_COMPLETE`, contract revision 7); both frozen at compression profile `0` |
 | Amendment source digest | `Sley-ZJX-Readiness.md` SHA-256 `dde3ec640bb7eec76409d44e6aea2ed362135d797126b24c57641aee03178af0` |
 
 The audit commit was not checked out, reset to, or rebased onto. No file
@@ -60,15 +60,15 @@ which interpret an input artifact pathname:
 
 | Profile | Byte source (egress) | Preflight, no writes | Persistence-capable import (ingress) | Destination |
 |---|---|---|---|---|
-| S20-170 pack | `export_conformance_pack` (`crates/sley-repo/src/lib.rs:343`) returns `AcceptedRepositoryPack::stored_bytes` | `preflight_conformance_pack` (`lib.rs:480`, crate-private; entered by the importer) | `import_conformance_pack(store, &[u8], verifier)` (`lib.rs:413`) = preflight steps 1-5, then `promote_pack_objects` (`lib.rs:527`, step 6) | `ObjectStore` root path |
-| S20-540 exchange | `export_repository_exchange` (`crates/sley-repo/src/exchange.rs:954`) returns `AcceptedRepositoryExchange::stored_bytes` | `preflight_repository_exchange(&[u8], verifier)` (`exchange.rs:1439`, public; import steps 1-6) | `import_repository_exchange(target, &[u8], verifier)` (`exchange.rs:1885`) = preflight, target classification, then persistence 8.1-8.7 | target directory path |
+| WP-170 pack | `export_conformance_pack` (`crates/sley-repo/src/lib.rs:343`) returns `AcceptedRepositoryPack::stored_bytes` | `preflight_conformance_pack` (`lib.rs:480`, crate-private; entered by the importer) | `import_conformance_pack(store, &[u8], verifier)` (`lib.rs:413`) = preflight steps 1-5, then `promote_pack_objects` (`lib.rs:527`, step 6) | `ObjectStore` root path |
+| WP-540 exchange | `export_repository_exchange` (`crates/sley-repo/src/exchange.rs:954`) returns `AcceptedRepositoryExchange::stored_bytes` | `preflight_repository_exchange(&[u8], verifier)` (`exchange.rs:1439`, public; import steps 1-6) | `import_repository_exchange(target, &[u8], verifier)` (`exchange.rs:1885`) = preflight, target classification, then persistence 8.1-8.7 | target directory path |
 
 Conceptual flow, realized without any new symbol:
 
 ```text
 native bytes (exporter, fixture, or future outer reconstruction)
     -> import_conformance_pack / preflight_repository_exchange / import_repository_exchange
-    -> existing acceptance rules (S20-170 steps 1-7, S20-540 steps 1-9)
+    -> existing acceptance rules (WP-170 steps 1-7, WP-540 steps 1-9)
     -> existing checked state (AcceptedStateRoot, AcceptedHead, refs, objects)
 ```
 
@@ -142,7 +142,7 @@ disposition is filled by the independent lanes in section 10.
 | ZR-08 | Exact contract, epoch, version selection; no fallback | `SCB1.md`, `SCHEMA_EPOCH_V1.md`, pack/exchange envelopes | envelope magic, version, contract tag, epoch lookup via `SchemaEpochRegistry::lookup_contract` and `decode_contract`; nested-exchange rejection | pack corpus `magic`, `contract-tag`, `resealed-epoch`; exchange corpus `nested-exchange`; `wrong_version_and_epoch_set_fail_with_their_owned_symbols` | EXISTING_PROVEN |
 | ZR-09 | Metadata and authority separation | `SCB1.md` closed fields and extension allowlist | `RecordReader::required`/`finish` (`SCB_FIELD_UNKNOWN`, `SCB_FIELD_ORDER`, `SCB_FIELD_DUPLICATE`), SCB1 `SCB_EXTENSION_UNKNOWN` | SCB1 corpus `record-unknown-field`, `unknown-extension`, `record-duplicate-field`, `record-field-order` (`conformance/scb1/v1/rejected.json`, oracle-checked in `make conformance`); witness `outer_annotations_change_the_frame_but_not_the_inner_identity` | EXISTING_PROVEN |
 | ZR-10 | Verification, errors, atomicity | pack steps 1-7; exchange steps 1-9; `CRASH_RECOVERY_MATRIX_V1.md` | preflight/persistence split (`preflight_conformance_pack` then `promote_pack_objects`; `preflight` then 8.1-8.7 under the maintenance guard, head written last, marker as write guard) | pack `*_fails_before_promotion` (6 tests) and `object_verifier_failure_precedes_all_promotions`; exchange `target_rules_fail_closed_before_any_write`, `interruption_rows_x01_to_x07_converge_on_retry`, `frozen_write_paths_fail_closed_on_a_marked_root`; witness rejection and late-outer-failure tests | EXISTING_PROVEN |
-| ZR-11 | Resource contracts | pack and exchange resource-limit sections; `check_declared_limits.py` | section 6 map | `decode_limits_bind_before_allocation_and_a_maximal_shape_decodes`; `bounded_pack_import_fuzz_smoke_rejects_rehashed_mutations`; S20-700 pack and exchange persistent slices | EXISTING_PROVEN |
+| ZR-11 | Resource contracts | pack and exchange resource-limit sections; `check_declared_limits.py` | section 6 map | `decode_limits_bind_before_allocation_and_a_maximal_shape_decodes`; `bounded_pack_import_fuzz_smoke_rejects_rehashed_mutations`; WP-700 pack and exchange persistent slices | EXISTING_PROVEN |
 | ZR-12 | Concrete integration witness | this closeout | production importers and exporters | `crates/sley-repo/tests/zjx_readiness_witness.rs`, 10/10 PASS | added test only |
 | ZR-13 | Compatibility and performance | frozen contracts; `RELEASE_CANDIDATE_PACKAGING_V1.md` | no production byte changed | section 7 (executable non-effect) | EXISTING_PROVEN |
 | ZR-14 | Release evidence and requalification | `REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md`, GOLD invalidation rules | n/a | section 8 (evidence-impact map) | EXISTING_PROVEN (records) |
@@ -168,7 +168,7 @@ enforcement point and failure code:
 | Exchange expanded bytes | reserved | not bindable under profile 0 | (future profile must define) |
 
 Nested accounting: the exchange charges its embedded pack against its own
-budget rather than granting a fresh S20-170 budget (contract "inner
+budget rather than granting a fresh WP-170 budget (contract "inner
 admissibility" invariant, proven by the maximal-legal-exchange decode test).
 No limit is multiplied, reset, or weakened here.
 
@@ -212,7 +212,7 @@ was observed in the audited production paths.
 |---|---|
 | Candidate `7a94a4a` / artifact `6d970bf4…e159` and its dual-host attestation | preserved, not overwritten, not reused; already stale versus HEAD before this closeout; still stale (this closeout adds attestation-bound files under `crates/` and `docs/`) |
 | Records-only exemption | not claimed: `crates/sley-repo/tests/` and `docs/audits/` are outside `evidence/` and `machineresearch/`, so the next mint re-binds as `RESUME.md` already requires |
-| Prior council verdicts for S20-170, S20-540, S20-700 pack/exchange slices | remain valid: no contract, fixture, decoder, or symbol changed |
+| Prior council verdicts for WP-170, WP-540, WP-700 pack/exchange slices | remain valid: no contract, fixture, decoder, or symbol changed |
 | Reproducibility report, SBOM, provenance, checksums | unchanged files; the reproducibility and standards checkers keep reporting stale/ineligible until the planned re-mint (expected, pre-existing) |
 | Finding register / decision dossier | rebuilt from the machine summary with the new `zjx_transport_readiness` section; the register's obligation count grows by this section's lane fields; GA states unaffected |
 | Test inventory | rebuilt (`build_test_inventory.py`): sley-repo 396 -> 406 test attributes, total 1,425 -> 1,435 |
@@ -241,7 +241,7 @@ working-tree witness; candidate identity: the witness commit. Logs live under
 | ZT-09 | Outer failure, including late finalization, cannot cause early import/promotion/success | witness `late_outer_failure_after_a_complete_inner_pack_payload_persists_nothing` (finalizer flip, trailing byte, truncation: store tree empty, then a clean frame imports normally) and `…_exchange_payload_persists_nothing` (target does not exist after the outer failure; a clean frame then clones) | PASS | `witness-run.log` |
 | ZT-10 | Destination path and outer annotations do not change inner identity; canonical metadata stays bound | witness: identical object-store and clone trees under different destination paths; annotation changes the frame, not the payload, pack ID, roots, or objects | PASS | `witness-run.log` |
 | ZT-11 | No ZJX/backend/plugin/network requirement in default or release features | `cargo metadata --locked` closure: 27 external crates in the normal closure, 30 with dev/build kinds; none matching zjx, zstd, flate, lz4, brotli, snap, xz, lzma, reqwest, hyper, tokio, libloading, dlopen, openssl, rustls, curl, ureq, wasm, ffi; no default features anywhere; `build_anti_goal_conformance.py` corpus (`greyforge_product` sentinel scan) via `make evidence-refresh` history | PASS | `dependency-closure.json`, `baseline.txt` |
-| ZT-12 | Machine protocol, CLI, diagnostics, execution unchanged | `make quick` (all contract checkers, `cargo check --workspace`, `cargo test --workspace`); `make lint` (`cargo fmt --check`, workspace clippy `-D warnings` with pedantic) | `make lint` PASS. `make quick` stops at the pre-existing staleness tripwire (expected until the re-mint); the 34 steps after it were run individually: 31 PASS, the standards checker's pre-existing `closure:ineligible` (expected), and two pre-existing drifts repaired here (the 2026-09-15 handoff note spelled the renamed origin, one clause reworded; the T54 secret scan regenerated); `cargo test --workspace`: 295 passed, 0 failed. Correction at the revision commit (Nabu P2 at `161a2f3`): the filed `make-quick.log` itself carried the S20-600 legacy artifact digest printed by `check_legacy_runner.py`, so `check_clean_room_boundary.py` failed once the log was tracked; the digest is redacted in the log and the checker passes again at the revision | `make-quick.log`, `make-quick-remaining-steps.log`, `make-lint.log`, `evidence/build/lint-report.json` |
+| ZT-12 | Machine protocol, CLI, diagnostics, execution unchanged | `make quick` (all contract checkers, `cargo check --workspace`, `cargo test --workspace`); `make lint` (`cargo fmt --check`, workspace clippy `-D warnings` with pedantic) | `make lint` PASS. `make quick` stops at the pre-existing staleness tripwire (expected until the re-mint); the 34 steps after it were run individually: 31 PASS, the standards checker's pre-existing `closure:ineligible` (expected), and two pre-existing drifts repaired here (the 2026-09-15 handoff note spelled the renamed origin, one clause reworded; the T54 secret scan regenerated); `cargo test --workspace`: 295 passed, 0 failed. Correction at the revision commit (Nabu P2 at `161a2f3`): the filed `make-quick.log` itself carried the WP-600 legacy artifact digest printed by `check_legacy_runner.py`, so `check_clean_room_boundary.py` failed once the log was tracked; the digest is redacted in the log and the checker passes again at the revision | `make-quick.log`, `make-quick-remaining-steps.log`, `make-lint.log`, `evidence/build/lint-report.json` |
 | ZT-13 | Independent vectors/oracle results unchanged; no golden regeneration | `sha256sum -c SHA256SUMS` (pack, exchange); `check_repository_pack_vector.py`; `check_repository_exchange_vector.py`; `generate_repository_pack_rejections.py --check`; `generate_repository_exchange_fixtures.py --check` | PASS (all four OK, drift `[]`) | `zt13-vectors.log` |
 | ZT-14 | Qualification impact, artifacts, performance evidence, independent review bound to the actual candidate | sections 2, 7, 8, 10; witness commit `161a2f3480dfca3df22019a9df4e3e3e4a38674f` (reviewed scope); the revision commit answers the lane findings; the records-only follow-up pins `witness_commit`, `review_scope_sha`, and the lane verdicts in the machine-summary section `zjx_transport_readiness` | see section 10 | `zjx-transport-readiness-v1.json`, `evidence/review/verdicts/zjx_transport_readiness/` |
 

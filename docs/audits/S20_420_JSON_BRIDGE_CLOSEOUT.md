@@ -1,4 +1,4 @@
-# S20-420 SMP1 JSON Bridge Closeout
+# WP-420 SMP1 JSON Bridge Closeout
 
 Status: **implemented under the draft SMP1 JSON Bridge v1 contract; this closeout records the revision 9 implementation (the current contract revision and review state are in the machine summary `json_bridge` section; revisions 10 to 12 are recorded in the contract and ADR-0034); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
@@ -53,7 +53,7 @@ The implementation provides:
   its own SMP1 record reader, parses the text with its own bridge reader,
   re-encodes with the SMP1 oracle's encoders to the identical bytes, and
   classifies every rejection in contract precedence;
-- the S20-700 persistent slice `fuzz/targets/smp1_json_bridge.rs`
+- the WP-700 persistent slice `fuzz/targets/smp1_json_bridge.rs`
   (`make smp1-json-bridge-persistent-fuzz-smoke`,
   `docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md`).
 
@@ -99,7 +99,7 @@ The implementation provides:
 - The contract's rejection precedence (resource, then parse and shape,
   then field encodings in field order, then `PROTOCOL_*`) is exercised
   explicitly by three ordered cases in the matrix.
-- Review slice 2026-09-05 (contract revision 6, closing the four S20-420
+- Review slice 2026-09-05 (contract revision 6, closing the four WP-420
   P0s): `-0` and `-0.0` both read as the integer zero (serde_json parses
   either spelling as negative zero, verified in the parser source; the
   reader normalizes it and the oracle's float branch agrees), pinned by
@@ -120,7 +120,7 @@ The implementation provides:
 
 - **Council reviews.** Ariadne, Nabu, and Vulcan reviews land as contract
   revisions; the campaign record lists the open questions (object forms
-  for the S20-440 body records, the string form for every integer field,
+  for the WP-440 body records, the string form for every integer field,
   and a negotiated rather than fixed text ceiling).
 - The bridge renders only the records SMP1 owns; owner bodies stay hex by
   contract, so a JSON-only client still needs the owner codecs to read a

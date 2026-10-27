@@ -92,13 +92,13 @@ The readiness claim is satisfied by proving at least one lossless, optional inte
 
 Inspect and reuse the current owning contracts, including where applicable:
 
-- S20-170 Repository Pack v1: exact root/object exchange;
-- S20-540 Repository Exchange v1: repository reconstruction including its explicitly defined ancestry and branch/head facts;
+- WP-170 Repository Pack v1: exact root/object exchange;
+- WP-540 Repository Exchange v1: repository reconstruction including its explicitly defined ancestry and branch/head facts;
 - any additional active artifact contract actually selected by the scope review.
 
 Keep those scopes distinct. A root/object pack is not a complete repository clone. An exchange is not automatically an executable package or context capsule. Do not silently promote one to another.
 
-The audited S20-170 contract already permits future ZJX transport of an exact pack while preserving that pack's bytes and semantics. Its frozen compression profile is `0` (`none`). The audited S20-540 contract also freezes profile `0`. A future outer transport can compress the exact stored bytes while leaving the inner profile unchanged.
+The audited WP-170 contract already permits future ZJX transport of an exact pack while preserving that pack's bytes and semantics. Its frozen compression profile is `0` (`none`). The audited WP-540 contract also freezes profile `0`. A future outer transport can compress the exact stored bytes while leaving the inner profile unchanged.
 
 This amendment MUST NOT enable a formerly rejected nonzero profile in either existing contract, change reserved fields, accept signatures previously rejected, or reinterpret an existing epoch. A later native compressed contract/profile requires its own explicit versioning and compatibility decision.
 

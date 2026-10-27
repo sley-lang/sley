@@ -71,7 +71,7 @@ report when this release was decided.
 
 - `make release-candidate-build` runs two clean, self-contained musl builds
   (`x86_64-unknown-linux-musl`, pinned toolchain `1.93.0`, ambient C compiler
-  scrubbed) and compares them member by member. It then writes the S20-720
+  scrubbed) and compares them member by member. It then writes the WP-720
   evidence record, the reproducibility report, the content checks,
   CycloneDX 1.6 and SPDX 2.3 SBOMs, unsigned build provenance, the finding
   register, the GA acceptance report and the decision dossier. The T54 secret
@@ -83,7 +83,7 @@ report when this release was decided.
   `evidence/release/second-host-lane-records.json`. The report reads
   `MULTI_HOST_REPRODUCIBLE` only when both hosts attest the same commit with the
   same artifact digest.
-- The packaged binary runs a 12-step demo outside the source tree (S20-720
+- The packaged binary runs a 12-step demo outside the source tree (WP-720
   unpacked demo).
 
 ### Succession harness
@@ -91,7 +91,7 @@ report when this release was decided.
 The `sley_2_0` live arm of the frozen 15-task succession corpus is integrated
 (`bench/live/`, coverage in `bench/live/SUCCESSION-COVERAGE.md`). This covers
 the mediated agent tool surface, the task judges, hash-chained tool-boundary
-transcripts and the S20-630 accounting. Scripted witnesses drive the frozen
+transcripts and the WP-630 accounting. Scripted witnesses drive the frozen
 tool surface to accepted results for 13 of the 15 tasks, with two caveats:
 CORRUPT's obligation is accepted on judge-side evidence under a recorded owner
 ruling, and TYPE's fixture revision still records its own fresh-review gate.
@@ -115,8 +115,8 @@ make quick                          # the maintainers' routine gate (see below)
 
 The digest printed by `sha256sum` must equal the `artifact_sha256` that the
 reproducibility report records for the release commit. `make quick` reads the
-outputs of the build above and the Sley 2.0 master goal, which lives outside
-the repository (`SLEY2_MASTER_GOAL`), so it passes only on a maintainer's
+outputs of the build above and the Sley 2.0 design specification, which lives outside
+the repository (`SLEY2_DESIGN_SPEC`), so it passes only on a maintainer's
 machine. [QUICKSTART](../QUICKSTART.md#6-run-the-test-gates) lists the gates
 anyone can run.
 
@@ -169,7 +169,7 @@ them together in one candidate needs the native test supervisor.
 the deterministic refusal `VM_LOWER_OPCODE_UNSUPPORTED`, so the EFFECT and CAP
 succession tasks have no positive result.
 
-**Self-hosting (SH2)** is the 2.1 goal. The REWEAVE seed artifacts (canonical
+**Self-hosting (SH2)** is the 2.1 goal. The self-hosting plan seed artifacts (canonical
 S, C0 and the C1 candidate) are preserved, but the official C1 is not claimed.
 
 **Also not claimed:** signed provenance or a transparency-log entry

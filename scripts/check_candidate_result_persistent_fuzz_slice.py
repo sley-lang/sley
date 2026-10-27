@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the S20-360 candidate-result persistent target."""
+"""Drift check for the WP-360 candidate-result persistent target."""
 
 from __future__ import annotations
 

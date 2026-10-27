@@ -1,12 +1,12 @@
-# S20-700 Complete-Root Judgment Persistent Slice
+# WP-700 Complete-Root Judgment Persistent Slice
 
-Status: scoped persistent landed-surface slice for the full S20-250 profile; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for the full WP-250 profile; **full WP-700 remains incomplete**
 
-This slice hardens the S20-250 full complete-root closure judgment
+This slice hardens the WP-250 full complete-root closure judgment
 (`crates/sley-query/src/complete_root.rs`,
 `docs/spec/COMPLETE_ENTITY_IMPACT_PROFILE_V1.md` section 6). It does not
 begin merge, comparison, protocol, or release packaging, and it does not fuzz
-object decoding, which the S20-700 schema and pack slices already cover.
+object decoding, which the WP-700 schema and pack slices already cover.
 
 The libFuzzer target decodes a structured eighteen-kind request from raw
 bytes: an entity count, then per entity a kind, an identity byte, and the

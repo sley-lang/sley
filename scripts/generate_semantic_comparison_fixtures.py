@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-510 semantic-comparison conformance corpus."""
+"""Refresh the deterministic WP-510 semantic-comparison conformance corpus."""
 
 from __future__ import annotations
 

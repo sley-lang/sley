@@ -1,12 +1,12 @@
-# S20-700 Root-Backed Query Engine Persistent Slice
+# WP-700 Root-Backed Query Engine Persistent Slice
 
-Status: scoped persistent landed-surface slice for the full S20-310 profile; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for the full WP-310 profile; **full WP-700 remains incomplete**
 
-This slice hardens the full S20-310 root-backed query engine
+This slice hardens the full WP-310 root-backed query engine
 (`crates/sley-query/src/root_query.rs`,
 `docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md`): the nineteen classes, the
 input binding, typed continuation cursors, exact-then-paged results, and
-the `SLEYRQR1` record encoder. The restricted S20-310 queries keep their own
+the `SLEYRQR1` record encoder. The restricted WP-310 queries keep their own
 target. It does not begin capsules, sessions, protocol, or release
 packaging.
 

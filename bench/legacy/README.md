@@ -1,6 +1,6 @@
 # Frozen legacy artifact adapter
 
-`bench/legacy` is the scoped S20-600 adapter for the frozen Sley 1.2.0 Linux
+`bench/legacy` is the scoped WP-600 adapter for the frozen Sley 1.2.0 Linux
 x86_64 release-candidate archive. It verifies the pinned outer hash and size,
 rejects unsafe archive structure, verifies the embedded release identity and
 every payload byte, copies the archive into a private temporary directory, and

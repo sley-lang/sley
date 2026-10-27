@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the explicit S20-650 optional-arm unavailable state."""
+"""Validate the explicit WP-650 optional-arm unavailable state."""
 
 from __future__ import annotations
 

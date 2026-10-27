@@ -1,8 +1,8 @@
-# S20-700 Object-Store Symlink Slice
+# WP-700 Object-Store Symlink Slice
 
-Status: bounded landed-surface slice; **full S20-700 remains incomplete**
+Status: bounded landed-surface slice; **full WP-700 remains incomplete**
 
-The S20-150 contract requires a real configured root and real object fan-out
+The WP-150 contract requires a real configured root and real object fan-out
 directories. Existing tests rejected a symlink at the final object path but did
 not directly assert the earlier root and fan-out boundaries.
 
@@ -26,7 +26,7 @@ make adversarial
 ```
 
 This is a behavioral confinement regression, not a persistent fuzz harness or
-full S20-700 result. Non-Unix platforms still compile the crate but do not run
+full WP-700 result. Non-Unix platforms still compile the crate but do not run
 the Unix symlink fixture.
 
 Vulcan's independent review found no open P0, P1, or P2 issue and confirmed the

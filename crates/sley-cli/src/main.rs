@@ -1,4 +1,4 @@
-//! The `sley` binary: standard streams in, exit status out (S20-430).
+//! The `sley` binary: standard streams in, exit status out (WP-430).
 
 #![forbid(unsafe_code)]
 

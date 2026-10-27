@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mechanical dependency and rule audit for the S20-430 thin CLI (contract section 5)."""
+"""Mechanical dependency and rule audit for the WP-430 thin CLI (contract section 5)."""
 
 from __future__ import annotations
 

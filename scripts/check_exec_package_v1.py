@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze check for EXEC_PACKAGE_V1 and RAW_HASH_V1 (RW-075).
+"""Freeze check for EXEC_PACKAGE_V1 and RAW_HASH_V1 (TP-075).
 
 Coverage-mapped and therefore oracle-independent: this script never reads
 implementation sources. Production-code marker pins live in

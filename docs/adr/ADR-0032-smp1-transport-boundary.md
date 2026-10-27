@@ -1,14 +1,14 @@
 # ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary
 
-Status: accepted; the S20-400 contract was at revision 11 with the
+Status: accepted; the WP-400 contract was at revision 11 with the
 Ariadne contract, Nabu architecture, and Vulcan surface re-reviews PASS
-and no new findings; implementation is S20-410. Current pin (2026-09-08):
+and no new findings; implementation is WP-410. Current pin (2026-09-08):
 the contract draft is at revision 12 (static protocol version 2 successor
 metadata; version 1 rows, bytes, and helpers unchanged). The revision 11
 reviews above are retained as history and do not review revision 12; its
 new-delta review passed on 2026-09-15. Current pin (2026-09-23): revision
 13 defines the version 2 `workspace.open` response `open_summary` (the
-S20-390 `revision_summary` plus the optional S20-300 snapshot identity,
+WP-390 `revision_summary` plus the optional WP-300 snapshot identity,
 field 9) and refuses a non-empty `workspace.open` body. Current pin
 (2026-09-23, after the revision 13 round REVISE): revision 14 applies
 `open_summary` to version 2 and every later selection whose table carries
@@ -35,12 +35,12 @@ Date: 2026-09-03; current pins 2026-09-08 (revision 12) and 2026-09-23 (revision
 
 The M0 `SMP1.md` was a constitutional draft written before any query,
 mutation, or transaction schema existed. Its dependencies are now
-implemented: root-backed queries and master capsules (S20-310 and S20-320
-full, drafts under review), candidate construction and validation (S20-350
-and S20-360), atomic commit and recovery (S20-390 and S20-530), refs,
+implemented: root-backed queries and master capsules (WP-310 and WP-320
+full, drafts under review), candidate construction and validation (WP-350
+and WP-360), atomic commit and recovery (WP-390 and WP-530), refs,
 comparison, merge, exchange, and GC. The threat register names three
 protocol gates: downgrade (T45), request-identity confusion (T46), and
-cross-workspace leakage (T47, owned with S20-330).
+cross-workspace leakage (T47, owned with WP-330).
 
 The Council lanes were still unavailable at this draft (see ADR-0026); the
 design is the integrator's and is submitted to Ariadne, Nabu, and Vulcan as
@@ -67,10 +67,10 @@ soon as a lane returns.
    partial body.
 6. **Frames are SCB1 envelopes.** Length-prefixed standalone SCB1 envelopes
    under a single contract tag 400 and the `sley2.protocol-frame.v1`
-   domain, added to the identifier registry by S20-410.
+   domain, added to the identifier registry by WP-410.
 7. **Staging.** `scripts/check_smp1_contract.py` binds the contract, ADR,
    work-package row, and summary section, and fails closed if a
-   `sley-protocol` crate appears before the summary allows S20-410.
+   `sley-protocol` crate appears before the summary allows WP-410.
 8. **Batch admission with cancellation before execution.** One batch is
    one explicit frame list; a cancel naming an admitted, not-yet-executed
    request of the same session answers `PROTOCOL_CANCELLED` without
@@ -87,7 +87,7 @@ soon as a lane returns.
     `PROTOCOL_DOWNGRADE` at open.
 
 Revision 12 record (2026-09-08): the frozen version 1 method table is
-unchanged; the two S20-310 entity-read tags (306, 307) are additive
+unchanged; the two WP-310 entity-read tags (306, 307) are additive
 protocol version 2 metadata with body definitions linked to
 `docs/spec/ENTITY_READ_PROFILE_V2.md`, composition pins at bridge
 revision 8 and CLI revision 5 as the historical composition at initial
@@ -101,8 +101,8 @@ historical record.
 
 ## Consequences
 
-- S20-410 can implement the frame codec, handshake, and deterministic
-  server without inventing semantics; S20-440, S20-420, and S20-430 have a
+- WP-410 can implement the frame codec, handshake, and deterministic
+  server without inventing semantics; WP-440, WP-420, and WP-430 have a
   frozen surface to extend, generate, and wrap.
-- S20-330 gains its exact seams: the session methods, the reserved handle
+- WP-330 gains its exact seams: the session methods, the reserved handle
   method, and the `SESSION_*` code family.

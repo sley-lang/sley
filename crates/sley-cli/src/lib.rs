@@ -1,8 +1,8 @@
-//! Thin machine-oriented CLI (S20-430, contract `docs/spec/SLEY_CLI_V1.md`,
+//! Thin machine-oriented CLI (WP-430, contract `docs/spec/SLEY_CLI_V1.md`,
 //! ADR-0035).
 //!
 //! A transport endpoint: SMP1 frames move between standard input, standard
-//! output, and the deterministic S20-410 server in byte or JSON form. The
+//! output, and the deterministic WP-410 server in byte or JSON form. The
 //! endpoint builds only its own hello and one failure frame through the
 //! frozen codec, counts what it moved into a report, and judges nothing.
 

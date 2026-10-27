@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the scoped S20-600 frozen legacy artifact adapter."""
+"""Check the scoped WP-600 frozen legacy artifact adapter."""
 
 from __future__ import annotations
 

@@ -47,7 +47,7 @@ the maintainers ask for it. The
 `make quick` and `make check-changed` are the maintainers' gates. They don't
 pass on a fresh clone: some checkers read the outputs of a local release
 build under `evidence/runtime/`, which isn't tracked, and two read the Sley
-2.0 master goal, which lives outside the repository (`SLEY2_MASTER_GOAL`
+2.0 design specification, which lives outside the repository (`SLEY2_DESIGN_SPEC`
 points at it). `make v2` is a placeholder for the full product gate and fails
 closed with `NOT_IMPLEMENTED` until that gate exists.
 
@@ -67,7 +67,7 @@ conventional LSP, REPL, human projection, source compatibility, unrestricted
 shell, mandatory Greyforge dependency, native backend, marketplace, or self-
 hosting work to the 2.0 GA path.
 
-Self-hosting toolchain work adopted under REWEAVE-1.0 (SH2 campaign) is
+Self-hosting toolchain work adopted under the self-hosting plan 1.0 (SH2 campaign) is
 governed by host-boundary.json, BOOTSTRAP_PROFILE_2 (the frozen successor of
 BOOTSTRAP_PROFILE_1), and the staged SH2 gates
 instead of this paragraph. Every other prohibition in this paragraph is

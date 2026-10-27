@@ -1,6 +1,6 @@
 # ADR-0033: Negotiated session, binding checks, and positional handles
 
-Status: accepted; the S20-330 contract was at revision 3 with the
+Status: accepted; the WP-330 contract was at revision 3 with the
 Ariadne contract, Nabu architecture, and Vulcan surface re-reviews PASS
 and no new findings; implemented under the contract
 (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`). Earlier pin
@@ -22,12 +22,12 @@ revision 5 and 6 records 2026-09-23
 
 ## Context
 
-S20-330 was deferred until a negotiated session, a verified workspace and
+WP-330 was deferred until a negotiated session, a verified workspace and
 root, and a live epoch binding existed, because a claimed root or a
 restricted capsule digest must never substitute for that authority (ADR-0013,
-the T15 gate). SMP1 (S20-400) now negotiates a digested profile and scopes
-request identity per session, the S20-410 server issues provisional
-session identities, and the S20-320 full capsule fills its `Negotiated`
+the T15 gate). SMP1 (WP-400) now negotiates a digested profile and scopes
+request identity per session, the WP-410 server issues provisional
+session identities, and the WP-320 full capsule fills its `Negotiated`
 arm through the session authority.
 
 The 2026-09-04 review round (Nabu architecture, Ariadne contract, Vulcan
@@ -61,7 +61,7 @@ answer, submitted for re-review.
    holds, for no security gain: binding checks are live-state). The
    residual is recorded, not hidden: a live name is usable by any caller
    that learns it, peer isolation is a transport obligation on the
-   S20-420/430 boundary, and threat T56 tracks it.
+   WP-420/430 boundary, and threat T56 tracks it.
 3. **Every request is checked against the binding in true precedence.**
    Frame validity, remembered close, live existence, request-identity
    admission, workspace, epoch, the bound root for the closed head-bound
@@ -105,11 +105,11 @@ answer, submitted for re-review.
 
 ## Consequences
 
-- S20-420 and S20-430 transport and display a real session identity;
+- WP-420 and WP-430 transport and display a real session identity;
   the bridge renders the eighth limit field, and peer isolation is
   their transport obligation (threat T56).
 - SMP1 revision 10 recorded the eighth limit field and the
-  expected-root `handle.expand` request the S20-330 revision 2 freeze
+  expected-root `handle.expand` request the WP-330 revision 2 freeze
   owns; no other SMP1 body changes. This profile pins SMP1 revision 15,
   the current revision (profile revision 6, 2026-09-23), and the stage
   checker fails when SMP1 moves.

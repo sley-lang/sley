@@ -9,9 +9,9 @@ Date: 2026-09-03; corrected 2026-09-05
 
 ## Context
 
-S20-390 froze commit metadata as one triple: commit profile 1, semantic
+WP-390 froze commit metadata as one triple: commit profile 1, semantic
 profile 1 ("executable-program-operation-free"), durability profile 1, and the
-transaction decoder accepted exactly that triple. The S20-360 full operation
+transaction decoder accepted exactly that triple. The WP-360 full operation
 analysis (ADR-0044) then made candidates whose programs carry semantic
 operations validate, which would have produced receipts asserting a profile the
 transaction did not run under. The commit path refused such candidates so the
@@ -41,7 +41,7 @@ commits for different reasons.
    the whole proposed entity state, inherited entities included: a proposed
    state carrying an `Operation` entity commits under 2, and one without
    commits under 1. Value 2 may only be emitted under a validation profile
-   that performs the S20-360 E1 through E6 analysis.
+   that performs the WP-360 E1 through E6 analysis.
 3. **The decoder accepts exactly two triples, conditioned on kind.** Anything
    else is `TXN_FIELD_SHAPE`; no other field of the metadata moves. Genesis
    accepts only `[1, 1, 1]`; an ordinary commit accepts `[1, 1, 1]` or
@@ -63,7 +63,7 @@ commits for different reasons.
 ## Consequences
 
 - An operation-carrying candidate can commit, and its receipt says which
-  analysis judged it, which is the S20-390 property that mattered.
+  analysis judged it, which is the WP-390 property that mattered.
 - Receipt and exchange identities of operation-free commits are unchanged;
   only the new vector is new.
 - Selected-test evidence, policy and epoch transitions, and full crash recovery

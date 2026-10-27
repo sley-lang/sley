@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-360 result fixture from the private codec owner."""
+"""Refresh the deterministic WP-360 result fixture from the private codec owner."""
 
 from __future__ import annotations
 

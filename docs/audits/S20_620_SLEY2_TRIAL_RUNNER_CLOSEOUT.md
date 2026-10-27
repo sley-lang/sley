@@ -1,4 +1,4 @@
-# S20-620 Sley 2 Trial Runner Closeout
+# WP-620 Sley 2 Trial Runner Closeout
 
 Completion record (2026-09-23): contract revision 8 has PASS verdicts in all three Council lanes (scoped to 03b25eb; see the machine summary lane fields and `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md` section 15); status `S20_620_COMPLETE`. The open P3/P4 findings of the last rounds are recorded as `p3_open`/`p4_open` claims in the machine summary and do not block completion. The text below is retained as history.
 
@@ -48,7 +48,7 @@ into the trial's trace before the next request is written, so the recorded
 responses are exactly the context the agent had; ten metrics derive only
 from frame records, and the remaining frozen metrics are injected,
 explicitly unverified adapter claims appended under the `sley_2_0` arm with
-the S20-610 manifest and chain primitives. The exact endpoint binary is
+the WP-610 manifest and chain primitives. The exact endpoint binary is
 part of the record as `endpoint_sha256`. The contract is
 `docs/spec/SLEY2_TRIAL_RUNNER_V1.md` with ADR-0036; it is a draft written
 and implemented while every Council lane was unavailable, so the Ariadne,
@@ -68,7 +68,7 @@ The implementation provides:
 - `bench/sley2/tests/test_runner.py`: five offline tests over a fake
   endpoint;
 - `make sley2-runner-smoke`: builds `sley`, runs the scripted trial and the
-  intruding trial over the frozen S20-540 exchange fixture, and writes
+  intruding trial over the frozen WP-540 exchange fixture, and writes
   `evidence/runtime/s20-620-sley2-smoke/evidence.json`;
 - `scripts/check_sley2_trial_runner.py` in `make quick`: contract markers,
   runner markers and forbidden surfaces, and the offline tests.
@@ -76,7 +76,7 @@ The implementation provides:
 ## Evidence
 
 - Contract draft revision 1, ADR-0036, and the stage checker at
-  `51a8e22`; SMP1 revision 6 (`failed` response flag, an S20-620 finding)
+  `51a8e22`; SMP1 revision 6 (`failed` response flag, a WP-620 finding)
   at `aea2d11`; revision 2 and the implementation at `8d32aab`.
 - Offline tests (five, all pass): the trace chain is complete and tamper
   evident (duplicate trace, deleted record, edited frame, missing footer);
@@ -146,7 +146,7 @@ Revision 4 admits `entity.version` and `entity.signature` to the frozen
 eighteen-name allowlist and binds the claim digest to the per-trial
 immutable snapshot; this attestation records the review-round repairs for
 the revision 4 Council round (Ariadne FAIL 4×P1, Nabu FAIL 5×P1, Vulcan
-FAIL 4×P1, no P0) without touching the S20-610 manifest format, the claim
+FAIL 4×P1, no P0) without touching the WP-610 manifest format, the claim
 field set, or the trial's stage boundaries:
 
 - The run manifest's `tool_description_digests.sley_2_0` binds the version
@@ -171,7 +171,7 @@ field set, or the trial's stage boundaries:
   with zero failed answers, both claims carrying the frozen allowlist
   digest, over the `sley` binary built from this tree (which since the CLI
   merge carries the failed-bit rejections the version 1 control requires)
-  and the frozen S20-540 exchange fixture. Runner rev-4 contract evidence
+  and the frozen WP-540 exchange fixture. Runner rev-4 contract evidence
   only; not a release qualification (`full_s20_620_complete` stays false
   and the evidence remains under the gitignored runtime directory).
 - `scripts/check_sley2_trial_runner.py` pins the capable profile, the
@@ -184,7 +184,7 @@ field set, or the trial's stage boundaries:
 
 Validation on this tree: 23 offline tests,
 `scripts/check_sley2_trial_runner.py`, and `make sley2-runner-smoke`
-(8/8) all pass. Council re-review of revision 4 stays with the S20-620
+(8/8) all pass. Council re-review of revision 4 stays with the WP-620
 queue.
 
 ## Cross-lane note: rejection failed-bit alignment (2026-09-10)
@@ -192,7 +192,7 @@ queue.
 Integration against the repaired capable runtime showed the version 1
 control asserting the pre-repair rejection shape without the failed bit:
 the capable endpoint now sets the bit on its own rejections (SMP1 section
-6, repaired under S20-430 revision 6), so the control asserts the
+6, repaired under WP-430 revision 6), so the control asserts the
 endpoint's own rejection shape with the bit set (`v1_rejection_shape`,
 unit-pinned). No contract change: the control still gates on the bridge's
 unknown-method code with no method, session, or identifier.

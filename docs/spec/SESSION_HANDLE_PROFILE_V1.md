@@ -1,12 +1,12 @@
 # Negotiated Session and Handle Profile v1
 
-Status: S20-330 contract draft, revision 6 (2026-09-23); implemented under
+Status: WP-330 contract draft, revision 6 (2026-09-23); implemented under
 this draft with Council re-reviews pending (Nabu architecture review,
 Ariadne contract review, Vulcan surface review), so the contract is not
 frozen and the package is not complete. Revision 2 closed the six P0s and
 the freeze-blocking P1s of the 2026-09-04 review round; revision 3 answers
 every remaining P1, P2, and P3 item of that round (section 9); revision 4
-adds the protocol version 2 classification extension (the two S20-310
+adds the protocol version 2 classification extension (the two WP-310
 entity-read methods, head-bound in version 2) without changing the
 version 1 partition, handle bytes, or capsule format; revision 5
 (2026-09-23) re-pinned SMP1 revision 14, which defines the
@@ -24,8 +24,8 @@ history; the revision 6 new-delta review is pending. Capable bridge/CLI
 runtime is phase 3.
 Implementation state is tracked in the machine summary.
 
-This profile defines the negotiated session authority that SMP1 (S20-400,
-revision 15) and the master context capsule (S20-320 full,
+This profile defines the negotiated session authority that SMP1 (WP-400,
+revision 15) and the master context capsule (WP-320 full,
 `CONTEXT_CAPSULE_PROFILE_V1.md` revision 4; the session arm is unchanged
 since its revision 3) reserved: what a session binds, how it is issued and renewed, how every
 request is checked against its binding, what a session-local handle is,
@@ -37,8 +37,8 @@ and the `SESSION_*` codes. It composes, and never alters:
   profile freezes;
 - `docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md` at revision 4: the
   `SessionBinding` field, whose `Negotiated(2)` arm this profile fills;
-- `docs/spec/STATE_ROOT_V1.md` (S20-160 normative contract, unversioned),
-  and the S20-390 verified revision, which supply the workspace, root,
+- `docs/spec/STATE_ROOT_V1.md` (WP-160 normative contract, unversioned),
+  and the WP-390 verified revision, which supply the workspace, root,
   and epoch a session binds.
 
 The authority rule is:
@@ -101,10 +101,10 @@ SessionRecord {
 
 `session.open` (100) carries the negotiated `ProtocolHandshakeId`; a claim
 that is not the negotiated identity is `PROTOCOL_DOWNGRADE`. The server
-reads its repository's accepted head through the S20-390 loader, binds
+reads its repository's accepted head through the WP-390 loader, binds
 its workspace, root, and epoch, issues the `SessionId`, and answers the
 identity. A repository with no accepted head cannot open a session: the
-S20-390 loader failure travels under its owner code, never under a
+WP-390 loader failure travels under its owner code, never under a
 `SESSION_*` code.
 
 Open is refused with `SESSION_BINDING_INVALID` when the live session
@@ -168,7 +168,7 @@ these checks in this order; the first failure answers:
    the check and the answer is never served to a session bound to the
    older root;
 6. the session's work budget is not exhausted
-   (`PROTOCOL_LIMIT_EXCEEDED`, S20-440).
+   (`PROTOCOL_LIMIT_EXCEEDED`, WP-440).
 
 Every binding check precedes the budget: an exhausted session with a
 broken binding answers the binding failure, including a stale bound
@@ -232,7 +232,7 @@ live at version 3 with the native-tests bit and answer through their owner
 records instead. A reserved tag joins a list above only when its owner
 claims it.
 
-Protocol version 2 extension (S20-310 entity reads, revision 4; version 3
+Protocol version 2 extension (WP-310 entity reads, revision 4; version 3
 scope, revision 6): `entity.version` (306) and `entity.signature` (307)
 are head-bound under every version-aware selection whose method table
 carries them: version 2, and version 3 (the union of the version 1 and
@@ -275,7 +275,7 @@ the inventory extract fails closed above 65,535 bindings while
 `uvar(handle)` accepts u64, so far positions are unknown, never
 wrapped.
 
-Response field 2 `u32 kind` is the entity's kind tag from the S20-250
+Response field 2 `u32 kind` is the entity's kind tag from the WP-250
 projection of the bound root. A bindings/kinds length misalignment
 answers `SESSION_BINDING_INVALID`: that is the internal invariant of a
 well-formed root surfacing as a caller failure, never a binding the
@@ -288,7 +288,7 @@ cursors belong in `query.continue`'s `after`.
 ## 5. Capsule binding
 
 The master context capsule built under a session carries
-`SessionBinding = Negotiated(2) || SessionId[32]` (S20-320 full,
+`SessionBinding = Negotiated(2) || SessionId[32]` (WP-320 full,
 `CONTEXT_CAPSULE_PROFILE_V1.md` revision 4; the arm is unchanged since its
 revision 3). The capsule's provenance must equal the session's binding: the
 authority fails `CONTEXT_CAPSULE_SOURCE_INVALID` when the response's
@@ -323,7 +323,7 @@ past the negotiated `max_sessions`; sessionless `workspace.create` or
 exhaustion; the defensive duplicate-identity and retained-record
 refusals at bind time; and the bindings/kinds misalignment inside
 `handle.expand`. A headless `session.open` is not in this bucket: the
-S20-390 loader failure travels under its owner code.
+WP-390 loader failure travels under its owner code.
 
 `PROTOCOL_*` codes keep their SMP1 meanings; `SESSION_*` failures travel
 in the SMP1 failure envelope with their exact numerics. The eight codes
@@ -368,15 +368,15 @@ Implementation acceptance requires at least:
 This contract does not claim: session expiry by wall-clock time (the
 server reads no clock; renewal counts and budgets bound a session's
 work, and `max_sessions` bounds the live count); session expiry by
-request count (the S20-440 budget already bounds a session's work);
+request count (the WP-440 budget already bounds a session's work);
 handles naming query cursors (a cursor is continuation state and
 belongs in `query.continue`'s `after`, section 4); implicit rebinding
 after a mutation (section 2); peer ownership of a session name (a live
 name is usable by any caller that learns it; peer isolation is a
-transport obligation on the S20-420/430 boundary, threat T56);
+transport obligation on the WP-420/430 boundary, threat T56);
 multi-repository or cross-workspace sessions; authentication or
-transport security; the JSON bridge and CLI representations (S20-420,
-S20-430); runtime, benchmark, packaging, release, or GA.
+transport security; the JSON bridge and CLI representations (WP-420,
+WP-430); runtime, benchmark, packaging, release, or GA.
 
 Reclamation is exact and bounded without a clock. The registry holds
 exactly the live sessions plus at most `max_sessions` remembered
@@ -416,7 +416,7 @@ capped at close.
    exact symbol and numeric pair, and the classification is named
    five-way everywhere.
 - Revision 4 (2026-09-08): the protocol version 2 extension: the two
-  S20-310 entity-read tags (306, 307) join the head-bound list in
+  WP-310 entity-read tags (306, 307) join the head-bound list in
   version 2 only; the version 1 partition, handle record bytes, capsule
   arm, and code rows are unchanged. The SMP1 pin follows SMP1 to
   revision 12; the capsule pin stays at revision 3 because its format is

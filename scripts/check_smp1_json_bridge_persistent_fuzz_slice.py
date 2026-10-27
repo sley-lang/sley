@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the scoped S20-420 SMP1 JSON bridge persistent fuzz slice."""
+"""Drift check for the scoped WP-420 SMP1 JSON bridge persistent fuzz slice."""
 
 from __future__ import annotations
 

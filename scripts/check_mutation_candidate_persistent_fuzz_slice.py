@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the S20-350 mutation-candidate persistent target."""
+"""Drift check for the WP-350 mutation-candidate persistent target."""
 
 from __future__ import annotations
 

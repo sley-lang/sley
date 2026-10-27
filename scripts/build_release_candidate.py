@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-720 release candidate mechanics: two clean builds, a deterministic
+"""WP-720 release candidate mechanics: two clean builds, a deterministic
 artifact, an unpacked source-independent demo, scans, and reproducibility.
 
 `make release-check` stays fail-closed; this script produces the candidate
@@ -65,8 +65,8 @@ EMBEDDED_INPUT_PATHS = (
 # built from the Rust workspace and its compile-time embeds, the packaging
 # logic below stages it, and the stage adds the demo runner, the root
 # license files, the third-party license texts and their generator, the SBOM
-# inventory, and the conformance subset. S20-730
-# reads this surface for its attestation freshness rule and S20-710 derives
+# inventory, and the conformance subset. WP-730
+# reads this surface for its attestation freshness rule and WP-710 derives
 # its records-closure bound inputs from it; keep it exact when staging or
 # embedding changes.
 ARTIFACT_INPUT_PATHS = (
@@ -97,11 +97,11 @@ AGENT_GUIDE_MAX_BYTES = 8192
 
 
 def expected_artifact_members(fixture_paths: list[str]) -> set[str]:
-    """S20-720 owns the fixed contents; fixtures are enumerated at the candidate."""
+    """WP-720 owns the fixed contents; fixtures are enumerated at the candidate."""
     return set(FIXED_ARTIFACT_MEMBERS).union(fixture_paths)
 
 SECRET_PATTERNS = (b"-----BEGIN ", b"AKIA", b"ghp_", b"xoxb-", b"xoxp-", b"sk-ant-", b"sk-proj-")
-# The operator-approved root license set (S20-710 license decision
+# The operator-approved root license set (WP-710 license decision
 # 2026-09-14): the staged artifact ships the installed files, never a
 # pending-license placeholder. The inventory must approve exactly this set
 # or staging refuses (INTERNAL_INVARIANT) instead of minting stale text.
@@ -367,7 +367,7 @@ def toolchain_versions() -> dict[str, str]:
 def link_contract() -> dict[str, str]:
     """The pinned release link unit, kept out of `toolchain`.
 
-    S20-730 requires evidence `toolchain` to name exactly cargo and rustc,
+    WP-730 requires evidence `toolchain` to name exactly cargo and rustc,
     so link provenance rides alongside it: the release link is pinned by
     target (self-contained musl via the pinned toolchain's rust-lld),
     never the ambient host cc/linker or host glibc/CRT.

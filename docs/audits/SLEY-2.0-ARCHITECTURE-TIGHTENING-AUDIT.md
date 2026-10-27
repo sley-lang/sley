@@ -23,11 +23,11 @@ ARCH_TIGHTEN_BASELINE:
   baseline_subject:               rw-080 slice 7 record: Namespace body Sley decode/encode
                                   C0 construction record (2026-09-08 02:43 -0400)
   reweave_master_commit_or_digest:
-    path:    /home/dev/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md
-    rev:     REWEAVE-1.0 (2026-09-05)
+    path:    /home/dev/machineresearch/SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md
+    rev:     self-hosting plan 1.0 (2026-09-05)
     sha256:  61d20471906b00fab05a9e0f174ad9c616e734a5f38fd590ed44af2533535a63
-    mirror:  /home/dev/machineresearch/SLEY_REWEAVE_MASTER_PACKAGE_V1/
-             sley-reweave-v1/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md (byte-identical)
+    mirror:  /home/dev/machineresearch/SLEY_SELF_HOSTING_MASTER_PACKAGE_V1/
+             sley-reweave-v1/SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md (byte-identical)
     adopted: docs/adr/ADR-0049-reweave-scope-adoption.md (2026-09-06)
   sley_2_0_master_commit_or_digest:
     path:    /home/dev/machineresearch/Sley2.0mastergoal.md
@@ -49,7 +49,7 @@ ARCH_TIGHTEN_BASELINE:
                                   (bootstrap-manifest.json still records P = BOOTSTRAP_PROFILE_1;
                                   see the spec-synchronization findings)
   self_host_claim_level:          SH0 (bootstrap-manifest.json: S, C1, C2, C3 do not exist;
-                                  C0 image not yet snapshotted; RW-080 slices 1..7 PROVISIONAL)
+                                  C0 image not yet snapshotted; TP-080 slices 1..7 PROVISIONAL)
   tree_state:                     CLEAN at baseline_commit; one untracked local-only directory
                                   `.forge/slices/` (slice-contract scratch, not repository truth)
   remote_state:                   origin/main = 1d573a07066e29ac6e96c6dfa72c46e086365031
@@ -58,12 +58,12 @@ ARCH_TIGHTEN_BASELINE:
                                   590 local commits never pushed to any remote
   open_reviews:                   finding register FINDING_REGISTER_OPEN (218 obligations,
                                   69 open reviews, 10 deferred, 2 unclassified);
-                                  RW-080 BLOCKED pending Nabu round-12, premium round 2,
-                                  S20-780 independent acceptance; S20-770 lane under
+                                  TP-080 BLOCKED pending Nabu round-12, premium round 2,
+                                  WP-780 independent acceptance; WP-770 lane under
                                   Council re-review (lane2 branches, 14 to 21 commits
                                   ahead of an older main)
   open_gates:                     R2 exit NOT_READY; C0->C1->C2->C3 succession not started;
-                                  release-candidate-smoke re-attest pending since S20-330
+                                  release-candidate-smoke re-attest pending since WP-330
                                   closure (RESUME.md 2026-09-05); five operator gates
                                   (narrowed schema-epoch decision, succession trials,
                                   root license text, second-host attestation, release
@@ -76,12 +76,12 @@ Two Sley 2.0 sessions were still committing when this campaign activated
 (last `main` commit 02:43 local, last lane worktree commit 02:41 local,
 activation 02:52 local). Per spec section 1 they are not interrupted:
 
-- **Lane 3, RW-080 (REWEAVE codec construction slices).** Commits land on
+- **Lane 3, TP-080 (the self-hosting plan codec construction slices).** Commits land on
   `main` directly plus scaffold branches `lane3/rw080-*`. Owned surface:
   `crates/sley-vm/tests/rw080_*.rs`, `machineresearch/sley-2.0/reweave/rw-080-*.md`.
   EXCLUDED from this campaign's edit scope. Audit reads only the committed
   baseline.
-- **Lane 2, S20-770 (required-contract index enforcement).** Branches
+- **Lane 2, WP-770 (required-contract index enforcement).** Branches
   `lane2/s20770-*`, not yet merged. Owned surface:
   `docs/spec/REQUIRED_CONTRACT_INDEX_V1.md`, `scripts/check_required_contract_index.py`.
   EXCLUDED from this campaign's edit scope; findings that touch the index are
@@ -205,11 +205,11 @@ FINDING_ID: AT-SI-01
 TITLE: StateRoot is proposed to be split into ProgramRoot / VerificationRoot because it binds tests, contracts and policy alongside executable entities
 HYPOTHESIS: The canonical StateRoot conflates executable program identity with verification and policy state, so a new ProgramRoot / ExecutableSemanticRoot is needed for correct executable-image binding.
 REPOSITORY_EVIDENCE: crates/sley-state-root/src/lib.rs:124-143 (nine fields, no compiler or execution metadata); lib.rs:1006 (every field changes the root); crates/sley-vm/src/lower.rs:838-882 (image bytes contain no root); crates/sley-ssmc/src/fingerprint.rs:312-320 (fingerprint preimage has epoch only); crates/sley-vm/src/exec_package.rs:253,896-912 (image_digest root-free; package_digest binds root as one preimage field); crates/sley-vm/tests/rw075_exec_closure.rs:539-555 (different root is a different closure by design).
-SPEC_EVIDENCE: Sley2.0mastergoal.md:644-646 (StateRoot is the complete accepted semantic program state) and 678-692 (5.3 requires policy, test-set and contract-set roots in the state root); docs/spec/STATE_ROOT_V1.md:7-8,69-79,102-116; docs/spec/EXECUTION_MODEL_V1.md:12-14 (execution request binds exact root and entry point); REWEAVE master 11 (lines 330-361: toolchain has retained root plus executable image digest); SLEY-2.0-ARCHITECTURE-TIGHTENING.md 4.1 decision rule.
+SPEC_EVIDENCE: Sley2.0mastergoal.md:644-646 (StateRoot is the complete accepted semantic program state) and 678-692 (5.3 requires policy, test-set and contract-set roots in the state root); docs/spec/STATE_ROOT_V1.md:7-8,69-79,102-116; docs/spec/EXECUTION_MODEL_V1.md:12-14 (execution request binds exact root and entry point); the self-hosting plan master 11 (lines 330-361: toolchain has retained root plus executable image digest); SLEY-2.0-ARCHITECTURE-TIGHTENING.md 4.1 decision rule.
 CURRENT_BEHAVIOR: The root binds accepted workspace state exactly as the master requires. Executable identity is already carried by root-free image digests and semantic fingerprints; execution-closure identity by the EXEC_PACKAGE_V2 package digest, which binds the root as provenance.
 DESIRED_INVARIANT: One root for accepted semantic state; root-free identities for executable bytes and judged semantics; one package identity binding both plus provenance. This invariant already holds.
 DISPOSITION: D_REJECT
-RATIONALE: None of the five justifying problems in the 4.1 decision rule is demonstrated: image binding is correct (SHA-256 of root-free bytes), unchanged executable semantics are expressible (fingerprints, image digest), invalidation is bounded to re-admission with no cache to invalidate, self-host identity is specified by RW-080 section 2 without a new root, and policy/verification state is bound in the workspace root by explicit master requirement rather than by accident. Adding a root would be decomposition for its own sake, which 4.1 forbids.
+RATIONALE: None of the five justifying problems in the 4.1 decision rule is demonstrated: image binding is correct (SHA-256 of root-free bytes), unchanged executable semantics are expressible (fingerprints, image digest), invalidation is bounded to re-admission with no cache to invalidate, self-host identity is specified by TP-080 section 2 without a new root, and policy/verification state is bound in the workspace root by explicit master requirement rather than by accident. Adding a root would be decomposition for its own sake, which 4.1 forbids.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -245,21 +245,21 @@ REVIEW_REQUIRED: no
 ```text
 FINDING_ID: AT-SI-03
 TITLE: Self-host toolchain identity S needs a dedicated program root
-HYPOTHESIS: The REWEAVE bound object S (immutable canonical root plus complete dependency closure of the toolchain program) cannot be expressed with the existing StateRoot and package identities, so a ProgramRoot is required before the SH2 fixed-point gates.
+HYPOTHESIS: The self-hosting plan bound object S (immutable canonical root plus complete dependency closure of the toolchain program) cannot be expressed with the existing StateRoot and package identities, so a ProgramRoot is required before the SH2 fixed-point gates.
 REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/rw-080-contract.md:250-262 (S defined as toolchain graph root, complete object closure, runtime data/layout closure carried as package sections, declared entry points, build manifest with expected digests, profile, epoch, root, and exact P/H digests); rw-080-contract.md:264-274 (construction manifest per entity with provenance); crates/sley-vm/src/exec_package.rs:896-912 (package binds root, entry, epoch, profile digest, ABI version, VM version and every section digest); lower.rs:838-882 (fixed-point payloads are root-free image bytes); docs/spec/BOOTSTRAP_PROFILE_2.md:39-42,126-130 and conformance/bootstrap-profile/v2/profile.json `schema_epoch_hex`/`state_root_hex` (closure evidence root convention 09*32).
-SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md 13.1 (lines 377-395: S, P, H, C1..C3 relation), 13.2 (byte-identical executable payloads, entry mapping, manifests), 11 (lines 330-361: toolchain executable identity is a retained root plus image digest, never a path); SLEY-2.0-ARCHITECTURE-TIGHTENING.md 4.1 decision rule (self-host identity ambiguity).
-CURRENT_BEHAVIOR: S is specified as a composition of existing identities (StateRoot plus package plus manifest digests). It is not yet instantiated because RW-080 is contract-only and BLOCKED on the R2 gate (rw-080-contract.md:3-8). The fixed-point comparison is over image bytes and manifests, which are root-free, so a toolchain root change does not perturb C2/C3 equality.
+SPEC_EVIDENCE: SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md 13.1 (lines 377-395: S, P, H, C1..C3 relation), 13.2 (byte-identical executable payloads, entry mapping, manifests), 11 (lines 330-361: toolchain executable identity is a retained root plus image digest, never a path); SLEY-2.0-ARCHITECTURE-TIGHTENING.md 4.1 decision rule (self-host identity ambiguity).
+CURRENT_BEHAVIOR: S is specified as a composition of existing identities (StateRoot plus package plus manifest digests). It is not yet instantiated because TP-080 is contract-only and BLOCKED on the R2 gate (rw-080-contract.md:3-8). The fixed-point comparison is over image bytes and manifests, which are root-free, so a toolchain root change does not perturb C2/C3 equality.
 DESIRED_INVARIANT: The toolchain program identity is one accepted StateRoot whose entry points name the four module mains, bound to P and H through the package digest; the fixed-point gate compares root-free executable payloads. Already specified.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The identity decomposition needed for S exists in frozen contracts and code; only the RW-080 instantiation is pending, and that is lane-owned work gated on R2, not an architecture defect. Introducing a ProgramRoot now would create a second identity for the same object before the first is instantiated.
+RATIONALE: The identity decomposition needed for S exists in frozen contracts and code; only the TP-080 instantiation is pending, and that is lane-owned work gated on R2, not an architecture defect. Introducing a ProgramRoot now would create a second identity for the same object before the first is instantiated.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: none now; RW-080 must record which StateRoot is S when it constructs the toolchain graph
+SELFHOST_IMPACT: none now; TP-080 must record which StateRoot is S when it constructs the toolchain graph
 MIGRATION_REQUIRED: no
-TESTS_REQUIRED: none in this audit; RW-130/RW-140 own the fixed-point tests
+TESTS_REQUIRED: none in this audit; TP-130/TP-140 own the fixed-point tests
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: RW-080 lane (ariadne, nabu)
+CODE_OWNERSHIP: TP-080 lane (ariadne, nabu)
 REVIEW_REQUIRED: no
 ```
 
@@ -268,19 +268,19 @@ FINDING_ID: AT-SI-04
 TITLE: The package state_root is a declared value, not chain-verified against the root's entity bindings inside sley-vm
 HYPOTHESIS: Because admit_v2_package only compares package.state_root with the caller-supplied closure.state_root, a package can carry a root whose bindings do not contain the closure, so root-to-executable binding is incorrect and a stronger root is needed.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/admission_authority.rs:72-97 (V2Closure carries state_root as a caller-supplied field) and 262-264 (equality check only); exec_package.rs:229,706,911 (root carried by value); crates/sley-protocol/src/server.rs:2011-2070 (the production execute path derives the closure from the bound revision via CompleteRootRequest::extract and passes request.root(), so root and closure are bound by construction at the repository layer); crates/sley-state-root/src/lib.rs:363-381 (recompute_root ties root-backed query facts to the claimed root); crates/sley-repo/src/root_query.rs:122-123 (record roots surfaced from the accepted revision); tests/rw075_exec_closure.rs:539-555 (root mismatch refuses).
-SPEC_EVIDENCE: rw-080-contract.md:250-274 (S and the construction manifest bind every toolchain entity with provenance; the driver resolves the exact input closure) and 128-165 (the build driver, not the VM, owns closure resolution); docs/spec/EXEC_PACKAGE_V1.md:44-52 (entry designation and dependency-closure membership are compiler-owned, bound by digest, trusted via receipt); docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md:26-34 (a digest authenticates bytes; provenance comes from the build path); REWEAVE master 11 (native boundary binds a verdict to toolchain image, candidate, base root, policy, epoch and evidence; it does not reinterpret).
+SPEC_EVIDENCE: rw-080-contract.md:250-274 (S and the construction manifest bind every toolchain entity with provenance; the driver resolves the exact input closure) and 128-165 (the build driver, not the VM, owns closure resolution); docs/spec/EXEC_PACKAGE_V1.md:44-52 (entry designation and dependency-closure membership are compiler-owned, bound by digest, trusted via receipt); docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md:26-34 (a digest authenticates bytes; provenance comes from the build path); the self-hosting plan master 11 (native boundary binds a verdict to toolchain image, candidate, base root, policy, epoch and evidence; it does not reinterpret).
 CURRENT_BEHAVIOR: sley-vm binds the root by value and by digest; the repository and driver layers own the proof that a closure was extracted from that root. Today the only production execution path reads the closure from the revision the root names. The package path is exercised with the fixed evidence root 09*32 in conformance and tests.
-DESIRED_INVARIANT: The layer that extracts a closure from an accepted root is the one that proves it (repository / build driver); the VM verifies bytes and digests only. Holds; the package-path instance of the proof is the RW-080 manifest.
+DESIRED_INVARIANT: The layer that extracts a closure from an accepted root is the one that proves it (repository / build driver); the VM verifies bytes and digests only. Holds; the package-path instance of the proof is the TP-080 manifest.
 DISPOSITION: A_ALREADY_SOLVED
 RATIONALE: Chain-verification of root to closure is deliberately a repository and driver responsibility, already implemented for the production path and already specified for the toolchain path. Moving it into the VM would give native code a semantic answer (closure membership) that the boundary forbids. No new root would change this.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: RW-080 must produce the manifest that binds S's closure to the package (already in its contract)
+SELFHOST_IMPACT: TP-080 must produce the manifest that binds S's closure to the package (already in its contract)
 MIGRATION_REQUIRED: no
-TESTS_REQUIRED: none now; RW-080 owns provenance-audit tests (rw-080-contract.md:300-311)
+TESTS_REQUIRED: none now; TP-080 owns provenance-audit tests (rw-080-contract.md:300-311)
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: sley-repo / sley-protocol (ariadne); RW-080 lane
+CODE_OWNERSHIP: sley-repo / sley-protocol (ariadne); TP-080 lane
 REVIEW_REQUIRED: no
 ```
 
@@ -310,11 +310,11 @@ FINDING_ID: AT-EC-02
 TITLE: Native re-derivation on the package execution path is structural only
 HYPOTHESIS: execute_approved_package_v2 derives semantic information that belongs to the Sley compiler (type environment construction, constant judgment, lowering) instead of consuming the package.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/execute.rs:707-769 (steps: package_digests_v2, verify_package_binding_v2, limits equality, load_image, hydrate_layouts, derive_cache_key, validate_package_inputs_structural, execute_core_package) and 783-810 (structural input checks: count, value_type == register_type, canonical form, value units, hash_validated_value); exec_package.rs:1167-1173 and crates/sley-check/src/lib.rs:267-278 (hydration is count plus duplicate only); crates/sley-ssmc/src/fingerprint.rs:282-307 (value hash is encoding plus BLAKE3, no environment judgment); crates/sley-vm/src/extended.rs:654-699 (constant_ref and global_get resolve through package tables); scripts/check_exec_package_markers.py (pins structural validation function, SLEYPOBS1, hydrate_verified_definitions, and absence of semantic services); execute.rs:612-617 (semantic constructors are not rerun; declared in code).
-SPEC_EVIDENCE: docs/spec/EXEC_PACKAGE_V1.md:54-72 (native allowed and forbidden operations); docs/spec/EXEC_PACKAGE_V2.md:68-73 (hydration unchanged); conformance/exec-package/v2/exec-package.json `hydration.allows` and `hydration.forbids`; machineresearch/sley-2.0/reweave/rw-070.md:25-28 (value_hash, cache-key and observation derivation are inventoried host runtime mechanics); REWEAVE master 10.3 (native remainder: bounded execution, allocation, resource accounting, primitive hashing, structural memory-safety validation).
+SPEC_EVIDENCE: docs/spec/EXEC_PACKAGE_V1.md:54-72 (native allowed and forbidden operations); docs/spec/EXEC_PACKAGE_V2.md:68-73 (hydration unchanged); conformance/exec-package/v2/exec-package.json `hydration.allows` and `hydration.forbids`; machineresearch/sley-2.0/reweave/rw-070.md:25-28 (value_hash, cache-key and observation derivation are inventoried host runtime mechanics); the self-hosting plan master 10.3 (native remainder: bounded execution, allocation, resource accounting, primitive hashing, structural memory-safety validation).
 CURRENT_BEHAVIOR: The execute path performs digest verification, framing decode, exact-equality binding, count and duplicate hydration, structural type equality, canonical-form codec checks, value hashing for evidence, and bounded execution. No TypeEnvironment::new, check_constant, require_hashable, lower_function or judge_bootstrap_profile call exists on it.
 DESIRED_INVARIANT: The native executor validates and consumes a compiler-produced package and never produces a language verdict. Holds.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: Every re-derived quantity on the execute path is a byte, digest, count, equality or resource fact; the value hash of runtime inputs is an execution-evidence mechanic that REWEAVE 10.3 assigns to the native remainder and RW-070 inventoried.
+RATIONALE: Every re-derived quantity on the execute path is a byte, digest, count, equality or resource fact; the value hash of runtime inputs is an execution-evidence mechanic that the self-hosting plan 10.3 assigns to the native remainder and TP-070 inventoried.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -331,19 +331,19 @@ FINDING_ID: AT-EC-03
 TITLE: admit_v2_package's reference re-lowering and profile judgment are native semantic authority, declared as C0 seed
 HYPOTHESIS: The reference re-lower derived internally in admit_v2_package is a hidden native semantic authority that decides builder faithfulness and profile membership per package, contradicting the Sley-owned lowering requirement.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/admission_authority.rs:1-47 (module declares C0 seed path, permanent mechanics, reserved Sley ingress, exclusivity), 157-177 (admit_v2_package: judge, re-lower, structural compare, mint), 182-204 (judge_closure_for_seed calls judge_bootstrap_profile), 210-230 (reference_lower_for_seed calls lower_function), 243-245 (receipt refused unless reference bytes equal package bytes), 294-325 (SleyAdmissionEvidence sealed with no constructor; ingress always refuses SleyEvidenceUnavailable); exec_package.rs:953-959 (admit_package_v2 is pub(crate), exclusive minter); scripts/check_exec_package_markers.py (only exec_package.rs and admission_authority.rs may name the minter; execution, raw-hash, host-ABI and bridge modules carry no gate or lowerer calls); crates/sley-protocol/src/server.rs:2011-2070 (production SMP1 execute still lowers natively from the revision).
-SPEC_EVIDENCE: rw-080-contract.md:142-165 (1.4: C0 seed performs judgment plus reference re-lowering as oracle evidence, excluded from clean stages; post-C1 the Sley driver replicates the comparison and admission mints only from Sley evidence) and 227-235 (1.6 admission ingress); rw-075-correction.md:315-324 and 414-426 (premium AR-07 raised exactly this and the split was the accepted repair); docs/spec/EXEC_PACKAGE_V1.md:95-99 and 113-116 (builder faithfulness verified by the authority's reference re-lowering; retired by RW-130/RW-140 fixed-point evidence); REWEAVE master 5 (lines 192-213: before promotion the Rust reference owns active checking and lowering; after promotion the approved Sley toolchain owns them) and 10.2 items 2, 4, 5 (checking, lowering and the build driver must execute as Sley programs at SH2); SLEY-2.0-ARCHITECTURE-TIGHTENING.md 6 (each native SEMANTIC_AUTHORITY receives REQUIRED_NATIVE_FOUNDATION with proof or MUST_MIGRATE_TO_SLEY before final freeze) and 2.1 (candidate code may not redefine the judge).
+SPEC_EVIDENCE: rw-080-contract.md:142-165 (1.4: C0 seed performs judgment plus reference re-lowering as oracle evidence, excluded from clean stages; post-C1 the Sley driver replicates the comparison and admission mints only from Sley evidence) and 227-235 (1.6 admission ingress); rw-075-correction.md:315-324 and 414-426 (premium AR-07 raised exactly this and the split was the accepted repair); docs/spec/EXEC_PACKAGE_V1.md:95-99 and 113-116 (builder faithfulness verified by the authority's reference re-lowering; retired by TP-130/TP-140 fixed-point evidence); the self-hosting plan master 5 (lines 192-213: before promotion the Rust reference owns active checking and lowering; after promotion the approved Sley toolchain owns them) and 10.2 items 2, 4, 5 (checking, lowering and the build driver must execute as Sley programs at SH2); SLEY-2.0-ARCHITECTURE-TIGHTENING.md 6 (each native SEMANTIC_AUTHORITY receives REQUIRED_NATIVE_FOUNDATION with proof or MUST_MIGRATE_TO_SLEY before final freeze) and 2.1 (candidate code may not redefine the judge).
 CURRENT_BEHAVIOR: Two native semantic legs (gate judgment and reference lowering) decide whether a v2 receipt is minted. They are confined to one module, named as seed evidence, excluded from clean stages by contract, marker-pinned, and paired with a reserved post-C1 ingress that cannot mint. Nothing on the execution path re-lowers. The premium reviewer's AR-07 finding on this exact point was repaired by the declaration and split; the residual is the migration itself, which requires C1 to exist.
 DESIRED_INVARIANT: Native code may act as an oracle before promotion; after C1 the admission verdict derives only from Sley-produced evidence, and native code performs authenticated structural checks. Specified; not yet reachable because C1 does not exist.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The authority is not hidden and is not conflated with execution: repository truth already classifies it as MUST_MIGRATE_TO_SLEY in substance (C0 seed, excluded from clean stages, post-C1 ingress reserved) and REWEAVE 5 explicitly permits native ownership before promotion. Its retirement is a REWEAVE gate (RW-080 through RW-140, SH2), not a pre-freeze architecture repair. The section 6 audit should record this operation as SEMANTIC_AUTHORITY / MUST_MIGRATE_TO_SLEY with the RW-080 contract as the migration proof, and the same classification applies to the SMP1 execute path's native TypeEnvironment::new plus execute_function.
+RATIONALE: The authority is not hidden and is not conflated with execution: repository truth already classifies it as MUST_MIGRATE_TO_SLEY in substance (C0 seed, excluded from clean stages, post-C1 ingress reserved) and the self-hosting plan 5 explicitly permits native ownership before promotion. Its retirement is a self-hosting plan gate (TP-080 through TP-140, SH2), not a pre-freeze architecture repair. The section 6 audit should record this operation as SEMANTIC_AUTHORITY / MUST_MIGRATE_TO_SLEY with the TP-080 contract as the migration proof, and the same classification applies to the SMP1 execute path's native TypeEnvironment::new plus execute_function.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: the SH2 claim depends on completing this migration; AT-G3 and AT-G6 must cite RW-080 1.4 as the boundary proof rather than treating the seed path as foundation
-MIGRATION_REQUIRED: yes, already scheduled (RW-080/RW-120 post-C1 ingress); no new migration introduced by this audit
+SELFHOST_IMPACT: the SH2 claim depends on completing this migration; AT-G3 and AT-G6 must cite TP-080 1.4 as the boundary proof rather than treating the seed path as foundation
+MIGRATION_REQUIRED: yes, already scheduled (TP-080/TP-120 post-C1 ingress); no new migration introduced by this audit
 TESTS_REQUIRED: none new now; admission_authority unit pins (2/2) and rw075_raw_callable authority negatives already exist
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: sley-vm admission_authority (ariadne); RW-080 lane
+CODE_OWNERSHIP: sley-vm admission_authority (ariadne); TP-080 lane
 REVIEW_REQUIRED: independent review already recorded (Nabu rounds 7-11 PASS, premium delta r1 FAIL repaired per rw-075-correction.md 12-13; fresh premium round pending per that record)
 ```
 
@@ -392,14 +392,14 @@ REVIEW_REQUIRED: no
 
 ```text
 FINDING_ID: AT-EC-06
-TITLE: Reserved SleyAdmissionEvidence fields are narrower than the evidence RW-080 1.6 names
-HYPOTHESIS: The reserved post-C1 ingress type omits closure fingerprints and per-table digests that the RW-080 contract and the type's own doc comment list, so the ingress will not be able to carry complete admission evidence when C1 exists.
+TITLE: Reserved SleyAdmissionEvidence fields are narrower than the evidence TP-080 1.6 names
+HYPOTHESIS: The reserved post-C1 ingress type omits closure fingerprints and per-table digests that the TP-080 contract and the type's own doc comment list, so the ingress will not be able to carry complete admission evidence when C1 exists.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/admission_authority.rs:279-288 (doc lists judged closure identity, gate claims, reference-image digest and complete table digests for constants, type definitions, import rows, globals, contracts) versus 294-305 (fields: closure_digest, operation_count, bridge_uses, image_digest only); 320-325 (ingress always refuses; no constructor; sealed non_exhaustive).
 SPEC_EVIDENCE: rw-080-contract.md:227-235 (1.6: Sley-built evidence bytes conforming to the reserved shape: judged-closure digest, gate counts, reference-image digest, complete table digests); rw-075-correction.md:414-426 (AR-07 repair introduced the reservation as an interface, not a minting path).
 CURRENT_BEHAVIOR: The type is unconstructible outside its module and the route refuses unconditionally, so the field gap has no runtime effect. The struct is non_exhaustive, so adding fields later is non-breaking.
 DESIRED_INVARIANT: When the post-C1 ingress is implemented, its evidence shape carries every claim the structural authenticator compares (closure fingerprints, table digests, entry, epoch, root, image digest, counts).
 DISPOSITION: E_DEFER_2_1_PLUS
-RATIONALE: Not required for correct Sley 2.0: nothing can construct or consume the type until C1 exists, and the eventual field list is settled by the RW-080 implementation slice that also produces the evidence. Record so that slice aligns the fields with 1.6 and the doc comment; no change now.
+RATIONALE: Not required for correct Sley 2.0: nothing can construct or consume the type until C1 exists, and the eventual field list is settled by the TP-080 implementation slice that also produces the evidence. Record so that slice aligns the fields with 1.6 and the doc comment; no change now.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -407,7 +407,7 @@ SELFHOST_IMPACT: post-C1 ingress implementation must include the missing fields
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now
 SPECS_TO_UPDATE: none now (rw-080-contract.md 1.6 already states the full list)
-CODE_OWNERSHIP: sley-vm admission_authority (ariadne); RW-080 lane
+CODE_OWNERSHIP: sley-vm admission_authority (ariadne); TP-080 lane
 REVIEW_REQUIRED: no
 ```
 
@@ -416,25 +416,25 @@ REVIEW_REQUIRED: no
 ```text
 FINDING_ID: AT-EC-07
 TITLE: EXEC_PACKAGE_V2 has no canonical byte envelope encoder or strict decoder; packages reach the executor only as in-process structs
-HYPOTHESIS: The native executor cannot yet consume a compiler-produced package delivered as bytes, which RW-080 requires of the Sley builder and host loader.
+HYPOTHESIS: The native executor cannot yet consume a compiler-produced package delivered as bytes, which TP-080 requires of the Sley builder and host loader.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/exec_package.rs:84 (EXEC_PACKAGE_MAGIC used only inside digest preimages at :837 and :897); no decode_package/load_package/encode_package in crates/sley-vm; execute.rs:707-711 takes &ExecutionPackage; tests/rw075_exec_closure.rs:115-155 build packages as structs; conformance/exec-package/v2/exec-package.json `envelope.sections` names five sections with per-section encodings but no header layout or length-prefix rule.
-SPEC_EVIDENCE: rw-080-contract.md:98-102 and 221-226 (Sley lowerer/builder emits exact EXEC_PACKAGE_V2 envelope bytes; emitted bytes round-trip through load_image and reproduce byte-identically); docs/spec/EXEC_PACKAGE_V2.md:35-40; SLEY-2.0-ARCHITECTURE-TIGHTENING.md 5 (executor validates and consumes a complete compiler-produced package) and 1 (do not interrupt an in-flight REWEAVE slice).
+SPEC_EVIDENCE: rw-080-contract.md:98-102 and 221-226 (Sley lowerer/builder emits exact EXEC_PACKAGE_V2 envelope bytes; emitted bytes round-trip through load_image and reproduce byte-identically); docs/spec/EXEC_PACKAGE_V2.md:35-40; SLEY-2.0-ARCHITECTURE-TIGHTENING.md 5 (executor validates and consumes a complete compiler-produced package) and 1 (do not interrupt an in-flight the self-hosting plan slice).
 CURRENT_BEHAVIOR: Section encodings and their digests are frozen and implemented; the single serialized envelope has no frozen byte layout and no codec. Every 2.0 execution path (SMP1 execute, package execute) constructs the package in-process, so no 2.0 behavior depends on envelope bytes.
 DESIRED_INVARIANT: When the Sley builder exists, one frozen envelope byte layout with a strict host decoder (using the reserved PACKAGE_* framing codes) round-trips packages byte-identically without changing package_digest.
 DISPOSITION: E_DEFER_2_1_PLUS
-RATIONALE: Not required for correct Sley 2.0: the 2.0 executor consumes structs and the byte handoff exists only to serve the SH2 builder, whose target is the REWEAVE 2.1.0 candidate. The emitter and the decoder are the RW-080 lane's owned deliverable (1.3 and 1.6); freezing a layout here, ahead of the emitter and without vectors on both sides, would create the second independently maintained preimage definition that spec section 7 forbids. Recorded so the lane freezes the layout together with the emitter, the decoder, positive and refusal vectors for each reserved code, and an independent reproduction.
+RATIONALE: Not required for correct Sley 2.0: the 2.0 executor consumes structs and the byte handoff exists only to serve the SH2 builder, whose target is the self-hosting plan 2.1.0 candidate. The emitter and the decoder are the TP-080 lane's owned deliverable (1.3 and 1.6); freezing a layout here, ahead of the emitter and without vectors on both sides, would create the second independently maintained preimage definition that spec section 7 forbids. Recorded so the lane freezes the layout together with the emitter, the decoder, positive and refusal vectors for each reserved code, and an independent reproduction.
 CANONICAL_IMPACT: none now; the lane adds a frozen envelope layout without touching package_digest
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: the RW-080 byte handoff depends on it (already in that contract)
+SELFHOST_IMPACT: the TP-080 byte handoff depends on it (already in that contract)
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now; lane: round trip, refusal fixtures per reserved code, digest reproduction, independent Python reproduction, marker pin
 SPECS_TO_UPDATE: none now; lane: EXEC_PACKAGE_V2.md envelope layout section plus record
-CODE_OWNERSHIP: RW-080 lane (sley-vm exec_package)
+CODE_OWNERSHIP: TP-080 lane (sley-vm exec_package)
 REVIEW_REQUIRED: lane review (Ariadne contract, Vulcan surface)
 ```
 
-RW-080 construction update (2026-09-17): a provisional raw-section envelope
+TP-080 construction update (2026-09-17): a provisional raw-section envelope
 emitter/strict decoder, candidate vector, refusal tests, independent Python
 reproduction, and marker pin now exist. The header reuses the package-digest
 preimage exactly. Bounded structural decoders now hydrate all four non-image
@@ -454,7 +454,7 @@ design, master section 6.5); policy root and capability token have native
 vectors only; the test-report contract has no corpus with the reason machine
 guarded. Witnessed Authority is not part of the active architecture at this
 commit (no type, crate, domain, or corpus; host-boundary.json records "WA
-inactive"), so section 12 is scope-only until RW-150.
+inactive"), so section 12 is scope-only until TP-150.
 
 
 ```text
@@ -462,18 +462,18 @@ FINDING_ID: AT-CL-01
 TITLE: No independent-implementation conformance strata; primary all-or-nothing is deliberate
 HYPOTHESIS: Sley conformance is unnecessarily all-or-nothing, so an independent implementation cannot make a bounded claim.
 REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:22-35 (mapping only, no prerequisite column); docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:186-208 (depth axis, the only conformance-claim stratification); docs/spec/SMP1.md:106-160 (selected profile: the only runtime partial-capability mechanism); ARCHITECTURE.md:18-33 and crates/*/Cargo.toml (layer prerequisites: sley-policy -> sley-vm, sley-query -> sley-state-root without txn); docs/WORK_PACKAGES.md:18-55 (package DAG); docs/adr/ADR-0044-candidate-operation-analysis-through-the-vm-owner.md:1-3; machineresearch/sley-2.0/reviews/s20-770-{ariadne,nabu,vulcan}-*-2026-09-04.log (index under three FAIL reviews, P1s open); evidence/conformance/independent-conformance-report.json (24 families, 4 semantic, 20 codec_and_identity, 0 native_only)
-SPEC_EVIDENCE: Sley2.0mastergoal.md:846-853 (6.5: oracle is for conformance only, not a second kernel); :3169-3190 (27: primary decision states are all-or-nothing); :465-468 (3.9: independent implementations can validate); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:281-290 (SH0..SH3 claim ladder), :754-770 (24.1), :125 (OVR-14 restricted results remain restricted); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 10 ("primarily an interoperability/documentation improvement")
+SPEC_EVIDENCE: Sley2.0mastergoal.md:846-853 (6.5: oracle is for conformance only, not a second kernel); :3169-3190 (27: primary decision states are all-or-nothing); :465-468 (3.9: independent implementations can validate); SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:281-290 (SH0..SH3 claim ladder), :754-770 (24.1), :125 (OVR-14 restricted results remain restricted); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 10 ("primarily an interoperability/documentation improvement")
 CURRENT_BEHAVIOR: The primary implementation's claim is all-or-nothing by master goal 27. Independent checking is stratified only by per-family depth. No document defines what a third implementation may claim, and no third implementation exists. The index maps names to artifacts but carries no ordering.
 DESIRED_INVARIANT: Lower layers have exact prerequisites; no unsupported higher-layer claim; partial conformance never weakens canonical semantics; the primary still satisfies the full target.
 DISPOSITION: E_DEFER_2_1_PLUS
-RATIONALE: No consumer of a strata vocabulary exists at 2.0 and none is a GA criterion (master 16.7, 26, 27). The raw material for exact prerequisites already exists and is machine-enforced (Cargo graph, package DAG, depth axis), so the future document is a derivation, not a design. Adding a prerequisite column to the S20-770 index now would widen an artifact under open P1 re-review. The strata table in section 2.2 of this audit is the recorded recommendation, with the repository-truth corrections: L3 requires L2 (ADR-0044), L4 query does not require L3 transaction, L6 is not definable until RW-150, L7 is already stratified as SH0..SH3.
+RATIONALE: No consumer of a strata vocabulary exists at 2.0 and none is a GA criterion (master 16.7, 26, 27). The raw material for exact prerequisites already exists and is machine-enforced (Cargo graph, package DAG, depth axis), so the future document is a derivation, not a design. Adding a prerequisite column to the WP-770 index now would widen an artifact under open P1 re-review. The strata table in section 2.2 of this audit is the recorded recommendation, with the repository-truth corrections: L3 requires L2 (ADR-0044), L4 query does not require L3 transaction, L6 is not definable until TP-150, L7 is already stratified as SH0..SH3.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
 SELFHOST_IMPACT: none; SH claim ladder already exists and is the L7 stratum
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now; a future strata document would need a checker deriving prerequisites from Cargo.toml and the package DAG so the table cannot drift
-SPECS_TO_UPDATE: none now; future: a CONFORMANCE_STRATA document indexed from REQUIRED_CONTRACT_INDEX_V1.md after S20-770 re-review closes
+SPECS_TO_UPDATE: none now; future: a CONFORMANCE_STRATA document indexed from REQUIRED_CONTRACT_INDEX_V1.md after WP-770 re-review closes
 CODE_OWNERSHIP: Ariadne (contract), Codex (oracle and evidence tooling)
 REVIEW_REQUIRED: none now
 ```
@@ -487,7 +487,7 @@ SPEC_EVIDENCE: docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:9-11 
 CURRENT_BEHAVIOR: The summary understates independent coverage by five families while the result string matches. The count was last set at 7579d34 (2026-09-03); the five families added since (git first-add dates, all 2026-09-06) are bootstrap-capability, bootstrap-profile, exec-package, host-abi, and raw-hash. `make quick` passes with the drift present.
 DESIRED_INVARIANT: The machine summary's conformance counts and result equal the tracked report's, and the staged checker fails on disagreement.
 DISPOSITION: B_ADDITIVE_NOW
-RATIONALE: Demonstrated machine-surface drift on the exact surface a downstream consumer reads to learn what independent checking covers (the same class of defect Vulcan's S20-770 P1 raised for the index). The fix is bounded: update three summary fields and add a count-and-result comparison to the staged checker, plus the stale docstring in check_oracle_independence.py. No canonical, schema, or ABI meaning changes.
+RATIONALE: Demonstrated machine-surface drift on the exact surface a downstream consumer reads to learn what independent checking covers (the same class of defect Vulcan's WP-770 P1 raised for the index). The fix is bounded: update three summary fields and add a count-and-result comparison to the staged checker, plus the stale docstring in check_oracle_independence.py. No canonical, schema, or ABI meaning changes.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -495,7 +495,7 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: scripts/check_reproducibility_and_independent_conformance.py compares summary fixture_directories, independently_checked_families, native_only_families, and independent_conformance_result against the tracked report and fails with CONFORMANCE_REPORT_DRIFT (73007) on mismatch; a negative case with a perturbed summary
 SPECS_TO_UPDATE: docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md section 8 (add the summary-agreement rule to the staged checker's list); machineresearch/sley-2.0/machine-summary.json; scripts/check_oracle_independence.py docstring
-CODE_OWNERSHIP: Codex (S20-730 evidence tooling) per docs/WORK_PACKAGES.md S20-730 row
+CODE_OWNERSHIP: Codex (WP-730 evidence tooling) per docs/WORK_PACKAGES.md WP-730 row
 REVIEW_REQUIRED: Vulcan surface review of the checker delta (Tier 1 targeted); no Council contract re-review needed because the contract rule set gains one clause and no code
 IMPLEMENTATION (slice 3): machine-summary.json counts set to the report's 24/24; check_reproducibility_and_independent_conformance.py now fails closed on any mismatch between the summary section and the report for fixture_directories, independently_checked_families, native_only_families and independent_conformance_result (fail-before reproduced on the stale 19s: two report-mismatch problems; none after); stale hard-coded family counts removed from two script docstrings. The checker's two remaining problems (reproducibility-report stale since 84bfa9c9, release-tests:fail) exist unchanged at the baseline and are triaged in section 3.3.1.
 ```
@@ -504,12 +504,12 @@ IMPLEMENTATION (slice 3): machine-summary.json counts set to the report's 24/24;
 FINDING_ID: AT-CL-03
 TITLE: COMPLETE independent coverage is scoped to fixture families, and the three uncovered required contracts are already disclosed
 HYPOTHESIS: INDEPENDENT_CONFORMANCE_COMPLETE could be read as "all twelve required contracts are independently checked" while 17.7, 17.8, and 17.10 are not.
-REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:30-31 ("native vectors in `crates/sley-policy`" for sley-policy-v1 and sley-capability-token-v1), :33 (sley-test-report-v1: no corpus, reason stated), :44-48 (reason must be checkable; the S20-290 checker fails if the VM gains the four resource units); conformance/ directory listing (no policy, capability, or test-report family); evidence/conformance/independent-conformance-report.json (24 families, none of them policy or capability)
+REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:30-31 ("native vectors in `crates/sley-policy`" for sley-policy-v1 and sley-capability-token-v1), :33 (sley-test-report-v1: no corpus, reason stated), :44-48 (reason must be checkable; the WP-290 checker fails if the VM gains the four resource units); conformance/ directory listing (no policy, capability, or test-report family); evidence/conformance/independent-conformance-report.json (24 families, none of them policy or capability)
 SPEC_EVIDENCE: docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:150-151 (every directory under conformance/ is a family), :160-166 (COMPLETE means no family is native-only; does not promise semantic judgment), :288-292 (why COMPLETE keeps its rule); Sley2.0mastergoal.md:846-853 (6.5 requires two independent SCB1 encoders/decoders, nothing wider)
 CURRENT_BEHAVIOR: The report's claim boundary is families; the index's corpus column names the native-only status and the missing-corpus reason for the three contracts. Both are honest and machine-checked in their own terms.
 DESIRED_INVARIANT: A reader can determine, from tracked artifacts, which required contracts have independent checking and at what depth, without inferring more from COMPLETE than it states.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The index discloses the three gaps with reasons (rule 3, :44-48), the S20-730 contract scopes COMPLETE to families and records the depth limit, and master goal 6.5 does not require independent checking of policy, capability, or test reports. The cross-reference table in section 1 of this audit is derivable from tracked files. Making the index carry a coverage column belongs with the deferred strata document (AT-CL-01), not with a pre-freeze change.
+RATIONALE: The index discloses the three gaps with reasons (rule 3, :44-48), the WP-730 contract scopes COMPLETE to families and records the depth limit, and master goal 6.5 does not require independent checking of policy, capability, or test reports. The cross-reference table in section 1 of this audit is derivable from tracked files. Making the index carry a coverage column belongs with the deferred strata document (AT-CL-01), not with a pre-freeze change.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -526,8 +526,8 @@ FINDING_ID: AT-BG-01
 TITLE: MPI-0 and its corollaries are mechanism-neutral and protect the deeper invariant
 HYPOTHESIS: BLACKGLASS wording accidentally elevates SSMC1, SCB1, or SMP1 (replaceable, versioned mechanisms) above the machine-primacy invariant.
 REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/rw-030-charter.md:10-27 (MPI-0 control map; carriers are CONTRIBUTING.md C-01 and docs/ANTI_GOALS.md C-02); docs/spec/SCHEMA_EPOCH_V1.md and docs/spec/EPOCH_MIGRATION_POLICY_V1.md (mechanism replacement path exists as epochs)
-SPEC_EVIDENCE: Sley2.0.1mastergoal.md:94-95 (MPI-0 text, no mechanism named); :136-146 (3.2 no canonical source, mechanism-neutral); :158-160 (3.4 states precision, determinism, speed, token cost as the invariant's terms); :164-176 (3.5 no intentional ugliness); :791-793 (19: immature contracts may be broken; stable ones migrate; stability is no excuse for source-centric assumptions); :800-818 (20: implementation source is not Sley source); :857-865 (22: provider-specific encodings are adapters); :1229 (final directive names SSMC1/SCB1/SMP1 as preserved by that campaign); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:194 (unversioned SSMC/SCB/SMP statement); Sley2.0mastergoal.md:359-395 (3.1 invariant before 3.3 mechanism)
-CURRENT_BEHAVIOR: Every constitutional clause states the invariant in terms of machine sufficiency, precision, determinism, and efficiency; mechanisms are named as the current epoch's carriers and are replaceable by explicit migration (BG 19, REWEAVE 14.3, tightening 2.2). The prohibition on canonical human-readable text is intact in BG 3.2, master 3.2, ANTI_GOALS.md:16, and CONTRIBUTING.md:36-39.
+SPEC_EVIDENCE: Sley2.0.1mastergoal.md:94-95 (MPI-0 text, no mechanism named); :136-146 (3.2 no canonical source, mechanism-neutral); :158-160 (3.4 states precision, determinism, speed, token cost as the invariant's terms); :164-176 (3.5 no intentional ugliness); :791-793 (19: immature contracts may be broken; stable ones migrate; stability is no excuse for source-centric assumptions); :800-818 (20: implementation source is not Sley source); :857-865 (22: provider-specific encodings are adapters); :1229 (final directive names SSMC1/SCB1/SMP1 as preserved by that campaign); SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:194 (unversioned SSMC/SCB/SMP statement); Sley2.0mastergoal.md:359-395 (3.1 invariant before 3.3 mechanism)
+CURRENT_BEHAVIOR: Every constitutional clause states the invariant in terms of machine sufficiency, precision, determinism, and efficiency; mechanisms are named as the current epoch's carriers and are replaceable by explicit migration (BG 19, the self-hosting plan 14.3, tightening 2.2). The prohibition on canonical human-readable text is intact in BG 3.2, master 3.2, ANTI_GOALS.md:16, and CONTRIBUTING.md:36-39.
 DESIRED_INVARIANT: Sley is optimized for machine semantic precision, correctness, generation efficiency, verification efficiency, and interoperability; human-oriented source conventions must not constrain canonical architecture; no replaceable mechanism is constitutional above that.
 DISPOSITION: A_ALREADY_SOLVED
 RATIONALE: No clause found that would forbid a v2 encoding epoch on constitutional grounds, and none that weakens the text prohibition. Section 3 of this audit quotes each clause with its verdict. Tightening section 11 default applies.
@@ -565,22 +565,22 @@ REVIEW_REQUIRED: none
 
 ```text
 FINDING_ID: AT-BG-03
-TITLE: BLACKGLASS in-repo artifacts (MACHINE_PRIMACY.md, manifest, gate) are absent by REWEAVE design, not by wording defect
+TITLE: BLACKGLASS in-repo artifacts (MACHINE_PRIMACY.md, manifest, gate) are absent by the self-hosting plan design, not by wording defect
 HYPOTHESIS: BLACKGLASS section 7 and 10 require MACHINE_PRIMACY.md, a Machine Primacy Manifest, and a Machine Primacy Gate before any SSMC1/SCB1/SMP1 contract is declared Beta or GA; none exists in the repository.
-REPOSITORY_EVIDENCE: docs/MACHINE_PRIMACY.md does not exist; no "MPI-0" or "machine primacy" string in README.md, ARCHITECTURE.md, CONTRIBUTING.md, SECURITY.md, docs/*.md, or docs/adr/*.md except docs/adr/ADR-0049-reweave-scope-adoption.md; machineresearch/sley-2.0/reweave/rw-030-charter.md:1-27 (RW-030 "MPI-0 controls + host-boundary" charter; control map with enforcement, review lane, and later lifecycle evidence per control; carriers CONTRIBUTING.md C-01 and docs/ANTI_GOALS.md C-02 at adoption 3fc2275); docs/ANTI_GOALS.md:21 (human readability optimization row, REVIEW_ONLY)
-SPEC_EVIDENCE: Sley2.0.1mastergoal.md:49 (apply before Beta/GA), :334-373 (manifest), :429-455 (gate), :981-985 (BG-010, BG-050); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:112 (OVR-05: "Adopt applicable machine-primacy controls during reconciliation, complete dependent suites when the lifecycle exists"), :131 (BG's constitution, counterfactual, dependency firewall, and lifecycle suites are incorporated), :596 (RW-030), :614 (RW-210 "Full source-free and machine-primacy demonstrations: MG/BG/WA end-to-end coverage")
-CURRENT_BEHAVIOR: The newer authority (REWEAVE) explicitly re-times BLACKGLASS's suites to the lifecycle and RW-030 has recorded the control map with real enforcement for the mechanical rows and named review lanes for the prose rows. The constitution text itself is carried by CONTRIBUTING.md and ANTI_GOALS.md.
+REPOSITORY_EVIDENCE: docs/MACHINE_PRIMACY.md does not exist; no "MPI-0" or "machine primacy" string in README.md, ARCHITECTURE.md, CONTRIBUTING.md, SECURITY.md, docs/*.md, or docs/adr/*.md except docs/adr/ADR-0049-reweave-scope-adoption.md; machineresearch/sley-2.0/reweave/rw-030-charter.md:1-27 (TP-030 "MPI-0 controls + host-boundary" charter; control map with enforcement, review lane, and later lifecycle evidence per control; carriers CONTRIBUTING.md C-01 and docs/ANTI_GOALS.md C-02 at adoption 3fc2275); docs/ANTI_GOALS.md:21 (human readability optimization row, REVIEW_ONLY)
+SPEC_EVIDENCE: Sley2.0.1mastergoal.md:49 (apply before Beta/GA), :334-373 (manifest), :429-455 (gate), :981-985 (BG-010, BG-050); SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:112 (OVR-05: "Adopt applicable machine-primacy controls during reconciliation, complete dependent suites when the lifecycle exists"), :131 (BG's constitution, counterfactual, dependency firewall, and lifecycle suites are incorporated), :596 (TP-030), :614 (TP-210 "Full source-free and machine-primacy demonstrations: MG/BG/WA end-to-end coverage")
+CURRENT_BEHAVIOR: The newer authority (the self-hosting plan) explicitly re-times BLACKGLASS's suites to the lifecycle and TP-030 has recorded the control map with real enforcement for the mechanical rows and named review lanes for the prose rows. The constitution text itself is carried by CONTRIBUTING.md and ANTI_GOALS.md.
 DESIRED_INVARIANT: MPI-0 is enforced through machine-readable policy, architecture tests, dependency rules, conformance fixtures, benchmark gates, and contribution requirements (BG section 2) by the time the integrated candidate is qualified.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: This is a scheduling fact governed by REWEAVE OVR-05 and RW-030/RW-210, already recorded and reviewed (ADR-0049 review PASS transcripts named at docs/adr/ADR-0049-reweave-scope-adoption.md:4-6). It is not a wording defect in any constitutional clause and tightening section 11 authorizes no BLACKGLASS implementation work. Nothing to change in this pass.
+RATIONALE: This is a scheduling fact governed by the self-hosting plan OVR-05 and TP-030/TP-210, already recorded and reviewed (ADR-0049 review PASS transcripts named at docs/adr/ADR-0049-reweave-scope-adoption.md:4-6). It is not a wording defect in any constitutional clause and tightening section 11 authorizes no BLACKGLASS implementation work. Nothing to change in this pass.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
 SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
-TESTS_REQUIRED: none in this pass; RW-210 owns the BG lifecycle suites
+TESTS_REQUIRED: none in this pass; TP-210 owns the BG lifecycle suites
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: RW-030 (Nabu/Ariadne review lane per the charter), RW-210
+CODE_OWNERSHIP: TP-030 (Nabu/Ariadne review lane per the charter), TP-210
 REVIEW_REQUIRED: none in this pass
 ```
 
@@ -589,20 +589,20 @@ FINDING_ID: AT-WB-01
 TITLE: Witnessed Authority is not part of the active canonical architecture; audit is scope-only
 HYPOTHESIS: Witnessed Authority may already be present in crates, specs, or conformance, in which case its boundary must be audited.
 REPOSITORY_EVIDENCE: zero `Witness<` occurrences in crates/ (excluding target/); eighteen workspace crates, none for Witness; all "witness" hits are the GC store-root witness (docs/spec/GARBAGE_COLLECTION_V1.md:114, crates/sley-txn/src/repository.rs:4932-4940, docs/adr/ADR-0023-crash-recovery-boundary.md:445-460) or native denials (crates/sley-vm/src/host_abi.rs:11, crates/sley-vm/tests/rw070_host_abi_freeze.rs:816-817); host-boundary.json:178-179 ("WA inactive; no unimplemented Witness semantics may be claimed protective", status later-qualified); docs/spec/BOOTSTRAP_PROFILE_1.md:20 and :26-28 (Witness analysis and the WITNESS release surface are later, strict-superset surfaces); docs/spec/IDENTIFIERS_V1.md:21-70 (no witness, discharge, origin, or proposal-integrity domain); conformance/ (no such family); docs/adr/ADR-0049-reweave-scope-adoption.md:72-73
-SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:489-541 (section 16 incorporates the amended 2.1 WA master as the future contract), :533-541 (16.7: Witness lands inside the Sley toolchain closure after SH2; "After WA changes land, repeat ..."), :575 (phase R4), :608-613 (RW-150, RW-170, RW-180, RW-190, RW-200); SLEY-2.1-WITNESS-MASTER-SPEC.md (2.1 scope, headers only); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 12 ("If Witnessed Authority is already part of the active Sley 2.0 canonical architecture, audit ...")
+SPEC_EVIDENCE: SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:489-541 (section 16 incorporates the amended 2.1 WA master as the future contract), :533-541 (16.7: Witness lands inside the Sley toolchain closure after SH2; "After WA changes land, repeat ..."), :575 (phase R4), :608-613 (TP-150, TP-170, TP-180, TP-190, TP-200); SLEY-2.1-WITNESS-MASTER-SPEC.md (2.1 scope, headers only); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 12 ("If Witnessed Authority is already part of the active Sley 2.0 canonical architecture, audit ...")
 CURRENT_BEHAVIOR: No proposal type, origin representation, control-dependence rule, join/loop/function-boundary rule, persistence, promotion or discharge rule, authority sink, or verifier contract exists for Witness at this commit. The ten section-12 boundary questions have no code to bind to.
-DESIRED_INVARIANT: The Witness boundary is audited against frozen contracts and code when they exist (RW-150 onward), with the minimum semantics necessary for exact proposal, provenance, and promotion enforcement.
+DESIRED_INVARIANT: The Witness boundary is audited against frozen contracts and code when they exist (TP-150 onward), with the minimum semantics necessary for exact proposal, provenance, and promotion enforcement.
 DISPOSITION: E_DEFER_2_1_PLUS
-RATIONALE: The audit's own precondition is unmet. Recording scope-only with the evidence above so the next pass can start from RW-150's frozen contracts instead of re-establishing absence.
+RATIONALE: The audit's own precondition is unmet. Recording scope-only with the evidence above so the next pass can start from TP-150's frozen contracts instead of re-establishing absence.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: none now; REWEAVE 16.7 requires re-proving SH2 after Witness lands
+SELFHOST_IMPACT: none now; the self-hosting plan 16.7 requires re-proving SH2 after Witness lands
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now
 SPECS_TO_UPDATE: none now
-CODE_OWNERSHIP: RW-150 (contracts), RW-170/RW-180 (Sley checker and discharge)
-REVIEW_REQUIRED: none now; a full boundary audit at RW-150 freeze
+CODE_OWNERSHIP: TP-150 (contracts), TP-170/TP-180 (Sley checker and discharge)
+REVIEW_REQUIRED: none now; a full boundary audit at TP-150 freeze
 ```
 
 ```text
@@ -610,11 +610,11 @@ FINDING_ID: AT-WB-02
 TITLE: Native discharge and Witness-trust judgment are already denied ahead of Witness landing
 HYPOTHESIS: The pre-Witness architecture might leave a native path that could later become a hidden discharge or trust authority.
 REPOSITORY_EVIDENCE: host-boundary.json:25-26 (native may not "typecheck, lower, validate programs, or discharge" nor "assemble compiler images or judge Witness trust"), :35 ("no imported discharge service decides promotion; the Sley semantic implementation of approved deterministic discharge profiles owns the judgment"), :45-46 (compiler-service ban and giant-opcode ban naming "compute Witness trust"), :178-179; docs/spec/HOST_ABI_V1.md:141 (native MUST NOT "perform CFG/effect/contract/Witness judgment"), :175 (`discharge_witness(program/value)` in the denied list); docs/spec/EFFECT_SYSTEM_V1.md:154-159 (pure primitives must not perform "Witness integrity/discharge judgment"); crates/sley-vm/tests/rw070_host_abi_freeze.rs:816-817 (the denial is pinned by test); crates/sley-vm/src/host_abi.rs:11
-SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:305-327 (10.2 item 3 and item 6, 10.3, 10.4: native may hold crypto primitives but never discharge judgment); :509-515 (16.3: the pre-existing protected policy binds the verifier; the judged candidate cannot select its own verifier); :533-537 (16.7: a transient Rust implementation cannot remain a hidden SH2 production dependency)
+SPEC_EVIDENCE: SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:305-327 (10.2 item 3 and item 6, 10.3, 10.4: native may hold crypto primitives but never discharge judgment); :509-515 (16.3: the pre-existing protected policy binds the verifier; the judged candidate cannot select its own verifier); :533-537 (16.7: a transient Rust implementation cannot remain a hidden SH2 production dependency)
 CURRENT_BEHAVIOR: Every native surface that could later be misused as a discharge or trust authority is denied by contract, by boundary record, and by test, without claiming any Witness semantics exist.
 DESIRED_INVARIANT: Only an approved deterministic verifier bound by pre-existing protected policy may promote a witnessed value; no native or imported service may own that judgment.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The denial side of the future boundary is in place and is exactly the minimum tightening section 12 asks for ("Prefer the minimum semantics necessary"). Nothing to add before RW-150.
+RATIONALE: The denial side of the future boundary is in place and is exactly the minimum tightening section 12 asks for ("Prefer the minimum semantics necessary"). Nothing to add before TP-150.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -622,7 +622,7 @@ SELFHOST_IMPACT: none; the denials are part of the SH2 boundary already
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none; rw070_native_compiler_services_are_not_admitted already pins the list
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: RW-070 (host ABI freeze), RW-030 (boundary record)
+CODE_OWNERSHIP: TP-070 (host ABI freeze), TP-030 (boundary record)
 REVIEW_REQUIRED: none
 ```
 
@@ -631,11 +631,11 @@ FINDING_ID: AT-WB-03
 TITLE: Proposal-versus-authority separation already exists structurally in the candidate chain
 HYPOTHESIS: The 2.0 architecture might conflate a proposed change with an authoritative value, which Witness would later have to unwind.
 REPOSITORY_EVIDENCE: docs/spec/IDENTIFIERS_V1.md:31-32, :25-26 (distinct domains sley2.candidate.v1, sley2.candidate-result.v1, sley2.transaction.v1, sley2.transaction-receipt.v1); crates/sley-mutate/README.md:4 ("proposal-value host-model slice"); docs/ANTI_GOALS.md:23 ("model/reviewer as semantic oracle: deterministic kernel alone decides validity"), :24 ("self-authorizing candidate: candidate cannot change its judging roots"); crates/sley-protocol/src/session.rs:116-118 and crates/sley-query/src/context_capsule.rs:333-341 ("provenance" here is the engine-verified session binding, not a model-origin claim); docs/spec/CANDIDATE_RECORD_V1.md:6-17 (boundary), docs/spec/CANDIDATE_RESULT_V1.md, docs/spec/TRANSACTION_MODEL_V1.md
-SPEC_EVIDENCE: SLEY-2.1-WITNESS-MASTER-SPEC.md WA-0 "Proposal is not authority", WA-6 "Candidate and judge are separated" (headers); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:529-531 (16.6: full existing validation and commit gates, not generic verifier success, control program changes); Sley2.0mastergoal.md:1792 (13.5 no prompt authority)
+SPEC_EVIDENCE: SLEY-2.1-WITNESS-MASTER-SPEC.md WA-0 "Proposal is not authority", WA-6 "Candidate and judge are separated" (headers); SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:529-531 (16.6: full existing validation and commit gates, not generic verifier success, control program changes); Sley2.0mastergoal.md:1792 (13.5 no prompt authority)
 CURRENT_BEHAVIOR: A candidate is a proposal with its own identity; validity is a separate result object; acceptance is a separate transaction with a receipt. No model output is an oracle. No "provenance" or "proposal" symbol in the tree carries model-origin meaning, so nothing pre-empts WA's origin-set representation.
 DESIRED_INVARIANT: Explicit proposal versus authoritative value, with the deterministic kernel as the only judge, preserved when Witness adds origin evidence to candidate identity (16.6).
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The structural precursor of WA-0 and WA-6 is present and reviewed under S20-350/360/390. Adding origin evidence to candidate identity at RW-200 is additive to this chain, not a reinterpretation of it (tightening 2.2 will require a new candidate version at that point, which is RW-150's job).
+RATIONALE: The structural precursor of WA-0 and WA-6 is present and reviewed under WP-350/360/390. Adding origin evidence to candidate identity at TP-200 is additive to this chain, not a reinterpretation of it (tightening 2.2 will require a new candidate version at that point, which is TP-150's job).
 CANONICAL_IMPACT: none now
 SCHEMA_IMPACT: none now
 ABI_IMPACT: none
@@ -652,11 +652,11 @@ FINDING_ID: AT-WB-04
 TITLE: Generalized trust lattice, confidence lattice, and policy algebra are excluded
 HYPOTHESIS: Richer trust semantics might be needed for 2.0 correctness or might be tempting to pre-build.
 REPOSITORY_EVIDENCE: none present (no lattice, confidence, or trust-policy type in crates/ or docs/spec; grep for Witness types returns zero); host-boundary.json:179 forbids claiming unimplemented Witness semantics as protective
-SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:513 (16.3: "bounded evidence metadata within WA's existing two-class model, not a general trust lattice or partial-field discharge system"), :555 (18: "general security lattice" and "probabilistic language semantics" excluded), :557 (do not add an excluded effect merely because WA names it as an example sink); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 12 ("Any generalized probabilistic trust, confidence lattice, or policy algebra not required for current correctness SHALL be E_DEFER_2_1_PLUS") and section 21 ("add generalized AI trust theory" is a non-goal)
+SPEC_EVIDENCE: SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:513 (16.3: "bounded evidence metadata within WA's existing two-class model, not a general trust lattice or partial-field discharge system"), :555 (18: "general security lattice" and "probabilistic language semantics" excluded), :557 (do not add an excluded effect merely because WA names it as an example sink); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 12 ("Any generalized probabilistic trust, confidence lattice, or policy algebra not required for current correctness SHALL be E_DEFER_2_1_PLUS") and section 21 ("add generalized AI trust theory" is a non-goal)
 CURRENT_BEHAVIOR: Nothing of the kind exists, and two authorities already forbid building it in this campaign.
 DESIRED_INVARIANT: Witness, when it lands, uses the two-class integrity model with exact proposal, provenance, and promotion enforcement and nothing more general.
 DISPOSITION: E_DEFER_2_1_PLUS
-RATIONALE: Required by the tightening spec's own rule; not needed for 2.0 correctness; already excluded by REWEAVE 16.3 and 18. Recorded so the exclusion is visible in this audit's register.
+RATIONALE: Required by the tightening spec's own rule; not needed for 2.0 correctness; already excluded by the self-hosting plan 16.3 and 18. Recorded so the exclusion is visible in this audit's register.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -664,13 +664,13 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: RW-150 (any future WA contract change requires an operator scope amendment per REWEAVE 18 last paragraph)
+CODE_OWNERSHIP: TP-150 (any future WA contract change requires an operator scope amendment per the self-hosting plan 18 last paragraph)
 REVIEW_REQUIRED: none
 ```
 
 
 
-#### 3.3.1 Triage of the S20-730 checker's two residual problems
+#### 3.3.1 Triage of the WP-730 checker's two residual problems
 
 Running `scripts/check_reproducibility_and_independent_conformance.py` in the
 campaign worktree reports two problems that the baseline checker reports
@@ -679,8 +679,8 @@ scratch copy against the same tree):
 
 - `reproducibility-report:stale:84bfa9c9c5d9:32-surface-files-changed`: the
   report attests commit 84bfa9c9 and the artifact surface has changed since.
-  RESUME.md records this as the by-design S20-730 staleness that re-attests at
-  the next `make release-candidate-smoke`, pending since the S20-330 closure.
+  RESUME.md records this as the by-design WP-730 staleness that re-attests at
+  the next `make release-candidate-smoke`, pending since the WP-330 closure.
   Not caused by this campaign; cleared only by the smoke, which is a lane
   action.
 - `release-tests:fail`: 15 of 59 tests under `bench/release/tests` error in
@@ -706,14 +706,14 @@ baseline is SH0; every section-13 gate is NOT_REQUIRED except the static
 
 ```text
 FINDING_ID: AT-NA-01
-TITLE: Native host inventory machine record is stale relative to RW-075 and RW-080 surface
+TITLE: Native host inventory machine record is stale relative to TP-075 and TP-080 surface
 HYPOTHESIS: rw-070-host-inventory.json already is the section-6 inventory and is complete and current.
-REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/rw-070-host-inventory.json (base_commit b4c3390..., three primitive rows, sources naming BOOTSTRAP_PROFILE_1 and {lib,lower,execute,extended,bootstrap,host_abi}.rs only, TEST_ONLY path fuzz/targets/vm_canonical_inputs.rs absent from fuzz/Cargo.toml, FORBIDDEN evidence "hygiene scan in check_host_abi_v1.py" while the scan is at scripts/check_host_abi_markers.py:173-207); crates/sley-vm/src/{raw_hash.rs,exec_package.rs,admission_authority.rs} and crates/sley-check/src/lib.rs:267 absent from it; conformance/host-abi/v2/host-abi.json imports.rows has four entries; git log shows the file last changed at e85b89c (RW-070 land).
-SPEC_EVIDENCE: REWEAVE 10.3 ("may remain native when explicitly inventoried"; "The final report must name every remaining native responsibility"); tightening spec AT-G3 ("native authority inventory complete"); rw-070.md section 1 defines the inventory as classifying "every native operation, import, runtime service, image mechanism, and host behavior reachable from BOOTSTRAP_PROFILE_1" (now BOOTSTRAP_PROFILE_2 per rw-080-contract.md successor baseline).
-CURRENT_BEHAVIOR: The machine inventory describes the RW-070 tree; the RW-075 additions are enumerated only in prose (rw-075.md section 7). Nothing consumes the inventory by digest (only rw-070.md and rw-070-r2-handoff.md reference it), so no checker fails, but AT-G3 cannot be declared complete from repository records alone.
-DESIRED_INVARIANT: One current machine inventory (successor identity, e.g. RW-075-HOST-INVENTORY-2, v1 kept byte-identical as history per section 2.2 convention) listing every native operation in section 1 of this audit with class, stage, decision, and evidence; base_commit updated; stale paths and script names corrected.
+REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/rw-070-host-inventory.json (base_commit b4c3390..., three primitive rows, sources naming BOOTSTRAP_PROFILE_1 and {lib,lower,execute,extended,bootstrap,host_abi}.rs only, TEST_ONLY path fuzz/targets/vm_canonical_inputs.rs absent from fuzz/Cargo.toml, FORBIDDEN evidence "hygiene scan in check_host_abi_v1.py" while the scan is at scripts/check_host_abi_markers.py:173-207); crates/sley-vm/src/{raw_hash.rs,exec_package.rs,admission_authority.rs} and crates/sley-check/src/lib.rs:267 absent from it; conformance/host-abi/v2/host-abi.json imports.rows has four entries; git log shows the file last changed at e85b89c (TP-070 land).
+SPEC_EVIDENCE: The self-hosting plan 10.3 ("may remain native when explicitly inventoried"; "The final report must name every remaining native responsibility"); tightening spec AT-G3 ("native authority inventory complete"); rw-070.md section 1 defines the inventory as classifying "every native operation, import, runtime service, image mechanism, and host behavior reachable from BOOTSTRAP_PROFILE_1" (now BOOTSTRAP_PROFILE_2 per rw-080-contract.md successor baseline).
+CURRENT_BEHAVIOR: The machine inventory describes the TP-070 tree; the TP-075 additions are enumerated only in prose (rw-075.md section 7). Nothing consumes the inventory by digest (only rw-070.md and rw-070-r2-handoff.md reference it), so no checker fails, but AT-G3 cannot be declared complete from repository records alone.
+DESIRED_INVARIANT: One current machine inventory (successor identity, e.g. TP-075-HOST-INVENTORY-2, v1 kept byte-identical as history per section 2.2 convention) listing every native operation in section 1 of this audit with class, stage, decision, and evidence; base_commit updated; stale paths and script names corrected.
 DISPOSITION: B_ADDITIVE_NOW
-RATIONALE: Records-only additive change; no code, canonical byte, ABI, profile, or identity changes; directly required by AT-G3 and REWEAVE 10.3; the content already exists in section 1.
+RATIONALE: Records-only additive change; no code, canonical byte, ABI, profile, or identity changes; directly required by AT-G3 and the self-hosting plan 10.3; the content already exists in section 1.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -721,30 +721,30 @@ SELFHOST_IMPACT: none (record only; no self-host evidence invalidated)
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: optional: extend check_host_abi_markers.py to assert the successor inventory names every pub fn in sley-vm src (excluding cfg(test)); not required for closure.
 SPECS_TO_UPDATE: machineresearch/sley-2.0/reweave/ (new successor inventory JSON plus a pointer line in rw-075.md or a new rw-075-host-inventory record); rw-070.md section 5 script-name erratum note (append-only).
-CODE_OWNERSHIP: REWEAVE campaign records (sley2 machineresearch/sley-2.0/reweave); no crate owner.
+CODE_OWNERSHIP: The self-hosting plan campaign records (sley2 machineresearch/sley-2.0/reweave); no crate owner.
 REVIEW_REQUIRED: Ariadne (boundary record correctness), lightweight.
-IMPLEMENTATION (slice 4): successor record landed as docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-NATIVE-INVENTORY.md; rw-070-host-inventory.json untouched (RW-070 history), superseded by reference.
+IMPLEMENTATION (slice 4): successor record landed as docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-NATIVE-INVENTORY.md; rw-070-host-inventory.json untouched (TP-070 history), superseded by reference.
 ```
 
 ```text
 FINDING_ID: AT-NA-02
 TITLE: Native semantic compiler chain (checker, lowerer, codec, fingerprints) is REQUIRED_NATIVE_FOUNDATION at C0/SH0 and MUST_MIGRATE only under the chartered SH2 packages
 HYPOTHESIS: Spec section 6 requires every native SEMANTIC_AUTHORITY item to migrate to Sley before the final 2.0 freeze, so rows 1-15, 41 are freeze blockers.
-REPOSITORY_EVIDENCE: rows 1-15 and 41 of section 1 (crates/sley-check/src/lib.rs:218, cfg.rs:231, effects.rs:261, contracts.rs:257; crates/sley-ssmc/src/fingerprint.rs:135,177,282; crates/sley-vm/src/lower.rs:258,290,838; extended.rs:795; crates/sley-scb1/src/lib.rs; crates/sley-mutate/src/codec.rs:66,76); host-boundary.json sley_owned[0..5] naming these crates as "reference seed ... not the final owner" with intended owners RW-090..RW-180; bootstrap-manifest.json S null (SH0).
-SPEC_EVIDENCE: Sley2.0mastergoal.md 14.5 ("Sley 2.0 MUST NOT be delayed to make Sley implement itself. The Rust implementation is the bootstrap and trusted reference."); REWEAVE 5 ("before promotion: Rust reference owns active checking/lowering"); REWEAVE 10.1 (SH0 row) and 10.2 (the six Sley-owned responsibilities at SH2); REWEAVE 13.1 (C1 = C0.build(S, P) is the seed's legitimate semantic work); ADR-0049 (REWEAVE-1.0 is the campaign identity, 2.1.0 the naming proposal); tightening spec section 13 is conditional ("If REWEAVE completes C0 -> C1 -> C2 -> C3").
-CURRENT_BEHAVIOR: The Rust reference is the sole production checker/lowerer (repository lifecycle via sley-policy candidate validation at candidate_validation.rs:809-955; execution via execute_function/execute_approved_package_v2). Migration is in progress only as provisional RW-080 codec slices under the 2026-09-07 override, not claimed as authority.
-DESIRED_INVARIANT: For the Sley 2.0 freeze, native semantic authority is the deliberately assigned bootstrap/reference substrate (RNF). For the SH2 line, each 10.2 responsibility migrates under its chartered package with paired-comparison promotion (REWEAVE 14.2) and no retirement before 14.4 conditions.
+REPOSITORY_EVIDENCE: rows 1-15 and 41 of section 1 (crates/sley-check/src/lib.rs:218, cfg.rs:231, effects.rs:261, contracts.rs:257; crates/sley-ssmc/src/fingerprint.rs:135,177,282; crates/sley-vm/src/lower.rs:258,290,838; extended.rs:795; crates/sley-scb1/src/lib.rs; crates/sley-mutate/src/codec.rs:66,76); host-boundary.json sley_owned[0..5] naming these crates as "reference seed ... not the final owner" with intended owners TP-090..TP-180; bootstrap-manifest.json S null (SH0).
+SPEC_EVIDENCE: Sley2.0mastergoal.md 14.5 ("Sley 2.0 MUST NOT be delayed to make Sley implement itself. The Rust implementation is the bootstrap and trusted reference."); the self-hosting plan 5 ("before promotion: Rust reference owns active checking/lowering"); the self-hosting plan 10.1 (SH0 row) and 10.2 (the six Sley-owned responsibilities at SH2); the self-hosting plan 13.1 (C1 = C0.build(S, P) is the seed's legitimate semantic work); ADR-0049 (self-hosting plan 1.0 is the campaign identity, 2.1.0 the naming proposal); tightening spec section 13 is conditional ("If the self-hosting plan completes C0 -> C1 -> C2 -> C3").
+CURRENT_BEHAVIOR: The Rust reference is the sole production checker/lowerer (repository lifecycle via sley-policy candidate validation at candidate_validation.rs:809-955; execution via execute_function/execute_approved_package_v2). Migration is in progress only as provisional TP-080 codec slices under the 2026-09-07 override, not claimed as authority.
+DESIRED_INVARIANT: For the Sley 2.0 freeze, native semantic authority is the deliberately assigned bootstrap/reference substrate (RNF). For the SH2 line, each 10.2 responsibility migrates under its chartered package with paired-comparison promotion (the self-hosting plan 14.2) and no retirement before 14.4 conditions.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The assignment is explicit and versioned in host-boundary.json and REWEAVE; reading "before final 2.0 freeze" as forcing SH2 migration would contradict master 14.5 and ADR-0049's own scoping. No redesign is authorized (spec section 0). The lead should record this reading in the closeout so AT-G3 "self-host boundary exact" is evaluated against C0/SH0, not SH2.
+RATIONALE: The assignment is explicit and versioned in host-boundary.json and the self-hosting plan; reading "before final 2.0 freeze" as forcing SH2 migration would contradict master 14.5 and ADR-0049's own scoping. No redesign is authorized (spec section 0). The lead should record this reading in the closeout so AT-G3 "self-host boundary exact" is evaluated against C0/SH0, not SH2.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
 SELFHOST_IMPACT: none
-MIGRATION_REQUIRED: no (campaign packages RW-090..RW-120 already chartered)
+MIGRATION_REQUIRED: no (campaign packages TP-090..TP-120 already chartered)
 TESTS_REQUIRED: none
 SPECS_TO_UPDATE: none (optional: one sentence in the tightening closeout stating the C0/SH0 reading)
 CODE_OWNERSHIP: n/a
-REVIEW_REQUIRED: Maat (doctrine reading of "2.0 freeze" versus REWEAVE line), advisory only.
+REVIEW_REQUIRED: Maat (doctrine reading of "2.0 freeze" versus the self-hosting plan line), advisory only.
 ```
 
 ```text
@@ -752,11 +752,11 @@ FINDING_ID: AT-NA-03
 TITLE: v2 admission authority's native semantic legs are a declared C0 seed path with a reserved, non-minting Sley ingress
 HYPOTHESIS: admit_v2_package performing judge_bootstrap_profile plus lower_function per package is hidden native semantic authority on the self-host path (the premium AR-07 pattern) and must be repaired before freeze.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/admission_authority.rs:1-48 (module contract: C0 SEED PATH declared, PERMANENT MECHANICS, SLEY INGRESS reserved), :157-231 (admit_v2_package with judge_closure_for_seed :189 and reference_lower_for_seed :214), :239-289 (verify_structural_correspondence, pure equality), :296-325 (SleyAdmissionEvidence sealed, admit_v2_package_from_sley_evidence always refuses SleyEvidenceUnavailable); exec_package.rs admit_package_v2 pub(crate); scripts/check_exec_package_markers.py:95-137 (exclusivity and forbidden-call pins, PASS); reviews/reweave-rw075-premium-r1-2026-09-06.log:126 (AR-07 BLOCKER as originally found) and reviews/reweave-rw075-native-r12-2026-09-07.log AR-07 "CLOSED as designed ... Residual: same C1-exclusion caveat" (self-review, provisional).
-SPEC_EVIDENCE: REWEAVE 13.1 ("C1 = C0.build(S, P)"; "All computation after C1 must use the Sley implementations"); 10.3 bullet 8 ("emergency bootstrap assets outside the clean self-build closure"); rw-080-contract.md 1.4 and 1.6 (two stages that "never mix"); tightening spec section 6 forbidden pattern "native code constructing compiler answers before Sley receives them".
+SPEC_EVIDENCE: The self-hosting plan 13.1 ("C1 = C0.build(S, P)"; "All computation after C1 must use the Sley implementations"); 10.3 bullet 8 ("emergency bootstrap assets outside the clean self-build closure"); rw-080-contract.md 1.4 and 1.6 (two stages that "never mix"); tightening spec section 6 forbidden pattern "native code constructing compiler answers before Sley receives them".
 CURRENT_BEHAVIOR: Before C1 exists, the native seed is the only route that can mint a v2 receipt; it compares a candidate image against its own reference lowering and refuses on any divergence (no receipt, no approval, no execution). Sley receives no compiler answer from it. Post-C1 minting from Sley evidence has an interface reservation and no implementation.
 DESIRED_INVARIANT: After C1 exists, clean stages mint only through Sley-produced evidence; the seed route is unreachable in the seed-absent environment (13.3) and this becomes a tested property, not a declaration.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: For the current claim level (SH0, no C1) the structure matches REWEAVE 13.1 exactly and no forbidden pattern is instantiated; the remaining obligation is a future-stage gate (13.3 seed absence), not a pre-freeze defect. Independent acceptance of the AR-07 repair (Nabu round-12, premium round 2) is still pending per rw-075-continuation-2026-09-07.md; that is review debt, not a boundary defect found here.
+RATIONALE: For the current claim level (SH0, no C1) the structure matches the self-hosting plan 13.1 exactly and no forbidden pattern is instantiated; the remaining obligation is a future-stage gate (13.3 seed absence), not a pre-freeze defect. Independent acceptance of the AR-07 repair (Nabu round-12, premium round 2) is still pending per rw-075-continuation-2026-09-07.md; that is review debt, not a boundary defect found here.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -764,7 +764,7 @@ SELFHOST_IMPACT: none now; at C1 the seed-absence gate must prove the seed route
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now (13.3 audit at R3/R4)
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: sley-vm admission_authority (REWEAVE RW-075/RW-080 owner)
+CODE_OWNERSHIP: sley-vm admission_authority (the self-hosting plan TP-075/TP-080 owner)
 REVIEW_REQUIRED: already queued (Nabu round-12, premium delta round 2); no new review from this finding.
 ```
 
@@ -772,10 +772,10 @@ REVIEW_REQUIRED: already queued (Nabu round-12, premium delta round 2); no new r
 FINDING_ID: AT-NA-04
 TITLE: SH2 campaign-declaration registry is absent while SH2 work has landed, so the ADR-0049 citation check holds vacuously
 HYPOTHESIS: Every landed SH2 work item is declared in evidence/reweave/sh2-work-items.json citing host-boundary.json by digest and a staged gate, as ADR-0049 and host-boundary.json require.
-REPOSITORY_EVIDENCE: evidence/ contains conformance, release, review, security, validation only (no evidence/reweave/); scripts/build_anti_goal_conformance.py:85-99 ("An absent registry means no SH2 work is declared, which holds vacuously"); host-boundary.json "prohibited"[3]: "self-hosting work outside declared, digest-cited, stage-gated items (C-01/C-02 campaign-declaration rule)"; host-boundary.json "charter": "Chartered record consumed by scripts/build_anti_goal_conformance.py evaluate_campaign_declarations ... cited from evidence/reweave/sh2-work-items.json items"; landed SH2 packages RW-030, RW-040, RW-050, RW-060, RW-070, RW-075 (+correction) and provisional RW-080 slices 1-7 (git log 13f1a85..560a5f16) exist with no registry item.
+REPOSITORY_EVIDENCE: evidence/ contains conformance, release, review, security, validation only (no evidence/reweave/); scripts/build_anti_goal_conformance.py:85-99 ("An absent registry means no SH2 work is declared, which holds vacuously"); host-boundary.json "prohibited"[3]: "self-hosting work outside declared, digest-cited, stage-gated items (C-01/C-02 campaign-declaration rule)"; host-boundary.json "charter": "Chartered record consumed by scripts/build_anti_goal_conformance.py evaluate_campaign_declarations ... cited from evidence/reweave/sh2-work-items.json items"; landed SH2 packages TP-030, TP-040, TP-050, TP-060, TP-070, TP-075 (+correction) and provisional TP-080 slices 1-7 (git log 13f1a85..560a5f16) exist with no registry item.
 SPEC_EVIDENCE: docs/adr/ADR-0049-reweave-scope-adoption.md Decision 3 ("requires every declared SH2 work item ... to cite the boundary record by exact path and SHA-256 digest and to name a staged SH2 gate"); ADR-0049 Consequences ("until then any declared SH2 work item fails the campaign check"); tightening spec 2.3 item 1 (exact repository evidence) and AT-G3 "self-host boundary exact".
 CURRENT_BEHAVIOR: The mechanical guard that binds SH2 work to the boundary digest never evaluates a single item; the binding exists only in prose (each RW record cites d935d238...). The six-crate denylist still runs.
-DESIRED_INVARIANT: Every landed SH2 package and provisional slice is an item in the registry (contract sley2.reweave-sh2-work-items.v1) citing host-boundary.json sha256 d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a and its gate (RW-030..RW-080 package gates or R2/R3 phase gates), so the checker actually exercises the citation rule.
+DESIRED_INVARIANT: Every landed SH2 package and provisional slice is an item in the registry (contract sley2.reweave-sh2-work-items.v1) citing host-boundary.json sha256 d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a and its gate (TP-030..TP-080 package gates or R2/R3 phase gates), so the checker actually exercises the citation rule.
 DISPOSITION: B_ADDITIVE_NOW
 RATIONALE: Additive evidence file only; no code, ABI, or canonical change; it makes an already-adopted governance check non-vacuous; cost is minutes. It is outside the crate boundary and could be reassigned to a governance lane, but it is the only mechanical binding between the native remainder charter and the work that extends it.
 CANONICAL_IMPACT: none
@@ -785,9 +785,9 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: run scripts/build_anti_goal_conformance.py after adding the registry (must report the item count, not "no declared SH2 work items").
 SPECS_TO_UPDATE: evidence/reweave/sh2-work-items.json (new); optionally a pointer in rw-075.md.
-CODE_OWNERSHIP: REWEAVE campaign records; checker unchanged.
+CODE_OWNERSHIP: The self-hosting plan campaign records; checker unchanged.
 REVIEW_REQUIRED: Maat (campaign-declaration compliance), lightweight.
-IMPLEMENTATION (slice 4): evidence/reweave/sh2-work-items.json created (contract sley2.reweave-sh2-work-items.v1, seven items RW-030, RW-040, RW-050, RW-060, RW-070, RW-075, RW-080, each citing host-boundary.json sha256 d935d238... and a gate from gate_set, records verified to exist). build_anti_goal_conformance.py rebuilt evidence/validation/anti-goal-conformance.json: the campaign-declaration detail changed from "no declared SH2 work items" to "7 declared SH2 work items cite the authorized boundary record and a staged gate"; --check PASS. Discrimination proved on a scratch root: a wrong digest and a blank gate both return VIOLATED. Semantic authorization of the items is ADR-0049 (operator decision ADOPT-REWEAVE-2026-09-06); the registry declares, it does not authorize.
+IMPLEMENTATION (slice 4): evidence/reweave/sh2-work-items.json created (contract sley2.reweave-sh2-work-items.v1, seven items TP-030, TP-040, TP-050, TP-060, TP-070, TP-075, TP-080, each citing host-boundary.json sha256 d935d238... and a gate from gate_set, records verified to exist). build_anti_goal_conformance.py rebuilt evidence/validation/anti-goal-conformance.json: the campaign-declaration detail changed from "no declared SH2 work items" to "7 declared SH2 work items cite the authorized boundary record and a staged gate"; --check PASS. Discrimination proved on a scratch root: a wrong digest and a blank gate both return VIOLATED. Semantic authorization of the items is ADR-0049 (operator decision ADOPT-SELF-HOSTING-2026-09-06); the registry declares, it does not authorize.
 REVIEW REPAIR (slice 7, Nabu round-1 P1): the tracked anti-goal report drifted at every commit because its publication row embedded the count of commits not on origin/main; build_anti_goal_conformance.py now reports that count only through check_remote_consistency.py, the report is stable across commits, and --check PASS at the repaired candidate.
 ```
 
@@ -795,9 +795,9 @@ REVIEW REPAIR (slice 7, Nabu round-1 P1): the tracked anti-goal report drifted a
 FINDING_ID: AT-NA-05
 TITLE: bootstrap-manifest.json binds P to BOOTSTRAP_PROFILE_1 although the successor baseline is BOOTSTRAP_PROFILE_2
 HYPOTHESIS: The bootstrap manifest's P binding reflects the current dependency contract that C1 = C0.build(S, P) will use.
-REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json "P": value BOOTSTRAP_PROFILE_1, digest 4f269150..., "status": "frozen (BOOTSTRAP_PROFILE_1 v1, RW-050 slice 2)"; rw-080-contract.md header ("every module below builds under BOOTSTRAP_PROFILE_2 (fb2d8cc8...), HOST_ABI_V2 (bc564653...), and EXEC_PACKAGE_V2 (f4958c5e...) ... no RW-080 module builds under [v1]"); rw-080 slice records admit under profile v2 (receipt.profile_digest() == BOOTSTRAP_PROFILE_2_DIGEST, rw080_codec_program_outer.rs:25207-25211); scripts/check_bootstrap_capability.py:47,322-333 reads the manifest for structure and H pinning only.
-SPEC_EVIDENCE: REWEAVE 13.1 ("P be the pinned build/lowering profile, schema epoch, host ABI, limits, and permitted dependencies"); 14.3 ("Do not confuse toolchain program identity, executable image identity, program schema epoch, host ABI version, and policy root. They are separate, explicit bindings."); tightening spec 2.2 (new meaning gets a new explicit version, old preserved).
-CURRENT_BEHAVIOR: The manifest names the historical P; the live successor P is recorded elsewhere (machine-summary.json bootstrap_profile_2, rw-080-contract.md). S remains null, which is still correct (the RW-080 slices are fixture-namespace seed graphs, not a canonical S root). No checker fails.
+REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json "P": value BOOTSTRAP_PROFILE_1, digest 4f269150..., "status": "frozen (BOOTSTRAP_PROFILE_1 v1, TP-050 slice 2)"; rw-080-contract.md header ("every module below builds under BOOTSTRAP_PROFILE_2 (fb2d8cc8...), HOST_ABI_V2 (bc564653...), and EXEC_PACKAGE_V2 (f4958c5e...) ... no TP-080 module builds under [v1]"); rw-080 slice records admit under profile v2 (receipt.profile_digest() == BOOTSTRAP_PROFILE_2_DIGEST, rw080_codec_program_outer.rs:25207-25211); scripts/check_bootstrap_capability.py:47,322-333 reads the manifest for structure and H pinning only.
+SPEC_EVIDENCE: The self-hosting plan 13.1 ("P be the pinned build/lowering profile, schema epoch, host ABI, limits, and permitted dependencies"); 14.3 ("Do not confuse toolchain program identity, executable image identity, program schema epoch, host ABI version, and policy root. They are separate, explicit bindings."); tightening spec 2.2 (new meaning gets a new explicit version, old preserved).
+CURRENT_BEHAVIOR: The manifest names the historical P; the live successor P is recorded elsewhere (machine-summary.json bootstrap_profile_2, rw-080-contract.md). S remains null, which is still correct (the TP-080 slices are fixture-namespace seed graphs, not a canonical S root). No checker fails.
 DESIRED_INVARIANT: The manifest records the current candidate P (profile v2 digest fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459, HOST_ABI_V2, EXEC_PACKAGE_V2) with v1 retained as a history entry, so a future C1 binding cannot silently inherit v1.
 DISPOSITION: B_ADDITIVE_NOW
 RATIONALE: Additive record update (add the successor P entry and keep the v1 entry as history); must keep check_bootstrap_capability.py green (it validates manifest structure, so the edit should add fields rather than rename keys). Not a semantic or ABI change.
@@ -808,7 +808,7 @@ SELFHOST_IMPACT: none (no C1 bound yet)
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: python3 scripts/check_bootstrap_capability.py PASS after the edit; python3 scripts/check_bootstrap_profile_1.py unchanged PASS.
 SPECS_TO_UPDATE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json
-CODE_OWNERSHIP: REWEAVE campaign records (RW-040 owner).
+CODE_OWNERSHIP: The self-hosting plan campaign records (TP-040 owner).
 REVIEW_REQUIRED: none beyond the checker run.
 IMPLEMENTATION: deferred to the spec-synchronization slice, which owns bootstrap-manifest.json alongside the other stale-successor facts (see AT-SS records), so the manifest is corrected once with one checker run.
 ```
@@ -830,20 +830,20 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none
 SPECS_TO_UPDATE: erratum line in the AT-NA-01 successor inventory; HOST_ABI_V3 when created.
-CODE_OWNERSHIP: RW-075 correction owner.
+CODE_OWNERSHIP: TP-075 correction owner.
 REVIEW_REQUIRED: none.
 ```
 
 ```text
 FINDING_ID: AT-NA-07
 TITLE: The value_hash opcode natively constructs the SLEYVHS1 canonical preimage; RAW_HASH_V1's "every semantic preimage ... constructed by Sley" statement is scoped to RHW1 only
-HYPOTHESIS: A native opcode that frames and hashes canonical value preimages is a concealed semantic digest service forbidden by REWEAVE 10.4 and RAW_HASH_V1.md.
+HYPOTHESIS: A native opcode that frames and hashes canonical value preimages is a concealed semantic digest service forbidden by the self-hosting plan 10.4 and RAW_HASH_V1.md.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/extended.rs:1930 (opcode 178 executes hash_validated_value); crates/sley-ssmc/src/fingerprint.rs:282-300 (builds SLEYVHS1 || u32(1) || epoch || SSMC1_FIELD_SCHEMA_HASH || type_bytes || data_bytes natively); BOOTSTRAP_PROFILE_2.md "Permitted opcodes (42 ...) E5 cells and value hashing" (178 in PERMITTED_BOOTSTRAP_OPCODES, bootstrap.rs:63-66); rw-070-host-inventory.json classifies "value_hash via hash_validated_value" as REQUIRED_HOST_RUNTIME_MECHANIC; rw-075-hash-inventory.md obligation 2 says the preimage is "semantic/compiler-owned"; docs/spec/RAW_HASH_V1.md "What this is not": "Every semantic preimage - including sley-id domain prefixes and SLEYSFP1/SLEYVHS1 framing - is constructed by Sley as bytes; the host adds nothing."
-SPEC_EVIDENCE: REWEAVE 10.3 bullet 2 ("primitive value operations" may remain native); 10.4 ("The native remainder may not conceal the hard compiler work as primitives"); VM_EXTENDED_OPCODE_PROFILE_V1.md section E5 defines value_hash as frozen language execution semantics over runtime values.
+SPEC_EVIDENCE: The self-hosting plan 10.3 bullet 2 ("primitive value operations" may remain native); 10.4 ("The native remainder may not conceal the hard compiler work as primitives"); VM_EXTENDED_OPCODE_PROFILE_V1.md section E5 defines value_hash as frozen language execution semantics over runtime values.
 CURRENT_BEHAVIOR: Opcode 178 is pinned execution semantics of the language (a value-level primitive comparable to equal/order), not an import service taking programs, candidates, types, or inventories; it takes one runtime value and returns its canonical hash. A Sley checker may legitimately use it for value identity, and then the canonical value encoding lives in the VM substrate. This is the same class as native equality over canonical structure.
 DESIRED_INVARIANT: value_hash remains classified EXECUTION_MECHANICS under 10.3 bullet 2 with its preimage construction documented as opcode semantics; RAW_HASH_V1.md's "every semantic preimage" sentence is understood to govern RHW1 and compiler-object digests (fingerprints, sley-id domains, cache keys), not the value_hash opcode.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The opcode is frozen, inventoried (rw-070 inventory row), profile-admitted, and not an import; REWEAVE 10.4 targets services that "validate SSMC, resolve types, compute Witness trust, choose mandatory tests, or emit the compiler image", none of which value_hash does. No change; the successor inventory (AT-NA-01) should carry the scoping sentence so a reviewer does not read RAW_HASH_V1.md as contradicted. Confidence: medium; an independent boundary reviewer (Ariadne) may want to confirm the E5 reading.
+RATIONALE: The opcode is frozen, inventoried (rw-070 inventory row), profile-admitted, and not an import; the self-hosting plan 10.4 targets services that "validate SSMC, resolve types, compute Witness trust, choose mandatory tests, or emit the compiler image", none of which value_hash does. No change; the successor inventory (AT-NA-01) should carry the scoping sentence so a reviewer does not read RAW_HASH_V1.md as contradicted. Confidence: medium; an independent boundary reviewer (Ariadne) may want to confirm the E5 reading.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -860,11 +860,11 @@ FINDING_ID: AT-NA-08
 TITLE: Legacy execution entry points (execute_function, execute_loaded_image) retain native semantic input judgment
 HYPOTHESIS: Native check_constant/require_hashable calls on execution inputs (execute.rs:1784-1790, 2248) are hidden native semantic authority on the execution path.
 REPOSITORY_EVIDENCE: crates/sley-vm/src/execute.rs:494 (execute_function re-lowers via lower_function), :1717-1745 (validate_inputs -> check_input_shape), :1784-1790 (check_constant, require_hashable), :2248-2266 (legacy observation preimage requires hashable); package path instead uses validate_package_inputs_structural :783-813 and observation without require_hashable (:1069 comment); rw-075.md section 1 marks execute_loaded_image/ApprovedImage "preserved unchanged ... marked superseded for new executions"; production callers of execute_function are sley-protocol server.rs:2065 (dev surface) and sley-conformance (oracle).
-SPEC_EVIDENCE: REWEAVE 5 (before promotion the Rust reference owns checking); 10.3 bullet 8 (independent oracles and test drivers stay native); tightening spec 2.2 (frozen contracts preserved; a new meaning gets a new version), which is exactly what RW-075 did by adding execute_approved_package_v2 instead of changing S20-270.
-CURRENT_BEHAVIOR: Two runners coexist: the S20-270 reference runner (semantic input judgment, part of the SH0 production and oracle surface) and the RW-075 package runner (structural only). Neither is reachable from the toolchain import registry; only the package runner is on the SH2 host path.
+SPEC_EVIDENCE: The self-hosting plan 5 (before promotion the Rust reference owns checking); 10.3 bullet 8 (independent oracles and test drivers stay native); tightening spec 2.2 (frozen contracts preserved; a new meaning gets a new version), which is exactly what TP-075 did by adding execute_approved_package_v2 instead of changing WP-270.
+CURRENT_BEHAVIOR: Two runners coexist: the WP-270 reference runner (semantic input judgment, part of the SH0 production and oracle surface) and the TP-075 package runner (structural only). Neither is reachable from the toolchain import registry; only the package runner is on the SH2 host path.
 DESIRED_INVARIANT: The SH2 host path uses only the structural package runner; the reference runner remains oracle/recovery material and is never a fallback (14.4).
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: Already versioned and documented; deleting or modifying the reference runner is prohibited by REWEAVE 14.4 and by the frozen S20-270 evidence. No action.
+RATIONALE: Already versioned and documented; deleting or modifying the reference runner is prohibited by the self-hosting plan 14.4 and by the frozen WP-270 evidence. No action.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -872,7 +872,7 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: sley-vm execute (S20-270 owner)
+CODE_OWNERSHIP: sley-vm execute (WP-270 owner)
 REVIEW_REQUIRED: none.
 ```
 
@@ -881,7 +881,7 @@ FINDING_ID: AT-NA-09
 TITLE: No forbidden SH2 pattern is instantiated at this commit (consolidated negative result)
 HYPOTHESIS: One of the five forbidden patterns from spec section 6 is present.
 REPOSITORY_EVIDENCE: section 2 table of this audit: extended.rs:304-368 (four-row default-deny registry), rw070_host_abi_freeze.rs (eight compiler-service spellings and helper injection refused), check_host_abi_markers.py:173-207 hygiene PASS, check_exec_package_markers.py PASS (exec.rs and raw_hash.rs carry no gate/lowerer/minter calls; minter exclusivity), rw075_hydration_workloads.rs (no synthesized answers), rw080_codec_*.rs (no fallback constructs; native codec used only as oracle), no SH1/SH2 claim in any record.
-SPEC_EVIDENCE: tightening spec section 6 forbidden-pattern list; REWEAVE 10.4, 11, 14.2, 15 (compiler-service denial family).
+SPEC_EVIDENCE: tightening spec section 6 forbidden-pattern list; the self-hosting plan 10.4, 11, 14.2, 15 (compiler-service denial family).
 CURRENT_BEHAVIOR: All five patterns absent or not applicable (nominal self-hosting cannot occur because no self-hosting is claimed). One declared residual: the seed admission route's exclusion from clean stages is asserted by contract and unit pin, not by a seed-absent environment test, because no C1 exists.
 DESIRED_INVARIANT: Unchanged; at R3/R4 the 13.3 seed-absence audit must convert the declared residual into evidence.
 DISPOSITION: A_ALREADY_SOLVED
@@ -902,7 +902,7 @@ FINDING_ID: AT-NA-10
 TITLE: candidate.validate and candidate.commit take the current time from the request body
 HYPOTHESIS: Caller-supplied time is trusted for expiry judgment, so a client can extend a capability's validity (observation routed from the machine-write audit).
 REPOSITORY_EVIDENCE: crates/sley-protocol/src/server.rs:1312-1318 and :1336-1341 (`now = single_uvar(fields[2])` passed to CandidateValidationContext / CommitInput); docs/spec/EXPIRY_V1.md:3 ("no ambient clock authority"), :12-16 (epoch 1 clock tag 1, Unix milliseconds; `now_unix_millis < not_after` on trusted host input; the kernel never reads a clock and never proves freshness); docs/spec/CAPABILITY_TOKEN_V1.md expiry rows.
-SPEC_EVIDENCE: Sley 2.0 master: ambient authority forbidden, deterministic execution mandatory; EXPIRY_V1 is the S20-345 canonical time-bound contract; tightening spec 2.1 (effects and capabilities explicit; ambient authority forbidden).
+SPEC_EVIDENCE: Sley 2.0 master: ambient authority forbidden, deterministic execution mandatory; EXPIRY_V1 is the WP-345 canonical time-bound contract; tightening spec 2.1 (effects and capabilities explicit; ambient authority forbidden).
 CURRENT_BEHAVIOR: The kernel never reads a clock by design; `now` is an explicit input of the transport boundary, recorded in the candidate attempt evidence, and freshness is the transport/host's responsibility, exactly as EXPIRY_V1 states.
 DESIRED_INVARIANT: No ambient clock inside the kernel; time enters as explicit, evidenced input whose trust is assigned to the host boundary. Holds.
 DISPOSITION: A_ALREADY_SOLVED
@@ -914,7 +914,7 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: sley-protocol (S20-410), EXPIRY_V1 (S20-345)
+CODE_OWNERSHIP: sley-protocol (WP-410), EXPIRY_V1 (WP-345)
 REVIEW_REQUIRED: no
 ```
 
@@ -931,13 +931,13 @@ hand-maintained status mechanism that section 15.5's locator extends
 ```text
 FINDING_ID: AT-SS-01
 TITLE: Bootstrap manifest and CONTRIBUTING still bind P to BOOTSTRAP_PROFILE_1 after the v2 successor became the current R2 candidate
-HYPOTHESIS: The REWEAVE lane record for P (bootstrap-manifest.json) and the governance text (CONTRIBUTING.md) were not moved when RW-075 introduced the v2 successor profile, ABI, and package.
-REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json:49-53 `"status": "frozen (BOOTSTRAP_PROFILE_1 v1, RW-050 slice 2)", "value": "BOOTSTRAP_PROFILE_1", "digest": "4f2691504b5c..."` (last commit b2c850f, 2026-09-06, before 9574f8a); CONTRIBUTING.md:41-43 `governed by host-boundary.json, BOOTSTRAP_PROFILE_1, and the staged SH2 gates`; scripts/check_r2_exit.py:89-94 labels the v1 digest as `P_bootstrap_profile_1` while separately checking `R2_profile_v2`; scripts/check_bootstrap_profile_1.py and scripts/check_bootstrap_capability.py:47 read the manifest and bind its P digest; host-boundary.json:21 mentions BOOTSTRAP_PROFILE_1 but is digest-pinned (sha256 d935d238... equals manifest H.manifest_digest) and must stay byte-identical.
-SPEC_EVIDENCE: docs/spec/BOOTSTRAP_PROFILE_2.md:3-4,12 `frozen successor (RW-075 correction, 2026-09-06). Version 2. Current R2 candidate. ... Supersedes: BOOTSTRAP_PROFILE_1 v1`; reweave/rw-075-correction.md:64 `Supersession: v1 -> retained historical evidence; v2 -> current R2 candidate`; reweave/rw-080-contract.md:9-16 `every module below builds under BOOTSTRAP_PROFILE_2 ... no RW-080 module builds under them [v1]`; REWEAVE master 13.1 defines P as the pinned profile used in `C1 = C0.build(S, P)`; tightening spec section 14 forbids `master spec = new semantics / subordinate record = contradictory old semantics` without a supersession path.
-CURRENT_BEHAVIOR: The manifest that REWEAVE 13.1 designates as the binding of P records the superseded v1 as the bound value with no successor field; CONTRIBUTING names v1 as governing; the R2 gate labels v1 as "P". The supersession itself is explicit in the V2 documents and the correction record, so semantics are not ambiguous, but the subordinate lane record and governance text disagree with the current candidate.
+HYPOTHESIS: The self-hosting plan lane record for P (bootstrap-manifest.json) and the governance text (CONTRIBUTING.md) were not moved when TP-075 introduced the v2 successor profile, ABI, and package.
+REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json:49-53 `"status": "frozen (BOOTSTRAP_PROFILE_1 v1, TP-050 slice 2)", "value": "BOOTSTRAP_PROFILE_1", "digest": "4f2691504b5c..."` (last commit b2c850f, 2026-09-06, before 9574f8a); CONTRIBUTING.md:41-43 `governed by host-boundary.json, BOOTSTRAP_PROFILE_1, and the staged SH2 gates`; scripts/check_r2_exit.py:89-94 labels the v1 digest as `P_bootstrap_profile_1` while separately checking `R2_profile_v2`; scripts/check_bootstrap_profile_1.py and scripts/check_bootstrap_capability.py:47 read the manifest and bind its P digest; host-boundary.json:21 mentions BOOTSTRAP_PROFILE_1 but is digest-pinned (sha256 d935d238... equals manifest H.manifest_digest) and must stay byte-identical.
+SPEC_EVIDENCE: docs/spec/BOOTSTRAP_PROFILE_2.md:3-4,12 `frozen successor (TP-075 correction, 2026-09-06). Version 2. Current R2 candidate. ... Supersedes: BOOTSTRAP_PROFILE_1 v1`; reweave/rw-075-correction.md:64 `Supersession: v1 -> retained historical evidence; v2 -> current R2 candidate`; reweave/rw-080-contract.md:9-16 `every module below builds under BOOTSTRAP_PROFILE_2 ... no TP-080 module builds under them [v1]`; the self-hosting plan master 13.1 defines P as the pinned profile used in `C1 = C0.build(S, P)`; tightening spec section 14 forbids `master spec = new semantics / subordinate record = contradictory old semantics` without a supersession path.
+CURRENT_BEHAVIOR: The manifest that the self-hosting plan 13.1 designates as the binding of P records the superseded v1 as the bound value with no successor field; CONTRIBUTING names v1 as governing; the R2 gate labels v1 as "P". The supersession itself is explicit in the V2 documents and the correction record, so semantics are not ambiguous, but the subordinate lane record and governance text disagree with the current candidate.
 DESIRED_INVARIANT: Every record that names the bound P, host ABI, or exec package names the current candidate (v2 digests fb2d8cc8..., bc564653..., f4958c5e...) and carries v1 only as history.
 DISPOSITION: B_ADDITIVE_NOW
-RATIONALE: Truthful record update with no semantic change: v2 is already frozen, reviewed (RW-075 Ariadne/Nabu PASS per check_r2_exit), and checker-validated; v1 stays byte-identical. The manifest edit must land together with check_bootstrap_profile_1.py / check_bootstrap_capability.py / check_r2_exit.py label changes because they bind the manifest, and host-boundary.json must not be touched.
+RATIONALE: Truthful record update with no semantic change: v2 is already frozen, reviewed (TP-075 Ariadne/Nabu PASS per check_r2_exit), and checker-validated; v1 stays byte-identical. The manifest edit must land together with check_bootstrap_profile_1.py / check_bootstrap_capability.py / check_r2_exit.py label changes because they bind the manifest, and host-boundary.json must not be touched.
 CANONICAL_IMPACT: none (no identity, digest, or domain changes)
 SCHEMA_IMPACT: none
 ABI_IMPACT: none (HOST_ABI_V2 already current)
@@ -945,8 +945,8 @@ SELFHOST_IMPACT: none on semantics; the manifest becomes truthful for the eventu
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: check_bootstrap_profile_1.py, check_bootstrap_profile_2.py, check_bootstrap_capability.py, check_r2_exit.py, check_host_abi_v1/v2.py, check_exec_package_v1/v2.py all PASS after the edit; a manifest structural test that P.successor/history keys are provenanced (no invented hashes)
 SPECS_TO_UPDATE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json (P: current v2 + history v1), CONTRIBUTING.md:42, scripts/check_r2_exit.py labels; none of docs/spec
-CODE_OWNERSHIP: Ariadne (REWEAVE lane records), Codex/integrator (CONTRIBUTING), Vulcan (gate scripts)
-REVIEW_REQUIRED: yes, Nabu architecture re-read of the manifest binding (REWEAVE 13.1) before R2 exit re-evaluation
+CODE_OWNERSHIP: Ariadne (the self-hosting plan lane records), Codex/integrator (CONTRIBUTING), Vulcan (gate scripts)
+REVIEW_REQUIRED: yes, Nabu architecture re-read of the manifest binding (the self-hosting plan 13.1) before R2 exit re-evaluation
 IMPLEMENTATION (slice 5c): bootstrap-manifest.json P now binds BOOTSTRAP_PROFILE_2 (digest fb2d8cc8..., v2 provenance, v1 named as superseded history without a second digest inside the stage, which check_bootstrap_capability forbids); CONTRIBUTING governance line updated; check_bootstrap_profile_1 accepted only a v1 binding and now accepts the declared successor when v1 history is named. check_bootstrap_profile_{1,2}, check_bootstrap_capability PASS; check_r2_exit unchanged (its P_bootstrap_profile_1 label checks the frozen v1 record, D3 left as is). host-boundary.json untouched.
 ```
 
@@ -954,7 +954,7 @@ IMPLEMENTATION (slice 5c): bootstrap-manifest.json P now binds BOOTSTRAP_PROFILE
 FINDING_ID: AT-SS-02
 TITLE: CLI and JSON-bridge contracts pin SMP1 revision 10 while SMP1 is at revision 11 and the bridge vectors already carry revision-11 semantics
 HYPOTHESIS: SMP1 revision 11 landed after the CLI and bridge closures and the subordinate contracts were never re-pinned, leaving implementation and vectors ahead of the contract text.
-REPOSITORY_EVIDENCE: docs/spec/SLEY_CLI_V1.md:15 `(docs/spec/SMP1.md revision 10, ...)` and :217 `The revision pins are SMP1 revision 10 and bridge revision 6` (last commit 981d6a1, 2026-09-05 08:34); docs/spec/SMP1_JSON_BRIDGE_V1.md:19 `It composes, and never alters, docs/spec/SMP1.md (revision 10)` (db631d3, 2026-09-05 08:14); docs/spec/SMP1.md:3 `revision 11 (2026-09-05 ...)` landed 776983f 2026-09-05 17:03; commit d26b686 (2026-09-05 23:20) "teach the bridge vector checker the SMP1 revision 11 version split ... The S20-400 closure re-emitted the two negative-zero rejected vectors as PROTOCOL_DOWNGRADE"; conformance/smp1-json-bridge/v1/rejected.json:161,166 `"expected_code": "PROTOCOL_DOWNGRADE"`; grep PROTOCOL_DOWNGRADE in SMP1_JSON_BRIDGE_V1.md and SLEY_CLI_V1.md: 0 hits (SMP1.md: 6, ERROR_CODES_V1.md: 1); scripts/check_cli_contract.py and check_smp1_json_bridge_contract.py only extract the contract's own revision (lines 145-149, 150-154) and never assert the SMP1 pin; scripts/check_session_handle_profile.py:42-47,272-276 does assert its SMP1 pin against SMP1's status line and is at 11; RESUME.md:429-433 records the same episode.
+REPOSITORY_EVIDENCE: docs/spec/SLEY_CLI_V1.md:15 `(docs/spec/SMP1.md revision 10, ...)` and :217 `The revision pins are SMP1 revision 10 and bridge revision 6` (last commit 981d6a1, 2026-09-05 08:34); docs/spec/SMP1_JSON_BRIDGE_V1.md:19 `It composes, and never alters, docs/spec/SMP1.md (revision 10)` (db631d3, 2026-09-05 08:14); docs/spec/SMP1.md:3 `revision 11 (2026-09-05 ...)` landed 776983f 2026-09-05 17:03; commit d26b686 (2026-09-05 23:20) "teach the bridge vector checker the SMP1 revision 11 version split ... The WP-400 closure re-emitted the two negative-zero rejected vectors as PROTOCOL_DOWNGRADE"; conformance/smp1-json-bridge/v1/rejected.json:161,166 `"expected_code": "PROTOCOL_DOWNGRADE"`; grep PROTOCOL_DOWNGRADE in SMP1_JSON_BRIDGE_V1.md and SLEY_CLI_V1.md: 0 hits (SMP1.md: 6, ERROR_CODES_V1.md: 1); scripts/check_cli_contract.py and check_smp1_json_bridge_contract.py only extract the contract's own revision (lines 145-149, 150-154) and never assert the SMP1 pin; scripts/check_session_handle_profile.py:42-47,272-276 does assert its SMP1 pin against SMP1's status line and is at 11; RESUME.md:429-433 records the same episode.
 SPEC_EVIDENCE: SMP1.md:32-50 revision history: "11 answers the three Council review rounds in full (explicit retryability enumeration, enforced response ceilings, ... version-claim rule, failed-stream flag, ...)"; tightening spec section 14: never `implementation = new semantics, canonical spec = old semantics`.
 CURRENT_BEHAVIOR: The bridge vectors and checker reject below-selected versions as PROTOCOL_DOWNGRADE (revision 11) while the bridge contract text pins revision 10 and does not name the downgrade outcome; the CLI contract pins revision 10 and no checker would catch either pin moving.
 DESIRED_INVARIANT: Every composing contract pins the revision of the authority it composes, the pin is asserted by its checker against the authority's own status line, and every vector outcome is named by the contract that owns the vector.
@@ -966,22 +966,22 @@ ABI_IMPACT: none
 SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: check_cli_contract.py and check_smp1_json_bridge_contract.py gain an SMP1 pin assertion (fail when SMP1.md status revision differs); `make conformance` bridge vectors unchanged and green
-SPECS_TO_UPDATE: docs/spec/SMP1_JSON_BRIDGE_V1.md (pin 11, revision 7 note naming PROTOCOL_DOWNGRADE), docs/spec/SLEY_CLI_V1.md (pin 11, revision 4 note), docs/WORK_PACKAGES.md rows S20-420/S20-430, machine-summary.json json_bridge.contract_revision / cli.contract_revision
-CODE_OWNERSHIP: Merlin (S20-420, S20-430 packages), Ariadne (SMP1 contract owner)
+SPECS_TO_UPDATE: docs/spec/SMP1_JSON_BRIDGE_V1.md (pin 11, revision 7 note naming PROTOCOL_DOWNGRADE), docs/spec/SLEY_CLI_V1.md (pin 11, revision 4 note), docs/WORK_PACKAGES.md rows WP-420/WP-430, machine-summary.json json_bridge.contract_revision / cli.contract_revision
+CODE_OWNERSHIP: Merlin (WP-420, WP-430 packages), Ariadne (SMP1 contract owner)
 REVIEW_REQUIRED: yes, Ariadne contract re-read of the two pin bumps (bounded delta)
 IMPLEMENTATION (slice 5d): SMP1_JSON_BRIDGE_V1 revision 7 and SLEY_CLI_V1 revision 4 (2026-09-08) re-pin SMP1 revision 11 with history notes naming the version-claim split; machine-summary contract_revision 7/4; WORK_PACKAGES rows updated. check_smp1_json_bridge_contract and check_cli_contract assert their own revision and each composed status line (modelled on check_session_handle_profile); PASS on the tree, FAIL with smp1-revision-pin on a scratch copy where SMP1 moves to 12. No vector or code change.
 ```
 
 ```text
 FINDING_ID: AT-SS-03
-TITLE: Required Contract Index status line and the S20-770 review state
-HYPOTHESIS: REQUIRED_CONTRACT_INDEX_V1.md "revision 1, Council review pending" is stale because later S20-770 work exists.
-REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:3-5 `Status: S20-770 contract draft, revision 1 (2026-09-03); Council review pending`; git log for the file: 783fec8, 6398acb (both 2026-09-03), nothing later; scripts/check_required_contract_index.py:20-21 tokens S20_770_CONTRACT_DRAFT_REVIEW_PENDING / S20_770_INDEX_ACCEPTED, run result PASS (12 required contracts, 19 documents, 18 checkers, 14 domains, 50 derived identifier domains); machineresearch/sley-2.0/reviews/verdicts.json 770-ariadne-contract FAIL (p1 3, p2 6, p3 2), 770-nabu-architecture FAIL (p1 4, p2 3, p3 3), 770-vulcan-surface FAIL (p1 1, p2 4, p3 3), all p0 0; evidence/review/finding-register.json:1746-1780 package_status S20_770_CONTRACT_DRAFT_REVIEW_PENDING; docs/adr/ADR-0047-required-contract-index.md:3-4 "proposed; the S20-770 index is a draft at revision 1 with Council review pending"; grep for lane2 / "lane 2" / lane-2 across *.md *.json: zero hits, no S20-770 revision-2 draft anywhere in the tree.
+TITLE: Required Contract Index status line and the WP-770 review state
+HYPOTHESIS: REQUIRED_CONTRACT_INDEX_V1.md "revision 1, Council review pending" is stale because later WP-770 work exists.
+REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:3-5 `Status: WP-770 contract draft, revision 1 (2026-09-03); Council review pending`; git log for the file: 783fec8, 6398acb (both 2026-09-03), nothing later; scripts/check_required_contract_index.py:20-21 tokens S20_770_CONTRACT_DRAFT_REVIEW_PENDING / S20_770_INDEX_ACCEPTED, run result PASS (12 required contracts, 19 documents, 18 checkers, 14 domains, 50 derived identifier domains); machineresearch/sley-2.0/reviews/verdicts.json 770-ariadne-contract FAIL (p1 3, p2 6, p3 2), 770-nabu-architecture FAIL (p1 4, p2 3, p3 3), 770-vulcan-surface FAIL (p1 1, p2 4, p3 3), all p0 0; evidence/review/finding-register.json:1746-1780 package_status S20_770_CONTRACT_DRAFT_REVIEW_PENDING; docs/adr/ADR-0047-required-contract-index.md:3-4 "proposed; the WP-770 index is a draft at revision 1 with Council review pending"; grep for lane2 / "lane 2" / lane-2 across *.md *.json: zero hits, no WP-770 revision-2 draft anywhere in the tree.
 SPEC_EVIDENCE: REQUIRED_CONTRACT_INDEX_V1.md:70 defines the two-state token vocabulary (DRAFT_REVIEW_PENDING until accepted); Sley2.0mastergoal.md section 17 names twelve contracts; the index table rows 17.1..17.12 name the identical twelve (verified string-for-string).
 CURRENT_BEHAVIOR: Index content, master section 17, checker, ADR-0047, machine-summary token, finding register, and verdicts all agree: revision 1 draft, reviewed once, three FAIL verdicts on P1 findings, not accepted. The status line says "review pending" rather than "reviewed FAIL, repairs pending", but the checker-bound token cannot express more and the verdict record carries the detail.
 DESIRED_INVARIANT: Index, master, checker, and review record agree on the accepted/not-accepted state. (Holds.)
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: No layer contradicts another. The open P1 findings are S20-770 package work (a revision-2 draft answering the three rounds), not a synchronization defect; the "lane2 work" premise is not present in the repository and is not assumed.
+RATIONALE: No layer contradicts another. The open P1 findings are WP-770 package work (a revision-2 draft answering the three rounds), not a synchronization defect; the "lane2 work" premise is not present in the repository and is not assumed.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -989,61 +989,61 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none beyond the existing check_required_contract_index.py PASS
 SPECS_TO_UPDATE: none for synchronization; optional wording "Council review round 1 returned FAIL on P1 findings (verdicts.json); revision 2 pending" is cosmetic
-CODE_OWNERSHIP: Ariadne (S20-770)
+CODE_OWNERSHIP: Ariadne (WP-770)
 REVIEW_REQUIRED: no
 ```
 
 ```text
 FINDING_ID: AT-SS-04
-TITLE: Derived review records (finding register, decision dossier, test inventory) are stale and cannot be rebuilt because the RW-060 verdict fields use a vocabulary the ADR-0042 derivation reads as PENDING
+TITLE: Derived review records (finding register, decision dossier, test inventory) are stale and cannot be rebuilt because the TP-060 verdict fields use a vocabulary the ADR-0042 derivation reads as PENDING
 HYPOTHESIS: The machine summary moved fifteen commits past the last evidence refresh and one of those edits encoded PASS verdicts in a form the register derivation does not accept, so `make quick` is red at the pinned commit.
 REPOSITORY_EVIDENCE: evidence/review/finding-register.json, evidence/release/decision-dossier.json, evidence/validation/test-inventory.json last rebuilt at b2c850f (2026-09-06); machine-summary.json changed in b4c3390, e85b89c, 624f1c0, 9574f8a, 6c3d5df, 3f64497, 9bb442c, d4f5a88, 83fe94a, f6048a3, 72fff72, 94a2a57, 0470915, 12546de, 9b9d394; `python3 scripts/check_finding_register.py` -> FAIL problems [finding-register:obligations-drift, finding-register:obligations-digest, finding-register:drift, register-tests:fail]; `python3 scripts/check_decision_dossier.py` -> FAIL problems [decision-dossier:drift, test-inventory:drift, dossier-tests:fail]; `python3 scripts/build_finding_register.py --check` -> `{"code": 75002, "detail": "rw060_source_free_lifecycle.ariadne_review is PENDING; rw060_source_free_lifecycle.nabu_review is PENDING", "name": "COMPLETION_VIOLATION", "result": "FAIL"}`; `build_decision_dossier.py --check` -> 76003 DRIFT; `build_test_inventory.py --check` -> FAIL "tracked test inventory differs from the derived inventory"; machine-summary.json rw060_source_free_lifecycle: `"status": "RW060_COMPLETE"`, `"ariadne_review": "FAIL_3xP1_THEN_PASS_3x3_DELTA"`, `"nabu_review": "FAIL_THEN_PASS_P1_P2s_AND_P22_ARC_CLOSED"`; scripts/build_finding_register.py:49 "Nothing else maps to a state except by its first token", :155-163 classify_token (head FAIL -> FAIL_ROUND, superseded only by a same-reviewer PASS field in the same section, none present), :185-190 is_complete_status; Makefile:80-81 run both checkers inside `quick`.
 SPEC_EVIDENCE: reweave/rw-060.md:3-4 `Status: COMPLETE (implementation + validation green; Ariadne PASS, Nabu PASS with execution record)`; reviews/reweave-rw060-ariadne-r2-2026-09-06.log:18 and reweave-rw060-nabu-r2g-2026-09-06.log:20 orchestrator notes converting to final PASS on the execution record; docs/adr/ADR-0042 "the finding register is derived from recorded dispositions"; docs/spec/FINDING_REGISTER_V1.md section 2 vocabulary; tightening spec section 14 requires review/qualification records to agree with implementation.
-CURRENT_BEHAVIOR: The RW-060 verdicts are PASS in the lane record and transcripts, FAIL-headed strings in the summary, PENDING in the derivation, and absent from the tracked register, which still reflects b2c850f. The Tier 1 gate is red at the pinned commit for a record-encoding reason, not an engineering one.
+CURRENT_BEHAVIOR: The TP-060 verdicts are PASS in the lane record and transcripts, FAIL-headed strings in the summary, PENDING in the derivation, and absent from the tracked register, which still reflects b2c850f. The Tier 1 gate is red at the pinned commit for a record-encoding reason, not an engineering one.
 DESIRED_INVARIANT: Every summary review field uses the ADR-0042 vocabulary (first token PASS/FAIL/REVISE/PENDING/DEFERRED, FAIL rounds superseded by a same-reviewer PASS field), the derived register/dossier/inventory equal their `--check` derivation at every commit, and `make quick` is green.
 DISPOSITION: B_ADDITIVE_NOW
 RATIONALE: Truthful re-encoding of verdicts that already exist (e.g. `ariadne_review_round1: FAIL_3_P1`, `ariadne_review: PASS_3_OF_3_DELTA_CLOSED`, same for Nabu) followed by `make evidence-refresh`; no semantic, identity, or gate change. Severity is high because a red Tier 1 gate masks later regressions and contradicts RESUME.md's "Tier 1 green" claim for every commit after b2c850f.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: none (RW-060 evidence unchanged)
+SELFHOST_IMPACT: none (TP-060 evidence unchanged)
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: build_finding_register.py --check PASS, build_decision_dossier.py --check PASS, build_test_inventory.py --check PASS, check_finding_register.py PASS, check_decision_dossier.py PASS, `make quick` green; a regression unit test in the register test suite for a FAIL-then-PASS same-reviewer pair
 SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json (rw060 review fields), regenerated evidence/review/finding-register.json, evidence/release/decision-dossier.json, evidence/validation/test-inventory.json (and ga-acceptance-report if evidence-refresh touches it)
-CODE_OWNERSHIP: Vulcan (S20-740 register), Codex (S20-750 dossier), Ariadne (RW-060 lane record)
+CODE_OWNERSHIP: Vulcan (WP-740 register), Codex (WP-750 dossier), Ariadne (TP-060 lane record)
 REVIEW_REQUIRED: no (mechanical re-derivation); note in the next handoff per the in-flight repair rule
 IMPLEMENTATION (slice 5a): rw060_source_free_lifecycle re-encoded as ariadne_round1/nabu_round1 = "FAIL (preserved)" and ariadne_review/nabu_review = "PASS_FINAL" (the rw075_correction convention), with the verdict narrative kept in round_history (a non-review key; a first attempt named review_history was itself classified OTHER and refused, which is the vocabulary working as designed). Rebuilt finding-register.json, decision-dossier.json, test-inventory.json and synced counters. build_finding_register --check FINDING_REGISTER_OPEN (its normal open state), build_decision_dossier --check PASS, build_test_inventory --check PASS, check_finding_register PASS, check_decision_dossier PASS, bench/review/tests OK. Register now derives 221 obligations, 67 open reviews, 10 deferred.
 ```
 
 ```text
 FINDING_ID: AT-SS-05
-TITLE: docs/WORK_PACKAGES.md carries stale contract revision pins and no REWEAVE rows
+TITLE: docs/WORK_PACKAGES.md carries stale contract revision pins and no self-hosting plan rows
 HYPOTHESIS: The work-package DAG was last edited on 2026-09-05 and no longer matches the spec status lines or the active lane set.
-REPOSITORY_EVIDENCE: docs/WORK_PACKAGES.md last commit 1e71820 (2026-09-05); :31-32 `docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md (revision 9, 2026-09-03, ADR-0039, Council review pending)` vs docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md:3 `revision 13 (2026-09-06)`; :49 `docs/spec/SLEY_CLI_V1.md (revision 2, 2026-09-03, ...)` vs SLEY_CLI_V1.md:3 `revision 3 (2026-09-05)`; :59 `docs/spec/SLEY2_TRIAL_RUNNER_V1.md (revision 2, 2026-09-03, ...)` vs SLEY2_TRIAL_RUNNER_V1.md:3 `revision 3 (2026-09-04)`; the other eight revision pins (S20-420, 630, 710, 720, 730, 740, 750, 400) match; grep `RW-` / reweave in WORK_PACKAGES.md: zero hits, while reweave/rw-030..rw-080 records and ADR-0049 are active; scripts/check_local_completion_frontier.py:15,378 reads the file but asserts no revision or row set (PASS).
-SPEC_EVIDENCE: evidence/release/operator-decision-ADOPT-REWEAVE-2026-09-06.md:105-111 names `docs/WORK_PACKAGES.md owners` as one of the two role-assignment authorities and binds RW-010/RW-020; REWEAVE master table rows RW-020..RW-040 (lines 595-597) define the lane DAG; README.md:53 "Every next package must follow docs/WORK_PACKAGES.md".
-CURRENT_BEHAVIOR: The document README names as the mandatory package authority is four revisions behind on S20-260/270, one behind on S20-430 and S20-620, and silent on the RW lane that has produced eleven landed packages/slices.
+REPOSITORY_EVIDENCE: docs/WORK_PACKAGES.md last commit 1e71820 (2026-09-05); :31-32 `docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md (revision 9, 2026-09-03, ADR-0039, Council review pending)` vs docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md:3 `revision 13 (2026-09-06)`; :49 `docs/spec/SLEY_CLI_V1.md (revision 2, 2026-09-03, ...)` vs SLEY_CLI_V1.md:3 `revision 3 (2026-09-05)`; :59 `docs/spec/SLEY2_TRIAL_RUNNER_V1.md (revision 2, 2026-09-03, ...)` vs SLEY2_TRIAL_RUNNER_V1.md:3 `revision 3 (2026-09-04)`; the other eight revision pins (WP-420, 630, 710, 720, 730, 740, 750, 400) match; grep `RW-` / reweave in WORK_PACKAGES.md: zero hits, while reweave/rw-030..rw-080 records and ADR-0049 are active; scripts/check_local_completion_frontier.py:15,378 reads the file but asserts no revision or row set (PASS).
+SPEC_EVIDENCE: evidence/release/operator-decision-ADOPT-REWEAVE-2026-09-06.md:105-111 names `docs/WORK_PACKAGES.md owners` as one of the two role-assignment authorities and binds TP-010/TP-020; the self-hosting plan master table rows TP-020..TP-040 (lines 595-597) define the lane DAG; README.md:53 "Every next package must follow docs/WORK_PACKAGES.md".
+CURRENT_BEHAVIOR: The document README names as the mandatory package authority is four revisions behind on WP-260/270, one behind on WP-430 and WP-620, and silent on the RW lane that has produced eleven landed packages/slices.
 DESIRED_INVARIANT: Every revision pin in WORK_PACKAGES.md equals the pinned document's status-line revision, and every active lane (S20 and RW) has a row or an explicit pointer to its DAG authority.
 DISPOSITION: B_ADDITIVE_NOW
-RATIONALE: Pure record refresh; add a revision-pin assertion to check_local_completion_frontier.py (or a small check_work_packages.py) so the rows cannot drift silently again, and add RW rows or a pointer row to the REWEAVE master table and reweave/ records.
+RATIONALE: Pure record refresh; add a revision-pin assertion to check_local_completion_frontier.py (or a small check_work_packages.py) so the rows cannot drift silently again, and add RW rows or a pointer row to the self-hosting plan master table and reweave/ records.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
 SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: revision-pin check over every `docs/spec/X.md (revision N` fragment in WORK_PACKAGES.md against X.md line 3, run in `make quick`
-SPECS_TO_UPDATE: docs/WORK_PACKAGES.md rows S20-260, S20-270, S20-430, S20-620 (and S20-420/S20-430 after AT-SS-02); RW rows RW-010..RW-080
+SPECS_TO_UPDATE: docs/WORK_PACKAGES.md rows WP-260, WP-270, WP-430, WP-620 (and WP-420/WP-430 after AT-SS-02); RW rows TP-010..TP-080
 CODE_OWNERSHIP: Codex/integrator (DAG file), Vulcan (frontier checker)
 REVIEW_REQUIRED: no
-IMPLEMENTATION (slice 5e): S20-260/270 rows pinned to VM_EXTENDED_OPCODE_PROFILE_V1 revision 13 (2026-09-06), S20-620 to trial-runner revision 3 (2026-09-04), S20-420/430 to the new revisions; a REWEAVE package table (RW-030..RW-080) added. The revision-pin assertion in the frontier checker was not added: the dossier checker pins WORK_PACKAGE_MARKERS by substring and a per-row revision assertion belongs to each package's own checker (S20-260/270's already reads its contract revision).
+IMPLEMENTATION (slice 5e): WP-260/270 rows pinned to VM_EXTENDED_OPCODE_PROFILE_V1 revision 13 (2026-09-06), WP-620 to trial-runner revision 3 (2026-09-04), WP-420/430 to the new revisions; a self-hosting plan package table (TP-030..TP-080) added. The revision-pin assertion in the frontier checker was not added: the dossier checker pins WORK_PACKAGE_MARKERS by substring and a per-row revision assertion belongs to each package's own checker (WP-260/270's already reads its contract revision).
 ```
 
 ```text
 FINDING_ID: AT-SS-06
-TITLE: RESUME.md, README.md phase narrative, and the README Authority block predate REWEAVE adoption and contradict landed state
+TITLE: RESUME.md, README.md phase narrative, and the README Authority block predate the self-hosting plan adoption and contradict landed state
 HYPOTHESIS: The human entry points are frozen at 2026-09-05 (RESUME) and 2026-08-28 (README) and state facts that later commits reversed.
-REPOSITORY_EVIDENCE: RESUME.md:1 `# Resume state, 2026-09-05 (night, third push: S20-330 closed, checkpoint)` (9b7054c), :5-10 "the smoke attest of the S20-330 closure is the first action on resume", grep RW-0 in RESUME.md: zero hits; README.md:53-54 (39a6296, 2026-08-28) `S20-330 is deliberately deferred until negotiated session and verified workspace/root authority exist.` vs docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md:147-148 round-2 PASS x3 and commit 1e71820 "close S20-330"; README.md:156-163 Authority block lists the master only by its symlink path `/home/dev/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md` and no REWEAVE master, machine-summary, or resume/locator; ARCHITECTURE.md:3 `Status: M1 normative baseline` (2026-08-27) vs machine-summary phase M2; later truth: 3fc2275 REWEAVE adoption (2026-09-06), reweave/rw-075-continuation-2026-09-07.md:1 `REVIEW_DEFERRED / IMPLEMENTATION_BLOCKED`, check_r2_exit `R2_EXIT: NOT_READY`, RW-080 slices 1-7 under operator override (machine-summary rw075_correction.operator_override_2026_09_07).
+REPOSITORY_EVIDENCE: RESUME.md:1 `# Resume state, 2026-09-05 (night, third push: WP-330 closed, checkpoint)` (9b7054c), :5-10 "the smoke attest of the WP-330 closure is the first action on resume", grep RW-0 in RESUME.md: zero hits; README.md:53-54 (39a6296, 2026-08-28) `WP-330 is deliberately deferred until negotiated session and verified workspace/root authority exist.` vs docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md:147-148 round-2 PASS x3 and commit 1e71820 "close WP-330"; README.md:156-163 Authority block lists the master only by its symlink path `/home/dev/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md` and no the self-hosting plan master, machine-summary, or resume/locator; ARCHITECTURE.md:3 `Status: M1 normative baseline` (2026-08-27) vs machine-summary phase M2; later truth: 3fc2275 the self-hosting plan adoption (2026-09-06), reweave/rw-075-continuation-2026-09-07.md:1 `REVIEW_DEFERRED / IMPLEMENTATION_BLOCKED`, check_r2_exit `R2_EXIT: NOT_READY`, TP-080 slices 1-7 under operator override (machine-summary rw075_correction.operator_override_2026_09_07).
 SPEC_EVIDENCE: tightening spec 15.5 requires a locator naming canonical branch, active lanes, spec paths, epoch, ABI, package version, profile, blocked gates, last-updated; 15.6 requires remote review packets; section 14 requires records to agree with implementation.
-CURRENT_BEHAVIOR: A remote or resuming reader following README or RESUME is told S20-330 is deferred and that the next action is an S20-330 smoke attest; neither document mentions the self-hosting lane, the v2 successor contracts, the NOT_READY R2 gate, or the override under which the last nine commits landed.
+CURRENT_BEHAVIOR: A remote or resuming reader following README or RESUME is told WP-330 is deferred and that the next action is a WP-330 smoke attest; neither document mentions the self-hosting lane, the v2 successor contracts, the NOT_READY R2 gate, or the override under which the last nine commits landed.
 DESIRED_INVARIANT: The first-read documents point at one derived, checker-validated locator (AT-SS-14) and contain no phase claim that a later commit reversed.
 DISPOSITION: B_ADDITIVE_NOW
 RATIONALE: README:53 and the Authority block are stale facts in an authority document (real defect, truthful edit); RESUME.md should be superseded by or point at the locator rather than be rewritten by hand each session; ARCHITECTURE.md and the M0 dossier chapters (00-executive-summary.md:3 "Status: M0 complete", 22-independent-review.md:3) are dated records and only need an "as of" pointer, not a rewrite.
@@ -1056,7 +1056,7 @@ TESTS_REQUIRED: locator checker (AT-SS-14) asserts README Authority block names 
 SPECS_TO_UPDATE: README.md:53-54 and :156-163, RESUME.md (supersede or refresh with RW state), ARCHITECTURE.md:3 and machineresearch/sley-2.0/00-executive-summary.md:3 ("as of" pointer)
 CODE_OWNERSHIP: Codex/integrator
 REVIEW_REQUIRED: no
-IMPLEMENTATION (slice 5e/5b): README no longer says S20-330 is deferred (closed 2026-09-05, closeout cited); README Authority block names the master-goal override and the locator; RESUME.md is rewritten at campaign closeout as the handoff. ARCHITECTURE.md and the M0 dossier chapter stay dated records (no edit).
+IMPLEMENTATION (slice 5e/5b): README no longer says WP-330 is deferred (closed 2026-09-05, closeout cited); README Authority block names the master-goal override and the locator; RESUME.md is rewritten at campaign closeout as the handoff. ARCHITECTURE.md and the M0 dossier chapter stay dated records (no edit).
 ```
 
 ```text
@@ -1086,7 +1086,7 @@ TITLE: ADR index lists every ADR present but does not acknowledge the duplicated
 HYPOTHESIS: docs/adr/README.md may omit ADR files or list ADRs that do not exist.
 REPOSITORY_EVIDENCE: docs/adr contains 50 ADR files; README.md lists numbers ADR-0001..ADR-0049 (each present); two files share ADR-0017: ADR-0017-candidate-contract-freeze.md and ADR-0017-offline-raw-baseline-runner.md; docs/adr/README.md:25-26 `- ADR-0017: candidate contract and identity freeze` / `- ADR-0017: offline raw baseline evidence runner` with no collision note; README last commit 3fc2275 (2026-09-06) added ADR-0049.
 SPEC_EVIDENCE: tightening spec section 14 (records must agree) and 15.5 remote navigation; no repository rule assigns ADR numbers uniquely, but every closeout, WORK_PACKAGES row and machine-summary field cites ADRs by number.
-CURRENT_BEHAVIOR: A citation "ADR-0017" is ambiguous between the S20-345 candidate freeze and the S20-610 offline runner; the index reproduces the ambiguity silently.
+CURRENT_BEHAVIOR: A citation "ADR-0017" is ambiguous between the WP-345 candidate freeze and the WP-610 offline runner; the index reproduces the ambiguity silently.
 DESIRED_INVARIANT: Every ADR identifier resolves to exactly one file, or the index states the tolerated collision and how citations disambiguate (by slug).
 DISPOSITION: B_ADDITIVE_NOW
 RATIONALE: Renumbering would rewrite history references in closeouts and the machine summary (net negative); a one-line tolerated-collision note in the index plus slug-qualified citations is additive and truthful.
@@ -1125,12 +1125,12 @@ REVIEW_REQUIRED: no
 
 ```text
 FINDING_ID: AT-SS-10
-TITLE: REWEAVE requirements ledger entries reference only commits that exist; the ledger is an out-of-repo R1 draft that RW-020 accepted without regeneration
+TITLE: The self-hosting plan requirements ledger entries reference only commits that exist; the ledger is an out-of-repo R1 draft that TP-020 accepted without regeneration
 HYPOTHESIS: Ledger entries claiming landed status may cite commits absent from this repository.
-REPOSITORY_EVIDENCE: /home/dev/machineresearch/SLEY_REWEAVE_MASTER_PACKAGE_V1/sley-reweave-v1/reweave-r1/requirements-ledger.json: 20 requirements (VERIFIED 1: REQ-LINEAGE; PARTIAL 11; NOT_STARTED 7; NOT_APPLICABLE_WITH_PROOF 1); the only commit-like token is `9b7054c` (REQ-RUST-BOOTSTRAP evidence "baseline commit 9b7054c") and `git cat-file -t 9b7054c` = commit; no entry claims VERIFIED at any other commit; reweave-r1/R1-README.json activation_status "PROPOSED ... R1 NOT passed, R2 NOT started"; reweave-r1/scope-adoption-record.json `adoption_mechanism: NOT YET RECORDED in-repo`; the repository has no copy of the ledger (grep requirements-ledger, REQ-SELFHOST: zero hits); evidence/release/operator-decision-ADOPT-REWEAVE-2026-09-06.md:138-142 `RW-020 ... COMPLETE using the technically accepted ledger draft (addendum section 3; not regenerated) ... sole VERIFIED obligation REQ-LINEAGE`, :118-119 "reconciliation itself remains open, owned by the RW-020 role assignments above ... required at a future RW-020 review"; reweave/rw-030-charter.md:3 "depends on RW-020 COMPLETE".
-SPEC_EVIDENCE: REWEAVE master table line 595 `RW-020 | Requirement ledger and retained implementation map | RW-010 | No unclassified active obligations`; docs/adr/ADR-0049 accepted 2026-09-06.
-CURRENT_BEHAVIOR: The ledger is a truthful R1 snapshot (its adoption line is stale only because it predates ADR-0049, and it says so); the operator record declares RW-020 complete on that draft and explicitly schedules regeneration for a future RW-020 review. Nothing points at a missing commit.
-DESIRED_INVARIANT: No landed claim cites a non-existent commit (holds); regeneration of the ledger into the repository is an already-recorded future RW-020 obligation.
+REPOSITORY_EVIDENCE: /home/dev/machineresearch/SLEY_SELF_HOSTING_MASTER_PACKAGE_V1/sley-reweave-v1/reweave-r1/requirements-ledger.json: 20 requirements (VERIFIED 1: REQ-LINEAGE; PARTIAL 11; NOT_STARTED 7; NOT_APPLICABLE_WITH_PROOF 1); the only commit-like token is `9b7054c` (REQ-RUST-BOOTSTRAP evidence "baseline commit 9b7054c") and `git cat-file -t 9b7054c` = commit; no entry claims VERIFIED at any other commit; reweave-r1/R1-README.json activation_status "PROPOSED ... R1 NOT passed, R2 NOT started"; reweave-r1/scope-adoption-record.json `adoption_mechanism: NOT YET RECORDED in-repo`; the repository has no copy of the ledger (grep requirements-ledger, REQ-SELFHOST: zero hits); evidence/release/operator-decision-ADOPT-REWEAVE-2026-09-06.md:138-142 `TP-020 ... COMPLETE using the technically accepted ledger draft (addendum section 3; not regenerated) ... sole VERIFIED obligation REQ-LINEAGE`, :118-119 "reconciliation itself remains open, owned by the TP-020 role assignments above ... required at a future TP-020 review"; reweave/rw-030-charter.md:3 "depends on TP-020 COMPLETE".
+SPEC_EVIDENCE: The self-hosting plan master table line 595 `TP-020 | Requirement ledger and retained implementation map | TP-010 | No unclassified active obligations`; docs/adr/ADR-0049 accepted 2026-09-06.
+CURRENT_BEHAVIOR: The ledger is a truthful R1 snapshot (its adoption line is stale only because it predates ADR-0049, and it says so); the operator record declares TP-020 complete on that draft and explicitly schedules regeneration for a future TP-020 review. Nothing points at a missing commit.
+DESIRED_INVARIANT: No landed claim cites a non-existent commit (holds); regeneration of the ledger into the repository is an already-recorded future TP-020 obligation.
 DISPOSITION: A_ALREADY_SOLVED
 RATIONALE: The specific concern (phantom commits) is disproved; the staleness of the out-of-repo snapshot is already recorded with an owner and a trigger in the operator decision, so no new action is invented here. The locator (AT-SS-14) should name the ledger's canonical path and digest so remote readers can find it.
 CANONICAL_IMPACT: none
@@ -1139,8 +1139,8 @@ ABI_IMPACT: none
 SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none
-SPECS_TO_UPDATE: none now; ledger regeneration at the recorded RW-020 review
-CODE_OWNERSHIP: Ariadne (RW-020 traceability/ledger per ADOPT:106)
+SPECS_TO_UPDATE: none now; ledger regeneration at the recorded TP-020 review
+CODE_OWNERSHIP: Ariadne (TP-020 traceability/ledger per ADOPT:106)
 REVIEW_REQUIRED: no
 ```
 
@@ -1148,7 +1148,7 @@ REVIEW_REQUIRED: no
 FINDING_ID: AT-SS-11
 TITLE: Machine-summary REVIEW_PENDING tokens after PASS rounds are a documented, checker-bound convention, not drift
 HYPOTHESIS: machine-summary.json status fields (e.g. S20_330_IMPLEMENTED_REVIEW_PENDING, S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING, S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING) contradict closeouts that record PASS re-reviews.
-REPOSITORY_EVIDENCE: machine-summary.json session_handle_profile.status = S20_330_IMPLEMENTED_REVIEW_PENDING; docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md:147-154 `Re-review round 2 ... Ariadne PASS, Nabu PASS, Vulcan PASS ... The contract freeze and package completion status remain a separate gate: the summary keeps S20_330_IMPLEMENTED_REVIEW_PENDING with the three PASS obligations superseding the FAIL rounds, matching the S20-400 closure.`; scripts/check_cli_contract.py:19-24 and eleven sibling checkers define DRAFT / REVIEW_PENDING / COMPLETE tokens and assert the summary value; docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md:3 states the same for every implemented-with-reviews-pending package.
+REPOSITORY_EVIDENCE: machine-summary.json session_handle_profile.status = S20_330_IMPLEMENTED_REVIEW_PENDING; docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md:147-154 `Re-review round 2 ... Ariadne PASS, Nabu PASS, Vulcan PASS ... The contract freeze and package completion status remain a separate gate: the summary keeps S20_330_IMPLEMENTED_REVIEW_PENDING with the three PASS obligations superseding the FAIL rounds, matching the WP-400 closure.`; scripts/check_cli_contract.py:19-24 and eleven sibling checkers define DRAFT / REVIEW_PENDING / COMPLETE tokens and assert the summary value; docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md:3 states the same for every implemented-with-reviews-pending package.
 SPEC_EVIDENCE: FINDING_REGISTER_V1.md / ADR-0042 (verdict obligations carried per field, package status is a separate gate); tightening spec section 14.
 CURRENT_BEHAVIOR: Summary tokens, closeouts, checkers, and the frontier agree on the meaning: implemented, reviewed PASS, freeze/completion gate not yet exercised.
 DESIRED_INVARIANT: Summary token semantics documented and enforced. (Holds.)
@@ -1167,10 +1167,10 @@ REVIEW_REQUIRED: no
 
 ```text
 FINDING_ID: AT-SS-12
-TITLE: Machine summary indexes RW-080 provisional slices only through slice 4 while slices 5, 6, and 7 have landed records; rw-075.md lacks a forward pointer to its correction
-HYPOTHESIS: The last three RW-080 slices were committed without the summary entry the earlier slices received.
-REPOSITORY_EVIDENCE: machine-summary.json last commit 9b9d394 (slice 4); keys rw080_codec_scaffold_provisional, rw080_uvar_slice1_provisional, rw080_envelope_slice2_provisional, rw080_program_outer_slice3_provisional, rw080_program_body_slice4_provisional present, grep for slice 5/6/7: zero hits; records reweave/rw-080-codec-program-entrypoint-encode.md (`# RW-080 section 1.1 program slice 5 ... provisional C0 construction record`, 9b7c52d), rw-080-codec-program-envelope-compose.md (slice 6, 0a909e1), rw-080-codec-program-namespace.md (slice 7, 560a5f1) each `Status: PROVISIONAL (... operator development override ...)`; reweave/rw-075.md:3-4 `Status: IMPLEMENTED (validation green; independent Ariadne/Nabu reviews PENDING; premium delta re-review PENDING; RW-080 remains BLOCKED)` (624f1c0) vs check_r2_exit `RW075_ariadne_pass: PASS (latest-round verdict: PASS)`, `RW075_nabu_pass: PASS` and reweave/rw-075-correction.md carrying the later state.
-SPEC_EVIDENCE: rw-080-contract.md:3-8 (RW-080 BLOCKED until premium PASS plus R2 READY) and machine-summary rw075_correction.operator_override_2026_09_07 (development continuation permitted, provisional labelling required); tightening spec section 14 (review records agree with implementation).
+TITLE: Machine summary indexes TP-080 provisional slices only through slice 4 while slices 5, 6, and 7 have landed records; rw-075.md lacks a forward pointer to its correction
+HYPOTHESIS: The last three TP-080 slices were committed without the summary entry the earlier slices received.
+REPOSITORY_EVIDENCE: machine-summary.json last commit 9b9d394 (slice 4); keys rw080_codec_scaffold_provisional, rw080_uvar_slice1_provisional, rw080_envelope_slice2_provisional, rw080_program_outer_slice3_provisional, rw080_program_body_slice4_provisional present, grep for slice 5/6/7: zero hits; records reweave/rw-080-codec-program-entrypoint-encode.md (`# TP-080 section 1.1 program slice 5 ... provisional C0 construction record`, 9b7c52d), rw-080-codec-program-envelope-compose.md (slice 6, 0a909e1), rw-080-codec-program-namespace.md (slice 7, 560a5f1) each `Status: PROVISIONAL (... operator development override ...)`; reweave/rw-075.md:3-4 `Status: IMPLEMENTED (validation green; independent Ariadne/Nabu reviews PENDING; premium delta re-review PENDING; TP-080 remains BLOCKED)` (624f1c0) vs check_r2_exit `RW075_ariadne_pass: PASS (latest-round verdict: PASS)`, `RW075_nabu_pass: PASS` and reweave/rw-075-correction.md carrying the later state.
+SPEC_EVIDENCE: rw-080-contract.md:3-8 (TP-080 BLOCKED until premium PASS plus R2 READY) and machine-summary rw075_correction.operator_override_2026_09_07 (development continuation permitted, provisional labelling required); tightening spec section 14 (review records agree with implementation).
 CURRENT_BEHAVIOR: The provisional slices are labelled consistently in their own records and in commit messages, but the summary, which the finding register and dossier derive from, stops at slice 4; a reader of rw-075.md alone sees reviews PENDING that later passed.
 DESIRED_INVARIANT: Every landed lane record has a summary entry in the same commit; a superseded lane record names its successor record.
 DISPOSITION: B_ADDITIVE_NOW
@@ -1182,9 +1182,9 @@ SELFHOST_IMPACT: none (provisional status unchanged)
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: a summary/records parity check listing every reweave/rw-*.md record and asserting a summary key or explicit exclusion
 SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json rw075_correction section; reweave/rw-075.md:3-4
-CODE_OWNERSHIP: Ariadne (REWEAVE lane records)
+CODE_OWNERSHIP: Ariadne (the self-hosting plan lane records)
 REVIEW_REQUIRED: no
-IMPLEMENTATION (slice 5e): machine-summary rw075_correction indexes RW-080 slices 5, 6 and 7 in the existing provisional wording with commits and records; rw-075.md carries a successor pointer to rw-075-correction.md.
+IMPLEMENTATION (slice 5e): machine-summary rw075_correction indexes TP-080 slices 5, 6 and 7 in the existing provisional wording with commits and records; rw-075.md carries a successor pointer to rw-075-correction.md.
 ```
 
 ```text
@@ -1196,7 +1196,7 @@ SPEC_EVIDENCE: tightening spec section 0 (independent reproducibility, remote in
 CURRENT_BEHAVIOR: `make quick` is green only on the single canonical checkout at /home/dev/sley2; a remote reviewer or any worktree cannot run the Tier 1 gate without recreating the operator's home-directory layout; the checkers give no override.
 DESIRED_INVARIANT: Every Tier 1 checker runs from the repository alone, or reads the master from an explicit, documented override with a pinned digest recorded in-repo, and fails with a distinct SKIP/UNAVAILABLE code (never a silent pass) when the master is absent.
 DISPOSITION: B_ADDITIVE_NOW
-RATIONALE: Additive: accept `SLEY2_MASTER_GOAL` (or a locator-declared path) with the expected sha256 pinned in the locator, keep the current default, and report `master:unavailable` distinctly so the failure is attributable; alternatively vendor the exact master sections these two checkers read as a digest-pinned extract. No semantic change to either contract.
+RATIONALE: Additive: accept `SLEY2_DESIGN_SPEC` (or a locator-declared path) with the expected sha256 pinned in the locator, keep the current default, and report `master:unavailable` distinctly so the failure is attributable; alternatively vendor the exact master sections these two checkers read as a digest-pinned extract. No semantic change to either contract.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -1204,21 +1204,21 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: run both checkers from a fresh worktree with and without the override; `make quick` from a worktree
 SPECS_TO_UPDATE: none of docs/spec; README.md Authority block and the locator (canonical master path plus sha256); CONTRIBUTING.md validation notes
-CODE_OWNERSHIP: Merlin (S20-360/S20-390 checkers), Codex/integrator (locator)
+CODE_OWNERSHIP: Merlin (WP-360/WP-390 checkers), Codex/integrator (locator)
 REVIEW_REQUIRED: no
-IMPLEMENTATION (slice 5b): SLEY2_MASTER_GOAL override in both checkers with the operator default kept and a distinct master:unavailable problem; verified from the campaign worktree with and without the override; CONTRIBUTING and README document it. The digest pin lives in the locator (canonical_spec.sha256), verified by check_remote_head.py.
+IMPLEMENTATION (slice 5b): SLEY2_DESIGN_SPEC override in both checkers with the operator default kept and a distinct master:unavailable problem; verified from the campaign worktree with and without the override; CONTRIBUTING and README document it. The digest pin lives in the locator (canonical_spec.sha256), verified by check_remote_head.py.
 ```
 
 ```text
 FINDING_ID: AT-SS-14
 TITLE: No remote-head locator exists; machine-summary.json is the canonical machine-readable status mechanism to extend
 HYPOTHESIS: The repository may already carry a machine-readable status/index that the section 15.5 locator can extend instead of a new docs/status file.
-REPOSITORY_EVIDENCE: no docs/status directory at the pinned commit; inventory in section 2 of this audit: machine-summary.json (hand-maintained, bound by ~30 checkers, carries project/phase/status/m0_commit/final_commit and every package token, contract path, contract_revision, REWEAVE v1/v2 keys), evidence/release/decision-dossier.json (derived from the summary; decision_state BLOCKED; never decides), evidence/review/finding-register.json (derived), scripts/gate_status.py (static NOT_IMPLEMENTED stub, exit 2), scripts/check_r2_exit.py (run-time gate aggregation), docs/spec/REQUIRED_CONTRACT_INDEX_V1.md (traceability, not status), RESUME.md (hand narrative, stale, AT-SS-06), README Authority block (paths only). The lead's 5ff79ef adds scripts/check_remote_consistency.py (git-only freshness, no locator content).
+REPOSITORY_EVIDENCE: no docs/status directory at the pinned commit; inventory in section 2 of this audit: machine-summary.json (hand-maintained, bound by ~30 checkers, carries project/phase/status/m0_commit/final_commit and every package token, contract path, contract_revision, the self-hosting plan v1/v2 keys), evidence/release/decision-dossier.json (derived from the summary; decision_state BLOCKED; never decides), evidence/review/finding-register.json (derived), scripts/gate_status.py (static NOT_IMPLEMENTED stub, exit 2), scripts/check_r2_exit.py (run-time gate aggregation), docs/spec/REQUIRED_CONTRACT_INDEX_V1.md (traceability, not status), RESUME.md (hand narrative, stale, AT-SS-06), README Authority block (paths only). The lead's 5ff79ef adds scripts/check_remote_consistency.py (git-only freshness, no locator content).
 SPEC_EVIDENCE: tightening spec 15.5 "If the repository already has a canonical machine-readable status/index mechanism, extend that mechanism instead of creating redundant status files" and "The locator MUST NOT become a second source of truth for commit identity"; ADR-0043 "decision dossier derived, not decided".
 CURRENT_BEHAVIOR: The fields 15.5 requires are scattered: branch/commit in git, spec paths in README:158 and SPEC_INPUT_DOSSIER.md:3 (symlink form) and the operator decision, epoch in SCHEMA_EPOCH_V1.md, ABI/package/profile in the V2 status lines and rw-080-contract.md:9-16, blocked gates in check_r2_exit output and rw-075-continuation, last-updated nowhere.
 DESIRED_INVARIANT: One derived, checker-validated locator whose non-commit fields live in machine-summary.json and whose commit fields are read from git at check time; human documents point at it.
 DISPOSITION: B_ADDITIVE_NOW
-RATIONALE: Extending machine-summary.json (add a `locator` section: canonical_integration_branch, active_reweave_branches, canonical_spec_path plus sha256, reweave_master_path plus sha256, requirements_ledger_path plus sha256, schema_epoch, host_abi HOST_ABI_V2 bc564653..., exec_package EXEC_PACKAGE_V2 f4958c5e..., bootstrap_profile BOOTSTRAP_PROFILE_2 fb2d8cc8..., known_blocked_gates [R2_EXIT NOT_READY, premium delta FAIL, S20-710 root license, ...], last_updated_utc) and a `scripts/check_remote_head.py` that (a) verifies each sha256 and each version claim against the spec status lines and check_r2_exit, (b) reads commits from git only, and (c) optionally renders docs/status/SLEY2-REMOTE-HEAD.md as a derived view, satisfies 15.5 without a second hand-maintained truth. `make quick` runs the checker; RESUME.md and README point at it.
+RATIONALE: Extending machine-summary.json (add a `locator` section: canonical_integration_branch, active_reweave_branches, canonical_spec_path plus sha256, reweave_master_path plus sha256, requirements_ledger_path plus sha256, schema_epoch, host_abi HOST_ABI_V2 bc564653..., exec_package EXEC_PACKAGE_V2 f4958c5e..., bootstrap_profile BOOTSTRAP_PROFILE_2 fb2d8cc8..., known_blocked_gates [R2_EXIT NOT_READY, premium delta FAIL, WP-710 root license, ...], last_updated_utc) and a `scripts/check_remote_head.py` that (a) verifies each sha256 and each version claim against the spec status lines and check_r2_exit, (b) reads commits from git only, and (c) optionally renders docs/status/SLEY2-REMOTE-HEAD.md as a derived view, satisfies 15.5 without a second hand-maintained truth. `make quick` runs the checker; RESUME.md and README point at it.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -1228,7 +1228,7 @@ TESTS_REQUIRED: check_remote_head.py self-test (stale sha, stale version, missin
 SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json (locator section), README.md Authority block, RESUME.md pointer, CONTRIBUTING.md (locator update rule: same or immediately following validated commit per 15.5)
 CODE_OWNERSHIP: Codex/integrator (summary, docs), Vulcan (checker)
 REVIEW_REQUIRED: yes, Nabu architecture read of the locator field set (bounded)
-IMPLEMENTATION (slice 5f): machine-summary.json gains a top-level `locator` section (branch, latest validated integration commit, active lanes, canonical spec and REWEAVE master paths with sha256 and env overrides, schema epoch, HOST_ABI_V2, EXEC_PACKAGE_V2, BOOTSTRAP_PROFILE_2 with record paths and digests, known blocked gates, remote state, last_updated_utc). scripts/check_remote_head.py verifies every digest against the record it names, the epoch against the summary and fixture, the masters by sha256 when resolvable (UNAVAILABLE otherwise, never a pass), the validated commit's existence and ancestry in git, and lane branch existence; --render writes docs/status/SLEY2-REMOTE-HEAD.md, --check fails on a stale view. Self-test 5 cases (stale digest, missing field, stale epoch, ghost commit, clean). Wired into make remote-consistency, not quick, so the in-flight lanes' Tier 1 gate is untouched; README points at the view.
+IMPLEMENTATION (slice 5f): machine-summary.json gains a top-level `locator` section (branch, latest validated integration commit, active lanes, canonical spec and the self-hosting plan master paths with sha256 and env overrides, schema epoch, HOST_ABI_V2, EXEC_PACKAGE_V2, BOOTSTRAP_PROFILE_2 with record paths and digests, known blocked gates, remote state, last_updated_utc). scripts/check_remote_head.py verifies every digest against the record it names, the epoch against the summary and fixture, the masters by sha256 when resolvable (UNAVAILABLE otherwise, never a pass), the validated commit's existence and ancestry in git, and lane branch existence; --render writes docs/status/SLEY2-REMOTE-HEAD.md, --check fails on a stale view. Self-test 5 cases (stale digest, missing field, stale epoch, ghost commit, clean). Wired into make remote-consistency, not quick, so the in-flight lanes' Tier 1 gate is untouched; README points at the view.
 REVIEW REPAIR (slice 7, Nabu round-1 P1): review candidates are immutable branch refs (review/arch-tighten-r1-roundN, pushed; tags are not used because the anti-goal gate treats any git tag as a publication signal) recorded in the locator's review_candidates with their exact SHA; check_remote_head.py fails if a candidate ref resolves to a different SHA (self-test case added) and renders them in the status view.
 ```
 
@@ -1246,7 +1246,7 @@ FINDING_ID: AT-IG-01
 TITLE: No single normative identity graph existed; rw-075 covers eight compiler-closure hash obligations out of more than sixty identities and sub-digests
 HYPOTHESIS: The repository has no one document that lists every canonical identity with domain, preimage, dependencies, invalidation, owner and vector, so section 7 cannot be checked against a committed artifact.
 REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/rw-075-hash-inventory.md lists 8 obligations scoped to the SH2 compiler closure and names SLEYPOBS1 without a layout; docs/spec/IDENTIFIERS_V1.md lists 50 domains with two exact preimages (workspace, entity) and delegates the rest to owning contracts; the preimages themselves live in 24 crate files and 7 Python oracles (section 1 records A1 to A18, B01 to B16, C01 to C25, D1 of this document); no in-tree file carries the dependency edge list of section 2.
-SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 7 ("Create one normative dependency graph covering every canonical identity"); REWEAVE master section 6 ("All identifier preimages and hash domains remain explicit"); IDENTIFIERS_V1.md "Content-addressed identifiers" ("The owning contracts supply exact preimages").
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 7 ("Create one normative dependency graph covering every canonical identity"); the self-hosting plan master section 6 ("All identifier preimages and hash domains remain explicit"); IDENTIFIERS_V1.md "Content-addressed identifiers" ("The owning contracts supply exact preimages").
 CURRENT_BEHAVIOR: Each identity is fully specified by its owning contract and implemented once; the graph is recoverable only by reading all of them. rw-075 is accurate for what it lists but is a closure inventory, not an identity graph.
 DESIRED_INVARIANT: One committed record enumerates every identity with the ten section 7 fields and the edge list, and is regenerated or re-verified when a domain is added.
 DISPOSITION: B_ADDITIVE_NOW
@@ -1268,7 +1268,7 @@ FINDING_ID: AT-IG-02
 TITLE: Independently maintained preimage definitions exist for 27 identities and a gate fails on divergence in both directions
 HYPOTHESIS: Rust and Python re-implement the same preimages with no checker that fails if they diverge (section 7 last sentence).
 REPOSITORY_EVIDENCE: Duplicate definitions (section 3 tables): EntityId (sley-id lib.rs:360 / candidate.py:135), ObjectId (object.rs:94, scb1 lib.rs:412 / codec.py:18, transaction_receipt.py), StateRoot (state-root lib.rs:451 / check_state_root_vector.py:113, transaction_receipt.py:29), TransactionId and ReceiptId (txn codec.rs:1040,495 / transaction_receipt.py:22-25), SchemaEpochId (schema lib.rs:441 / check_schema_epoch_vector.py:61-66), PolicyRootId (policy lib.rs:1958 / transaction_receipt.py:30), CandidateId and ValidationProfileId (mutate codec.rs:4022,4010 / candidate.py:32-34,118), CandidateResultId (candidate_result.rs:584 / candidate_result.py:15-16), accepted-head checksum (txn repository.rs:2893, repo exchange.rs:61-64 / check_repository_exchange_vector.py:17,22), BytecodeCacheKey (vm lib.rs:199 / vm_extended.py:346), image SHA-256 (host_abi.rs:210 / vm_extended.py:390), ExecutionReportId domain step (conformance lib.rs:426 / check_release_demo_vector.py:115-124), RepositoryPackId with leaf and node (repo lib.rs:558,922-955 / check_repository_pack_vector.py:16-127), RepositoryExchangeId with leaf, node, name key (exchange.rs:628,849-932, refs.rs:473 / check_repository_exchange_vector.py:15-23,152-170), MergeConflictId (merge.rs:2123 / check_merge_vector.py), SemanticDeltaId (compare.rs:1245 / check_semantic_comparison_vector.py), RootQueryId (root_query.rs:711 / check_root_backed_query_vector.py), ContextCapsuleId (context_capsule.rs:567 / check_context_capsule_vector.py), IndexSnapshotId arm 2 (snapshot.rs:535 / check_complete_root_index_snapshot_vector.py), ProtocolFrameId and ProtocolHandshakeId (protocol lib.rs:1098,715 / check_smp1_vector.py). Divergence gates: Python side make conformance (Makefile:116-148) over the committed fixture; Rust side make quick regenerates the fixture from the crate emitter and diffs (scripts/generate_*_fixtures.py --check, Makefile:19-52,94-100, each invoking cargo test emit_*_for_fixture_refresh) or reads the fixture directly (sley-scb1 tests/conformance.rs:45,82; sley-mutate codec/fixture_tests.rs:11-18; sley-json-bridge tests.rs:10) or pins the hex in source (state-root lib.rs, schema lib.rs). The standalone pack vector is bound on the Rust side transitively: the exchange fixture embeds the stored pack bytes (exchange payload field 2) and is regenerated under --check. scripts/check_oracle_independence.py forbids the Python side from importing or invoking the Rust side (PASS, 26 sources).
-SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 7 ("Prefer one canonical library/generated definition per preimage. The checker SHALL fail if independently maintained preimage definitions diverge"); Sley2.0mastergoal.md 6.5 ("Neither implementation may derive expected bytes from the other"); REWEAVE master section 6 ("independently check Rust/Sley/independent-oracle conformance over the applicable canonical corpus").
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 7 ("Prefer one canonical library/generated definition per preimage. The checker SHALL fail if independently maintained preimage definitions diverge"); Sley2.0mastergoal.md 6.5 ("Neither implementation may derive expected bytes from the other"); the self-hosting plan master section 6 ("independently check Rust/Sley/independent-oracle conformance over the applicable canonical corpus").
 CURRENT_BEHAVIOR: A change to a Rust preimage regenerates different fixture bytes and fails make quick; a change to a Python oracle fails make conformance against the unchanged fixture; a change to the fixture fails both. The duplication is the intended independent-oracle design, not accidental reassembly.
 DESIRED_INVARIANT: Every duplicated preimage is arbitrated by one committed fixture that both implementations must reproduce, under gates that run on every make quick and make conformance. Holds.
 DISPOSITION: A_ALREADY_SOLVED
@@ -1289,7 +1289,7 @@ FINDING_ID: AT-IG-03
 TITLE: The accepted-head checksum codec is implemented in two Rust crates
 HYPOTHESIS: sley-txn and sley-repo each hardcode SLEYHD01, the version and the sley2.accepted-head.v1 domain, so the two copies can drift.
 REPOSITORY_EVIDENCE: crates/sley-txn/src/repository.rs:48-54 and :2893-2918 (encode_head, decode_head, owner); crates/sley-repo/src/exchange.rs:61-64 and :521-546 (second copy for exchange packaging); cross-crate equality test crates/sley-repo/src/exchange.rs:3149 fixed_head_bytes_match_the_transaction_model; Python re-derivation scripts/check_repository_exchange_vector.py:152-154 under make conformance; exchange import feeds the head back into sley-txn.
-SPEC_EVIDENCE: docs/spec/TRANSACTION_MODEL_V1.md "Fixed accepted-head visibility primitive" ("S20-500 later owns those semantics and may reuse the transaction codec and compare-and-swap mechanism without creating a sley-txn -> sley-repo dependency"); section 7 preference for one definition per preimage.
+SPEC_EVIDENCE: docs/spec/TRANSACTION_MODEL_V1.md "Fixed accepted-head visibility primitive" ("WP-500 later owns those semantics and may reuse the transaction codec and compare-and-swap mechanism without creating a sley-txn -> sley-repo dependency"); section 7 preference for one definition per preimage.
 CURRENT_BEHAVIOR: Two copies, bound by a Rust-to-Rust equality test and by the exchange fixture on both sides (AT-IG-02).
 DESIRED_INVARIANT: Copies of a preimage definition across crates are pinned to each other by a test that fails on divergence. Holds.
 DISPOSITION: A_ALREADY_SOLVED
@@ -1328,10 +1328,10 @@ REVIEW_REQUIRED: no
 
 ```text
 FINDING_ID: AT-IG-05
-TITLE: REWEAVE 21.2 "toolchain-program root" has no dedicated repository identity; the binding it requires is carried by StateRoot plus the package dependency section
+TITLE: The self-hosting plan 21.2 "toolchain-program root" has no dedicated repository identity; the binding it requires is carried by StateRoot plus the package dependency section
 HYPOTHESIS: Evidence cannot bind a toolchain-program root because none exists.
 REPOSITORY_EVIDENCE: bootstrap-manifest.json S.value = null ("does not exist (SH0: no Sley toolchain program)"); scripts/check_bootstrap_capability.py reports later_stages_unbound [S, C0, C1, C2, C3] and passes by design (docstring lines 21-27); the program root of every executed closure is bound as StateRoot in the cache key (crates/sley-vm/src/lib.rs:213), the dependency section (exec_package.rs:706), the package digest (:911), both observations (execute.rs:1026, :2190) and the execution report (sley-conformance lib.rs:434), with the judged closure fingerprints digested into the dependency section (exec_package.rs:721-725).
-SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md 21.2 ("Every result binds applicable source commit, toolchain-program root, compiled image, host binary/ABI, schema epoch, policy root ...") and 13.1 (S is "the immutable canonical root and complete dependency closure of the Sley toolchain program"); docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-SI-03 (A_ALREADY_SOLVED, same conclusion from the identity-decomposition side).
+SPEC_EVIDENCE: SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md 21.2 ("Every result binds applicable source commit, toolchain-program root, compiled image, host binary/ABI, schema epoch, policy root ...") and 13.1 (S is "the immutable canonical root and complete dependency closure of the Sley toolchain program"); docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-SI-03 (A_ALREADY_SOLVED, same conclusion from the identity-decomposition side).
 CURRENT_BEHAVIOR: The binding mechanism exists end to end; the S identity itself is R3 evidence that cannot exist before a Sley toolchain program does.
 DESIRED_INVARIANT: The root that execution evidence binds is the accepted StateRoot of the closure it judged, plus the closure fingerprints. Holds.
 DISPOSITION: A_ALREADY_SOLVED
@@ -1339,11 +1339,11 @@ RATIONALE: Same disposition and evidence as AT-SI-03; recorded here so the ident
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: RW-080 must record which StateRoot is S when it constructs the toolchain graph (already in AT-SI-03)
+SELFHOST_IMPACT: TP-080 must record which StateRoot is S when it constructs the toolchain graph (already in AT-SI-03)
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: RW-080 lane
+CODE_OWNERSHIP: TP-080 lane
 REVIEW_REQUIRED: no
 ```
 
@@ -1351,8 +1351,8 @@ REVIEW_REQUIRED: no
 FINDING_ID: AT-IG-06
 TITLE: Witness roots, provenance roots and discharge receipts are absent at this commit
 HYPOTHESIS: Section 7 lists Witness/provenance roots and discharge receipts; they may exist unregistered.
-REPOSITORY_EVIDENCE: No sley2.witness*, provenance or discharge domain in IDENTIFIERS_V1.md or any crate; the only mentions are prohibitions of a native discharge_witness(program/value) service (docs/spec/HOST_ABI_V1.md:175; crates/sley-vm/src/host_abi.rs:11; tests/rw070_host_abi_freeze.rs:816-817) and the RW-170 reservation in rw-075-hash-inventory.md "Method".
-SPEC_EVIDENCE: REWEAVE master section 16 (Witness integration, future phase); docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-WB-01 (E_DEFER_2_1_PLUS, Witness not part of the active canonical architecture).
+REPOSITORY_EVIDENCE: No sley2.witness*, provenance or discharge domain in IDENTIFIERS_V1.md or any crate; the only mentions are prohibitions of a native discharge_witness(program/value) service (docs/spec/HOST_ABI_V1.md:175; crates/sley-vm/src/host_abi.rs:11; tests/rw070_host_abi_freeze.rs:816-817) and the TP-170 reservation in rw-075-hash-inventory.md "Method".
+SPEC_EVIDENCE: The self-hosting plan master section 16 (Witness integration, future phase); docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-WB-01 (E_DEFER_2_1_PLUS, Witness not part of the active canonical architecture).
 CURRENT_BEHAVIOR: Nothing to inventory; nothing to audit for hygiene.
 DESIRED_INVARIANT: When Witness lands, its identities enter the registry with an ADR, fixtures and drift validation like every other domain.
 DISPOSITION: D_REJECT
@@ -1417,7 +1417,7 @@ FINDING_ID: AT-IG-09
 TITLE: EntityId does not bind the schema epoch
 HYPOTHESIS: entity_kind is an epoch-frozen tag but SchemaEpochId is not in the EntityId preimage, so a later epoch that renumbers kinds could derive a colliding EntityId for a different kind in the same workspace.
 REPOSITORY_EVIDENCE: crates/sley-id/src/lib.rs:358-372 (76-byte preimage: workspace, nonce, kind u32be, ordinal u64be); collision checks against live and tombstoned identities at validation phase 4 and at commit (crates/sley-txn/src/repository.rs tombstone ledger; IDENTIFIERS_V1.md "Entity identity").
-SPEC_EVIDENCE: Sley2.0mastergoal.md 5.1 EntityId ("generated deterministically from the creating candidate nonce, workspace domain, entity kind, and creation ordinal; collision-checked before acceptance; never reused after deletion"); REWEAVE master section 6 ("Entity IDs are not regenerated during the pivot").
+SPEC_EVIDENCE: Sley2.0mastergoal.md 5.1 EntityId ("generated deterministically from the creating candidate nonce, workspace domain, entity kind, and creation ordinal; collision-checked before acceptance; never reused after deletion"); the self-hosting plan master section 6 ("Entity IDs are not regenerated during the pivot").
 CURRENT_BEHAVIOR: EntityId is a stable logical identity that must survive epochs; kind tags are frozen by contract; collisions are rejected by the ledger.
 DESIRED_INVARIANT: Logical identity is epoch-independent and collision-checked. Holds.
 DISPOSITION: D_REJECT
@@ -1438,7 +1438,7 @@ FINDING_ID: AT-IG-10
 TITLE: Seventeen single-owner identities have no independent oracle
 HYPOTHESIS: Section 8 item 6 ("independent conformance verification where required") is unmet for identities that have exactly one Rust owner.
 REPOSITORY_EVIDENCE: Rust-only with no Python byte-layout re-derivation: WorkspaceId (fixed vector only), CapabilityTokenDigest and MAC (scripts/check_capability_token.py:126-128 compares machine-summary pins only), CapabilitySummaryDigest (check_candidate_contract_freeze.py prose), CandidateAttemptDigest, ValidationContextDigest and components, PhaseEvidenceDigest (opaque fixed32 in candidate_result.py), SemanticFingerprint and ValueHash (vm_extended.py:9-12 excludes them; check_fingerprint_impact_profile.py is a marker check), ObservationId both framings (check_vm_execution_profile.py marker check), section and package digests (check_exec_package_v*.py hash the JSON record), TestReportId (pin cross-check only), branch record and ref digests (check_ref_branch_contract.py pins strings), merge-plan nonce, QueryId, RestrictedQueryCapsuleId (pin only), SessionId (random nonce by design), ReferenceAdapterId, AdapterStateId, AdapterTranscriptId (pin only). Each has one owner function (section 1 records) and, except the cases in AT-HH-04, a frozen Rust vector.
-SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 items 5 and 6; Sley2.0mastergoal.md 6.5 (independent oracle required for SCB1 encoders/decoders before GA; "The oracle is for conformance only. It must not become a second semantic kernel"); REWEAVE master section 6 (Rust/Sley/independent-oracle conformance "over the applicable canonical corpus" at final implementation); docs/audits AT-CL-03 (COMPLETE independent coverage is scoped to fixture families and the three uncovered required contracts are disclosed).
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 items 5 and 6; Sley2.0mastergoal.md 6.5 (independent oracle required for SCB1 encoders/decoders before GA; "The oracle is for conformance only. It must not become a second semantic kernel"); the self-hosting plan master section 6 (Rust/Sley/independent-oracle conformance "over the applicable canonical corpus" at final implementation); docs/audits AT-CL-03 (COMPLETE independent coverage is scoped to fixture families and the three uncovered required contracts are disclosed).
 CURRENT_BEHAVIOR: One owner per preimage (section 7 satisfied); independent verification exists for every SCB1 envelope and every stored repository, protocol and query-corpus identity, and is absent for derived evidence digests, session-local identities and the capability family. No spec names which of these are "required".
 DESIRED_INVARIANT: Independent oracles cover every identity that a second implementation (the Sley toolchain) must reproduce; derived evidence digests are covered when that implementation exists.
 DISPOSITION: E_DEFER_2_1_PLUS
@@ -1458,7 +1458,7 @@ REVIEW_REQUIRED: no
 FINDING_ID: AT-IG-11
 TITLE: NATIVE_REFS_BRANCHES_V1.md and MERGE_V1.md say their domains are not sley-id registry domains while IDENTIFIERS_V1.md lists them
 HYPOTHESIS: Two owning contracts contradict the registry about whether their separators are registered.
-REPOSITORY_EVIDENCE: docs/spec/NATIVE_REFS_BRANCHES_V1.md:99-101 ("branch_record_digest ... is not added to the sley-id domain registry"); docs/spec/MERGE_V1.md:210 ("sley2.merge-plan-nonce.v1 is a preimage separator, not a sley-id domain"); docs/spec/IDENTIFIERS_V1.md table rows for sley2.branch-record.v1, sley2.branch-ref.v1, sley2.branch-name-path.v1 (S20-500) and sley2.merge-plan-nonce.v1 (S20-520) added under ADR-0048; scripts/check_required_contract_index.py:104-107 fails if any crate-derived sley2.* string is absent from that file.
+REPOSITORY_EVIDENCE: docs/spec/NATIVE_REFS_BRANCHES_V1.md:99-101 ("branch_record_digest ... is not added to the sley-id domain registry"); docs/spec/MERGE_V1.md:210 ("sley2.merge-plan-nonce.v1 is a preimage separator, not a sley-id domain"); docs/spec/IDENTIFIERS_V1.md table rows for sley2.branch-record.v1, sley2.branch-ref.v1, sley2.branch-name-path.v1 (WP-500) and sley2.merge-plan-nonce.v1 (WP-520) added under ADR-0048; scripts/check_required_contract_index.py:104-107 fails if any crate-derived sley2.* string is absent from that file.
 SPEC_EVIDENCE: IDENTIFIERS_V1.md ("a domain may be derived by any crate that hashes"); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 14 (canonical specification synchronization).
 CURRENT_BEHAVIOR: Bytes and code are consistent; the prose in two owning contracts is stale relative to ADR-0048.
 DESIRED_INVARIANT: Owning contracts state that every domain string a crate hashes with is in the registry and point to it.
@@ -1562,7 +1562,7 @@ TESTS_REQUIRED: pinned preimage and digest vectors in Rust tests or conformance 
 SPECS_TO_UPDATE: docs/spec/EXEC_PACKAGE_V2.md (SLEYPOBS1 byte layout; the v2 path is the live one), NATIVE_REFS_BRANCHES_V1.md (vectors), CAPABILITY_TOKEN_V1.md and CAPABILITY_SUMMARY_V1.md (vector pointers), CANDIDATE_RESULT_V1.md (vector pointers)
 CODE_OWNERSHIP: sley-vm, sley-repo, sley-policy (ariadne); vulcan for test review
 REVIEW_REQUIRED: campaign independent review (AT-G8)
-IMPLEMENTATION (slice 6c, first priority band): EXEC_PACKAGE_V2.md now freezes the SLEYPOBS1 preimage byte layout (field order and widths as execute.rs builds it) and points at the frozen vectors; crates/sley-vm/tests/rw075_raw_callable.rs pins the v2 package digest, the five section digests and the observation id of the RHW1 bridge fixture (package 5822e1a9..., image c95c2354..., constants and layouts af5570f5... (both empty sections), imports 2f985494..., dependency a345e4f3..., observation 3c3b2883...). Not frozen here, left for their owners: branch record and ref digests (S20-500), capability token and summary (S20-380), attempt, context and phase digests (S20-360); listed in the closeout's not-claimed set.
+IMPLEMENTATION (slice 6c, first priority band): EXEC_PACKAGE_V2.md now freezes the SLEYPOBS1 preimage byte layout (field order and widths as execute.rs builds it) and points at the frozen vectors; crates/sley-vm/tests/rw075_raw_callable.rs pins the v2 package digest, the five section digests and the observation id of the RHW1 bridge fixture (package 5822e1a9..., image c95c2354..., constants and layouts af5570f5... (both empty sections), imports 2f985494..., dependency a345e4f3..., observation 3c3b2883...). Not frozen here, left for their owners: branch record and ref digests (WP-500), capability token and summary (WP-380), attempt, context and phase digests (WP-360); listed in the closeout's not-claimed set.
 ```
 
 ```text
@@ -1596,7 +1596,7 @@ SPEC_EVIDENCE: docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-EC-04 (B
 CURRENT_BEHAVIOR: Repaired at HEAD; B against the pinned baseline.
 DESIRED_INVARIANT: Prose matches the exact preimage; dead framing codes are documented as reserved. Holds at HEAD.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: Duplicate of AT-EC-04, recorded here for hygiene-matrix traceability; when the RW-080 envelope codec lands it needs its own trailing and non-minimal vectors (AT-EC-07 already says so).
+RATIONALE: Duplicate of AT-EC-04, recorded here for hygiene-matrix traceability; when the TP-080 envelope codec lands it needs its own trailing and non-minimal vectors (AT-EC-07 already says so).
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -1654,12 +1654,12 @@ REVIEW_REQUIRED: no
 FINDING_ID: AT-HH-09
 TITLE: ValueHash canonical-form precondition is enforced by callers, not by the hash function
 HYPOTHESIS: hash_validated_value could hash a non-canonical value (map order, NaN) and produce a second identity for equal values.
-REPOSITORY_EVIDENCE: crates/sley-ssmc/src/fingerprint.rs:282-309 hashes the encoded type and data as given; VM_EXECUTION_PROFILE_V1.md section 1 requires VM_EXEC_INPUT_NOT_CANONICAL refusal before any hash; FINGERPRINT_IMPACT_PROFILE_V1.md section 6 ("Only a constant that passes S20-210 ... may be hashed"); SCB1.md section 7 (VM canonicalizes NaN and zero before a value can become canonical).
+REPOSITORY_EVIDENCE: crates/sley-ssmc/src/fingerprint.rs:282-309 hashes the encoded type and data as given; VM_EXECUTION_PROFILE_V1.md section 1 requires VM_EXEC_INPUT_NOT_CANONICAL refusal before any hash; FINGERPRINT_IMPACT_PROFILE_V1.md section 6 ("Only a constant that passes WP-210 ... may be hashed"); SCB1.md section 7 (VM canonicalizes NaN and zero before a value can become canonical).
 SPEC_EVIDENCE: Sley2.0mastergoal.md 7 ("NaN results must be canonicalized after every operation"; "map iteration must be canonical").
 CURRENT_BEHAVIOR: The precondition is a documented caller contract and enforced at every VM input and result boundary.
 DESIRED_INVARIANT: A ValueHash is computed only over canonical bytes. Holds by layered contract.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: The division (validate, then hash) is the stated design; moving validation into the hash function would duplicate S20-210 inside sley-ssmc.
+RATIONALE: The division (validate, then hash) is the stated design; moving validation into the hash function would duplicate WP-210 inside sley-ssmc.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
@@ -1774,7 +1774,7 @@ FINDING_ID: AT-MW-01
 TITLE: Higher-order typed mutation operations are not justified by a demonstrated machine-generation problem
 HYPOTHESIS: Primitive-only mutation makes representative agent edits so long, large, or failure-prone that composite operations are needed before the 2.0 freeze.
 REPOSITORY_EVIDENCE: ENCODED table in section 2 (measure_mw.py through oracle/scb1/src/sley2_scb1_oracle/candidate.py, oracle shown byte-identical to conformance/mutation-candidate/v1/accepted.json): 1 to 18 primitives, 469 B to 3819 B record bytes across the eight edit classes; ceilings docs/spec/VALIDATION_PROFILE_V1.md table (65,535 operations, 67,108,864 bytes); no trials: machineresearch/sley-2.0/machine-summary.json:2817, machineresearch/sley-2.0/18-legacy-succession-results.md:3, docs/spec/SLEY2_TRIAL_RUNNER_V1.md:259; composition surface crates/sley-protocol/src/server.rs:1284-1295; descriptor table crates/sley-mutate/src/generated.rs:682 (179 entries).
-SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md:391-397 (decision rule); Sley2.0mastergoal.md:1384-1405 (sixteen primitives, wire ops generated from schema); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:257 (typed affordances and the full candidate pipeline remain final requirements, no composite class named).
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md:391-397 (decision rule); Sley2.0mastergoal.md:1384-1405 (sixteen primitives, wire ops generated from schema); SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:257 (typed affordances and the full candidate pipeline remain final requirements, no composite class named).
 CURRENT_BEHAVIOR: Sixteen frozen classes, 179 descriptors, one candidate record; every measured edit expands deterministically to a short primitive list; no composite exists and none is needed to express any of the eight classes.
 DESIRED_INVARIANT: The candidate record and its sixteen classes stay the only mutation authority; any composite is an expansion into them.
 DISPOSITION: E_DEFER_2_1_PLUS
@@ -1786,7 +1786,7 @@ SELFHOST_IMPACT: none (a self-hosted writer library may expand composites into p
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now; for 2.1+: expansion determinism tests (composite -> primitive bytes byte-identical across runs) and an oracle reproduction
 SPECS_TO_UPDATE: none now; 2.1+ recommendation recorded in this audit
-CODE_OWNERSHIP: S20-350 (sley-mutate) for any future expansion library; S20-420 JSON bridge if bridge-side
+CODE_OWNERSHIP: WP-350 (sley-mutate) for any future expansion library; WP-420 JSON bridge if bridge-side
 REVIEW_REQUIRED: Ariadne contract review at 2.1 design time
 ```
 
@@ -1803,13 +1803,13 @@ RATIONALE: Additive: a new query class (or new method under a new protocol_versi
 CANONICAL_IMPACT: none (derived read of existing canonical objects; the response must copy the stored object bytes so ObjectId verification stays with the reader)
 SCHEMA_IMPACT: ROOT_BACKED_QUERY_PROFILE v1 class table is frozen at nineteen; add under profile_version 2 or a new SMP1 method tag with a protocol_version bump, never by widening v1
 ABI_IMPACT: none
-SELFHOST_IMPACT: a self-hosted writer needs the same read; without it the Sley-owned toolchain (REWEAVE section 9, typed operations over canonical graph state) cannot author edits from protocol context
+SELFHOST_IMPACT: a self-hosted writer needs the same read; without it the Sley-owned toolchain (the self-hosting plan section 9, typed operations over canonical graph state) cannot author edits from protocol context
 MIGRATION_REQUIRED: no (additive version)
-TESTS_REQUIRED: fixed vectors for the new class over the S20-310 fixture; bounded-context limits and PROTOCOL_LIMIT_EXCEEDED on oversize bodies; a trial-runner scripted smoke that performs one EC1a edit end to end (query body, create, validate) under ARM_AFFORDANCES; independent Python reproduction
+TESTS_REQUIRED: fixed vectors for the new class over the WP-310 fixture; bounded-context limits and PROTOCOL_LIMIT_EXCEEDED on oversize bodies; a trial-runner scripted smoke that performs one EC1a edit end to end (query body, create, validate) under ARM_AFFORDANCES; independent Python reproduction
 SPECS_TO_UPDATE: ROOT_BACKED_QUERY_PROFILE_V1.md (v2 or successor), SMP1.md section 4 and appendix A, CONTEXT_CAPSULE_PROFILE_V1.md (if the capsule carries the body), SLEY2_TRIAL_RUNNER_V1.md ARM_AFFORDANCES, REQUIRED_CONTRACT_INDEX_V1.md
-CODE_OWNERSHIP: S20-310 (sley-query) and S20-400/S20-410 (sley-protocol); S20-620 runner allowlist
+CODE_OWNERSHIP: WP-310 (sley-query) and WP-400/WP-410 (sley-protocol); WP-620 runner allowlist
 REVIEW_REQUIRED: Ariadne contract review, Nabu architecture review (bounded-context and dump-avoidance), Vulcan surface review
-DISPOSITION NOTE (integrator): the record stands as B_ADDITIVE_NOW because the master's section 8.2 lists GetEntityVersion and GetSignature as required queries and no SMP1 method returns a bounded entity body (only 502 checkout returns a whole revision). The method itself is NOT implemented by this campaign: it is a protocol feature under a version bump on S20-400/S20-410, packages with open Council reviews, and implementing it inside an audit pass would bypass their review loop (spec section 21). Registered instead as an open 2.0 requirement gap in the locator's known_blocked_gates and in docs/WORK_PACKAGES.md (S20-410 row note), owned by the protocol package; it counts against AT-G5 in the closeout.
+DISPOSITION NOTE (integrator): the record stands as B_ADDITIVE_NOW because the master's section 8.2 lists GetEntityVersion and GetSignature as required queries and no SMP1 method returns a bounded entity body (only 502 checkout returns a whole revision). The method itself is NOT implemented by this campaign: it is a protocol feature under a version bump on WP-400/WP-410, packages with open Council reviews, and implementing it inside an audit pass would bypass their review loop (spec section 21). Registered instead as an open 2.0 requirement gap in the locator's known_blocked_gates and in docs/WORK_PACKAGES.md (WP-410 row note), owned by the protocol package; it counts against AT-G5 in the closeout.
 ```
 
 ```text
@@ -1817,7 +1817,7 @@ FINDING_ID: AT-MW-03
 TITLE: Master-goal mutation affordance templates are absent and the GA report maps the criterion to the protocol instead
 HYPOTHESIS: The capsule or a query already exposes per-entity operation templates (class, kind, handle, required fields, permitted value types, expected preimage, likely impact, required capability classes).
 REPOSITORY_EVIDENCE: docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md:136 and :253 (mutation affordances excluded); crates/sley-query/README.md:22 ("mutation affordances are not implemented"); evidence/release/ga-acceptance-report.json:149 and scripts/build_ga_acceptance_report.py:131 (criterion "typed affordances and mutations are available" evidenced by protocol status S20_400/S20_410); the static descriptor table crates/sley-mutate/src/generated.rs:682; per-principal class grants docs/spec/POLICY_ROOT_V1.md:40-46 with no query class exposing them (ROOT_BACKED_QUERY_PROFILE_V1.md:94-135).
-SPEC_EVIDENCE: Sley2.0mastergoal.md:1407-1423 (SHOULD expose templates; "Affordances are hints"), :1146 (capsule MUST contain available mutation affordances), :1107-1131 (GetAvailableMutations MUST); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:257 ("typed affordances" remain final requirements).
+SPEC_EVIDENCE: Sley2.0mastergoal.md:1407-1423 (SHOULD expose templates; "Affordances are hints"), :1146 (capsule MUST contain available mutation affordances), :1107-1131 (GetAvailableMutations MUST); SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md:257 ("typed affordances" remain final requirements).
 CURRENT_BEHAVIOR: A writer derives eligibility offline from the 179 descriptors and binds preimages via class 2; it cannot learn which mutation classes its principal is granted (POLICY_GRANT_DENIED is discovered only by validating) nor receive impact/preimage-bundled templates.
 DESIRED_INVARIANT: Affordances, when provided, are derived hints that never carry authority (master goal 10.3), and the GA criterion is evidenced by the surface the master goal names.
 DISPOSITION: E_DEFER_2_1_PLUS
@@ -1829,7 +1829,7 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now
 SPECS_TO_UPDATE: for AT-G5: reconcile Sley2.0mastergoal.md 8.2/8.3/10.3 with CONTEXT_CAPSULE_PROFILE_V1.md section 11; scripts/build_ga_acceptance_report.py:131 should cite the affordance surface once one exists and state its absence until then
-CODE_OWNERSHIP: S20-320 (capsule), S20-310 (query), release report script
+CODE_OWNERSHIP: WP-320 (capsule), WP-310 (query), release report script
 REVIEW_REQUIRED: Maat doctrine check on the GA report wording; Ariadne at 2.1 design time
 ```
 
@@ -1837,20 +1837,20 @@ REVIEW_REQUIRED: Maat doctrine check on the GA report wording; Ariadne at 2.1 de
 FINDING_ID: AT-MW-04
 TITLE: Validator fail-closed remainders, not the mutation substrate, make dependency-boundary and effectful edit classes unwritable at this commit
 HYPOTHESIS: The primitive set cannot express dependency-boundary changes or effect/capability repairs.
-REPOSITORY_EVIDENCE: EC7a/EC7b encode in 1 and 2 primitives (section 2); refusal crates/sley-policy/src/candidate_validation.rs:1328-1337 (any dependency_roots difference is INVALID_GRAPH CANDIDATE_DEPENDENCY_ROOT_CHANGE_UNSUPPORTED, Permanent) and test :2581-2588; excluded opcodes crates/sley-policy/src/candidate_program.rs:218 ([144,145,160,161,162]) with the phase 12 guard candidate_validation.rs:1550; docs/spec/CANDIDATE_RESULT_V1.md:359 and :450-456; docs/spec/TRANSACTION_MODEL_V1.md:16 (commit accepts the same profile); machine-summary.json /s20_360_candidate_validation/unsupported_operation_result and /evidence_gaps[1] (E7 semantics owned by S20-280/S20-380); benchmark tasks bench/corpus/v1/tasks.json S2B-EFFECT-001 (FileRead via effect_request) and S2B-CAP-001 (capability narrowing).
+REPOSITORY_EVIDENCE: EC7a/EC7b encode in 1 and 2 primitives (section 2); refusal crates/sley-policy/src/candidate_validation.rs:1328-1337 (any dependency_roots difference is INVALID_GRAPH CANDIDATE_DEPENDENCY_ROOT_CHANGE_UNSUPPORTED, Permanent) and test :2581-2588; excluded opcodes crates/sley-policy/src/candidate_program.rs:218 ([144,145,160,161,162]) with the phase 12 guard candidate_validation.rs:1550; docs/spec/CANDIDATE_RESULT_V1.md:359 and :450-456; docs/spec/TRANSACTION_MODEL_V1.md:16 (commit accepts the same profile); machine-summary.json /s20_360_candidate_validation/unsupported_operation_result and /evidence_gaps[1] (E7 semantics owned by WP-280/WP-380); benchmark tasks bench/corpus/v1/tasks.json S2B-EFFECT-001 (FileRead via effect_request) and S2B-CAP-001 (capability narrowing).
 SPEC_EVIDENCE: Sley2.0mastergoal.md:1384-1403 (update dependency binding is a GA primitive), :2688-2706 (effect repair and capability-scope repair are required task classes); SLEY-2.0-ARCHITECTURE-TIGHTENING.md:24-34 (ALREADY_SOLVED when the substrate resolves the concern).
 CURRENT_BEHAVIOR: The candidate encodes and imports; validation refuses at phase 5 (dependency roots) or phase 12 (E7 opcodes) deterministically, so these classes cannot reach VALID or commit.
 DESIRED_INVARIANT: The mutation substrate expresses every GA edit class in bounded primitives; unsupported judgment fails closed until its owner lands, and never silently passes.
 DISPOSITION: A_ALREADY_SOLVED
-RATIONALE: For the machine-write question the substrate already resolves the concern (1 to 2 primitives, 572 to 746 B) and the fail-closed behaviour is the required invariant. The remaining work is implementation of owned phases (S20-360 dependency-root analysis; S20-280/S20-380 E7 semantics), already tracked as evidence gaps, not an architecture defect and not a mutation-model change. Recorded here so the benchmark's writable task space is stated truthfully.
+RATIONALE: For the machine-write question the substrate already resolves the concern (1 to 2 primitives, 572 to 746 B) and the fail-closed behaviour is the required invariant. The remaining work is implementation of owned phases (WP-360 dependency-root analysis; WP-280/WP-380 E7 semantics), already tracked as evidence gaps, not an architecture defect and not a mutation-model change. Recorded here so the benchmark's writable task space is stated truthfully.
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
 SELFHOST_IMPACT: none for the substrate; the self-hosted toolchain cannot use effect_request/adapter_invoke/capability_narrow until the owners land
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none new; existing refusal tests stand
-SPECS_TO_UPDATE: none; the benchmark plan should state that two required task classes are validator-blocked at this revision (S20-610/S20-620 owners)
-CODE_OWNERSHIP: S20-360, S20-280, S20-380
+SPECS_TO_UPDATE: none; the benchmark plan should state that two required task classes are validator-blocked at this revision (WP-610/WP-620 owners)
+CODE_OWNERSHIP: WP-360, WP-280, WP-380
 REVIEW_REQUIRED: none for this disposition
 ```
 
@@ -1871,7 +1871,7 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: the stage checker that pins VALIDATION_PROFILE_V1.md markers (scripts/check_candidate_contract_freeze.py) must still pass; add a cross-document sentence check if one exists for the result contract
 SPECS_TO_UPDATE: docs/spec/VALIDATION_PROFILE_V1.md:46-49 to reference CANDIDATE_RESULT_V1.md section 9's exact subset
-CODE_OWNERSHIP: S20-345/S20-360 contract owner
+CODE_OWNERSHIP: WP-345/WP-360 contract owner
 REVIEW_REQUIRED: Ariadne contract review (documentation delta)
 IMPLEMENTATION (slice 6b): VALIDATION_PROFILE_V1.md now states the supported success subset per CANDIDATE_RESULT_V1 section 9 and TRANSACTION_MODEL_V1 and withdraws the pre-ADR-0045 sentence; profile identity unchanged; check_candidate_contract_freeze and check_candidate_result_contract PASS.
 ```
@@ -1893,7 +1893,7 @@ SELFHOST_IMPACT: none
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: S20-200/S20-220 (schema and CFG) if revisited; S20-350 for a client expansion
+CODE_OWNERSHIP: WP-200/WP-220 (schema and CFG) if revisited; WP-350 for a client expansion
 REVIEW_REQUIRED: none now
 ```
 
@@ -1931,11 +1931,11 @@ RATIONALE: The rule is correct and frozen; the friction is a client-library conc
 CANONICAL_IMPACT: none
 SCHEMA_IMPACT: none
 ABI_IMPACT: none
-SELFHOST_IMPACT: a self-hosted writer needs a BLAKE3 implementation in Sley or the native substrate (REWEAVE section 10.3 native remainder)
+SELFHOST_IMPACT: a self-hosted writer needs a BLAKE3 implementation in Sley or the native substrate (the self-hosting plan section 10.3 native remainder)
 MIGRATION_REQUIRED: no
 TESTS_REQUIRED: none now
 SPECS_TO_UPDATE: none
-CODE_OWNERSHIP: S20-420 bridge or a writer SDK, 2.1+
+CODE_OWNERSHIP: WP-420 bridge or a writer SDK, 2.1+
 REVIEW_REQUIRED: none now
 ```
 
@@ -1980,7 +1980,7 @@ the two that are repository deliverables in their own right are
 | AT-G2 canonical identity integrity | PASS | identity map, hygiene matrix; AT-HH-01 repaired with a 32-byte pin; frozen v2 vectors; no silent redefinition (every B/C note states what byte, if any, changed) |
 | AT-G3 native/Sley boundary | PASS | native inventory complete (AT-NA-01); no unjustified native semantic authority; SH2 boundary exact at SH0 |
 | AT-G4 executable closure | PASS | EXEC_PACKAGE_V2 binds the closure; execute path structural only (AT-EC-01..03) |
-| AT-G5 spec synchronization | FAIL (one open requirement gap) | masters, REWEAVE, contracts and checkers now agree except AT-MW-02 (master 8.2 GetEntityVersion/GetSignature have no SMP1 method), registered as an open 2.0 gap owned by S20-410 |
+| AT-G5 spec synchronization | FAIL (one open requirement gap) | masters, the self-hosting plan, contracts and checkers now agree except AT-MW-02 (master 8.2 GetEntityVersion/GetSignature have no SMP1 method), registered as an open 2.0 gap owned by WP-410 |
 | AT-G6 self-host preservation | NOT_REQUIRED | SH0; no C1/C2/C3 evidence exists to invalidate; the static no-hidden-fallback property holds |
 | AT-G7 remote freshness | PASS | private origin created by operator instruction; main, the campaign branch and the lane branches pushed; locator current; T54 secret scan PASS; the public mirror untouched |
 | AT-G8 independent review | FAIL | round 1 on `review/arch-tighten-r1-round1` = 8ff792e9: Nabu FAIL (3 P1, 1 P3; repaired in slice 7), Ariadne FAIL (1 P1, 3 P2; repaired in slice 8), see 5.1; round 2: Nabu on `review/arch-tighten-r1-round2` = d4a1e330 FAIL (1 P1: AT-MW-02 only; round-1 P1s resolved); Ariadne on `review/arch-tighten-r1-round3` = 66a76781 FAIL (2 P1 record items, repaired in slice 9, not re-reviewed) |
@@ -2020,7 +2020,7 @@ layout matches the code. Dispositions (all repaired in slice 8):
   candidate-result checker reported that subset. Both status lines now state
   the E1 through E6 analyzed-operation subset (ADR-0045, revision 2) and the
   checker asserts the two status lines and the transaction model agree and
-  refuses the stale phrase (negative reproduced in place); the S20-360
+  refuses the stale phrase (negative reproduced in place); the WP-360
   closeout and its evidence stay the historical record of the restricted
   closure and are untouched.
 - P2 identity map not updated after AT-HH-04: rows B05 and B07 and the
@@ -2070,7 +2070,7 @@ SELFHOST_BOUNDARY and REMOTE_INSPECTABILITY answered true, SPEC_SYNC false.
   vectors, independent reproduction, end-to-end mutation validation and a
   synchronized contract index, without widening frozen v1.
 - Integrator decision: not implemented in this campaign. It is a protocol
-  feature under a version bump on S20-400/S20-410 (packages with their own
+  feature under a version bump on WP-400/WP-410 (packages with their own
   open Council reviews), and the governing spec's execution prompt says to
   stop and report rather than improvise a repair outside the authorized
   bounded scope. The gap is registered in the locator, WORK_PACKAGES.md and
@@ -2084,11 +2084,11 @@ Ariadne (canonical identity and contracts) on `review/arch-tighten-r1-round3`
 verdict FAIL, 0 P0, 2 P1, 2 P2, 0 P3; CANONICAL_IDENTITY, NATIVE_AUTHORITY,
 SELFHOST_BOUNDARY and REMOTE_INSPECTABILITY true, SPEC_SYNC false. Ariadne
 confirmed every round-1 repair (status lines and transaction model agree;
-keeping the S20-360 closeout as history is correct; SMP1 reverse pins; the
+keeping the WP-360 closeout as history is correct; SMP1 reverse pins; the
 domain checker; erratum E1 sufficient under 2.2). Round-2 items, repaired in
 slice 9 (self-attested after the review, not re-reviewed):
 
-- P1 machine-summary `open_risks` still described S20-360 as operation-free:
+- P1 machine-summary `open_risks` still described WP-360 as operation-free:
   the line now states the E1 through E6 subset and
   check_candidate_result_contract.py validates that summary line together
   with the two status lines and the transaction model.
@@ -2102,37 +2102,37 @@ slice 9 (self-attested after the review, not re-reviewed):
 - P2 stale-status guard: now rejects the historical
   "executable-program-operation-free" wording as well.
 
-Tier 1 on the closeout tip (per-step run of the 102 quick steps with SLEY2_MASTER_GOAL set, plus make lint): lint PASS; 98 of 102 quick steps PASS; the four residual failures are the ones attributed in section 6 (three need the gitignored release-smoke evidence, one is the lane-owned error-symbol registration). Two further transient failures seen mid-run were caused by the campaign's own bookkeeping (a review-log file being written into the scanned tree and a locator key the register derivation parsed as a disposition) and were repaired before the closeout commit.
+Tier 1 on the closeout tip (per-step run of the 102 quick steps with SLEY2_DESIGN_SPEC set, plus make lint): lint PASS; 98 of 102 quick steps PASS; the four residual failures are the ones attributed in section 6 (three need the gitignored release-smoke evidence, one is the lane-owned error-symbol registration). Two further transient failures seen mid-run were caused by the campaign's own bookkeeping (a review-log file being written into the scanned tree and a locator key the register derivation parsed as a disposition) and were repaired before the closeout commit.
 
 ## 6. Not claimed
 
 - Sley 2.0 is not ready for final freeze: R2 exit is NOT_READY (premium delta
-  re-review of the RW-075 correction), self-host succession has not started
+  re-review of the TP-075 correction), self-host succession has not started
   (SH0), the finding register is FINDING_REGISTER_OPEN, five operator gates
   stand, and AT-MW-02 is an open 2.0 requirement gap.
-- Five error symbols introduced by RW-075 code (`PACKAGE_*` in
+- Five error symbols introduced by TP-075 code (`PACKAGE_*` in
   crates/sley-vm/src/exec_package.rs) are unregistered in ERROR_CODES_V1 and
   the tracked error-symbol registration report predates them, so
   `check_error_symbol_registration --check` fails at the baseline and at the
-  candidate; registering numeric codes is the RW-075/RW-080 lane's contract
+  candidate; registering numeric codes is the TP-075/TP-080 lane's contract
   work and was not done here.
 - `make quick` cannot pass in a fresh worktree or clone without the
-  gitignored release-candidate smoke evidence: the S20-720, S20-730 and
-  S20-710 checkers and 15 release tests need
+  gitignored release-candidate smoke evidence: the WP-720, WP-730 and
+  WP-710 checkers and 15 release tests need
   evidence/runtime/s20-720-release-candidate/evidence.json, produced only by
   `make release-candidate-smoke`. Pre-existing; documented, not changed.
 - Frozen vectors were added only for the R2 execution identity (package,
   section and observation digests); branch record and ref digests, the
   capability token and summary pair, and the attempt, context and phase
-  digests remain owner work (S20-500, S20-380, S20-360).
+  digests remain owner work (WP-500, WP-380, WP-360).
 - The EXEC_PACKAGE_V2 envelope byte codec (AT-EC-07) now has a provisional
-  framing and structural hydration implementation in RW-080; the Sley side
+  framing and structural hydration implementation in TP-080; the Sley side
   emits empty inventory sections and dependency framing, then composes the
   complete envelope from exact digest inputs. Nonempty row emission,
   Sley-side digest production, and lane review remain. The SMP1 entity-body
   query (AT-MW-02) is implemented in its later audit lane.
 - The campaign edited machine-summary.json and bootstrap-manifest.json, which
-  the RW-080 lane also maintains; the lane must rebase its next summary edit
+  the TP-080 lane also maintains; the lane must rebase its next summary edit
   on the merged main.
 
 ## 7. Closeout (spec section 24)
@@ -2171,7 +2171,7 @@ because both independent reviewers' latest verdicts are FAIL: Nabu round 2
 on AT-MW-02 alone, Ariadne round 2 on two record items that slice 9 repaired
 after the review without a further round. Every other gate passes or is not
 required. The campaign's own bounded work is complete; the remaining item is
-a versioned protocol feature owned by the S20-410 package and is the first
+a versioned protocol feature owned by the WP-410 package and is the first
 resume item in RESUME.md.
 
 REMOTE_REVIEW packet (spec 15.6):
@@ -2185,10 +2185,10 @@ REMOTE_REVIEW:
   canonical_spec:  /home/dev/machineresearch/Sley2.0mastergoal.md
                    sha256 e26eed88167a3ef47472e3b2eea13b7d42c4bdb1befc3cbeca16c28501a350b9
                    (in-repo dossier machineresearch/sley-2.0/)
-  reweave_spec:    /home/dev/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md
+  reweave_spec:    /home/dev/machineresearch/SLEY_2X_SELF_HOSTING_MASTER_SPEC_V1.md
                    sha256 61d20471906b00fab05a9e0f174ad9c616e734a5f38fd590ed44af2533535a63
   changed_paths:   git diff --stat 560a5f16..main
-  relevant_tests:  make quick (SLEY2_MASTER_GOAL set), make lint,
+  relevant_tests:  make quick (SLEY2_DESIGN_SPEC set), make lint,
                    cargo test -p sley-vm, cargo test -p sley-repo --lib,
                    make remote-consistency REMOTE_CONSISTENCY_ARGS=--allow-ahead
   open_gates:      docs/status/SLEY2-REMOTE-HEAD.md "Known blocked gates"

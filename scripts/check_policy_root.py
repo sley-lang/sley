@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-370 protected policy-root package."""
+"""Check the WP-370 protected policy-root package."""
 
 from __future__ import annotations
 

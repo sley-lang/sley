@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded negative checks for the S20-420 method-table generator.
+"""Bounded negative checks for the WP-420 method-table generator.
 
 Covers missing/duplicate/out-of-section rows and default version-1
 leakage. Plain script, no test framework: any failure prints FAIL and

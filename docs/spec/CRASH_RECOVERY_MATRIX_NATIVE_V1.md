@@ -11,7 +11,7 @@ attempt journal, and the mixed-format accepted head) and the native clone
 import path (`sley-repo` `exchange/v2` marker discipline). It mirrors the v1
 `CRASH_RECOVERY_MATRIX_V1.md` row discipline without touching it: no frozen
 v1 variant, probe, row-encoded name, or checker expectation changes. The v1
-matrix, ADR-0023, and the S20-530 validation runner remain byte-for-byte
+matrix, ADR-0023, and the WP-530 validation runner remain byte-for-byte
 immutable and authoritative only at their accepted historical state.
 
 Component ownership remains unchanged:

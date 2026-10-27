@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-740 finding register: every review obligation and its disposition.
+"""WP-740 finding register: every review obligation and its disposition.
 
 Derives `evidence/review/finding-register.json` from the machine summary: the
 review obligations each package recorded, their states, the severities their
@@ -74,7 +74,7 @@ TOP_COUNTERS = ("p0", "p1", "p2", "p3", "p4")
 
 
 class RegisterErrorCode(IntEnum):
-    """S20-740 finding register failures (contract section 4)."""
+    """WP-740 finding register failures (contract section 4)."""
 
     SUMMARY_MISSING = 75000
     SUMMARY_INVALID = 75001
@@ -83,7 +83,7 @@ class RegisterErrorCode(IntEnum):
 
 
 class RegisterError(Exception):
-    """One exact S20-740 failure."""
+    """One exact WP-740 failure."""
 
     def __init__(self, code: RegisterErrorCode, detail: str) -> None:
         super().__init__(f"{code.name}: {detail}")
@@ -913,10 +913,10 @@ def kind_phrase_of(claim: str) -> str:
 
 def claim_finding_ids(body: str) -> set[str]:
     """Finding ids the claim's leading text names (`V-02`, `RW090-DEV-01`,
-    `S20-700-PACK-001`): never a document id (`ADR-0040`, `S20-540`) and
+    `WP-700-PACK-001`): never a document id (`ADR-0040`, `WP-540`) and
     never a number carried by a cited path (Ariadne/Nabu P3 at 79fdcc63;
     Ariadne P4 at 8966da2e: digit-led middle segments such as `700` had
-    split the id, so `S20-700-PACK-001` read as `PACK-001`)."""
+    split the id, so `WP-700-PACK-001` read as `PACK-001`)."""
     leading = body[:200].split(";")[0]
     path_text = " ".join(PATH_TOKEN.findall(body))
     return {
@@ -1235,7 +1235,7 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
       (`fail-closed-gap`, `list-depth creep`, `contract-vs-mechanics`);
     - an identifier the claim names (a field, function or variable with an
       underscore, eight characters or more), a commit id, a finding id
-      (`RW090-DEV-01`, `V-02`, `AR-06`, `S20-700-PACK-001`), a file anchor
+      (`RW090-DEV-01`, `V-02`, `AR-06`, `WP-700-PACK-001`), a file anchor
       with its line numbers (`exchange.rs:2974-3001`), or a quoted phrase
       of the finding repeated verbatim;
     - or a path the claim names together with a word of its tag (a path

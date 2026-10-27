@@ -1,6 +1,6 @@
 # Clean-Room Disposition Register v1
 
-Status: S20-780 contract draft, revision 5 (2026-09-14); revision 3 closed
+Status: WP-780 contract draft, revision 5 (2026-09-14); revision 3 closed
 the P0s and addressed the P1/P2/P3 findings; the first re-review round
 returned Ariadne PASS and Vulcan PASS with no new findings, and Nabu FAIL
 with two residuals (lockfile stanza parsing, transcript-tree bounding), both
@@ -65,7 +65,7 @@ names what no check covers.
   4,611,024 bytes, recorded at the freeze.
 - **Machine-native relevance**: none to the design; the artifact is evidence,
   not a component.
-- **Security impact**: the artifact executes, so the S20-600 adapter stages
+- **Security impact**: the artifact executes, so the WP-600 adapter stages
   it, never runs it from the archive path: it copies the pinned archive into
   a private temp directory (mode `0o700`), re-verifies digest and size,
   extracts a write-stripped stage, and execs `stage.root/bin/sley` with
@@ -147,7 +147,7 @@ names what no check covers.
 ### 1.5 Typed graph checking, reimplemented
 
 - **Purpose**: check Sley 2 semantic graphs against the frozen SSMC1 shape
-  and the S20-210 through S20-240 profiles without reusing the predecessor's
+  and the WP-210 through WP-240 profiles without reusing the predecessor's
   typed-checking implementation.
 - **Observed evidence**: succession-matrix row "typed graph checking →
   reimplement → SSMC/check kernel"; the frozen 1.2.0 source was not

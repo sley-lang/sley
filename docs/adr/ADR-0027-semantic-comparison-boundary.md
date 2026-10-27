@@ -1,6 +1,6 @@
 # ADR-0027: Semantic comparison delta boundary
 
-Status: proposed; the S20-510 contract is a draft at revision 1 with Council
+Status: proposed; the WP-510 contract is a draft at revision 1 with Council
 review pending; implementation landed against the draft at `6ecfe89`
 (closeout `docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`)
 
@@ -10,8 +10,8 @@ Date: 2026-09-03
 
 The Repository Model requires root comparison to emit typed entity, type,
 signature, CFG, call, effect, capability, contract, test, entry-point, and
-dependency deltas, and S20-520 merge must accept automatic composition only
-when disjointness is proven. The full S20-250 profile now supplies a
+dependency deltas, and WP-520 merge must accept automatic composition only
+when disjointness is proven. The full WP-250 profile now supplies a
 complete-root request over all eighteen kinds, an exact impact index, and
 restricted-profile fingerprints for functions and type definitions, so every
 delta class can be derived from frozen inputs without a second semantic
@@ -19,7 +19,7 @@ model. The work-package row names a missed collateral change as the primary
 risk.
 
 The Council lanes were still unavailable at this draft (see ADR-0026 and
-the S20-250 campaign record); the design is the integrator's and is
+the WP-250 campaign record); the design is the integrator's and is
 submitted to Ariadne, Nabu, and Vulcan as soon as a lane returns.
 
 ## Decision
@@ -54,9 +54,9 @@ submitted to Ariadne, Nabu, and Vulcan as soon as a lane returns.
 
 ## Consequences
 
-- S20-520 merge gains a deterministic, typed, digest-identified input and a
+- WP-520 merge gains a deterministic, typed, digest-identified input and a
   collateral set to test disjointness against.
-- The S20-700 merge-adjacent surface gains a delta decoder fuzz target; the
+- The WP-700 merge-adjacent surface gains a delta decoder fuzz target; the
   merge engine itself remains the one absent Section 18.5 surface.
 - Block-level CFG alignment and move or rename detection stay outside the
   frozen boundary; a later contract may add them without changing this

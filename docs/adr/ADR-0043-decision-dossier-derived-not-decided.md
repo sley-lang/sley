@@ -1,6 +1,6 @@
 # ADR-0043: the decision dossier is derived, and the decision is not
 
-Status: proposed; the S20-750 contract is a draft at revision 9 with Council
+Status: proposed; the WP-750 contract is a draft at revision 9 with Council
 review pending; dossier mechanics implemented (2026-09-03, revised
 2026-09-14) with the derived state `BLOCKED` and `release-check` and `v2`
 still fail-closed
@@ -15,9 +15,9 @@ Date: 2026-09-03
 
 The master goal ends with a completion report of thirty-four items and a
 release decision state, and forbids vague conclusions. Every item's evidence
-now exists somewhere: the machine summary, the S20-710 full SBOM and provenance
-documents, the S20-720 candidate evidence, the S20-730 reproducibility and
-conformance reports, and the S20-740 finding register. Nothing assembled them,
+now exists somewhere: the machine summary, the WP-710 full SBOM and provenance
+documents, the WP-720 candidate evidence, the WP-730 reproducibility and
+conformance reports, and the WP-740 finding register. Nothing assembled them,
 so "what is actually evidenced" could only be answered by reading everything,
 and the decision state was an opinion rather than a derivation.
 

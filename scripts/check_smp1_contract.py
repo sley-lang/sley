@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-400 SMP1 protocol contract and its stage."""
+"""Check the WP-400 SMP1 protocol contract and its stage."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ METHOD_TAGS = (
     + [600, 601, 602, 603, 604]
 )
 # Protocol version 1 is the frozen table above. Protocol version 2 is the
-# sorted union with exactly the two S20-310 entity-read additions; no
+# sorted union with exactly the two WP-310 entity-read additions; no
 # second independently maintained 43-row table exists.
 V2_ADDITIONS = (306, 307)
 V2_METHOD_TAGS = tuple(sorted(METHOD_TAGS + list(V2_ADDITIONS)))
@@ -469,7 +469,7 @@ def main() -> int:
         present.append("crates/sley-protocol")
     # Contract acceptance (section 10) is the freeze: the revision-bound
     # current review admits it, and an implementation coexisting with a
-    # frozen reviewed document is normal (S20-410 implements under the
+    # frozen reviewed document is normal (WP-410 implements under the
     # draft). Only a draft still awaiting review must have no
     # implementation yet.
     if status == DRAFT_STATUS and present:

@@ -530,7 +530,7 @@ def program_full(ids: list, variant: str) -> tuple:
     ops.append(op_create(6, param_body(efunc, "Function", 1, SINT64)))
     ops.append(op_create(7, block_body(efunc, [], [o_ref0, o_get],
                                       switch_term(
-        # S20-220 orders cases by key: None(1) before Some(2).
+        # WP-220 orders cases by key: None(1) before Some(2).
         o_get, [switch_case("None", b_none, []),
                 switch_case("Some", b_some, [payload_arg()])]))))
     ops.append(op_create(7, block_body(efunc, [], [o_zref, o_new0, o_ok0],

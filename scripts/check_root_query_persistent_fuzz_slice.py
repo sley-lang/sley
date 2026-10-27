@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the scoped S20-310 full root-backed query engine persistent fuzz slice."""
+"""Drift check for the scoped WP-310 full root-backed query engine persistent fuzz slice."""
 
 from __future__ import annotations
 

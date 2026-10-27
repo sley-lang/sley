@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-780 clean-room disposition register and the boundary itself."""
+"""Check the WP-780 clean-room disposition register and the boundary itself."""
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-520 merge conformance corpus."""
+"""Refresh the deterministic WP-520 merge conformance corpus."""
 
 from __future__ import annotations
 

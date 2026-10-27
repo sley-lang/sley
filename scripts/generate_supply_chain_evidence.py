@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate deterministic, offline S20-710 pre-release audit evidence."""
+"""Generate deterministic, offline WP-710 pre-release audit evidence."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ HISTORY_ANCHOR = "7804f665e0ee65de240c43fe3b56dc89cf7e9d80"
 PUBLIC_HISTORY_ANCHOR = history_ledger.public_root() or ""
 PRE_PUBLIC_SCAN_PATH = ROOT / "evidence/history/supply-chain-pre-public-history-scan.json"
 PRE_PUBLIC_SCAN_CONTRACT = "sley2.supply-chain.pre-public-history-scan.v1"
-# Operator-approved root license material (S20-710 license decision
+# Operator-approved root license material (WP-710 license decision
 # 2026-09-14: Apache License, Version 2.0, Copyright 2026 Greyforge Labs).
 # The digests pin the exact installed bytes: any added, removed, or
 # modified root license file moves every workspace license disposition

@@ -1,4 +1,4 @@
-# S20-330 Negotiated Session and Handle Closeout
+# WP-330 Negotiated Session and Handle Closeout
 
 Status: **implemented under the draft Negotiated Session and Handle Profile v1 contract (revision 3); Council re-reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
@@ -60,7 +60,7 @@ The implementation provides:
 
 - Contract draft revision 2 and ADR-0033 revision 2; SMP1 revision 10
   (eighth limit field, expected-root `handle.expand` request owned by
-  the S20-330 freeze); bridge revision 5 (eighth limit key);
+  the WP-330 freeze); bridge revision 5 (eighth limit key);
   `ERROR_CODES_V1.md` freezing 33000 through 33007 per row;
   `THREAT_REGISTER.md` with the T15 owner corrected to `sley-protocol`
   and the T56 row for cross-caller live-name use.
@@ -153,4 +153,4 @@ the six transcripts are recorded in the machine summary
 (`rereview_transcripts`). The contract freeze and package completion
 status remain a separate gate: the summary keeps
 `S20_330_IMPLEMENTED_REVIEW_PENDING` with the three PASS obligations
-superseding the FAIL rounds, matching the S20-400 closure.
+superseding the FAIL rounds, matching the WP-400 closure.

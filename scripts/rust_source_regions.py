@@ -4,7 +4,7 @@ This lexer distinguishes code from comments and literals; it is not a Rust
 parser. Test-module partitioning only removes exact cfg(test) inline modules.
 Unknown conditional forms remain production for conservative hygiene checks.
 
-The lexical mask mirrors the frozen S20-530 checker. That checker retains its
+The lexical mask mirrors the frozen WP-530 checker. That checker retains its
 own copy because its isolated launch and frozen trust inventory forbid importing
 this helper; regression tests compare the two scanners on representative input.
 """

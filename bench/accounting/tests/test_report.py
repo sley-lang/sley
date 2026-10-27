@@ -1,4 +1,4 @@
-"""Offline tests for S20-630 accounting: exact arithmetic, denominators, thresholds, reports."""
+"""Offline tests for WP-630 accounting: exact arithmetic, denominators, thresholds, reports."""
 
 from __future__ import annotations
 

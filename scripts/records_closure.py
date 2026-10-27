@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-710 full records-closure model (contract revision 5, section 5).
+"""WP-710 full records-closure model (contract revision 5, section 5).
 
 Distinguishes the attested source candidate commit from a later
 records-closure HEAD: a HEAD that advances beyond the candidate commit is

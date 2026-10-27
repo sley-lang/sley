@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze check for EXEC_PACKAGE_V2 (RW-075 correction successor)."""
+"""Freeze check for EXEC_PACKAGE_V2 (TP-075 correction successor)."""
 
 from __future__ import annotations
 

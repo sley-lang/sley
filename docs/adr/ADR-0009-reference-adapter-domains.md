@@ -1,6 +1,6 @@
 # ADR-0009: Reference adapter evidence domains
 
-Status: accepted for the S20-280 restricted epoch-1 profile
+Status: accepted for the WP-280 restricted epoch-1 profile
 
 ## Decision
 

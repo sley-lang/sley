@@ -1,10 +1,10 @@
 # ADR-0036: the Sley 2 arm as an endpoint-only, trace-complete runner
 
-Status: proposed; the S20-620 contract is a draft at revision 8
+Status: proposed; the WP-620 contract is a draft at revision 8
 (2026-09-23: `workspace.open` admitted as the accepted-head opener at
 revision 5, nineteen-name allowlist; revision 6 names the section 9 text
 that answered the revision 5 REVISE round and passed in all three lanes;
-revision 7 re-pinned SMP1 revision 15 and S20-300 revision 6 (Vulcan PASS,
+revision 7 re-pinned SMP1 revision 15 and WP-300 revision 6 (Vulcan PASS,
 Ariadne and Nabu REVISE at 26d050e); revision 8 corrects the
 absent-boundary sentence, pins SMP1's errata-only revision 16, and binds
 completion to verdicts scoped to the reviewed text, with its new-delta
@@ -21,9 +21,9 @@ Date: 2026-09-03
 The master goal's benchmark requires a Sley 2.0 arm in which an agent
 receives only an SMP1 context capsule and mutation affordances, with every
 prompt, protocol definition, output, tool call, candidate, root, receipt,
-and failure preserved. S20-610 froze the raw arm's offline mechanics (a
+and failure preserved. WP-610 froze the raw arm's offline mechanics (a
 create-once manifest and an append-only digest chain of unverified claims)
-after Nabu's review. S20-430 now provides the endpoint through which the
+after Nabu's review. WP-430 now provides the endpoint through which the
 Sley 2.0 arm can be driven without a second code path.
 
 The Council lanes were still unavailable at this draft (see ADR-0026); the
@@ -41,8 +41,8 @@ soon as a lane returns.
    the next request is written, so the trace is the only context the agent
    could have had.
 4. **Trace-derived versus injected.** Ten metrics are computed only from
-   frame records; the rest are unverified adapter claims, as in S20-610.
-5. **Same chain mechanics.** Claims reuse the S20-610 module's manifest,
+   frame records; the rest are unverified adapter claims, as in WP-610.
+5. **Same chain mechanics.** Claims reuse the WP-610 module's manifest,
    canonical JSON, locking, and chain verification rather than a second
    implementation.
 6. **Codes.** Ten `SLEY2_TRIAL_*` codes 62000 through 62009.

@@ -1,6 +1,6 @@
 # ADR-0046: profile separation is preferred to an epoch bump, and migrations are additive
 
-Status: proposed; the S20-760 policy is a draft at revision 3 (2026-09-14)
+Status: proposed; the WP-760 policy is a draft at revision 3 (2026-09-14)
 with Council review pending; no epoch is created and no migration is
 performed
 

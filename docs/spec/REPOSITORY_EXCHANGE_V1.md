@@ -1,6 +1,6 @@
 # Repository Exchange v1
 
-Status: S20-540 contract frozen at revision 6 (2026-09-03); revision 7 corrects the
+Status: WP-540 contract frozen at revision 6 (2026-09-03); revision 7 corrects the
 branch-order framing sentence to the realized single framing (see ADR-0025
 decision 10) and changes no preimage; revision 8 (2026-09-18, after the
 92fa6646/c04539b9/db53894e Council rounds) states the realized
@@ -45,10 +45,10 @@ Repository Exchange v1 is the host-independent, clone-equivalent exchange
 profile for one complete local Sley 2 repository. It composes, and never
 alters, three frozen contracts:
 
-- the S20-170 Repository Pack v1 for schema epochs, roots, and objects;
-- the S20-390 transaction receipt for every exported revision and the fixed
+- the WP-170 Repository Pack v1 for schema epochs, roots, and objects;
+- the WP-390 transaction receipt for every exported revision and the fixed
   `accepted` head;
-- the S20-500 immutable branch-origin and mutable branch-ref records for every
+- the WP-500 immutable branch-origin and mutable branch-ref records for every
   visible branch.
 
 It contains no filesystem paths, Git facts, locks, GC witness state, staged
@@ -58,7 +58,7 @@ remain outside this contract.
 
 `sley-repo` owns the exchange. The dependency direction stays
 `sley-repo -> sley-txn -> sley-store`. The ownership section names the one
-bounded transaction-owner API that S20-540 implementation must add inside
+bounded transaction-owner API that WP-540 implementation must add inside
 `sley-txn`.
 
 ## Envelope and identity
@@ -88,13 +88,13 @@ frozen decoders; they never select the exchange decoder.
 
 `sley2.repository-exchange.v1` is a new `sley-id` domain. Adding its row to
 `IDENTIFIERS_V1.md`, the `Domain` enumeration, and the frozen vectors is
-identifier-owner work inside the S20-540 slice.
+identifier-owner work inside the WP-540 slice.
 
 The exchange schema epoch is a standalone epoch-1 record with exactly one
 contract descriptor: `contract_tag = 540`, `digest_domain_tag = 19`,
 `kind_tag = 540`, `required_fields = {1, 2, 3, 4, 5, 6, 7, 8}`,
 `optional_fields = {}`, `variant_tags = {}` (the `Option` union tags of field
-8 are SCB1 type tags, not contract variants, exactly as the frozen S20-170
+8 are SCB1 type tags, not contract variants, exactly as the frozen WP-170
 descriptor treats its own `signature_metadata` field), and the two frozen
 hashes below. The descriptor freezes raw BLAKE3-256 hashes of these exact
 ASCII texts:
@@ -111,22 +111,22 @@ decoder_limits_hash = 808eaba936f09b2a938306c538e0dff636a1a6d2617ed0b4298d929891
 
 The payload is a closed SCB1 Record with all fields required:
 
-| Tag | Field | S20-540 type and rule |
+| Tag | Field | WP-540 type and rule |
 |---:|---|---|
 | 1 | `exchange_version` | `UInt<32>`; exactly `1` |
-| 2 | `object_pack` | `Bytes`; one exact stored S20-170 pack (tag 170, version 1) of at most `16,777,216` bytes; an exchange never nests an exchange, and a nested exchange is `EXCHANGE_PACK_INVALID` |
+| 2 | `object_pack` | `Bytes`; one exact stored WP-170 pack (tag 170, version 1) of at most `16,777,216` bytes; an exchange never nests an exchange, and a nested exchange is `EXCHANGE_PACK_INVALID` |
 | 3 | `receipts` | `CanonicalSet` of receipt entries; because a receipt entry begins with `transaction_id fixed32`, canonical-set order equals raw `TransactionId` order |
 | 4 | `accepted_head` | head entry naming one receipt of tag 3 |
-| 5 | `branches` | `CanonicalSet` of branch entries in strictly increasing SCB1 canonical-set order over the complete `branch_entry` encoding excluding the element length prefix (the exclusion SCB1 states for map keys and the frozen S20-170 `object_entry` set order applies to set elements); see the ordering rule below |
+| 5 | `branches` | `CanonicalSet` of branch entries in strictly increasing SCB1 canonical-set order over the complete `branch_entry` encoding excluding the element length prefix (the exclusion SCB1 states for map keys and the frozen WP-170 `object_entry` set order applies to set elements); see the ordering rule below |
 | 6 | `compression_profile` | `UInt<32>`; exactly `0` (`none`) |
 | 7 | `digest_tree` | digest-tree record below |
 | 8 | `signature_metadata` | `Option<Bytes>`; MUST be present as `Option` union tag `0` (absent value), never omitted and never tag `1` |
 
 A `Bytes`-typed record field is framed exactly once: the frozen SCB1
 encoder (`encode_record` with `encode_sized`), decoder, and the independent
-S20-170 Python oracle all realize SCB1 section 4 so that the field's length
+WP-170 Python oracle all realize SCB1 section 4 so that the field's length
 prefix is the `Bytes` length, `uvar(tag) || len(bytes) || bytes`, as the
-frozen S20-170 fixture proves for its `stored_bytes` fields. `branch_entry`
+frozen WP-170 fixture proves for its `stored_bytes` fields. `branch_entry`
 field 1 therefore encodes as `uvar(1) || len(branch_name) || branch_name`,
 and the branch order is by the varint bytes of `byte_length(branch_name)`,
 then by the raw name bytes. For every legal name length (1 through 255) this
@@ -134,14 +134,14 @@ is length-then-bytes order: one-byte varints (1 through 127) precede
 two-byte varints (128 through 255), whose first byte exceeds `0x7f`. Read
 literally, SCB1 section 4 composes a `Bytes` value's own prefix with the
 field prefix; in the frozen realization those two prefixes coincide in one
-`len`, and this contract binds that realized framing. The S20-500 name
+`len`, and this contract binds that realized framing. The WP-500 name
 ceiling of 255 bytes is load-bearing for the monotone length order stated
 here. The names `b` and `aa` sort `b` first. This is deliberately not the raw-name
-order of `list_branches` (S20-500 section 8.3); exporters MUST re-sort into
+order of `list_branches` (WP-500 section 8.3); exporters MUST re-sort into
 this order and MUST NOT sort by raw name bytes alone.
 
 A receipt entry carries the declared `TransactionId`, the declared `ReceiptId`,
-and the exact stored S20-390 receipt bytes including the trailer. The stored
+and the exact stored WP-390 receipt bytes including the trailer. The stored
 bytes MUST decode through the frozen receipt codec, the embedded transaction's
 identity MUST equal field 1, and the trailer MUST equal field 2.
 
@@ -149,9 +149,9 @@ A head entry carries the exporter's fixed accepted head as a `TransactionId`
 and its `ReceiptId`; both MUST match one receipt entry.
 
 A branch entry carries the exact canonical branch name, the exact stored
-S20-500 branch-origin record, and the exact stored S20-500 branch-ref record
-for one visible branch. The name MUST satisfy the S20-500 grammar; the origin
-and ref MUST decode through the frozen S20-500 codecs; the `branch_name`
+WP-500 branch-origin record, and the exact stored WP-500 branch-ref record
+for one visible branch. The name MUST satisfy the WP-500 grammar; the origin
+and ref MUST decode through the frozen WP-500 codecs; the `branch_name`
 field inside both embedded records MUST equal field 1; the ref's
 `branch_record_digest` MUST equal the origin's digest. Orphan origin records
 (an origin without a visible ref) are never exported and never imported.
@@ -181,11 +181,11 @@ writes.
    receipt is `EXCHANGE_ANCESTRY_SURPLUS`.
 3. **Root closure.** The embedded pack's root set MUST equal exactly the
    `committed_root` values of all receipts together with every root those
-   roots depend on under S20-170 dependency closure, which is the smallest
-   superset closed under the `dependency_roots` field of each S20-160 state
+   roots depend on under WP-170 dependency closure, which is the smallest
+   superset closed under the `dependency_roots` field of each WP-160 state
    root record. Policy roots travel only inside receipt bytes (receipt field
    7) and are neither pack roots nor pack objects. Any inequality is
-   `EXCHANGE_ROOT_CLOSURE`. The pack's own S20-170 rules already require
+   `EXCHANGE_ROOT_CLOSURE`. The pack's own WP-170 rules already require
    dependency and exact object-inventory closure within it.
 4. **Branch closure.** For every branch entry, `origin_transaction_id` and
    `head_transaction_id` MUST name receipts in the set; the current head MUST
@@ -195,7 +195,7 @@ writes.
    `EXCHANGE_BRANCH_NOT_FAST_FORWARD`; and every
    origin and current fact (workspace, roots, epoch, policy, dependency
    roots) MUST equal the facts derived from the named receipts exactly as
-   S20-500 sections 4 and 5 require, else `EXCHANGE_BRANCH_INVALID`.
+   WP-500 sections 4 and 5 require, else `EXCHANGE_BRANCH_INVALID`.
 5. **Head closure.** The accepted head MUST be a receipt in the set, else
    `EXCHANGE_HEAD_INVALID`. It is not required to be a descendant of every
    branch; branches may point anywhere in the exported ancestry.
@@ -220,7 +220,7 @@ leaf = BLAKE3-256(leaf_preimage)
 node = BLAKE3-256("sley2.repository-exchange-node.v1" || left[32] || right[32])
 ```
 
-The leaf and node construction is byte-identical to the S20-170 construction
+The leaf and node construction is byte-identical to the WP-170 construction
 proven by its frozen fixture, under the exchange leaf and node domains. The
 leaf identifier and stored bytes per section are:
 
@@ -228,8 +228,8 @@ leaf identifier and stored bytes per section are:
 |---:|---|---|
 | 1 | `RepositoryPackId` of the embedded pack | the exact stored pack |
 | 2 | `TransactionId` | the exact stored receipt |
-| 3 | the S20-500 `name_key` recomputed from the entry's `branch_name` (section 3 of that contract), never read from the payload | `encode_bytes(stored_origin) \|\| encode_bytes(stored_ref)` |
-| 4 | `TransactionId` of the accepted head | `stored_head \|\| receipt_id[32]`, where `stored_head` is the S20-390 fixed-head value computed by the importer from `accepted_head.transaction_id` (`TRANSACTION_MODEL_V1.md`, fixed accepted-head bytes) and `receipt_id` is `accepted_head.receipt_id` |
+| 3 | the WP-500 `name_key` recomputed from the entry's `branch_name` (section 3 of that contract), never read from the payload | `encode_bytes(stored_origin) \|\| encode_bytes(stored_ref)` |
+| 4 | `TransactionId` of the accepted head | `stored_head \|\| receipt_id[32]`, where `stored_head` is the WP-390 fixed-head value computed by the importer from `accepted_head.transaction_id` (`TRANSACTION_MODEL_V1.md`, fixed accepted-head bytes) and `receipt_id` is `accepted_head.receipt_id` |
 
 `leaf_count` MUST equal `1 + |receipts| + |branches| + 1`, so a tree has at
 least three leaves. The payload stores the exact ordered leaf list, its
@@ -250,7 +250,7 @@ closed exchange limits:
 
 - stored exchange bytes: `67,108,864`;
 - embedded pack bytes: `16,777,216`, the epoch-1 `Bytes` payload ceiling,
-  which is also the exchange-profile cap; every inner S20-170 limit still
+  which is also the exchange-profile cap; every inner WP-170 limit still
   applies unchanged, and the pack's own `4,096` root and `65,536` object
   ceilings bind independently;
 - receipts: `4,096`;
@@ -261,13 +261,13 @@ closed exchange limits:
 - expanded bytes: reserved; under profile `0` no limit beyond the stored and
   `Bytes` ceilings can bind, and a future compressed profile MUST define it;
 - preflight work ceilings, single counters over the whole preflight (not
-  per branch), mirroring the frozen S20-530 recovery work limits: object
+  per branch), mirroring the frozen WP-530 recovery work limits: object
   verifications `2,097,152` (each object is verified once and the
   result memoized across receipts), binding visits `4,194,304`, verified
   object bytes `1,073,741,824`, and verified receipt bytes `1,073,741,824`;
   exhausting any of them is `EXCHANGE_RESOURCE_LIMIT`.
 
-Inner admissibility is a named invariant: the set of S20-170 packs the
+Inner admissibility is a named invariant: the set of WP-170 packs the
 embedded decoder accepts inside an exchange equals the set it accepts
 standalone, because a maximal legal exchange consumes at most `83,886,080`
 bytes (exactly `80` MiB) of the shared budget and leaves the pack decoder
@@ -275,7 +275,7 @@ more than its own `16,777,216`-byte worst case. Implementation proves it with a 
 
 The allocation budget counts decoder heap allocations for decoded values,
 excluding the caller-owned stored input buffer; the embedded pack decoder is
-charged against this same budget rather than receiving a fresh S20-170
+charged against this same budget rather than receiving a fresh WP-170
 budget. A maximal legal exchange is always decodable: the decoded payload
 holds at most one copy of every embedded byte (at most `67,108,864`), the
 embedded pack's decoded entries hold at most one further copy of its at most
@@ -284,7 +284,7 @@ so the sum stays below `134,217,728`.
 
 The receipt ceiling is a clone-profile limit, not an ancestry limit. Export
 evaluates every exchange limit and the pack's own root and object ceilings
-before assembling bytes and fails `EXCHANGE_RESOURCE_LIMIT`; an S20-170 pack
+before assembling bytes and fails `EXCHANGE_RESOURCE_LIMIT`; a WP-170 pack
 larger than `16,777,216` stored bytes, a reachable history beyond `4,096`
 receipts, or more than `4,096` visible branches is therefore not exchangeable
 by v1. Import preserves the exact `PACK_RESOURCE_LIMIT` from the embedded
@@ -302,11 +302,11 @@ verified facts:
 
 1. resolve the fixed accepted head through `sley-txn`;
 2. enumerate visible branches through `sley-repo` (`list_branches` up to the
-   S20-500 ceiling); orphan origins are excluded;
+   WP-500 ceiling); orphan origins are excluded;
 3. collect the receipt set as the parent-link closure of the accepted head and
    of every branch's current head, loading each revision through the verified
    revision lookup; exceeding `4,096` receipts is `EXCHANGE_RESOURCE_LIMIT`;
-4. export the S20-170 pack over the committed roots of that set, failing
+4. export the WP-170 pack over the committed roots of that set, failing
    `EXCHANGE_RESOURCE_LIMIT` before assembly if the pack ceilings would be
    exceeded;
 5. assemble the canonical entries, the tree, and the envelope.
@@ -351,7 +351,7 @@ takes precedence over the marker-shape rules above.
 
 The stage marker is exactly one regular file
 `exchange/v1/<hex>.stage`, where `<hex>` is the lowercase 64-character hex
-`RepositoryExchangeId` (the S20-500 key convention), whose exact contents are
+`RepositoryExchangeId` (the WP-500 key convention), whose exact contents are
 that 32-byte identifier. More than one marker file, a non-regular marker, a
 marker whose contents disagree with its filename, a marker naming a different
 `RepositoryExchangeId`, or a present head that does not resolve or names any
@@ -412,7 +412,7 @@ Four checks sit earlier than a reader of the closure rules might expect:
    order:
    1. the embedded bytes are a tag-170 version-1 pack, else
       `EXCHANGE_PACK_INVALID`;
-   2. run the complete S20-170 preflight (its steps 1 through 5) over the
+   2. run the complete WP-170 preflight (its steps 1 through 5) over the
       embedded pack without store writes. Its `PACK_*` codes are returned
       unchanged. For example, an embedded pack whose trailer does not match
       its bytes is `PACK_DIGEST_MISMATCH`, even when the exchange trailer is
@@ -420,7 +420,7 @@ Four checks sit earlier than a reader of the closure rules might expect:
    3. recompute every leaf from the declared identifiers:
       - section 1 from the `RepositoryPackId` verified by step 3.2;
       - sections 2 and 4 from the declared `TransactionId` values, as given;
-      - section 3 from the S20-500 name key recomputed from each
+      - section 3 from the WP-500 name key recomputed from each
         `branch_name`, per branch in canonical order. An ungrammatical name
         is `EXCHANGE_BRANCH_INVALID` here.
 
@@ -483,12 +483,12 @@ Four checks sit earlier than a reader of the closure rules might expect:
       fresh target); the pre-ownership classification is advisory and only
       the owned classification authorizes writes. Then remove the target's
       `index/` directory if it has one. Every other entry an incomplete clone
-      may carry is proved to belong to this exchange, but a derived S20-300
+      may carry is proved to belong to this exchange, but a derived WP-300
       cache record cannot be: it is keyed by a state root this import has not
       yet accepted. It is removed rather than refused because the cache is
       disposable and rebuilds on demand; a symlink or a non-directory there is
       `EXCHANGE_IO`;
-   3. import the embedded pack (S20-170 step 6; idempotent for present
+   3. import the embedded pack (WP-170 step 6; idempotent for present
       objects);
    4. install every receipt through
       `initialize_trusted_clone_receipts_with_maintenance` (the receipt
@@ -523,7 +523,7 @@ to be amended to match it. The importer was not changed.
   - `verify_receipts_against_pack`.
 - **What changed from revision 8.**
   - Revision 8 listed "every declared identity, and the complete digest
-    tree" in step 2, ahead of the S20-170 preflight.
+    tree" in step 2, ahead of the WP-170 preflight.
   - Revision 9 moves the digest-tree content check (leaf recomputation and
     root) into step 3.3, after the embedded-pack checks. Step 3.3
     recomputes the leaves from the declared identifiers and recomputes the
@@ -533,7 +533,7 @@ to be amended to match it. The importer was not changed.
   - The tree record's own profile and counts stay in step 2.
 - **Why pack-first.**
   - The section-1 leaf identifier is the embedded pack's `RepositoryPackId`,
-    which only the S20-170 preflight establishes.
+    which only the WP-170 preflight establishes.
   - `PACK_*` codes are preserved, never remapped.
   - The frozen `nested-exchange` mutation pins the tag-170 check
     (`EXCHANGE_PACK_INVALID`) ahead of the tree.
@@ -613,13 +613,13 @@ the marker is written before maintenance ownership exists, two importers of
 different bytes can leave two markers and permanently jam a target as
 `EXCHANGE_TARGET_INCOMPLETE_MISMATCH`; concurrent imports into one target are
 otherwise outside v1. `sley-repo` owns `exchange/`; it lies outside the
-S20-500 ref fan-out and the GC `objects/scb1` inventory, so no existing
+WP-500 ref fan-out and the GC `objects/scb1` inventory, so no existing
 unknown-entry rule fires on an X-07 clone.
 
 The head is the completion witness and the marker is the write guard. On a
 marked root (an `exchange/v1/` directory containing any entry whose name
 ends in `.stage`, read without following symlinks) no accepted-head reader
-of the frozen S20-540 surface resolves an accepted head — `sley-txn`
+of the frozen WP-540 surface resolves an accepted head — `sley-txn`
 `accepted_head`, `accepted_head_with_maintenance` and
 `accepted_head_any_with_maintenance` fail closed with `TXN_INCOMPLETE_CLONE`
 (the later native attempt-status and promotion-claim readers in `sley-txn`
@@ -652,7 +652,7 @@ complete clone; retrying with different exchange bytes fails
 |---|---|---|
 | X-01 | before the stage-marker rename is durable (at most the empty `exchange/v1/` directory and one owned temporary exist) | target is fresh; the owned temporary is removed; import restarts from step 8.1 |
 | X-02 | after the marker, before any object (layout may be partial) | incomplete clone; layout completed, objects, receipts, branches, head installed |
-| X-03 | during object promotion | S20-170 idempotent re-import; staged object temporaries are removed by the importer's own re-import or, after the clone completes, by S20-530 owner recovery |
+| X-03 | during object promotion | WP-170 idempotent re-import; staged object temporaries are removed by the importer's own re-import or, after the clone completes, by WP-530 owner recovery |
 | X-04 | during receipt installation | no reader resolves a head, writes fail closed; exact existing receipts reverified; missing receipts installed |
 | X-05 | during branch installation | no reader resolves a head, writes fail closed; exact existing origins and refs reverified; missing ones installed |
 | X-06 | before the head rename is durable | no reader resolves a head, writes fail closed; branches complete; head installed on retry |
@@ -662,7 +662,7 @@ complete clone; retrying with different exchange bytes fails
 with `TXN_INCOMPLETE_CLONE` before removing anything, because their owned
 cleanup could otherwise delete the importer's in-progress files; they never
 complete an import. Any interruption row not listed above is an
-implementation defect. No S20-530
+implementation defect. No WP-530
 matrix row is added or changed: an incomplete clone is never accepted state.
 
 ## Clone equivalence
@@ -726,7 +726,7 @@ values; `EXCHANGE_PACK_INVALID` wraps no code and is returned exactly when
 the embedded bytes are not a tag-170 version-1 pack, which includes a nested
 exchange (tag 540) and every other contract tag; `EXCHANGE_RECEIPT_INVALID`
 covers a receipt entry whose declared identities disagree with its bytes.
-A marked incomplete clone rejects every frozen write path with the S20-390
+A marked incomplete clone rejects every frozen write path with the WP-390
 code `TXN_INCOMPLETE_CLONE` (`39022`), named in the ownership section.
 
 ## Ownership and the transaction-owner API
@@ -736,8 +736,8 @@ maintenance ownership of the persistence phase, byte-exact branch
 installation, and the clone-equivalent test. It may depend on `sley-txn`;
 `sley-txn` remains independent of `sley-repo`.
 
-S20-540 implementation must add one bounded two-phase API to `sley-txn`,
-exactly as S20-500 added the verified revision lookup:
+WP-540 implementation must add one bounded two-phase API to `sley-txn`,
+exactly as WP-500 added the verified revision lookup:
 
 ```text
 initialize_trusted_clone_receipts_with_maintenance(
@@ -761,24 +761,24 @@ parent-before-child order derived from the decoded parent links (never the
 slice order), verifies each receipt against the durable object store (state
 root and policy root imported through their registries, manifest lengths,
 complete object closure, tombstones) and against its already-durable parent,
-installs it under its `TransactionId` with the S20-390 receipt durability
+installs it under its `TransactionId` with the WP-390 receipt durability
 order (an exact existing receipt is reverified and resynced), and returns the
 number of receipts durable after the call; a parent that is neither durable
 nor present in the slice preserves the exact `TXN_*` failure. The head phase
 requires every parent-chain receipt of `head` to be durable and requires the
-fixed head to be absent, in which case it writes it with the S20-390 head
+fixed head to be absent, in which case it writes it with the WP-390 head
 durability order, or already exactly equal to `head`, in which case it
 reverifies and returns success without a rename.
 
-S20-540 implementation also adds the incomplete-clone write guard as
+WP-540 implementation also adds the incomplete-clone write guard as
 transaction-owner and ref-owner work inside the slice: `sley-txn` exposes the
 marked-root predicate (an `exchange/v1/` directory containing any entry
 whose name ends in `.stage`, read without following symlinks) and returns the new
-S20-390 code `TXN_INCOMPLETE_CLONE` (`39022`, the next contiguous numeric
-after the frozen `TXN_RESOURCE_LIMIT` `39021`, appended to the frozen S20-390
+WP-390 code `TXN_INCOMPLETE_CLONE` (`39022`, the next contiguous numeric
+after the frozen `TXN_RESOURCE_LIMIT` `39021`, appended to the frozen WP-390
 code table in `ERROR_CODES_V1.md`, whose frozen range then extends to
 `39022`, and to the `TransactionErrorCode` enum, its `symbol()` and numeric
-mappings, and the S20-390 contract checker's symbol list by the same commit) from `initialize_trusted_genesis`, `commit`, and `recover`;
+mappings, and the WP-390 contract checker's symbol list by the same commit) from `initialize_trusted_genesis`, `commit`, and `recover`;
 `sley-repo` returns the same code through its existing upstream transaction
 error from `create_branch`, `advance_branch`, `recover_refs`,
 `recover_gc_witness`, and exclusive GC acquisition. The clone API phases
@@ -832,7 +832,7 @@ Implementation acceptance requires at least:
   test expecting `EXCHANGE_PACK_INVALID`, a preflight-cost test at the
   maximal legal exchange, and the maximal-legal-exchange decode test;
 - a structural dependency check proving no `sley-txn -> sley-repo` edge;
-- an exchange-import persistent libFuzzer target (S20-700 adjacent surface);
+- an exchange-import persistent libFuzzer target (WP-700 adjacent surface);
 - Tier 1 plus repository-focused Tier 2 validation;
 - Ariadne contract review, Nabu design review, and Vulcan import-surface
   review with every report-grade finding closed.
@@ -846,5 +846,5 @@ This contract does not claim:
 - import into an existing repository, merge, fetch, or partial exchange;
 - more than one workspace per exchange;
 - branch deletion, rename, force movement, tags, or symbolic refs;
-- semantic comparison, conflict objects, or any S20-510/S20-520 semantics;
+- semantic comparison, conflict objects, or any WP-510/WP-520 semantics;
 - SMP1, JSON bridge, CLI, runtime, benchmark, packaging, release, or GA.

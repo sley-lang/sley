@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-300 rebuild-first index snapshot profile."""
+"""Check the restricted WP-300 rebuild-first index snapshot profile."""
 
 from __future__ import annotations
 

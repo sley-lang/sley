@@ -1,6 +1,6 @@
 # ADR-0030: Root-backed query classes and continuation boundary
 
-Status: proposed; the S20-310 full contract is a draft at revision 7 with
+Status: proposed; the WP-310 full contract is a draft at revision 7 with
 Council review pending; implemented under the draft
 (`docs/audits/S20_310_FULL_ROOT_BACKED_QUERY_CLOSEOUT.md`)
 
@@ -10,14 +10,14 @@ Date: 2026-09-03
 
 ## Context
 
-The restricted S20-310 profile froze four typed queries over an arm-1
+The restricted WP-310 profile froze four typed queries over an arm-1
 snapshot with hard failure whenever an applied limit would omit a fact,
 because without lawful continuation a partial answer is indistinguishable
 from a complete one (ADR-0012). The master goal requires nineteen
 root-backed query classes, but no authority in the repository enumerates
 them: the count survives in the work-package row, the error-code registry,
 and the machine summary (`full_query_classes_required: 19`), and the legacy
-Sley exposed six structural query kinds. The full S20-300 profile now binds
+Sley exposed six structural query kinds. The full WP-300 profile now binds
 an arm-2 snapshot to an exact verified root and owns the repository cache
 whose hits may serve read-only derived query surfaces only.
 
@@ -41,8 +41,8 @@ and Vulcan as soon as a lane returns.
    facts must agree exactly (`QUERY_ROOT_MISMATCH`), so a cache hit can
    supply edges but never an inventory the record disagrees with.
 4. **One repository surface.** `sley-repo` is the only producer of the
-   input from persistent state, over an S20-390 verified revision and the
-   S20-300 cache; it is the first consumer of a cache hit and stays
+   input from persistent state, over a WP-390 verified revision and the
+   WP-300 cache; it is the first consumer of a cache hit and stays
    read-only derived evidence.
 5. **Identity and codes.** The thirty-third domain `sley2.root-query.v1`
    names the request; `SLEYRQQ1`/`SLEYRQR1` records are new and the
@@ -61,9 +61,9 @@ and Vulcan as soon as a lane returns.
 
 ## Consequences
 
-- Full S20-320 capsules, S20-330 handles, and the S20-400 SMP1 transport
+- Full WP-320 capsules, WP-330 handles, and the WP-400 SMP1 transport
   gain a frozen query surface to wrap, bind, and carry; the restricted
-  S20-320 capsule keeps wrapping only the restricted responses.
+  WP-320 capsule keeps wrapping only the restricted responses.
 - Continuation is lawful because it is explicit, keyed, and total-counted;
   the T14 gate (truncation hides required facts) is preserved by
   construction rather than by refusing to page.

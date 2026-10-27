@@ -1,6 +1,6 @@
 # ADR-0047: the required contracts are indexed, not restated
 
-Status: proposed; the S20-770 index is a draft at revision 3 with Council
+Status: proposed; the WP-770 index is a draft at revision 3 with Council
 review pending; it defines no contract and derives no new identifier. Revision
 2 record (2026-09-08): row 17.12 gains the accepted
 `ENTITY_READ_PROFILE_V2.md` document and the additive
@@ -44,10 +44,10 @@ second source that can drift from the first.
    `asserts_contract_acceptance: false` and `asserts_completeness: false`
    beside the status so the disclaimer survives into the machine surface.
 5. **Four already-derived domains registered, none coined (2026-09-14
-   record).** `sley2.candidate-attempt.v1` (S20-360,
-   `CANDIDATE_RESULT_V1.md`), `sley2.protocol-frame.v1` (S20-410, `SMP1.md`
-   section 1), `sley2.root-query.v1` (S20-310 full,
-   `ROOT_BACKED_QUERY_PROFILE_V1.md`), and `sley2.session.v1` (S20-330,
+   record).** `sley2.candidate-attempt.v1` (WP-360,
+   `CANDIDATE_RESULT_V1.md`), `sley2.protocol-frame.v1` (WP-410, `SMP1.md`
+   section 1), `sley2.root-query.v1` (WP-310 full,
+   `ROOT_BACKED_QUERY_PROFILE_V1.md`), and `sley2.session.v1` (WP-330,
    `SESSION_HANDLE_PROFILE_V1.md`) were each specified and fixtured by their
    owning packages but had never reached the central registry. This decision
    registers those four as already-derived domains; it derives no new

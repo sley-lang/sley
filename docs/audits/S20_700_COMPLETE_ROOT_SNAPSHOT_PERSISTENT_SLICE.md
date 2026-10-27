@@ -1,6 +1,6 @@
-# S20-700 Complete-Root Snapshot Decoder Persistent Slice
+# WP-700 Complete-Root Snapshot Decoder Persistent Slice
 
-Status: scoped persistent landed-surface slice for the full S20-300 profile; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for the full WP-300 profile; **full WP-700 remains incomplete**
 
 This slice hardens the arm-2 complete-root index snapshot decoder
 (`crates/sley-query/src/snapshot.rs`,

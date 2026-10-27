@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen S20-200/S20-210 type-system surface."""
+"""Check the frozen WP-200/WP-210 type-system surface."""
 
 from __future__ import annotations
 

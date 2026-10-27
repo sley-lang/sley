@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate immutable S20-340 Rust descriptors from the frozen SSMC1 manifest."""
+"""Generate immutable WP-340 Rust descriptors from the frozen SSMC1 manifest."""
 
 from __future__ import annotations
 

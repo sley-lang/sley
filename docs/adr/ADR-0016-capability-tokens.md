@@ -1,10 +1,10 @@
 # ADR-0016: Capability tokens for local runtime enforcement
 
-Status: accepted for the S20-380 narrow local profile
+Status: accepted for the WP-380 narrow local profile
 
 ## Decision
 
-S20-380 defines capability tokens in `sley-policy` and the authorized reference
+WP-380 defines capability tokens in `sley-policy` and the authorized reference
 adapter wrapper in `sley-adapter`.
 
 The token body is canonical SCB1 data bound to exact issuer/key IDs, principal,

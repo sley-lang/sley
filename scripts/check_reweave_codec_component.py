@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind the RW-090 codec component manifest to the pinned test figures.
+"""Bind the TP-090 codec component manifest to the pinned test figures.
 
 The generation manifest kept the 7426bc0b component figures through the
 0b7a1482 re-mint because nothing compared it with the test pins (Ariadne P1,
@@ -7,7 +7,7 @@ Nabu P2, Vulcan P2 at c04539b9). The pins live in
 crates/sley-vm/tests/rw080_codec_program/canonical_codec.rs; this checker
 reads them the way check_reweave_canonical_s.py reads the S pins and refuses
 any manifest figure that differs, and requires the superseded component
-blocks the RW-080 contract's RW080-ID-02 rule names.
+blocks the TP-080 contract's RW080-ID-02 rule names.
 """
 
 from __future__ import annotations

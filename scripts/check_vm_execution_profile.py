@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the restricted S20-270 deterministic VM execution profile."""
+"""Check the restricted WP-270 deterministic VM execution profile."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 # ADR-0014: Full epoch-1 mutation descriptor code generation
 
-Status: accepted for S20-340
+Status: accepted for WP-340
 
 ## Decision
 
@@ -9,13 +9,13 @@ kinds directly from the hash-frozen canonical text manifest. Commit the
 generated Rust artifact and require exact regeneration in the routine gate.
 
 Keep executable mutation, candidates, precondition values, authority,
-validation, and state changes outside S20-340.
+validation, and state changes outside WP-340.
 
 ## Rationale
 
 Generating only the twelve entity kinds currently represented by restricted
 runtime models would create a second partial schema authority and would not
-reproduce the full S20-200 schema. The canonical manifest already freezes all
+reproduce the full WP-200 schema. The canonical manifest already freezes all
 eighteen body records and is sufficient for descriptor generation without
 claiming runtime support for the six unmodeled bodies.
 

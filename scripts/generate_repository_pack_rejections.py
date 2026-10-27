@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the S20-170 pack rejection corpus from the accepted artifact.
+"""Build the WP-170 pack rejection corpus from the accepted artifact.
 
 The pack family had one accepted vector and no rejection matrix, so the
 independent decoder's strictness was never demonstrated: a permissive oracle

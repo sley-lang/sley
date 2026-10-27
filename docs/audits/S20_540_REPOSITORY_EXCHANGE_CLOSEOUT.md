@@ -1,6 +1,6 @@
-# S20-540 Repository Exchange Closeout
+# WP-540 Repository Exchange Closeout
 
-Status: **S20-540 clone-equivalent repository exchange complete under the frozen v1 contract with Nabu, Ariadne, and Vulcan implementation receipts; the Sley 2 goal remains incomplete**
+Status: **WP-540 clone-equivalent repository exchange complete under the frozen v1 contract with Nabu, Ariadne, and Vulcan implementation receipts; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -8,10 +8,10 @@ Validation tier: **Tier 1 plus repository-focused Tier 2 handoff**
 
 ## Closed claim
 
-This package closes the S20-540 pack-exchange boundary: one exact exchange
+This package closes the WP-540 pack-exchange boundary: one exact exchange
 artifact reconstructs a clone-equivalent repository in a fresh location from
-the frozen S20-170 pack, the S20-390 receipts of the exported ancestry, the
-fixed accepted head, and every visible S20-500 branch as its exact origin and
+the frozen WP-170 pack, the WP-390 receipts of the exported ancestry, the
+fixed accepted head, and every visible WP-500 branch as its exact origin and
 ref pair. The frozen contract is `docs/spec/REPOSITORY_EXCHANGE_V1.md`
 (revision 7, contract tag 540, domain `sley2.repository-exchange.v1`, digest
 domain tag 19, field schema hash `a843405b…`, decoder limits hash
@@ -21,7 +21,7 @@ The implementation provides:
 
 - `sley-id`: the thirtieth frozen domain and `RepositoryExchangeId`;
 - `sley-txn`: `TXN_INCOMPLETE_CLONE` (`39022`, appended to the frozen
-  S20-390 table under ADR-0025), the marked-root predicate that fails
+  WP-390 table under ADR-0025), the marked-root predicate that fails
   genesis, commit, and recovery closed on an incomplete clone, the two-phase
   `initialize_trusted_clone_receipts_with_maintenance` and
   `initialize_trusted_clone_head_with_maintenance` API under the caller's
@@ -39,7 +39,7 @@ The implementation provides:
   pack promotion, the receipt phase, byte-exact branch installation under the
   refs lock, the head phase last, and marker removal; the incomplete-clone
   guard on branch create, advance, ref recovery, GC-witness recovery, and
-  exclusive GC acquisition; and a preflight-only S20-170 entry point.
+  exclusive GC acquisition; and a preflight-only WP-170 entry point.
 
 The dependency direction stays `sley-repo -> sley-txn -> sley-store`.
 
@@ -79,12 +79,12 @@ The dependency direction stays `sley-repo -> sley-txn -> sley-store`.
 
 ## Findings closed in flight
 
-- S20-170's exact object-inventory rule requires the state roots'
+- WP-170's exact object-inventory rule requires the state roots'
   contract-root and test-root objects to exist in the store; a repository
   built with placeholder anchors cannot be exported (`STORE_OBJECT_NOT_FOUND`).
   The fixture uses real objects; production repositories must too.
 - The revision-3 branch-order wording assumed a double length prefix on a
-  `Bytes` record field. The frozen SCB1 encoder, the S20-170 codec, and the
+  `Bytes` record field. The frozen SCB1 encoder, the WP-170 codec, and the
   independent oracle frame it once, so the order is plain length-then-bytes
   for every legal name length; the contract was corrected (revision 7).
 - Revision 8 (2026-09-18): the contract's target-inspection sentence
@@ -103,11 +103,11 @@ The dependency direction stays `sley-repo -> sley-txn -> sley-store`.
   receipts) is not built; the decode-level maximal shape and every
   count and byte ceiling are tested, and the work ceilings are enforced as
   single preflight counters.
-- Strict pedantic clippy carries pre-existing debt in S20-390 and S20-530
+- Strict pedantic clippy carries pre-existing debt in WP-390 and WP-530
   production functions (`too_many_lines`, `must_use_candidate`); the new
-  S20-540 code paths lint clean under `--no-deps`; a hygiene slice is
+  WP-540 code paths lint clean under `--no-deps`; a hygiene slice is
   deferred.
-- The three frozen S20-530 mapped-test modules keep their rustc and clippy
+- The three frozen WP-530 mapped-test modules keep their rustc and clippy
   allow attributes (ADR-0024).
 - Merge, comparison, protocol, compression, streaming, signatures, histories
   beyond 4,096 receipts, more than one workspace, and import into an existing
@@ -120,7 +120,7 @@ seconds each, zero warnings). Tier 2 ran on 2026-09-03T03:19Z at the
 persistent-fuzz commit: `make core`, `make conformance` (including the new
 exchange oracle line), `make adversarial`, `make fuzz-smoke`, and
 `make exchange-persistent-fuzz-smoke` all exited 0 in 27 seconds. The full
-`make v1` gate was skipped because S20-540 is a subsystem handoff, not a
+`make v1` gate was skipped because WP-540 is a subsystem handoff, not a
 release boundary; `make v2` and `make release-check` remain intentionally
 fail closed.
 
@@ -205,6 +205,6 @@ remediation with no open P0 or P1 finding.
   (`uv run --project oracle/scb1 --frozen`); it is registered that way in
   `make conformance`.
 - The fuzz target caps inputs at 65,536 bytes against the 64 MiB contract
-  ceiling, like the S20-170 slice; the injected X-03, X-04, and X-05 cuts
+  ceiling, like the WP-170 slice; the injected X-03, X-04, and X-05 cuts
   fall on item boundaries, not inside a single write, because the
-  lower-layer writes are covered by the frozen S20-530 matrix.
+  lower-layer writes are covered by the frozen WP-530 matrix.

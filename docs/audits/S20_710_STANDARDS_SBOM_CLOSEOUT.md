@@ -1,6 +1,6 @@
-# S20-710 standards SBOM and provenance closeout
+# WP-710 standards SBOM and provenance closeout
 
-The three Council lanes landed `FAIL` on the S20-710 full-audit package
+The three Council lanes landed `FAIL` on the WP-710 full-audit package
 with five P0s (Ariadne 2, Nabu 2, Vulcan 1). The round verdicts stand as
 `FAIL` history; the contract is revised to revision 3 and the five defects
 are fixed and pinned below. No disposition was edited and no review was

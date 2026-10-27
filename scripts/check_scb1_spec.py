@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check S20-100's fixed value vectors and rejection taxonomy."""
+"""Check WP-100's fixed value vectors and rejection taxonomy."""
 
 from __future__ import annotations
 

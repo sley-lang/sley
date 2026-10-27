@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-710 full standards SBOM and provenance contract and its stage."""
+"""Check the WP-710 full standards SBOM and provenance contract and its stage."""
 
 from __future__ import annotations
 
@@ -124,7 +124,7 @@ def load_builder():
 
 
 def load_repro():
-    """The S20-730 builder: the owner of the attestation admissibility rule."""
+    """The WP-730 builder: the owner of the attestation admissibility rule."""
     spec = importlib.util.spec_from_file_location(
         "build_reproducibility_report", ROOT / "scripts/build_reproducibility_report.py"
     )
@@ -246,7 +246,7 @@ def main() -> int:
     ):
         if section.get(key) != value:
             problems.append(f"machine-summary:{key}")
-    # The S20-710 audit itself stays blocked: these documents are drafts.
+    # The WP-710 audit itself stays blocked: these documents are drafts.
     audit_section = summary.get("s20_710_pre_release_audit", {})
     for key in ("standards_sbom", "release_provenance", "full_s20_710_complete"):
         if audit_section.get(key) is not False:

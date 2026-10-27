@@ -1,4 +1,4 @@
-# S20-610 raw-file baseline runner
+# WP-610 raw-file baseline runner
 
 This directory contains an offline-only, injected-adapter evidence runner for
 the raw-file benchmark arm. It validates a complete frozen run manifest,
@@ -20,6 +20,6 @@ carries `UNVERIFIED_INJECTED_DIGEST_CLAIMS` plus explicit unverified oracle and
 accounting status. No API promotes a claim to benchmark evidence; that requires
 a later approved artifact store and provenance verifier.
 
-`accepted_change_tokens` remains `null` in trial metrics because S20-630 owns
+`accepted_change_tokens` remains `null` in trial metrics because WP-630 owns
 derivation from preserved token counts and accepted changes. This package
 records no benchmark result and makes no succession or superiority claim.

@@ -18,7 +18,7 @@ transcripts, and this record only); lint inputs and fuzz targets untouched.
   holds untouched. `ga_claimed=false` verified at this commit.
 - Toolchain pinned `1.93.0`, `--locked`, `CARGO_NET_OFFLINE=true`,
   `CARGO_TARGET_DIR=/home/dev/.cache/sley-agg-b0e52e00/target` (on /home),
-  `UV_OFFLINE=true`, `SLEY2_MASTER_GOAL=.../greyforge-managed-home/.../Sley2.0mastergoal.md`
+  `UV_OFFLINE=true`, `SLEY2_DESIGN_SPEC=.../greyforge-managed-home/.../Sley2.0mastergoal.md`
   (sha256 `07791368...aace`).
 
 ## 1. Aggregate gate results (disposable checkout at b0e52e00 + restored inputs)

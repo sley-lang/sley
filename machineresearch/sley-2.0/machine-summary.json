@@ -105,14 +105,14 @@
       "name": "Sley 2.0 Machine Genesis master goal",
       "sha256": "077913685537541154a6da758fd64a9997d9e023952ba03e28527a5bfd74aace",
       "in_repo_dossier": "machineresearch/sley-2.0/",
-      "override_env": "SLEY2_MASTER_GOAL"
+      "override_env": "SLEY2_DESIGN_SPEC"
     },
     "reweave_master": {
       "path": "/home/dev/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md",
       "revision": "REWEAVE-1.0",
       "sha256": "9cb4e7f4e6ed2dd4262404015a4bf4b6ed142b07318f36668141d36c1e2e1d6a",
       "adoption": "docs/adr/ADR-0049-reweave-scope-adoption.md",
-      "override_env": "SLEY2_REWEAVE_MASTER"
+      "override_env": "SLEY2_SELF_HOSTING_PLAN"
     },
     "schema_epoch": {
       "name": "SSMC1 epoch 1 (bootstrap SchemaEpochId)",

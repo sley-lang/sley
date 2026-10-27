@@ -1,6 +1,6 @@
 """Per-arm verifiers turning verified live attempts into accounting claims.
 
-S20-630 accounting consumes claims, each verified by its arm's own
+WP-630 accounting consumes claims, each verified by its arm's own
 verifier. The live campaign writes one ``attempts.jsonl`` for all three
 arms; this module is the verifier registry for that input. Every arm's
 verifier:
@@ -19,7 +19,7 @@ verifier:
    stages for that task in this checkout, and the manifest's arm fixture
    digest must equal the recomputed one.
 
-The legacy verifier (``sley_1_2_0``, the chain S20-630 section 1 left
+The legacy verifier (``sley_1_2_0``, the chain WP-630 section 1 left
 without a verifier) additionally binds the frozen 1.2.0 artifact: the
 plan's pinned ``artifact_sha256`` and ``commit`` must equal the legacy
 runner's frozen contract that every legacy tool invocation and oracle

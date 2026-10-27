@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Negative tests for the S20-430 contract and current-review gates.
+"""Negative tests for the WP-430 contract and current-review gates.
 
 `check_cli_contract.py` already refuses a stale revision carried forward
 with PASS, a missing record, and a frozen status with PENDING judgments

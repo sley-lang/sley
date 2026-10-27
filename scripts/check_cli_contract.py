@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-430 thin CLI contract and its stage."""
+"""Check the WP-430 thin CLI contract and its stage."""
 
 from __future__ import annotations
 

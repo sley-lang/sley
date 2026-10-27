@@ -143,7 +143,7 @@ def main() -> int:
         require_equal(frontier, expected_frontier, "machine-summary frontier")
 
         session = summary.get("session_handle_profile", {})
-        # Re-audited 2026-09-03 (ADR-0033): S20-330 moved from deferred to a
+        # Re-audited 2026-09-03 (ADR-0033): WP-330 moved from deferred to a
         # staged contract; the session module may exist only while the staged
         # checker says its implementation is in progress or later.
         session_status = session.get("status")
@@ -314,7 +314,7 @@ def main() -> int:
         if "generic union Option<T>(1:None,2:Some<T>)" in epoch_schema:
             fail("provisional epoch Option<T> tags remain")
 
-        # Re-audited 2026-09-03 (ADR-0026): the six S20-250 core bodies may
+        # Re-audited 2026-09-03 (ADR-0026): the six WP-250 core bodies may
         # exist only while the full profile's staged checker says the
         # implementation is in progress or later; the staged checker owns
         # the freeze-before-implementation rule.
@@ -341,7 +341,7 @@ def main() -> int:
                 fail(f"S20-250 core body missing while the full profile is in progress: {type_name}")
 
         # Re-audited 2026-09-03 (ADR-0035): the CLI crate may exist only while
-        # the S20-430 staged checker says its implementation is in progress,
+        # the WP-430 staged checker says its implementation is in progress,
         # implemented, or complete.
         cli_status = summary.get("cli", {}).get("status")
         if (ROOT / "crates/sley-cli").exists() and cli_status not in (
@@ -352,7 +352,7 @@ def main() -> int:
         ):
             fail("cli production boundary appeared before its staged checker allows it")
         # Re-audited 2026-09-03 (ADR-0034): the JSON bridge crate may exist only
-        # while the S20-420 staged checker says its implementation is in
+        # while the WP-420 staged checker says its implementation is in
         # progress, implemented, or complete.
         bridge_status = summary.get("json_bridge", {}).get("status")
         if (ROOT / "crates/sley-json-bridge").exists() and bridge_status not in (
@@ -363,7 +363,7 @@ def main() -> int:
         ):
             fail("json bridge production boundary appeared before its staged checker allows it")
         # Re-audited 2026-09-03 (ADR-0032): the protocol crate may exist only
-        # while the S20-400 staged checker says S20-410 is in progress,
+        # while the WP-400 staged checker says WP-410 is in progress,
         # implemented, or complete.
         protocol_status = summary.get("protocol", {}).get("status")
         if (ROOT / "crates/sley-protocol").exists() and protocol_status not in (
@@ -373,7 +373,7 @@ def main() -> int:
         ):
             fail("protocol production boundary appeared before its staged checker allows it")
         # Re-audited 2026-09-03 (ADR-0028): the merge module may exist only while
-        # the S20-520 staged checker says its implementation is in progress or
+        # the WP-520 staged checker says its implementation is in progress or
         # later; that checker owns the freeze-before-implementation rule.
         merge_allowed = summary.get("merge", {}).get("status") in (
             "S20_520_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",

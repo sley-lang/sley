@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift check for the bounded S20-700 SCB1 persistent fuzz slice."""
+"""Drift check for the bounded WP-700 SCB1 persistent fuzz slice."""
 
 from __future__ import annotations
 

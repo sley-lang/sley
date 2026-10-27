@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discriminating static tests for the S20-400 checker and S20-420 generator.
+"""Discriminating static tests for the WP-400 checker and WP-420 generator.
 
 Each mutation case serves one input from memory while every other file
 remains the real pinned input, runs the real checker/generator entrypoint,

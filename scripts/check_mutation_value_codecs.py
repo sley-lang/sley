@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check complete proposal-only S20-350 codecs and independent conformance."""
+"""Check complete proposal-only WP-350 codecs and independent conformance."""
 
 from __future__ import annotations
 

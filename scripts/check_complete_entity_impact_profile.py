@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-250 full complete-entity-impact contract surface and stage.
+"""Check the WP-250 full complete-entity-impact contract surface and stage.
 
 While the contract is a draft (no implementation), the check binds the
 identity of the contract text, the ADR, the work-package row, and the

@@ -1,6 +1,6 @@
 # Required Contract Index v1
 
-Status: S20-770 contract draft, revision 3 (2026-09-14); Council review
+Status: WP-770 contract draft, revision 3 (2026-09-14); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 extends row 17.12 with the accepted entity-read
 document and the additive version 2 metadata directory; the twelve
@@ -48,7 +48,7 @@ the artifacts that satisfy it.
 
 - Every required name maps to at least one defining document that exists, at
   least one checker that `make quick` runs, and a digest domain frozen by
-  S20-110 `IDENTIFIERS_V1.md`.
+  WP-110 `IDENTIFIERS_V1.md`.
 - Defining documents live under `docs/spec/` and are named with their section
   where the citation is section-scoped (row 17.1 names the `.txt` manifest
   itself as the definer, with the `.md` descriptor layer alongside it).
@@ -57,7 +57,7 @@ the artifacts that satisfy it.
 - The corpus column may read that no corpus exists, but only with the reason,
   as `sley-test-report-v1` does: no test has been executed under any authority,
   so no produced report exists to pin. A reason must itself be checkable, and
-  that one is: the S20-290 checker fails if the VM gains any of the four
+  that one is: the WP-290 checker fails if the VM gains any of the four
   resource units whose absence is the reason. Every corpus cell is non-empty;
   an empty cell fails the checker.
 - The digest-domain column proves registry presence; derivation is asserted
@@ -78,11 +78,11 @@ the artifacts that satisfy it.
   beside the status, so no downstream consumer may render an
   `S20_770_INDEX_ACCEPTED` status as contract acceptance.
 - Not an acceptance record, a freeze, or a review.
-- Not a substitute for the S20-740 finding register or the S20-750 dossier.
+- Not a substitute for the WP-740 finding register or the WP-750 dossier.
 
 ## 4. Codes
 
-S20-770 reserves 77000 and 77001: `CONTRACT_INDEX_UNSATISFIED` (77000) when a
+WP-770 reserves 77000 and 77001: `CONTRACT_INDEX_UNSATISFIED` (77000) when a
 required name loses its document, checker, or domain, and
 `CONTRACT_INDEX_DRIFT` (77001) when the index names an artifact that does not
 exist.
@@ -144,7 +144,7 @@ authority.
 - A-P1-2 (17.12 cites sections defining none of its listed domains): DONE IN
   REV 3. Row 17.12 cites sections 1 (framing; `sley2.protocol-frame.v1` at
   the `ProtocolFrameId` definition) and 2 (handshake). Whether
-  `sley2.session.v1` belongs in this row's domain column with S20-330 as a
+  `sley2.session.v1` belongs in this row's domain column with WP-330 as a
   defining document is an open FINAL decision (see N-P1-4 ownership note):
   either keep sections 1-2 with the two listed domains, or add the session
   domain and cite sections 1 through 3.
@@ -161,7 +161,7 @@ authority.
 - A-P2-5 (`IDENTIFIERS_V1.md` says sixteen ADR-0048 rows; ADR-0048 and
   commit `0d57ec5` say fifteen, and 31 + 4 + 15 = 50): DONE alongside rev 3
   as a one-word registry correction (`IDENTIFIERS_V1.md`: "sixteen more" to
-  "fifteen more"). Registry owner S20-110 confirms the count on its next
+  "fifteen more"). Registry owner WP-110 confirms the count on its next
   amendment.
 - A-P2-6 (section 5 under-describes the checker): DONE IN REV 3. Section 5
   now lists every behaviour including the drift gate both directions, the
@@ -185,7 +185,7 @@ authority.
 - A-P3-10 (17.9/17.10 cite unnumbered envelope sections): DONE IN REV 3
   (sections 2/5 and 6/7).
 - A-P3-11 (`### 9.1` sits after `## 10` in `REPORT_ENVELOPE_PROFILE_V1.md`):
-  OPEN, owned by S20-290. The pointer in row 17.10 resolves today, but the
+  OPEN, owned by WP-290. The pointer in row 17.10 resolves today, but the
   FINAL draft must coordinate the heading repair with the report-envelope
   owner rather than editing a foreign contract here.
 
@@ -204,7 +204,7 @@ authority.
   authority column is verified by transcription, not by machine. The
   transcription was verified correct at review time.
 - N-P1-3 (drift check discriminates by file location, not semantic role):
-  OPEN, FINAL checker work with S20-110. The `sley2.` namespace is
+  OPEN, FINAL checker work with WP-110. The `sley2.` namespace is
   overloaded with non-hash contract labels (22 in `scripts/`/`oracle/`
   today); the check is correct only by file-extension coincidence. FINAL
   must derive hash domains from the domain constant declaration site in
@@ -212,19 +212,19 @@ authority.
   sources, so the first Rust literal carrying a contract id cannot corrupt
   the identity registry to satisfy a traceability checker. Do not widen the
   regex to `scripts/` without the scope decision in V-P2-c.
-- N-P1-4 (registry drift is an S20-110 invariant hosted under S20-770
-  codes): OPEN, ownership decision owed by S20-110. Either extract the drift
-  gate to `scripts/check_identifier_registry.py` under an S20-110-reserved
-  code invoked from `make quick` and reduce S20-770 to the domains its own
-  table names, or record in this index and ADR-0047 that S20-770 temporarily
-  hosts the S20-110 invariant with the owner and migration named. Until
+- N-P1-4 (registry drift is a WP-110 invariant hosted under WP-770
+  codes): OPEN, ownership decision owed by WP-110. Either extract the drift
+  gate to `scripts/check_identifier_registry.py` under a WP-110-reserved
+  code invoked from `make quick` and reduce WP-770 to the domains its own
+  table names, or record in this index and ADR-0047 that WP-770 temporarily
+  hosts the WP-110 invariant with the owner and migration named. Until
   then ownership is forked in the artifact whose purpose is ownership; the
-  coverage itself must not be dropped (no S20-110 checker exists).
+  coverage itself must not be dropped (no WP-110 checker exists).
 - N-P2-5 (drift one-directional): CLOSED BY ROUND 9 (see A-P2-4).
 - N-P2-6 (no-corpus escape hatch unenforced): HALF DONE IN REV 3. The
   checker now requires every corpus cell to be non-empty, and section 2
   states the checkability rule. OPEN half: FINAL must link row 17.10 to the
-  S20-290 resource-unit assertion by reference (checker-to-checker pin or an
+  WP-290 resource-unit assertion by reference (checker-to-checker pin or an
   explicit reviewed-prose exception), because a future "no corpus, because
   reasons" row still passes the gate on authorial care alone.
 - N-P2-7 (section pointers unchecked): same work as A-P2-9 OPEN half.
@@ -260,9 +260,9 @@ authority.
   (see A-P1-3).
 - V-P3-a (match strictness): DONE IN REV 3 (see N-P3-8).
 - V-P3-b (section 9.1 guard fails open on rename/relocation): OPEN,
-  upstream of S20-770 (S20-290 owns `check_report_envelope_profile.py`).
+  upstream of WP-770 (WP-290 owns `check_report_envelope_profile.py`).
   Row 17.10's checkable reason holds today (four literal markers in
   `crates/sley-vm/src/execute.rs`); FINAL must coordinate a path- and
-  rename-resistant guard with the S20-290 owner.
+  rename-resistant guard with the WP-290 owner.
 - V-P3-c (Makefile substring, no target association): DONE IN REV 3 (see
   N-P1-1).

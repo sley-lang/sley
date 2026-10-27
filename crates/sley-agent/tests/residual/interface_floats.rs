@@ -236,7 +236,7 @@ fn division_retains_profile_nonfinite_results_and_canonical_zero() {
         );
         assert_eq!(code, 0, "{result}");
         let result = run(&fixture, &json!(0.0), &json!(0), &json!(0));
-        // VM_EXTENDED_OPCODE_PROFILE_V1 / S20-210 canonicalizes every zero
+        // VM_EXTENDED_OPCODE_PROFILE_V1 / WP-210 canonicalizes every zero
         // result to positive zero. Preflight must retain that existing policy.
         assert_eq!(result.as_f64().unwrap().to_bits(), 0.0_f64.to_bits());
     }

@@ -1,8 +1,8 @@
-# S20-700 Restricted-Query Request Persistent Slice
+# WP-700 Restricted-Query Request Persistent Slice
 
-Status: scoped persistent landed-surface slice; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice; **full WP-700 remains incomplete**
 
-This slice adds one libFuzzer target at the public typed S20-310 restricted
+This slice adds one libFuzzer target at the public typed WP-310 restricted
 query boundary. A fixed valid three-entity function snapshot is rebuilt under
 rootless and claimed-root contexts. Bounded fuzz-only constructors then select
 all four restricted query kinds, resolved or unresolved entity IDs, canonical
@@ -33,7 +33,7 @@ root-backed master-goal query classes, truncation, continuation, master context
 capsules, useful cache authority, or proven root provenance.
 
 Independent Vulcan review remains deferred because the local Forge OAuth
-session returns 401. Mutation candidates, merge, and the full S20-700 finding
+session returns 401. Mutation candidates, merge, and the full WP-700 finding
 register remain required.
 
 Focused validation:

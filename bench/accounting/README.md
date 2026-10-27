@@ -1,4 +1,4 @@
-# Succession accounting (S20-630)
+# Succession accounting (WP-630)
 
 `bench/accounting/report.py` derives the succession accounting report of one
 benchmark run (`docs/spec/SUCCESSION_ACCOUNTING_V1.md`, ADR-0037) from the

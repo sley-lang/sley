@@ -1,8 +1,8 @@
-# S20-700 Semantic-Delta Decoder Persistent Slice
+# WP-700 Semantic-Delta Decoder Persistent Slice
 
-Status: scoped persistent landed-surface slice for S20-510; **full S20-700 remains incomplete**
+Status: scoped persistent landed-surface slice for WP-510; **full WP-700 remains incomplete**
 
-This slice hardens the S20-510 semantic-delta decoder
+This slice hardens the WP-510 semantic-delta decoder
 (`crates/sley-repo/src/compare.rs`, `docs/spec/SEMANTIC_COMPARISON_V1.md`).
 It does not begin merge, conflict objects, protocol, or release packaging;
 the merge engine remains the one absent Section 18.5 surface.

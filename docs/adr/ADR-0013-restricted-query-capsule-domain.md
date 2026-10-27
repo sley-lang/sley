@@ -1,6 +1,6 @@
 # ADR-0013: Restricted complete-query capsule identity
 
-Status: accepted for the S20-320 restricted epoch-1 profile
+Status: accepted for the WP-320 restricted epoch-1 profile
 
 ## Decision
 
@@ -11,7 +11,7 @@ envelope derived from one successful `RestrictedQueryResponse`.
 Do not use the already-reserved `ContextCapsuleId`. The master context capsule
 requires session, workspace, verified root, type/effect/contract/test facts,
 diagnostics, mutation affordances, lawful omissions, and continuation. Those
-facts do not exist in the restricted S20-310 lineage.
+facts do not exist in the restricted WP-310 lineage.
 
 ## Rationale
 
@@ -29,4 +29,4 @@ resource limits useful for later capsule work.
 - capsule records have no public decoder/import or authority-bearing use;
 - a capsule ID, claimed root, or copied response never establishes canonical
   root/session/workspace provenance;
-- full S20-320, S20-330, S20-400, S20-620, M3, M5, and GA remain blocked.
+- full WP-320, WP-330, WP-400, WP-620, M3, M5, and GA remain blocked.

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""S20-620 Sley 2 trial runner: endpoint-only, trace-complete, offline claims.
+"""WP-620 Sley 2 trial runner: endpoint-only, trace-complete, offline claims.
 
-The runner drives the S20-430 `sley` endpoint in JSON mode over one
+The runner drives the WP-430 `sley` endpoint in JSON mode over one
 disposable repository, records every frame in a digest-chained trace before
 the next request is written, derives ten metrics only from that trace, and
 appends explicitly unverified trial claims under the `sley_2_0` arm with
-the S20-610 manifest and chain primitives. The endpoint binary is the only
+the WP-610 manifest and chain primitives. The endpoint binary is the only
 process it starts. Models, providers, and oracles remain injected Protocols
 and no implementation of them is supplied.
 """
@@ -650,7 +650,7 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
         context_bytes += len(frame.get("body", "")) // 2
         if direction == "response" and frame.get("method") == "candidate.validate" and frame["flags"].get("failed"):
             # SMP1's `failed` flag marks a ProtocolFailure envelope: the request
-            # itself did not complete. It is not an S20-360 candidate verdict,
+            # itself did not complete. It is not a WP-360 candidate verdict,
             # which arrives as a successful response whose body says the
             # candidate is invalid. Counting it as `invalid_candidates` read
             # zero whenever candidates were genuinely invalid, always in the
@@ -670,14 +670,14 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def derive_context_breakdown(records: list[dict[str, Any]]) -> dict[str, int]:
-    """How `context_bytes` divides, recorded by S20-620 rather than reported as a metric.
+    """How `context_bytes` divides, recorded by WP-620 rather than reported as a metric.
 
     `context_bytes` counts every body the agent received. The narrower capsule
     and `query.*` total is the number the earlier implementation reported as
     the whole, so keeping it visible is what makes the two comparable. It is
     not added to the shared benchmark plan's metric field set: that set is an
-    S20-610 cross-arm fairness control, and widening it from inside one arm is
-    the drift the S20-620 review objects to elsewhere.
+    WP-610 cross-arm fairness control, and widening it from inside one arm is
+    the drift the WP-620 review objects to elsewhere.
     """
 
     context_bytes = 0

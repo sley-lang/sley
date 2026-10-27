@@ -1,6 +1,6 @@
-# S20-440 SMP1 Cancellation, Streaming, and Budgets Closeout
+# WP-440 SMP1 Cancellation, Streaming, and Budgets Closeout
 
-Status: **implemented under the draft SMP1 contract (S20-400, revision 4); Council reviews pending, so S20-400 and S20-440 are not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft SMP1 contract (WP-400, revision 4); Council reviews pending, so WP-400 and WP-440 are not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -8,7 +8,7 @@ Validation tier: **Tier 1 plus protocol-focused Tier 2 handoff**
 
 ## Claim under review
 
-Over the S20-410 server, cancellation is bounded and never partial: a
+Over the WP-410 server, cancellation is bounded and never partial: a
 batch of frames is decoded and admitted in order before any engine runs, a
 cancel (flag bit 0 or method 603) naming a request of the same session that
 has not started executing makes it answer `PROTOCOL_CANCELLED` without
@@ -24,7 +24,7 @@ partial body. Budgets are hard: each session starts with the negotiated
 `max_work`, every successful response charges one plus its returned bytes,
 `session.budgets` reports the remainder, and an exhausted budget fails a
 request closed before any engine runs. The rules are `docs/spec/SMP1.md`
-section 7 and appendix B (revision 4). They are a draft: the S20-400
+section 7 and appendix B (revision 4). They are a draft: the WP-400
 reviews are pending.
 
 The implementation provides, in `crates/sley-protocol`: `StreamChunk`,
@@ -54,14 +54,14 @@ remainder.
 
 ## Explicitly open and deferred
 
-- **Council reviews** of S20-400 (Ariadne owner, Nabu, Vulcan) land as
+- **Council reviews** of WP-400 (Ariadne owner, Nabu, Vulcan) land as
   contract revisions.
 - Engine calls are not interruptible; the bound is therefore one request
-  execution. The S20-380 VM's own deterministic `cancel_at_fuel` point
+  execution. The WP-380 VM's own deterministic `cancel_at_fuel` point
   (threat T31) becomes reachable through SMP1 only when `execute`
-  dispatches, which waits on the S20-380 codec gap recorded in S20-410.
+  dispatches, which waits on the WP-380 codec gap recorded in WP-410.
 - Budgets charge returned bytes, not engine work; an owner that exposes
-  its charged work (the S20-310 engine does) may refine the charge in a
+  its charged work (the WP-310 engine does) may refine the charge in a
   later revision.
 - Frames of one batch are answered in order; concurrent transports are a
   later profile.

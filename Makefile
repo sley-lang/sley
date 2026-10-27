@@ -61,7 +61,7 @@ quick:
 	python3 scripts/check_bootstrap_profile_2.py
 	python3 scripts/check_bootstrap_gate_markers.py
 	python3 scripts/check_bootstrap_capability.py
-	# REWEAVE generation records bound to their test pins (S, seed artifacts, codec component).
+	# Self-hosting generation records bound to their test pins (S, seed artifacts, codec component).
 	python3 scripts/check_reweave_canonical_s.py
 	python3 scripts/check_reweave_seed_artifacts.py
 	python3 scripts/check_reweave_codec_component.py
@@ -230,7 +230,7 @@ accounting-smoke:
 	python3 -m bench.accounting.report smoke --sley2-evidence evidence/runtime/s20-620-sley2-smoke/evidence.json --output-dir evidence/runtime/s20-630-accounting-smoke
 	python3 scripts/check_succession_accounting.py
 
-# S3 owner-oracle gate (S20-640 input): runs all 45 task x arm oracles
+# S3 owner-oracle gate (WP-640 input): runs all 45 task x arm oracles
 # (positive + negative controls). Full pass takes tens of minutes (legacy
 # cold-stages, sley2 cargo tests); use --arm/--task filters to iterate.
 # Deliberately outside `quick`: duration, not importance.
@@ -238,7 +238,7 @@ fixtures-check:
 	python3 scripts/check_benchmark_fixtures.py --jobs 4
 
 # Every builder runs before every checker: the release checkers run the shared
-# bench/release test suite, whose S20-710/S20-730 tests read the evidence a
+# bench/release test suite, whose WP-710/WP-730 tests read the evidence a
 # candidate build has just replaced.
 # Regenerates every derived evidence document in dependency order: the T52
 # inventory feeds the SBOM, the SBOM and the conformance report feed the

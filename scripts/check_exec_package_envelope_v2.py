@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent byte-layout reproduction for the RW-080 v2 envelope candidate."""
+"""Independent byte-layout reproduction for the TP-080 v2 envelope candidate."""
 
 from __future__ import annotations
 

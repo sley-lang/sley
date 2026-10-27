@@ -1,6 +1,6 @@
 # Bound Precondition Payload v1
 
-Status: S20-345 normative contract freeze; evaluation deferred to S20-360.
+Status: WP-345 normative contract freeze; evaluation deferred to WP-360.
 
 Each candidate operation has exactly one `BoundPrecondition`, ordered by the
 same contiguous ordinal as the operation:
@@ -19,10 +19,10 @@ The closed requirement/payload union is:
 | 2 | `ExactEntityVersion` | `entity_id:EntityId, object_id:ObjectId` |
 | 3 | `ExactContainerVersion` | `container_id:EntityId, object_id:ObjectId, field_tag:UInt32` |
 
-Requirement must equal the immutable S20-340 descriptor requirement. Entity
+Requirement must equal the immutable WP-340 descriptor requirement. Entity
 and container IDs must equal the operation target; a container field tag must
 equal its ordered-child descriptor field. Creation absence binds the derived
-ID but is not proof of absence; S20-360 checks both live and tombstone ledgers
+ID but is not proof of absence; WP-360 checks both live and tombstone ledgers
 under the exact base root.
 
 The candidate's base root, base transaction, schema epoch, policy root,

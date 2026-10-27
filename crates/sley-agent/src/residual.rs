@@ -1,4 +1,4 @@
-//! Strict request parsing for GHOSTWEAVE residual authoring.
+//! Strict request parsing for residual authoring.
 //!
 //! Requests and bindings are advisory workbench data. Construction continues
 //! through the existing AF1-X, draft, and kernel paths.
@@ -73,7 +73,7 @@ pub struct FragmentRef {
     pub version: u32,
 }
 
-/// A syntactically valid, closed GHOSTWEAVE request envelope.
+/// A syntactically valid, closed residual-authoring request envelope.
 ///
 /// Fragment-specific bindings and selectors are retained as JSON values here;
 /// the fragment's versioned schema must validate them before expansion.

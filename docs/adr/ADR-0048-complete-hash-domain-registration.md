@@ -5,7 +5,7 @@ Status: accepted 2026-09-03.
 ## Context
 
 `IDENTIFIERS_V1.md` freezes the hash domains and states that "adding a domain
-requires an ADR, fixtures, and registry drift validation". S20-770 added that
+requires an ADR, fixtures, and registry drift validation". WP-770 added that
 validation, and on 2026-09-03 the registry declared it "carries all
 thirty-five domains the implementation derives".
 
@@ -26,7 +26,7 @@ omits thirty percent of the domains cannot support that review.
 2. **The drift check reads every crate.** `check_required_contract_index.py`
    compares the registry with the domains derived anywhere under `crates/`, so
    a domain added in any crate fails `make quick` until it is registered.
-3. **A test-hook domain is registered and labelled as one.** The S20-530
+3. **A test-hook domain is registered and labelled as one.** The WP-530
    recovery ancestry test plan derives a domain that a release build compiles
    out. Hiding it would leave a live domain unreviewed; labelling it states
    what it is.

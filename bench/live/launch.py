@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S20-640 live campaign launcher: freeze a run, then execute its slots.
+"""WP-640 live campaign launcher: freeze a run, then execute its slots.
 
     python3 -m bench.live.launch freeze --prereg PREREG --tier small|large \
         --run-id ID --run-dir DIR --label CAMPAIGN|PILOT

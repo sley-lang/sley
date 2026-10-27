@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the deterministic S20-310 full root-backed query fixture."""
+"""Refresh the deterministic WP-310 full root-backed query fixture."""
 
 from __future__ import annotations
 

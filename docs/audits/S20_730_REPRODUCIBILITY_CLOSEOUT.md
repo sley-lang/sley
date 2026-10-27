@@ -1,4 +1,4 @@
-# S20-730 reproducibility and conformance closeout (2026-09-05)
+# WP-730 reproducibility and conformance closeout (2026-09-05)
 
 ## Findings
 
@@ -18,7 +18,7 @@
   on a clean checkout with no gitignored local evidence. The checker runs
   it on every `make quick`; a hand-edited result or a malformed
   attestation fails closed. The builder's own `--check` is deliberately
-  *not* in the checker: it re-derives from the gitignored S20-720
+  *not* in the checker: it re-derives from the gitignored WP-720
   evidence record and would fail-open-or-fail on a clean tree.
 - Freshness and binding (Ariadne-1, Vulcan-4): the contract requires every
   attested commit to be an ancestor of the filing `HEAD`, and no tracked

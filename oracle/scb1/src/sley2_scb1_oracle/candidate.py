@@ -1,4 +1,4 @@
-"""Independent S20-350 candidate construction and conformance oracle."""
+"""Independent WP-350 candidate construction and conformance oracle."""
 
 from __future__ import annotations
 

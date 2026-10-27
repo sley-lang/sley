@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the S20-730 reproducibility and independent conformance contract and its stage."""
+"""Check the WP-730 reproducibility and independent conformance contract and its stage."""
 
 from __future__ import annotations
 

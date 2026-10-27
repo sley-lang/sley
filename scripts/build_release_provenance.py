@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""S20-710 full: an unsigned in-toto provenance statement for the candidate.
+"""WP-710 full: an unsigned in-toto provenance statement for the candidate.
 
-Derives `evidence/release/provenance.json` from the S20-720 candidate
-evidence, the T52 inventory digests, both SBOM documents, and the S20-730
+Derives `evidence/release/provenance.json` from the WP-720 candidate
+evidence, the T52 inventory digests, both SBOM documents, and the WP-730
 reports. Nothing is signed, logged, or published; no timestamp is recorded.
 """
 
@@ -58,7 +58,7 @@ BLOCKERS = (
 
 
 class ProvenanceErrorCode(IntEnum):
-    """S20-710 full provenance failures (contract section 6)."""
+    """WP-710 full provenance failures (contract section 6)."""
 
     EVIDENCE_MISSING = 74004
     EVIDENCE_INVALID = 74005
@@ -67,7 +67,7 @@ class ProvenanceErrorCode(IntEnum):
 
 
 class ProvenanceError(Exception):
-    """One exact S20-710 full failure."""
+    """One exact WP-710 full failure."""
 
     def __init__(self, code: ProvenanceErrorCode, detail: str) -> None:
         super().__init__(f"{code.name}: {detail}")
@@ -169,7 +169,7 @@ def git_head() -> str:
 def is_admittable(attestation: object) -> bool:
     """Whether one attestation may serve as subject authority.
 
-    The predicate is owned by the S20-730 builder
+    The predicate is owned by the WP-730 builder
     (`build_reproducibility_report.admissible_attestation`, contract
     revision 7): an attestation admits exactly when it passes the
     attestation contract shape (clean, REPRODUCIBLE, no differing members,
@@ -241,7 +241,7 @@ def build_statement() -> dict:
     # A dirty tree cannot produce a statement: the subject would bind a
     # commit to an artifact built from a modified tree, which the release
     # packaging contract forbids. Enforcement lives at derivation, not
-    # downstream in the checker (S20-710 re-review round: the builder
+    # downstream in the checker (WP-710 re-review round: the builder
     # emitted what only the checker refused).
     if not clean:
         raise ProvenanceError(

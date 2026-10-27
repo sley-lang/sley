@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the closed S20-350a mutation proposal host-value model."""
+"""Generate the closed WP-350a mutation proposal host-value model."""
 
 from __future__ import annotations
 
