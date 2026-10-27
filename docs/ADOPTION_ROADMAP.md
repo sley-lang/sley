@@ -1,8 +1,11 @@
 # Initial workload and adoption roadmap
 
-This roadmap addresses the adoption priorities in
+This roadmap addresses the adoption priorities raised in audit
 [issue #21](https://github.com/sley-lang/sley/issues/21), especially findings
-1, 4, 5 and 13. It separates the initial evaluation target, evidence needed
+1, 4, 5 and 13. The open work is tracked in
+[#65](https://github.com/sley-lang/sley/issues/65),
+[#66](https://github.com/sley-lang/sley/issues/66) and
+[#67](https://github.com/sley-lang/sley/issues/67). It separates the initial evaluation target, evidence needed
 for a decision, and the work that supplies that evidence. It does not change
 the language contracts or the accepted self-hosting requirements.
 
@@ -30,10 +33,10 @@ a separate workload. A successful function-generation result cannot stand
 in for an editing result.
 
 For the complete workflow, success also requires authoritative admission
-of the combined code-and-test change. Released 2.1.4 still refuses an ordinary
+of the combined code-and-test change. Released 2.1.6 still refuses an ordinary
 commit that selects TestCases. The native supervisor is integrated in source
 but absent from the release archive and not qualified for installed use; see
-[the 2.1.4 compatibility boundary](release/SLEY-2.1.4.md#compatibility).
+[the 2.1.6 notes](release/SLEY-2.1.6.md).
 Advisory test matches and submission do not complete native admission.
 
 ## Evidence required for an adoption decision
@@ -95,38 +98,44 @@ There is no calendar or release promise attached to this order.
 
 ## Current disposition of audit #21
 
-Updated October 22, 2026 against integrated main `39d5e62` and the published
-[2.1.4 release notes](release/SLEY-2.1.4.md). The fixes, documentation and
-supervisor source below entered the preceding
-[2.1.2 release](release/SLEY-2.1.2.md). Releases 2.1.3 and 2.1.4 add VM
-performance changes; 2.1.4 also adds inline Python-dialect tests, record
-classes and shorter agent feedback. Subsequent work merged in main is not
-yet another published release: [2.1.5, PR #58](https://github.com/sley-lang/sley/pull/58)
-remains a draft at this observation.
+Updated October 27, 2026 against main after the published
+[2.1.6 release](release/SLEY-2.1.6.md). The fixes, documentation and
+supervisor source below entered the [2.1.2 release](release/SLEY-2.1.2.md).
+Releases 2.1.3 to 2.1.5 add VM performance work. 2.1.4 adds inline
+Python-dialect tests, record classes and shorter agent feedback. 2.1.6 adds
+nesting diagnostics and the `sley_agent::embed` API. None of these releases
+changes admission or commit semantics.
 The 2.1.1 authoring-cost and October 15 scaling records retain their original
-artifact identities. They are not new measurements of 2.1.4. The separate
-2.1.4 runtime measurements and scripted tokenizer counts have their own
-scope; tokenizer counts are not model spend or an editing campaign.
+artifact identities. They are not new measurements of a later release. The
+2.1.4 and 2.1.5 runtime measurements and scripted tokenizer counts have their
+own scope. Tokenizer counts are not model spend or an editing campaign.
+
+Issues #21 and #24 were closed on October 27 as stale umbrellas. Each remaining
+item has a focused issue: native tested admission in
+[#65](https://github.com/sley-lang/sley/issues/65), the adoption campaign
+(findings 1–3 and 13) in [#66](https://github.com/sley-lang/sley/issues/66), and
+the current-release application and review demonstration (findings 5 and 10)
+in [#67](https://github.com/sley-lang/sley/issues/67).
 
 | Finding | Disposition and evidence | Remaining work |
 | --- | --- | --- |
-| 1. Completed-task economics | Accepted, partially addressed. [PR #37](https://github.com/sley-lang/sley/pull/37) merged the [offline arithmetic package](../bench/authoring-cost/2.1.1/README.md); the issue also records the separately scoped 2.1.1 retained-answer replay. | Exact-artifact end-to-end accounting and independent model replication remain distinct from arithmetic reproduction or replay. No new campaign was run for this update. |
-| 2. Fair tooling and held-out comparison | Accepted, open under the evaluation criteria above. Existing reports keep their declared tasks, harnesses and accounting. | A preregistered matched-tooling comparison or ablation, held-out tasks and complete success/cost accounting for the evaluated artifact. |
-| 3. Actual authoring interface | Partially addressed by the Python-dialect [frontend contract](spec/SLEY_AGENT_V1.md), scoped 2.1.1 report, and the [inline tests and feedback released in 2.1.4](release/SLEY-2.1.4.md#python-dialect-and-try-output-50-51). The original AF1-only premise is historical. | Separate editing-workload validity, repair and read/write overhead measurements. Scripted token counts do not establish live-model savings. |
-| 4. Authoritative code-and-test commit | Source integration merged in [PR #23](https://github.com/sley-lang/sley/pull/23), with diagnostics/refusal coverage in [PR #42](https://github.com/sley-lang/sley/pull/42). | [Issue #24](https://github.com/sley-lang/sley/issues/24): installed host, recovery/isolation and compatible core/tools/package qualification. The 2.1.4 archive omits the supervisor; selected-test commit still refuses. |
-| 5. Capability matrix and application | Accepted, open for the current release. The old [PR #31](https://github.com/sley-lang/sley/pull/31) was closed with its 2.0.6 evidence preserved. | Current-artifact capability/application demonstration, with host scaffolding, tests, packaging and maintenance explicitly identified. |
+| 1. Completed-task economics | Accepted, partially addressed. [PR #37](https://github.com/sley-lang/sley/pull/37) merged the [offline arithmetic package](../bench/authoring-cost/2.1.1/README.md); the issue also records the separately scoped 2.1.1 retained-answer replay. | [#66](https://github.com/sley-lang/sley/issues/66): exact-artifact end-to-end accounting and independent model replication, distinct from arithmetic reproduction or replay. No new campaign was run for this update. |
+| 2. Fair tooling and held-out comparison | Accepted, open under the evaluation criteria above. Existing reports keep their declared tasks, harnesses and accounting. | [#66](https://github.com/sley-lang/sley/issues/66): a preregistered matched-tooling comparison or ablation, held-out tasks and complete success/cost accounting for the evaluated artifact. |
+| 3. Actual authoring interface | Partially addressed by the Python-dialect [frontend contract](spec/SLEY_AGENT_V1.md), scoped 2.1.1 report, and the [inline tests and feedback released in 2.1.4](release/SLEY-2.1.4.md#python-dialect-and-try-output-50-51). The original AF1-only premise is historical. | [#66](https://github.com/sley-lang/sley/issues/66): separate editing-workload validity, repair and read/write overhead measurements. Scripted token counts do not establish live-model savings. |
+| 4. Authoritative code-and-test commit | Source integration merged in [PR #23](https://github.com/sley-lang/sley/pull/23), with diagnostics/refusal coverage in [PR #42](https://github.com/sley-lang/sley/pull/42). | [#65](https://github.com/sley-lang/sley/issues/65) (replacing #24): installed host, recovery/isolation and compatible core/tools/package qualification. The 2.1.6 archive omits the supervisor; selected-test commit still refuses. |
+| 5. Capability matrix and application | Accepted, open for the current release. The old [PR #31](https://github.com/sley-lang/sley/pull/31) was closed with its 2.0.6 evidence preserved. | [#67](https://github.com/sley-lang/sley/issues/67): current-artifact capability/application demonstration, with host scaffolding, tests, packaging and maintenance explicitly identified. |
 | 6. Verification guarantees | Addressed in [PR #29](https://github.com/sley-lang/sley/pull/29): [guarantee matrix](GUARANTEES.md) distinguishes validity, policy, advisory matches, admission and identity. | Keep labels scoped; this documentation does not prove application correctness. |
 | 7. Advisory resource declarations | Addressed by the explicit reporting alternative in [PR #29](https://github.com/sley-lang/sley/pull/29). [2.1.2 notes](release/SLEY-2.1.2.md#test-reporting) list applied fuel, five unapplied declarations and fixed VM caps. | Native enforcement requires its own host evidence; an advisory match remains insufficient. |
 | 8. Draft allocation and interruption | The [workspace contract](spec/SLEY_AGENT_V1.md#1-workspace) describes reserved complete candidate bytes and optional metadata. [PR #28](https://github.com/sley-lang/sley/pull/28) adds exhaustion and metadata-publication regression coverage. | Preserve the documented recovery boundary; this is not atomic two-file publication or power-loss durability. |
-| 9. Phase-separated scaling | Scoped evidence merged in [PR #36](https://github.com/sley-lang/sley/pull/36): [method and results](bench/SCALING-PHASES.md), retained samples and phase timings. | Measurements are synthetic and revision-bound; 2.1.4 runtime benchmarks do not establish size-independent workbench latency. |
-| 10. Outside review/maintenance workflow | Accepted, open for the current release. The old [PR #30](https://github.com/sley-lang/sley/pull/30) was closed with its 2.0.6 example retained. | A fresh-environment current-artifact change/review/diagnosis/conflict demonstration; distinguish maintainer execution from independent adoption. |
-| 11. Public entry points | Source checks and the first authoring path merged in [PR #33](https://github.com/sley-lang/sley/pull/33). [PUBLIC_ENTRYPOINTS](PUBLIC_ENTRYPOINTS.md) defines offline and live checks. | Source and seven live site surfaces passed the 2.1.4 consistency check on October 22. Repeat per release; this verifies links/versions, not binary behavior or benchmark claims. |
-| 12. Contributor gate | Addressed in [PR #27](https://github.com/sley-lang/sley/pull/27): `make contributor-check`, documented in [CONTRIBUTING](../CONTRIBUTING.md). | Keep maintainer governance inputs and release waivers distinct. The [two master-goal check waivers in 2.1.4](release/SLEY-2.1.4.md#waived-checks) are not test passes, and the notes explicitly record that the operator has not reconfirmed their carry-forward. |
-| 13. Initial target and priorities | Addressed by [PR #38](https://github.com/sley-lang/sley/pull/38) and this roadmap. | Execute the ordered work above; scope and costs remain explicit. |
+| 9. Phase-separated scaling | Scoped evidence merged in [PR #36](https://github.com/sley-lang/sley/pull/36): [method and results](bench/SCALING-PHASES.md), retained samples and phase timings. | Measurements are synthetic and revision-bound; later runtime benchmarks do not establish size-independent workbench latency. |
+| 10. Outside review/maintenance workflow | Accepted, open for the current release. The old [PR #30](https://github.com/sley-lang/sley/pull/30) was closed with its 2.0.6 example retained. | [#67](https://github.com/sley-lang/sley/issues/67): a fresh-environment current-artifact change/review/diagnosis/conflict demonstration; distinguish maintainer execution from independent adoption. |
+| 11. Public entry points | Source checks and the first authoring path merged in [PR #33](https://github.com/sley-lang/sley/pull/33). [PUBLIC_ENTRYPOINTS](PUBLIC_ENTRYPOINTS.md) defines offline and live checks. | Repeat the source and live-site consistency check per release; this verifies links/versions, not binary behavior or benchmark claims. |
+| 12. Contributor gate | Addressed in [PR #27](https://github.com/sley-lang/sley/pull/27): `make contributor-check`, documented in [CONTRIBUTING](../CONTRIBUTING.md). | Keep maintainer governance inputs and release waivers distinct. Release master-goal check waivers are not test passes; the release notes record that the operator has not reconfirmed their carry-forward. |
+| 13. Initial target and priorities | Addressed by [PR #38](https://github.com/sley-lang/sley/pull/38) and this roadmap. | Execute the ordered work above through #65–#67; scope and costs remain explicit. |
 
-The umbrella remains open for its missing workflow and adoption evidence.
 Previously completed native fault cases remain evidence for their exact
-unreleased revisions; they must not be relabeled as 2.1.4 host qualification.
+unreleased revisions. They must not be relabeled as host qualification for
+any release.
 Nothing here grants authority to modify a supervisor service, access another
 host, change trust material or start a model campaign.
 
