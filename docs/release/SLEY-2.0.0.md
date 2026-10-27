@@ -169,8 +169,9 @@ them together in one candidate needs the native test supervisor.
 the deterministic refusal `VM_LOWER_OPCODE_UNSUPPORTED`, so the EFFECT and CAP
 succession tasks have no positive result.
 
-**Self-hosting (SH2)** is the 2.1 goal. The seed artifacts of the self-hosting plan (canonical
-S, C0 and the C1 candidate) are preserved, but the official C1 is not claimed.
+**Self-hosting (SH2)** is the 2.1 goal. The seed artifacts of the
+self-hosting plan (canonical S, C0 and the C1 candidate) are preserved, but
+the official C1 is not claimed.
 
 **Also not claimed:** signed provenance or a transparency-log entry
 (provenance is recorded unsigned).

@@ -600,7 +600,7 @@ fn define_types(m: &mut Module) {
     });
 }
 
-// ----- WP-210 traits -----
+// ----- S20-210 traits -----
 
 #[allow(clippy::too_many_lines)]
 fn define_traits(m: &mut Module) {

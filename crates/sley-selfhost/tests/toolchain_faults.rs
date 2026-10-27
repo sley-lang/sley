@@ -1,4 +1,4 @@
-//! Fault seeding (section 15 of the self-hosting plan): deliberately defective toolchains must be
+//! Fault seeding (REWEAVE §15): deliberately defective toolchains must be
 //! detected by the differential corpus. Each case builds the toolchain with
 //! one fault seed active, runs it on a case where the fault matters, and
 //! requires the result to differ from the native reference.

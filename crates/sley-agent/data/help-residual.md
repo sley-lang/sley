@@ -1,4 +1,4 @@
-# Experimental residual authoring
+# Experimental residual authoring (GHOSTWEAVE)
 
 `residual try request.json` expands explicit decisions into AF1-X/AF1 and uses
 the ordinary compiler, kernel, draft and test path. Options: `--no-test`,

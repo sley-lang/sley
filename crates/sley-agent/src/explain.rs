@@ -518,7 +518,7 @@ fn analyze(
                         }
                     } else if *defined_at == usize::MAX {
                         // A block parameter is visible only in its own block
-                        // (WP-220), whatever the dominance.
+                        // (S20-220), whatever the dominance.
                         add(
                             "CFG_DOMINANCE",
                             format!(

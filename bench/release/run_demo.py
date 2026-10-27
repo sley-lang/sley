@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WP-720 canonical demo: the source-independence proof through `bin/sley`.
+"""S20-720 canonical demo: the source-independence proof through `bin/sley`.
 
 Self-contained on purpose: it is packaged into the release candidate and runs
 from the unpacked artifact with no source tree. It drives `sley serve --json`
@@ -245,7 +245,7 @@ def run(sley: Path, fixture_path: Path, work: Path, timeout: int) -> dict:
         if value is False or (name.endswith("_exit") and value != 0):
             result["problems"].append(name)
     result["source_free_environment"] = {"env": sorted(env), "cwd_is_artifact": True}
-    result["explicit_gap"] = "candidate construction, commit, test selection, and merge wait for the public candidate builder (proposal-only)"
+    result["explicit_gap"] = "candidate construction, commit, test selection, and merge wait for the public candidate builder (S20-350 proposal-only)"
     result["result"] = "PASS" if not result["problems"] else "FAIL"
     return result
 

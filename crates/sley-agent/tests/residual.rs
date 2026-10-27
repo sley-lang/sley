@@ -1,4 +1,4 @@
-//! Adversarial parsing and real-workspace binding checks for residual authoring.
+//! Adversarial parsing and real-workspace binding checks for GHOSTWEAVE.
 
 #[path = "residual/authority.rs"]
 mod authority_tests;
