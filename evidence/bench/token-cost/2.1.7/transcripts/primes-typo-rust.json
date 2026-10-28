@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn primes(n: i64) -> i64 {\n    let mut count = 0;\n    for k in 2..n {\n        let mut d = 2;\n        let mut is_p = true;\n        while d * d <= k {\n            if k % b == 0 {\n                is_p = false;\n                break;\n            }\n            d += 1;\n        }\n        if is_p {\n            count += 1;\n        }\n    }\n    count\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_primes() {\n        assert_eq!(primes(10), 4);\n        assert_eq!(primes(100), 25);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "error[E0425]: cannot find value `b` in this scope\n --> src/lib.rs:7:20\n  |\n7 |             if k % b == 0 {\n  |                    ^ help: a local variable with a similar name exists: `d`\n\nFor more information about this error, try `rustc --explain E0425`.\nerror: could not compile `calc` (lib) due to 1 previous error\nerror: could not compile `calc` (lib test) due to 1 previous error\n"
+ ],
+ [
+  "write",
+  "edit",
+  "k % b\nk % d"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

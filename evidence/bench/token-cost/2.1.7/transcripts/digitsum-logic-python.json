@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def digitsum(n: int) -> int:\n    total = 0\n    for i in range(n):\n        x = i\n        while x > 1:\n            total += x % 10\n            x //= 10\n    return total\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom digitsum import digitsum\n\n\ndef test_digitsum():\n    assert digitsum(10) == 45\n    assert digitsum(100) == 900\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_digitsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n________________________________ test_digitsum _________________________________\n\n    def test_digitsum():\n>       assert digitsum(10) == 45\nE       assert 44 == 45\nE        +  where 44 = digitsum(10)\n\ntest_digitsum.py:7: AssertionError\n=========================== short test summary info ============================\nFAILED test_digitsum.py::test_digitsum - assert 44 == 45\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x > 1\nx > 0"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_digitsum.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

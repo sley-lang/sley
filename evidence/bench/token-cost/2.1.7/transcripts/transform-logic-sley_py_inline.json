@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def transform(xs: list[int], lo: int, hi: int) -> int:\n    return sum(min(max(x * 3 if x % 2 else x, lo), hi) for x in xs)\n\n\ndef test_transform():\n    assert transform([1, 2, 3, -4], 0, 5) == 9\n    assert transform([], 0, 1) == 0\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar transform.py"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL test_transform_0 (transform): expected 9, got 10 (line 6)\nc1: 1 failed, 1 passed (advisory) d1@r1\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x * 3\nx * 2"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar transform.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 2 passed (advisory) d2@r1\n"
+ ]
+]

@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc isqrt(n int64) int64 {\n\tvar total int64\n\tfor i := int64(0); i < n; i++ {\n\t\tlo, hi := int64(0), i+1\n\t\tfor hi-lo > 1 {\n\t\t\tmid := (lo + hi) / 2\n\t\t\tif mid*mid <= i {\n\t\t\t\tlo = mid\n\t\t\t} else {\n\t\t\t\thi = mid\n\t\t\t}\n\t\t}\n\t\ttotal += low\n\t}\n\treturn total\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestIsqrt(t *testing.T) {\n\tif got := isqrt(10); got != 16 {\n\t\tt.Errorf(\"isqrt(10) = %d, want 16\", got)\n\t}\n\tif got := isqrt(100); got != 615 {\n\t\tt.Errorf(\"isqrt(100) = %d, want 615\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL\tcalc [build failed]\n# calc [calc.test]\n./calc.go:15:12: undefined: low\n"
+ ],
+ [
+  "write",
+  "edit",
+  "total += low\ntotal += lo"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

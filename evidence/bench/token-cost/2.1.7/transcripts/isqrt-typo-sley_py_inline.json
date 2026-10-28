@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def isqrt(n: int) -> int:\n    total = 0\n    for i in range(n):\n        lo = 0\n        hi = i + 1\n        while hi - lo > 1:\n            mid = (lo + hi) // 2\n            if mid * mid <= i:\n                lo = mid\n            else:\n                hi = mid\n        total += low\n    return total\n\n\ndef test_isqrt():\n    assert isqrt(10) == 16\n    assert isqrt(100) == 615\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar isqrt.py"
+ ],
+ [
+  "read",
+  "output",
+  "isqrt.py:12:18: unknown name `low`\n        total += low\n                 ^\ndraft d1@r1: incomplete\n"
+ ],
+ [
+  "write",
+  "edit",
+  "total += low\ntotal += lo"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar isqrt.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 2 passed (advisory) d2@r1\n"
+ ]
+]

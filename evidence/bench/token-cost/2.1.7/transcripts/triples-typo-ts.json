@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function triples(n: number): number {\n  let count = 0;\n  for (let c = 1; c <= n; c++) {\n    for (let b = 1; b < c; b++) {\n      for (let a = 1; a < b; a++) {\n        if (a * a + b * b === c * c) {\n          cnt++;\n        }\n      }\n    }\n  }\n  return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { triples } from \"./triples.js\";\n\ntest(\"triples\", () => {\n  assert.equal(triples(5), 1);\n  assert.equal(triples(20), 6);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "triples.ts(7,11): error TS2304: Cannot find name 'cnt'.\n"
+ ],
+ [
+  "write",
+  "edit",
+  "cnt++\ncount++"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

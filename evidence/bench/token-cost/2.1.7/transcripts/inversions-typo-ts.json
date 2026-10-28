@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function inversions(xs: number[]): number {\n  let count = 0;\n  for (let i = 0; i < xs.length; i++) {\n    const x = xs[i];\n    for (let j = i + 1; j < xs.length; j++) {\n      if (xs[j] < x) {\n        cnt++;\n      }\n    }\n  }\n  return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { inversions } from \"./inversions.js\";\n\ntest(\"inversions\", () => {\n  assert.equal(inversions([3, 1, 2]), 2);\n  assert.equal(inversions([2, 2, 1]), 2);\n  assert.equal(inversions([5, 4, 3, 2, 1]), 10);\n  assert.equal(inversions([]), 0);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "inversions.ts(7,9): error TS2304: Cannot find name 'cnt'.\n"
+ ],
+ [
+  "write",
+  "edit",
+  "cnt++\ncount++"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

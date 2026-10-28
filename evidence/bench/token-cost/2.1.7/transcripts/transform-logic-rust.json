@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn transform(xs: &[i64], lo: i64, hi: i64) -> i64 {\n    xs.iter()\n        .map(|&x| (if x % 2 != 0 { x * 3 } else { x }).max(lo).min(hi))\n        .sum()\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_transform() {\n        assert_eq!(transform(&[1, 2, 3, -4], 0, 5), 9);\n        assert_eq!(transform(&[], 0, 1), 0);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\ntests::test_transform --- FAILED\n\nfailures:\n\n---- tests::test_transform stdout ----\n\nthread 'tests::test_transform' (1) panicked at src/lib.rs:13:9:\nassertion `left == right` failed\n  left: 10\n right: 9\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    tests::test_transform\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--lib`\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x * 3\nx * 2"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

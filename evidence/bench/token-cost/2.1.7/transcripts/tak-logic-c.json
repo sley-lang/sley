@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long tak(long long x, long long y, long long z) {\n    if (y < x)\n        return tak(tak(x - 1, y, z), tak(y - 1, z, x), tak(z - 1, x, y));\n    return y;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"tak.c\"\n\nint main(void) {\n    assert(tak(6, 4, 2) == 3);\n    assert(tak(12, 8, 4) == 5);\n    assert(tak(1, 2, 3) == 3);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_tak test_tak.c && ./test_tak"
+ ],
+ [
+  "read",
+  "output",
+  "test_tak: test_tak.c:5: main: Assertion `tak(6, 4, 2) == 3' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "return y;\nreturn z;"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_tak test_tak.c && ./test_tak"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

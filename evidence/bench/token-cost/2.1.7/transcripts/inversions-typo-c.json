@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "#include <stddef.h>\n\nlong long inversions(const long long *xs, long long n) {\n    long long count = 0;\n    for (long long i = 0; i < n; i++) {\n        long long x = xs[i];\n        for (long long j = i + 1; j < n; j++)\n            if (xs[j] < x)\n                cnt++;\n    }\n    return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"inversions.c\"\n\nint main(void) {\n    assert(inversions((long long[]){3, 1, 2}, 3) == 2);\n    assert(inversions((long long[]){2, 2, 1}, 3) == 2);\n    assert(inversions((long long[]){5, 4, 3, 2, 1}, 5) == 10);\n    assert(inversions(NULL, 0) == 0);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_inversions test_inversions.c && ./test_inversions"
+ ],
+ [
+  "read",
+  "output",
+  "In file included from test_inversions.c:2:\ninversions.c: In function \u2018inversions\u2019:\ninversions.c:9:17: error: \u2018cnt\u2019 undeclared (first use in this function); did you mean \u2018int\u2019?\n    9 |                 cnt++;\n      |                 ^~~\n      |                 int\ninversions.c:9:17: note: each undeclared identifier is reported only once for each function it appears in\n"
+ ],
+ [
+  "write",
+  "edit",
+  "cnt++\ncount++"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_inversions test_inversions.c && ./test_inversions"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

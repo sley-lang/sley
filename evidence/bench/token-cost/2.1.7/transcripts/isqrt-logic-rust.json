@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn isqrt(n: i64) -> i64 {\n    let mut total = 0;\n    for i in 0..n {\n        let (mut lo, mut hi) = (0, i + 1);\n        while hi - lo > 1 {\n            let mid = (lo + hi) / 2;\n            if mid * mid < i {\n                lo = mid;\n            } else {\n                hi = mid;\n            }\n        }\n        total += lo;\n    }\n    total\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_isqrt() {\n        assert_eq!(isqrt(10), 16);\n        assert_eq!(isqrt(100), 615);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\ntests::test_isqrt --- FAILED\n\nfailures:\n\n---- tests::test_isqrt stdout ----\n\nthread 'tests::test_isqrt' (1) panicked at src/lib.rs:24:9:\nassertion `left == right` failed\n  left: 13\n right: 16\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    tests::test_isqrt\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--lib`\n"
+ ],
+ [
+  "write",
+  "edit",
+  "mid * mid < i\nmid * mid <= i"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

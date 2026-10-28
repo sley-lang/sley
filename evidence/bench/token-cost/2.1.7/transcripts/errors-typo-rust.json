@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "#[derive(Debug, PartialEq)]\npub enum WithdrawError {\n    NotPositive,\n    Insufficient,\n}\n\npub fn withdraw(balance: i64, amount: i64) -> Result<i64, WithdrawError> {\n    if amount <= 0 {\n        return Err(WithdrawError::NotPositive);\n    }\n    if amount > balance {\n        return Err(WithdrawError::Insufficient);\n    }\n    Ok(balance - amout)\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_errors() {\n        assert_eq!(withdraw(100, 30), Ok(70));\n        assert_eq!(withdraw(50, 50), Ok(0));\n        assert_eq!(withdraw(100, 0), Err(WithdrawError::NotPositive));\n        assert_eq!(withdraw(10, 30), Err(WithdrawError::Insufficient));\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "error[E0425]: cannot find value `amout` in this scope\n  --> src/lib.rs:14:18\n   |\n14 |     Ok(balance - amout)\n   |                  ^^^^^ help: a local variable with a similar name exists: `amount`\n\nFor more information about this error, try `rustc --explain E0425`.\nerror: could not compile `calc` (lib) due to 1 previous error\nerror: could not compile `calc` (lib test) due to 1 previous error\n"
+ ],
+ [
+  "write",
+  "edit",
+  "balance - amout\nbalance - amount"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

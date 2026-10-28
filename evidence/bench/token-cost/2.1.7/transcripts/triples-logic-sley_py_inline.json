@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def triples(n: int) -> int:\n    count = 0\n    for c in range(1, n):\n        for b in range(1, c):\n            for a in range(1, b):\n                if a * a + b * b == c * c:\n                    count += 1\n    return count\n\n\ndef test_triples():\n    assert triples(5) == 1\n    assert triples(20) == 6\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar triples.py"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL test_triples_0 (triples): expected 1, got 0 (line 12)\nFAIL test_triples_1 (triples): expected 6, got 5 (line 13)\nc1: 2 failed, 0 passed (advisory) d1@r1\n"
+ ],
+ [
+  "write",
+  "edit",
+  "range(1, n)\nrange(1, n + 1)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar triples.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 2 passed (advisory) d2@r1\n"
+ ]
+]

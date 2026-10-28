@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export interface Point {\n  x: number;\n  y: number;\n}\n\nexport function manhattan(a: Point, b: Point): number {\n  return Math.abs(a.x - b.x) + Math.abs(a.y - b.x);\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { manhattan } from \"./records.js\";\n\ntest(\"manhattan\", () => {\n  assert.equal(manhattan({ x: 1, y: 2 }, { x: 4, y: -2 }), 7);\n  assert.equal(manhattan({ x: 0, y: 0 }, { x: 0, y: 0 }), 0);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 manhattan (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  5 !== 7\n  \n      at TestContext.<anonymous> (file:///work/dist/records.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 5,\n    expected: 7,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.y - b.x\na.y - b.y"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

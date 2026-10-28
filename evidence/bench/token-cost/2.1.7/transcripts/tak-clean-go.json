@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc tak(x, y, z int64) int64 {\n\tif y < x {\n\t\treturn tak(tak(x-1, y, z), tak(y-1, z, x), tak(z-1, x, y))\n\t}\n\treturn z\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestTak(t *testing.T) {\n\tif got := tak(6, 4, 2); got != 3 {\n\t\tt.Errorf(\"tak(6, 4, 2) = %d, want 3\", got)\n\t}\n\tif got := tak(12, 8, 4); got != 5 {\n\t\tt.Errorf(\"tak(12, 8, 4) = %d, want 5\", got)\n\t}\n\tif got := tak(1, 2, 3); got != 3 {\n\t\tt.Errorf(\"tak(1, 2, 3) = %d, want 3\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

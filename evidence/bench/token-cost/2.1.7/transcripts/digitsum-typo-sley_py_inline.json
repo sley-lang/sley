@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def digitsum(n: int) -> int:\n    total = 0\n    for i in range(n):\n        x = i\n        while x > 0:\n            total += z % 10\n            x //= 10\n    return total\n\n\ndef test_digitsum():\n    assert digitsum(10) == 45\n    assert digitsum(100) == 900\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar digitsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "digitsum.py:6:22: unknown name `z`\n            total += z % 10\n                     ^\ndraft d1@r1: incomplete\n"
+ ],
+ [
+  "write",
+  "edit",
+  "z % 10\nx % 10"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar digitsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 2 passed (advisory) d2@r1\n"
+ ]
+]

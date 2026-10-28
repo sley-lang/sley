@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn tak(x: i64, y: i64, z: i64) -> i64 {\n    if y < x {\n        return tak(tak(x - 1, y, z), tak(y - 1, z, x), tak(z - 1, x, y));\n    }\n    z\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_tak() {\n        assert_eq!(tak(6, 4, 2), 3);\n        assert_eq!(tak(12, 8, 4), 5);\n        assert_eq!(tak(1, 2, 3), 3);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

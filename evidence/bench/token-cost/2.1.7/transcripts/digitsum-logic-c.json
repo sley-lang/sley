@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long digitsum(long long n) {\n    long long total = 0;\n    for (long long i = 0; i < n; i++) {\n        long long x = i;\n        while (x > 1) {\n            total += x % 10;\n            x /= 10;\n        }\n    }\n    return total;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"digitsum.c\"\n\nint main(void) {\n    assert(digitsum(10) == 45);\n    assert(digitsum(100) == 900);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_digitsum test_digitsum.c && ./test_digitsum"
+ ],
+ [
+  "read",
+  "output",
+  "test_digitsum: test_digitsum.c:5: main: Assertion `digitsum(10) == 45' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x > 1\nx > 0"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_digitsum test_digitsum.c && ./test_digitsum"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

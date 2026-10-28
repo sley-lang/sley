@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long loopsum(long long n) {\n    long long s = 0;\n    for (long long i = 0; i < n; i++)\n        s = (s + i + i) % 1000000007;\n    return s;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"loopsum.c\"\n\nint main(void) {\n    assert(loopsum(0) == 0);\n    assert(loopsum(10) == 285);\n    assert(loopsum(1000) == 332833500);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_loopsum test_loopsum.c && ./test_loopsum"
+ ],
+ [
+  "read",
+  "output",
+  "test_loopsum: test_loopsum.c:6: main: Assertion `loopsum(10) == 285' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "i + i\ni * i"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_loopsum test_loopsum.c && ./test_loopsum"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

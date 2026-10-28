@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def inversions(xs: list[int]) -> int:\n    count = 0\n    n = len(xs)\n    for i in range(n):\n        x = xs[i]\n        for j in range(i + 1, n):\n            if xs[j] <= x:\n                count += 1\n    return count\n\n\ndef test_inversions():\n    assert inversions([3, 1, 2]) == 2\n    assert inversions([2, 2, 1]) == 2\n    assert inversions([5, 4, 3, 2, 1]) == 10\n    assert inversions([]) == 0\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar inversions.py"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL test_inversions_1 (inversions): expected 2, got 3 (line 14)\nc1: 1 failed, 3 passed (advisory) d1@r1\n"
+ ],
+ [
+  "write",
+  "edit",
+  "xs[j] <= x\nxs[j] < x"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar inversions.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 4 passed (advisory) d2@r1\n"
+ ]
+]

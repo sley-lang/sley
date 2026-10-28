@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn triples(n: i64) -> i64 {\n    let mut count = 0;\n    for c in 1..=n {\n        for b in 1..c {\n            for a in 1..b {\n                if a * a + b * b == c * c {\n                    count += 1;\n                }\n            }\n        }\n    }\n    count\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_triples() {\n        assert_eq!(triples(5), 1);\n        assert_eq!(triples(20), 6);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

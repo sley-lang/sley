@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub struct Point {\n    pub x: i64,\n    pub y: i64,\n}\n\npub fn manhattan(a: &Point, b: &Point) -> i64 {\n    (a.x - b.x).abs() + (a.y - b.x).abs()\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_records() {\n        assert_eq!(manhattan(&Point { x: 1, y: 2 }, &Point { x: 4, y: -2 }), 7);\n        assert_eq!(manhattan(&Point { x: 0, y: 0 }, &Point { x: 0, y: 0 }), 0);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\ntests::test_records --- FAILED\n\nfailures:\n\n---- tests::test_records stdout ----\n\nthread 'tests::test_records' (1) panicked at src/lib.rs:16:9:\nassertion `left == right` failed\n  left: 5\n right: 7\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    tests::test_records\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--lib`\n"
+ ],
+ [
+  "write",
+  "edit",
+  "a.y - b.x\na.y - b.y"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

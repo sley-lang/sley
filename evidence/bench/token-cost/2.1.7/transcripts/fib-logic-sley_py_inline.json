@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def fib(n: int) -> int:\n    if n < 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\n\ndef test_fib():\n    assert fib(0) == 0\n    assert fib(1) == 1\n    assert fib(10) == 55\n    assert fib(20) == 6765\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL test_fib_1 (fib): expected 1, got -1 (line 9)\nFAIL test_fib_2 (fib): expected 55, got -55 (line 10)\nFAIL test_fib_3 (fib): expected 6765, got -6765 (line 11)\nc1: 3 failed, 1 passed (advisory) d1@r1\n"
+ ],
+ [
+  "write",
+  "edit",
+  "n < 1\nn < 2"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar fib.py"
+ ],
+ [
+  "read",
+  "output",
+  "c2: 4 passed (advisory) d2@r1\n"
+ ]
+]

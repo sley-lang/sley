@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function isqrt(n: number): number {\n  let total = 0;\n  for (let i = 0; i < n; i++) {\n    let lo = 0;\n    let hi = i + 1;\n    while (hi - lo > 1) {\n      const mid = Math.floor((lo + hi) / 2);\n      if (mid * mid <= i) {\n        lo = mid;\n      } else {\n        hi = mid;\n      }\n    }\n    total += low;\n  }\n  return total;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { isqrt } from \"./isqrt.js\";\n\ntest(\"isqrt\", () => {\n  assert.equal(isqrt(10), 16);\n  assert.equal(isqrt(100), 615);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "isqrt.ts(14,14): error TS2304: Cannot find name 'low'.\n"
+ ],
+ [
+  "write",
+  "edit",
+  "total += low\ntotal += lo"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

@@ -1,0 +1,10 @@
+fib 30
+loopsum 1000000
+collatz 5000
+primes 30000
+gcdsum 400
+tak 24 16 8
+triples 120
+digitsum 150000
+isqrt 50000
+inversions xs1000.json

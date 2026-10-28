@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc triples(n int64) int64 {\n\tvar count int64\n\tfor c := int64(1); c <= n; c++ {\n\t\tfor b := int64(1); b < c; b++ {\n\t\t\tfor a := int64(1); a < b; a++ {\n\t\t\t\tif a*a+b*b == c*c {\n\t\t\t\t\tcount++\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n\treturn count\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestTriples(t *testing.T) {\n\tif got := triples(5); got != 1 {\n\t\tt.Errorf(\"triples(5) = %d, want 1\", got)\n\t}\n\tif got := triples(20); got != 6 {\n\t\tt.Errorf(\"triples(20) = %d, want 6\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

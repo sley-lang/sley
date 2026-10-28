@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "#include <stddef.h>\n\nlong long transform(const long long *xs, size_t len, long long lo, long long hi) {\n    long long s = 0;\n    for (size_t i = 0; i < len; i++) {\n        long long x = xs[i] % 2 ? xs[i] * 2 : xs[i];\n        if (x < lo)\n            x = lo;\n        if (x > hl)\n            x = hi;\n        s += x;\n    }\n    return s;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"transform.c\"\n\nint main(void) {\n    assert(transform((long long[]){1, 2, 3, -4}, 4, 0, 5) == 9);\n    assert(transform(NULL, 0, 0, 1) == 0);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_transform test_transform.c && ./test_transform"
+ ],
+ [
+  "read",
+  "output",
+  "In file included from test_transform.c:2:\ntransform.c: In function \u2018transform\u2019:\ntransform.c:9:17: error: \u2018hl\u2019 undeclared (first use in this function); did you mean \u2018hi\u2019?\n    9 |         if (x > hl)\n      |                 ^~\n      |                 hi\ntransform.c:9:17: note: each undeclared identifier is reported only once for each function it appears in\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x > hl)\nx > hi)"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_transform test_transform.c && ./test_transform"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]
