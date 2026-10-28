@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
-  <img alt="Version 2.1.6" src="https://img.shields.io/badge/version-2.1.6-38c8e8?style=flat-square">
+  <img alt="Version 2.1.7" src="https://img.shields.io/badge/version-2.1.7-38c8e8?style=flat-square">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
   <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
   <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
@@ -22,7 +22,7 @@
   <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
-  <a href="docs/release/SLEY-2.1.6.md"><b>Release notes</b></a> ·
+  <a href="docs/release/SLEY-2.1.7.md"><b>Release notes</b></a> ·
   <a href="https://sleylang.org/faq"><b>FAQ</b></a> ·
   <a href="https://sleylang.org/arena"><b>Arena</b></a>
 </p>
@@ -72,23 +72,23 @@ none alone establishes correctness against user requirements. The
 `bin/` directory on your `PATH`:
 
 ```sh
-curl -fLO https://github.com/sley-lang/sley/releases/download/v2.1.6/sley-2.1.6-linux-x86_64.tar.gz
-curl -fLO https://github.com/sley-lang/sley/releases/download/v2.1.6/SHA256SUMS
+curl -fLO https://github.com/sley-lang/sley/releases/download/v2.1.7/sley-2.1.7-linux-x86_64.tar.gz
+curl -fLO https://github.com/sley-lang/sley/releases/download/v2.1.7/SHA256SUMS
 sha256sum -c SHA256SUMS
-tar xzf sley-2.1.6-linux-x86_64.tar.gz
-export PATH="$PWD/sley-2.1.6-linux-x86_64/bin:$PATH"
+tar xzf sley-2.1.7-linux-x86_64.tar.gz
+export PATH="$PWD/sley-2.1.7-linux-x86_64/bin:$PATH"
 sley version
 ```
 
 Or build it from source and put `target/release/` on your `PATH` instead:
 
 ```sh
-git clone --branch v2.1.6 --depth 1 https://github.com/sley-lang/sley.git
+git clone --branch v2.1.7 --depth 1 https://github.com/sley-lang/sley.git
 cd sley
 cargo build --release -p sley-cli -p sley-agent   # → target/release/sley, sley-agent
 ```
 
-`--branch v2.1.6` builds the released source. `main` carries unreleased work
+`--branch v2.1.7` builds the released source. `main` carries unreleased work
 under the same workspace version, so omit it only when you want that work.
 
 ### Write and test your first program
@@ -123,7 +123,7 @@ Use the candidate and draft handles printed by your own `try` command if
 they differ. `sley-agent submit d1` writes `final_candidate.hex`; it does
 not change the accepted workspace head.
 
-**Released 2.1.6 boundary:** these are advisory test matches. Committing
+**Released 2.1.7 boundary:** these are advisory test matches. Committing
 this candidate, which changes both code and its targeting tests, refuses
 with `TXN_TEST_EVIDENCE_UNSUPPORTED` until supported native admission is
 available. Validation, advisory execution, submission and authoritative
@@ -241,6 +241,7 @@ roots, the change lifecycle, sessions, and the glossary.
 
 ## Recent releases
 
+- [2.1.7](docs/release/SLEY-2.1.7.md): Python-dialect list indexing by a loop counter skips the per-access integer conversion, and the VM word tier runs vector length and element reads and fuses more of each burst; resource accounting unchanged.
 - [2.1.6](docs/release/SLEY-2.1.6.md): deeply nested source gets a diagnostic with its line and column, nested built-in calls parse in linear time, and the `sley_agent::embed` API runs Sley inside Rust hosts and WebAssembly ([embedding guide](docs/EMBEDDING.md)).
 - [2.1.5](docs/release/SLEY-2.1.5.md): the VM's word tier runs all-integer programs on plain 64-bit registers; `try` prints only failures; `file:line:col` diagnostics with a caret; `struct` and `enum` in the Python dialect.
 - [2.1.4](docs/release/SLEY-2.1.4.md): faster loops, plus pytest-style tests and `@dataclass` records in the Python dialect.
@@ -281,7 +282,7 @@ list, including the known limits.
 
 ## Project status
 
-**Sley 2.1.6** is the current release; [Recent releases](#recent-releases)
+**Sley 2.1.7** is the current release; [Recent releases](#recent-releases)
 lists what each point release added. The
 [2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
 list the acceptance criteria and findings still open from 2.0.0.
@@ -293,7 +294,7 @@ existing programs.
 | Track | State |
 |---|---|
 | **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1 and the agent workbench in 2.0.2. The kernel, repository, protocol, CLI, agent workbench, and reproducible packaging are in place. |
-| **Sley 2.1** | Released as 2.1.0, with point releases through 2.1.6 ([Recent releases](#recent-releases)). **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
+| **Sley 2.1** | Released as 2.1.0, with point releases through 2.1.7 ([Recent releases](#recent-releases)). **Self-hosted**: the Sley toolchain builds itself, seed absent, to a byte-identical fixed point ([ADR-0056](docs/adr/ADR-0056-sh2-self-hosted-toolchain.md), [Bootstrap Profile 3](docs/spec/BOOTSTRAP_PROFILE_3.md), [reproduce it](docs/release/SLEY-2.1.0.md#reproduce-it)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
 | **Sley 1.x** | Frozen at [v1.2.1](https://github.com/GreyforgeLabs/sley-legacy/tree/v1.2.1), the final 1.x tag, in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
 
@@ -306,7 +307,7 @@ existing programs.
 | 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
 | 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
 | 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
-| 📦 **[Release notes](docs/release/SLEY-2.1.6.md)** | The current release, how to verify it, and what isn't claimed. [2.1.0](docs/release/SLEY-2.1.0.md) is the self-hosted release; [2.0.0](docs/release/SLEY-2.0.0.md) lists the known limits that still apply. |
+| 📦 **[Release notes](docs/release/SLEY-2.1.7.md)** | The current release, how to verify it, and what isn't claimed. [2.1.0](docs/release/SLEY-2.1.0.md) is the self-hosted release; [2.0.0](docs/release/SLEY-2.0.0.md) lists the known limits that still apply. |
 | 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
 | 🤝 **[Contributing](CONTRIBUTING.md)** | The slice contract, validation gates, and commit discipline |
 

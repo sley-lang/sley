@@ -24,7 +24,7 @@
     "publication_authorized": true,
     "final_commit": "ad281d1b3ce6565dc63b67b463260f94df254a1a",
     "final_commit_note": "the official Sley 2.1.6 release, built from commit ad281d1b of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
-    "master_goal_checks_waiver": "Not needed for Sley 2.1.6: scripts/check_candidate_result_contract.py and scripts/check_transaction_contract.py ran on the maintainer host with the Sley 2.0 master goal (SLEY2_MASTER_GOAL) available and both passed. The waiver carried forward from the operator decision of 2026-10-19 (Magister) covered Sley 2.1.2 through 2.1.5 only and was not a pass for those releases.",
+    "master_goal_checks_waiver": "Carried forward from the operator decision of 2026-10-19 (Magister) for Sley 2.1.2; the operator has not re-confirmed it for 2.1.7. For Sley 2.1.7, scripts/check_candidate_result_contract.py and scripts/check_transaction_contract.py are not run because the Sley 2.0 design specification (SLEY2_DESIGN_SPEC) is unavailable off the maintainer host. This waives the two checks for this release only and is not a pass; both passed at v2.1.6 on the maintainer host.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
       "AWAITS_REVIEW": 17,
@@ -201,7 +201,8 @@
       "Sley 2.1.3 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-20 to merge the VM and Python-dialect performance work (#44, #45, #46) and cut 2.1.3; program meaning and resource accounting unchanged; no GA or performance-parity claim.",
       "Sley 2.1.4 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-21 to merge the VM slot-coalescing and prepaid-fuel work (#49) and the Python-dialect token reductions (#50, #51) and cut 2.1.4; resource accounting unchanged; no GA, performance-parity or model-cost claim.",
       "Sley 2.1.5 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-21 to merge the VM word tier (#54, #56), calls inside word-tier bursts with the fat-LTO release profile (#57) and the quieter agent output and familiar struct/enum work (#55) and cut 2.1.5; resource accounting unchanged; no GA, performance-parity or model-cost claim.",
-      "Sley 2.1.6 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-25 (\"Merge and release 2.1.6\") to merge the familiar-frontend nesting bound (#60) and cut 2.1.6 with the work merged since 2.1.5 (the embed API, #59, and the adoption-roadmap audit, #48); program meaning and resource accounting unchanged; no GA, performance-parity or model-cost claim."
+      "Sley 2.1.6 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-25 (\"Merge and release 2.1.6\") to merge the familiar-frontend nesting bound (#60) and cut 2.1.6 with the work merged since 2.1.5 (the embed API, #59, and the adoption-roadmap audit, #48); program meaning and resource accounting unchanged; no GA, performance-parity or model-cost claim.",
+      "Sley 2.1.7 point release with the verified Linux x86_64 archive and SHA256SUMS: operator direction 2026-10-27 (\"Merge #69 and #70 and cut 2.1.7\") to merge the Python-dialect loop-counter index shadow (#69) and the VM word-tier vector reads and burst fusion (#70) and cut 2.1.7; program meaning and resource accounting unchanged; no GA, performance-parity or model-cost claim."
     ],
     "authorized_tags": [
       "v2.0.0",
@@ -217,7 +218,8 @@
       "v2.1.3",
       "v2.1.4",
       "v2.1.5",
-      "v2.1.6"
+      "v2.1.6",
+      "v2.1.7"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry.",
@@ -229,7 +231,8 @@
     "decided_2_1_3": "2026-10-20",
     "decided_2_1_4": "2026-10-21",
     "decided_2_1_5": "2026-10-21",
-    "decided_2_1_6": "2026-10-25"
+    "decided_2_1_6": "2026-10-25",
+    "decided_2_1_7": "2026-10-27"
   },
   "scb1": {
     "status": "S20_100_SPEC_S20_120_CODEC_S20_130_ORACLE_COMPLETE",
@@ -4934,7 +4937,7 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
-    "cargo_lock_sha256": "33f8f49a6e48c617689bf3284af1922962394bcf9e1fb96d03022ce79e1165e4",
+    "cargo_lock_sha256": "de682da0ca3bf403a9062f8de96ef169400936fa64570bf9c86139b428880f63",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 23,
     "cargo_registry_packages": 47,
@@ -4977,7 +4980,7 @@
     "contract_revision": 9,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.1.6-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.1.7-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
