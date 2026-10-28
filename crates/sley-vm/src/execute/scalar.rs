@@ -607,13 +607,10 @@ impl Plan {
                             .collect::<Option<Vec<_>>>()
                     })
                     .collect::<Option<Vec<_>>>()?;
-                let inputs = values
-                    .iter()
-                    .map(|v| words::to_word(*v))
-                    .collect::<Option<Vec<_>>>()?;
-                Some((words, constants, inputs))
+                let (inputs, vectors) = words::to_inputs(&values)?;
+                Some((words, constants, inputs, vectors))
             });
-            let ran = if let Some((words, constants, inputs)) = word_run {
+            let ran = if let Some((words, constants, inputs, vectors)) = word_run {
                 words::run(
                     &program,
                     words,
@@ -621,6 +618,7 @@ impl Plan {
                     &mut runtime,
                     &request.limits,
                     &inputs,
+                    &vectors,
                 )
                 .and_then(|ended| match ended {
                     words::WordEnded::Returned(word) => {

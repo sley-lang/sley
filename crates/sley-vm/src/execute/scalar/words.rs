@@ -44,6 +44,12 @@ enum Op {
     Not(u32),
     And(u32, u32),
     Or(u32, u32),
+    /// The length of a vector (its slot holds the vector's index in the
+    /// run's vector table).
+    VecLen(u32),
+    /// An element of a vector by a `u64` index: `Some` (flag clear, the
+    /// element's word) or `None` (flag set), switched on in its block.
+    VecGet(u32, u32),
     /// A direct call: its call site in the function's `sites`.
     Call(u32),
     /// An edge move inside a fused block (bursts only): no charge.
@@ -63,6 +69,167 @@ struct WordStep {
     op: Op,
     output: u32,
     units: [u64; 2],
+    /// A guard on this step's own output, tested right after it (bursts
+    /// only): the guard step it stands for, merged to save a dispatch.
+    guard: Guarded,
+    /// A slot this step's word is also copied to once its guard passes
+    /// (bursts only): the edge move right after it, merged. `NONE` for none.
+    also: u32,
+}
+
+const NONE: u32 = u32::MAX;
+
+impl Op {
+    /// The slots the operation reads.
+    fn reads(self) -> [Option<u32>; 2] {
+        match self {
+            Op::Eq(a, b)
+            | Op::Ne(a, b)
+            | Op::LtS(a, b)
+            | Op::LeS(a, b)
+            | Op::LtU(a, b)
+            | Op::LeU(a, b)
+            | Op::AddS(a, b)
+            | Op::SubS(a, b)
+            | Op::MulS(a, b)
+            | Op::DivS(a, b)
+            | Op::RemS(a, b)
+            | Op::AddU(a, b)
+            | Op::SubU(a, b)
+            | Op::MulU(a, b)
+            | Op::DivU(a, b)
+            | Op::RemU(a, b)
+            | Op::And(a, b)
+            | Op::Or(a, b)
+            | Op::VecGet(a, b) => [Some(a), Some(b)],
+            Op::Neg(a) | Op::Not(a) | Op::VecLen(a) | Op::Copy(a) => [Some(a), None],
+            Op::Constant(_) | Op::Call(_) | Op::Guard(_) | Op::GuardTrue(_) | Op::GuardFalse(_) => {
+                [None, None]
+            }
+        }
+    }
+}
+
+/// Whether each slot is ever read: by a step, a call, an exit or an edge.
+/// A fused edge's move into a slot nothing reads is dead in a burst (its
+/// fuel is still charged with the edge's).
+fn read_slots(
+    plan: &Plan,
+    blocks: &[Vec<WordStep>],
+    exits: &[WordExit],
+    sites: &[CallSite],
+) -> Vec<bool> {
+    let mut read = vec![false; plan.slots];
+    let mut mark = |slot: u32| {
+        if let Some(r) = read.get_mut(slot as usize) {
+            *r = true;
+        }
+    };
+    for step in blocks.iter().flatten() {
+        for slot in step.op.reads().into_iter().flatten() {
+            mark(slot);
+        }
+    }
+    for site in sites {
+        for &slot in &site.args {
+            mark(slot);
+        }
+    }
+    for exit in exits {
+        let edges: Vec<&WordEdge> = match exit {
+            WordExit::Branch(e) => vec![e],
+            WordExit::Cond(r, a, b) | WordExit::Switch(r, a, b) => {
+                mark(*r);
+                vec![a, b]
+            }
+            WordExit::Return(r) => {
+                mark(*r);
+                vec![]
+            }
+            WordExit::End => vec![],
+        };
+        for edge in edges {
+            for &(from, _) in &edge.moves {
+                if from != PAYLOAD {
+                    mark(from);
+                }
+            }
+        }
+    }
+    for block in &plan.blocks {
+        if let Exit::Trap(_, Some((slot, _))) = block.exit {
+            mark(u32::try_from(slot).unwrap_or(NONE));
+        }
+    }
+    read
+}
+
+/// A guard merged into the step whose output it tests.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Guarded {
+    No,
+    /// As `Op::Guard`.
+    Ok(u32),
+    /// As `Op::GuardTrue`.
+    True(u32),
+    /// As `Op::GuardFalse`.
+    False(u32),
+}
+
+/// Appends a guard step, or merges it into the step before it when that
+/// step computes the guarded slot.
+fn push_guard(steps: &mut Vec<WordStep>, op: Op, output: u32) {
+    if let Some(last) = steps.last_mut()
+        && last.output == output
+        && last.guard == Guarded::No
+        && last.also == NONE
+        && !matches!(
+            last.op,
+            Op::Copy(_) | Op::Call(_) | Op::Guard(_) | Op::GuardTrue(_) | Op::GuardFalse(_)
+        )
+    {
+        last.guard = match op {
+            Op::Guard(g) => Guarded::Ok(g),
+            Op::GuardTrue(g) => Guarded::True(g),
+            Op::GuardFalse(g) => Guarded::False(g),
+            _ => return,
+        };
+        return;
+    }
+    steps.push(WordStep {
+        op,
+        output,
+        units: [0, 0],
+        guard: Guarded::No,
+        also: NONE,
+    });
+}
+
+/// Appends an edge move as a copy step, or merges it into the step before
+/// it when that step computes the moved slot; a move into a slot nothing
+/// reads is dropped.
+fn push_copy(steps: &mut Vec<WordStep>, from: u32, to: u32, read: &[bool]) {
+    if !read.get(to as usize).copied().unwrap_or(true) {
+        return;
+    }
+    if let Some(last) = steps.last_mut()
+        && last.output == from
+        && last.also == NONE
+        && !matches!(
+            last.op,
+            Op::Copy(_) | Op::Call(_) | Op::Guard(_) | Op::GuardTrue(_) | Op::GuardFalse(_)
+        )
+    {
+        last.also = to;
+        return;
+    }
+    steps.push(WordStep {
+        op: Op::Copy(from),
+        output: to,
+        units: [0, 0],
+        guard: Guarded::No,
+        also: NONE,
+    });
 }
 
 /// An edge in word form: its target, its fuel, and its moves as (source
@@ -204,6 +371,66 @@ fn result_type(ty: &TypeExpr) -> bool {
     matches!(ty, TypeExpr::Result { ok, error } if matches!(integer(ok), Some((_, 64))) && failure_type(error))
 }
 
+/// A vector of words: read-only on the word tier, its slot holding the
+/// vector's index in the run's vector table.
+fn vector_type(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Vector(inner) if word_type(inner))
+}
+
+/// An optional word (a `vec_get`): like a checked result, read only by the
+/// switch of the block defining it.
+fn option_type(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Option(inner) if word_type(inner))
+}
+
+/// A switched value: a checked result or an optional word.
+fn switched_type(ty: &TypeExpr) -> bool {
+    result_type(ty) || option_type(ty)
+}
+
+/// The words of the vector a vector slot's word names (a slot of a vector
+/// type only ever holds an index into the run's table).
+fn vector(vectors: &[Vec<u64>], word: u64) -> &[u64] {
+    usize::try_from(word)
+        .ok()
+        .and_then(|i| vectors.get(i))
+        .map_or(&[], Vec::as_slice)
+}
+
+/// The run's inputs as words: a vector of words enters as its index in
+/// the returned vector table. `None` when an input fits no word.
+pub(super) fn to_inputs(values: &[Value<'_>]) -> Option<(Vec<u64>, Vec<Vec<u64>>)> {
+    let mut vectors = Vec::new();
+    let inputs = values
+        .iter()
+        .map(|v| {
+            to_word(*v).or_else(|| {
+                vectors.push(to_words(*v)?);
+                u64::try_from(vectors.len() - 1).ok()
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((inputs, vectors))
+}
+
+/// A vector input as its words (`None` when it is no vector of words).
+fn to_words(value: Value<'_>) -> Option<Vec<u64>> {
+    let Atom::Borrowed(ConstValue {
+        value_type,
+        data: sley_ssmc::ConstData::Sequence(items),
+    }) = value.atom
+    else {
+        return None;
+    };
+    if value.shape != Shape::Plain || !vector_type(value_type) {
+        return None;
+    }
+    items
+        .iter()
+        .map(|item| to_word(Value::from_const(item)?))
+        .collect()
+}
+
 /// A value of a word-tier type as one word, or `None` (the scalar loop runs).
 pub(super) fn to_word(value: Value<'_>) -> Option<u64> {
     if value.shape != Shape::Plain {
@@ -280,25 +507,36 @@ fn compile_function(plan: &Plan, code: &crate::BytecodeFunction) -> Option<WordF
     use crate::BytecodeTerminator as T;
     let types = &code.register_types;
     if !word_type(&code.result_type)
-        || !types
-            .iter()
-            .all(|ty| word_type(ty) || failure_type(ty) || result_type(ty))
+        || !types.iter().all(|ty| {
+            word_type(ty)
+                || failure_type(ty)
+                || result_type(ty)
+                || vector_type(ty)
+                || option_type(ty)
+        })
     {
         return None;
     }
     let reg = |r: crate::Register| usize::try_from(r).ok().filter(|&r| r < types.len());
-    // A checked result is read only by the switch of the block defining it;
-    // a failure code is never an operand.
+    // A checked result or an optional word is read only by the switch of
+    // the block defining it; a failure code is never an operand; a vector
+    // is an operand only of `vec_len` and `vec_get` (never of a call: its
+    // units are its length's), and is never a trap's payload.
     for block in &code.blocks {
         for r in &block.parameter_registers {
-            if result_type(&types[reg(*r)?]) {
+            if switched_type(&types[reg(*r)?]) {
                 return None;
             }
         }
         for instruction in &block.instructions {
-            for r in &instruction.operands {
+            let projects = instruction.opcode == Opcode::VectorLen.tag()
+                || instruction.opcode == Opcode::VectorGet.tag();
+            for (k, r) in instruction.operands.iter().enumerate() {
                 let ty = &types[reg(*r)?];
-                if result_type(ty) || failure_type(ty) {
+                if switched_type(ty)
+                    || failure_type(ty)
+                    || (vector_type(ty) && (!projects || k > 0))
+                {
                     return None;
                 }
             }
@@ -315,7 +553,7 @@ fn compile_function(plan: &Plan, code: &crate::BytecodeFunction) -> Option<WordF
                 .copied()
                 .collect(),
             T::VariantSwitch { value, cases } => {
-                if !result_type(&types[reg(*value)?])
+                if !switched_type(&types[reg(*value)?])
                     || !block
                         .instructions
                         .iter()
@@ -332,10 +570,18 @@ fn compile_function(plan: &Plan, code: &crate::BytecodeFunction) -> Option<WordF
                     })
                     .collect()
             }
-            T::Trap { payload, .. } => payload.iter().copied().collect(),
+            T::Trap { payload, .. } => {
+                if let Some(r) = payload {
+                    let ty = &types[reg(*r)?];
+                    if !word_type(ty) && !failure_type(ty) {
+                        return None;
+                    }
+                }
+                payload.iter().copied().collect()
+            }
         };
         for r in args {
-            if result_type(&types[reg(r)?]) {
+            if switched_type(&types[reg(r)?]) {
                 return None;
             }
         }
@@ -348,6 +594,9 @@ fn compile_function(plan: &Plan, code: &crate::BytecodeFunction) -> Option<WordF
             && !cases
                 .iter()
                 .all(|(key, _)| matches!(key, CaseKey::Builtin(BuiltinCase::Ok | BuiltinCase::Err)))
+            && !cases.iter().all(|(key, _)| {
+                matches!(key, CaseKey::Builtin(BuiltinCase::Some | BuiltinCase::None))
+            })
         {
             return None;
         }
@@ -378,6 +627,7 @@ fn compile_function(plan: &Plan, code: &crate::BytecodeFunction) -> Option<WordF
         }
     }
     let constant_slots = constant_slots(plan, &blocks, &exits);
+    let read = read_slots(plan, &blocks, &exits, &sites);
     let mut starts: Vec<(usize, usize)> = (0..plan.blocks.len()).map(|b| (b, 0)).collect();
     for (b, steps) in blocks.iter().enumerate() {
         for (k, step) in steps.iter().enumerate() {
@@ -390,7 +640,7 @@ fn compile_function(plan: &Plan, code: &crate::BytecodeFunction) -> Option<WordF
     let mut fast = Vec::with_capacity(starts.len());
     let mut item = Batch::default();
     for start in starts {
-        let (block, budget) = fuse(start, &blocks, &exits, &sites, &constant_slots)?;
+        let (block, budget) = fuse(start, &blocks, &exits, &sites, &constant_slots, &read)?;
         item.fuel = item.fuel.max(budget.fuel);
         item.steps = item.steps.max(budget.steps);
         item.units = item.units.max(budget.units);
@@ -472,6 +722,7 @@ fn fuse(
     exits: &[WordExit],
     sites: &[CallSite],
     constant_slots: &[(u32, u32)],
+    read: &[bool],
 ) -> Option<(FastBlock, Batch)> {
     let mut fast = FastBlock {
         start,
@@ -524,20 +775,16 @@ fn fuse(
                     count: fast.count,
                     units: fast.units,
                 });
-                fast.steps.push(WordStep {
-                    op: Op::Guard(g),
-                    output: *r,
-                    units: [0, 0],
-                });
+                push_guard(&mut fast.steps, Op::Guard(g), *r);
                 (ok, *r)
             }
-            // A branch whose other side leaves the function (a loop's exit
-            // or a base case): the side that continues is fused.
-            WordExit::Cond(r, yes, no)
-                if exits[no.target].ends() && fusable(yes)
-                    || exits[yes.target].ends() && fusable(no) =>
-            {
-                let fused_yes = exits[no.target].ends() && fusable(yes);
+            // A conditional branch: one side is fused behind a guard (a
+            // failed guard leaves at this block's exit, as an unfused
+            // block would). The side that continues when the other leaves
+            // the function (a loop's exit or a base case), else the true
+            // side.
+            WordExit::Cond(r, yes, no) if fusable(yes) || fusable(no) => {
+                let fused_yes = fusable(yes) && !(exits[yes.target].ends() && fusable(no));
                 let g = u32::try_from(fast.guards.len()).ok()?;
                 fast.guards.push(Leave {
                     block: at,
@@ -545,26 +792,27 @@ fn fuse(
                     count: fast.count,
                     units: fast.units,
                 });
-                fast.steps.push(WordStep {
-                    op: if fused_yes {
+                push_guard(
+                    &mut fast.steps,
+                    if fused_yes {
                         Op::GuardTrue(g)
                     } else {
                         Op::GuardFalse(g)
                     },
-                    output: *r,
-                    units: [0, 0],
-                });
+                    *r,
+                );
                 (if fused_yes { yes } else { no }, PAYLOAD)
             }
             _ => return Some((fast, budget)),
         };
         fast.fuel += edge.fuel;
         for &(from, to) in &edge.moves {
-            fast.steps.push(WordStep {
-                op: Op::Copy(if from == PAYLOAD { payload } else { from }),
-                output: to,
-                units: [0, 0],
-            });
+            push_copy(
+                &mut fast.steps,
+                if from == PAYLOAD { payload } else { from },
+                to,
+                read,
+            );
         }
         seen.push(edge.target);
         at = edge.target;
@@ -607,8 +855,14 @@ fn compile_exit(exit: &Exit) -> Option<WordExit> {
             shapes,
             ..
         } => {
-            let ok = shapes.iter().position(|s| *s == Some(Shape::Ok))?;
-            let err = shapes.iter().position(|s| *s == Some(Shape::Err))?;
+            // An optional word switches like a checked result: `Some` as
+            // Ok, `None` (its flag set) as Err.
+            let ok = shapes
+                .iter()
+                .position(|s| matches!(s, Some(Shape::Ok | Shape::Some)))?;
+            let err = shapes
+                .iter()
+                .position(|s| matches!(s, Some(Shape::Err | Shape::None)))?;
             WordExit::Switch(
                 slot(*register)?,
                 word_edge(&cases[ok].1, ok as u64 + 1)?,
@@ -662,6 +916,12 @@ fn compile_step(
         match (step.opcode, step.args.as_slice()) {
             (Opcode::IntNegChecked, [a]) if step.width == Some((true, 64)) => Op::Neg(slot(*a)?),
             (Opcode::BoolNot, [a]) => Op::Not(slot(*a)?),
+            (Opcode::VectorLen, [a]) if vector_type(operand(0)?) => Op::VecLen(slot(*a)?),
+            (Opcode::VectorGet, [a, b])
+                if vector_type(operand(0)?) && integer(operand(1)?) == Some((false, 64)) =>
+            {
+                Op::VecGet(slot(*a)?, slot(*b)?)
+            }
             (Opcode::BoolAnd, [a, b]) => Op::And(slot(*a)?, slot(*b)?),
             (Opcode::BoolOr, [a, b]) => Op::Or(slot(*a)?, slot(*b)?),
             (Opcode::Equal, [a, b]) if operand(0)? == &TypeExpr::Bool => {
@@ -680,6 +940,8 @@ fn compile_step(
         op,
         output: slot(step.output)?,
         units: step.units,
+        guard: Guarded::No,
+        also: NONE,
     })
 }
 
@@ -688,7 +950,13 @@ fn compile_step(
 /// and failure codes of `checked_word`; comparisons as `evaluate`'s.
 #[allow(clippy::inline_always)]
 #[inline(always)]
-fn exec(step: &WordStep, constants: &[u64], registers: &mut [u64], flags: &mut [bool]) -> u64 {
+fn exec(
+    step: &WordStep,
+    constants: &[u64],
+    vectors: &[Vec<u64>],
+    registers: &mut [u64],
+    flags: &mut [bool],
+) -> u64 {
     let r = |i: u32| registers[i as usize];
     let s = |i: u32| registers[i as usize].cast_signed();
     let signed = |v: Option<i64>| v.map(i64::cast_unsigned).ok_or(ARITHMETIC_OVERFLOW);
@@ -718,6 +986,24 @@ fn exec(step: &WordStep, constants: &[u64], registers: &mut [u64], flags: &mut [
         Op::Not(a) => (Ok(r(a) ^ 1), false),
         Op::And(a, b) => (Ok(r(a) & r(b)), false),
         Op::Or(a, b) => (Ok(r(a) | r(b)), false),
+        Op::VecLen(a) => (
+            Ok(u64::try_from(vector(vectors, r(a)).len()).unwrap_or(u64::MAX)),
+            false,
+        ),
+        Op::VecGet(a, b) => {
+            let out = step.output as usize;
+            let item = usize::try_from(r(b))
+                .ok()
+                .and_then(|i| vector(vectors, r(a)).get(i));
+            if let Some(&word) = item {
+                registers[out] = word;
+                flags[out] = false;
+                return step.units[0];
+            }
+            registers[out] = 0;
+            flags[out] = true;
+            return step.units[1];
+        }
         Op::Call(_) | Op::Guard(_) | Op::GuardTrue(_) | Op::GuardFalse(_) => return 0,
         Op::Copy(a) => {
             registers[step.output as usize] = r(a);
@@ -778,6 +1064,7 @@ pub(super) fn run(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
     inputs: &[u64],
+    vectors: &[Vec<u64>],
 ) -> RuntimeResult<WordEnded> {
     let mut function = 0;
     let mut plan = program.plans[0];
@@ -865,7 +1152,23 @@ pub(super) fn run(
                                     break;
                                 }
                             }
-                            _ => units += exec(step, consts, registers, flags),
+                            _ => {
+                                units += exec(step, consts, vectors, registers, flags);
+                                let out = step.output as usize;
+                                let failed = match step.guard {
+                                    Guarded::No => None,
+                                    Guarded::Ok(g) => flags[out].then_some(g),
+                                    Guarded::True(g) => (registers[out] == 0).then_some(g),
+                                    Guarded::False(g) => (registers[out] != 0).then_some(g),
+                                };
+                                if failed.is_some() {
+                                    left = failed;
+                                    break;
+                                }
+                                if step.also != NONE {
+                                    registers[step.also as usize] = registers[out];
+                                }
+                            }
                         }
                     }
                     let leave = match left {
@@ -1021,7 +1324,7 @@ pub(super) fn run(
         {
             let mut units: u64 = 0;
             for step in &wsteps[pc..pc + batch.steps] {
-                units += exec(step, consts, registers, flags);
+                units += exec(step, consts, vectors, registers, flags);
             }
             let count = batch.steps as u64;
             runtime.fuel_used += count;
@@ -1100,7 +1403,7 @@ pub(super) fn run(
             }
             // The step's value is written before its units are charged; a
             // failed charge ends the run, so the write is never read.
-            let units = exec(step, consts, registers, flags);
+            let units = exec(step, consts, vectors, registers, flags);
             if !charge_value(runtime, units, limits.max_value_units) {
                 return Ok(WordEnded::Stopped(ExecutionTermination::ResourceLimit(
                     ResourceKind::ValueUnits,
@@ -1172,10 +1475,17 @@ pub(super) fn run(
                 register, cases, ..
             } => {
                 let value = *registers.get(*register).ok_or(RuntimeFault)?;
-                let key = CaseKey::Builtin(if flags[*register] {
-                    BuiltinCase::Err
-                } else {
-                    BuiltinCase::Ok
+                let option = cases.iter().any(|(case, _)| {
+                    matches!(
+                        case,
+                        CaseKey::Builtin(BuiltinCase::Some | BuiltinCase::None)
+                    )
+                });
+                let key = CaseKey::Builtin(match (option, flags[*register]) {
+                    (false, true) => BuiltinCase::Err,
+                    (false, false) => BuiltinCase::Ok,
+                    (true, true) => BuiltinCase::None,
+                    (true, false) => BuiltinCase::Some,
                 });
                 let mut selected = None;
                 for (case, edge) in cases {
@@ -1804,15 +2114,15 @@ mod tests {
         ];
         let words = Plan::compile(&bytecode).unwrap().words.unwrap();
         let fast = &words.functions[0].fast;
+        let guards = |op: fn(&WordStep) -> bool| fast.iter().any(|f| f.steps.iter().any(op));
         assert!(
-            fast.iter()
-                .any(|f| f.steps.iter().any(|s| matches!(s.op, Op::Guard(_))))
-                && fast
-                    .iter()
-                    .any(|f| f.steps.iter().any(|s| matches!(s.op, Op::GuardTrue(_))))
-                && fast
-                    .iter()
-                    .any(|f| f.steps.iter().any(|s| matches!(s.op, Op::GuardFalse(_))))
+            guards(|s| matches!(s.op, Op::Guard(_)) || matches!(s.guard, Guarded::Ok(_)))
+                && guards(|s| {
+                    matches!(s.op, Op::GuardTrue(_)) || matches!(s.guard, Guarded::True(_))
+                })
+                && guards(|s| {
+                    matches!(s.op, Op::GuardFalse(_)) || matches!(s.guard, Guarded::False(_))
+                })
                 && fast
                     .iter()
                     .any(|f| f.steps.iter().any(|s| matches!(s.op, Op::Copy(_)))),
@@ -1841,6 +2151,159 @@ mod tests {
         .into_iter()
         .map(|(n, k)| vec![sint(n), sint(k)])
         .collect();
+        sweep(bytecode, &constants, &rows);
+    }
+
+    /// A vector input on the word tier: `vec_len`, and `vec_get` switched
+    /// on `Some`/`None` in its block, in a loop summing every `k`-th element
+    /// (checked), shaped like the Python dialect's indexed loops: the end of
+    /// the vector returns, an overflowing sum or index traps, and every
+    /// budget cut stops it. Bursts fuse the `Some` side behind a guard.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn vector_reads_match_reference_on_every_budget_cut() {
+        let s64 = TypeExpr::SInt(IntegerWidth::from_bits(64));
+        let u64t = TypeExpr::UInt(IntegerWidth::from_bits(64));
+        let vector = TypeExpr::Vector(Box::new(s64.clone()));
+        let failure = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        let checked = |ty: &TypeExpr| TypeExpr::Result {
+            ok: Box::new(ty.clone()),
+            error: Box::new(failure.clone()),
+        };
+        let types = vec![
+            vector.clone(),                          // 0 xs
+            u64t.clone(),                            // 1 k
+            u64t.clone(),                            // 2 n
+            u64t.clone(),                            // 3 zero (u64)
+            TypeExpr::Bool,                          // 4 n != 0
+            s64.clone(),                             // 5 zero (i64)
+            u64t.clone(),                            // 6 i
+            s64.clone(),                             // 7 acc
+            TypeExpr::Option(Box::new(s64.clone())), // 8 xs[i]
+            s64.clone(),                             // 9 v
+            s64.clone(),                             // 10 acc
+            u64t.clone(),                            // 11 i
+            checked(&s64),                           // 12 acc + v
+            s64.clone(),                             // 13 acc
+            u64t.clone(),                            // 14 i
+            checked(&u64t),                          // 15 i + k
+            s64.clone(),                             // 16 result
+            failure.clone(),                         // 17 failure
+        ];
+        let i = |op, a: Vec<u32>, out| instruction(op, a, out, Immediate::None);
+        let zero_u = EntityId::from_bytes([3; 32]);
+        let zero_i = EntityId::from_bytes([4; 32]);
+        let constant =
+            |id, out| instruction(Opcode::ConstantRef, vec![], out, Immediate::Entity(id));
+        let edge = |target, arguments| BytecodeTargetEdge { target, arguments };
+        let arg = BytecodeSwitchArgument::Value;
+        let payload = BytecodeSwitchArgument::CasePayload;
+        let case = |key, target, arguments| BytecodeSwitchCase {
+            case_key: CaseKey::Builtin(key),
+            edge: BytecodeSwitchEdge { target, arguments },
+        };
+        let bytecode = BytecodeFunction {
+            function: EntityId::from_bytes([9; 32]),
+            parameter_registers: vec![0, 1],
+            register_types: types,
+            result_type: s64.clone(),
+            entry_block: 0,
+            blocks: vec![
+                block(
+                    0,
+                    vec![],
+                    vec![
+                        i(Opcode::VectorLen, vec![0], 2),
+                        constant(zero_u, 3),
+                        i(Opcode::NotEqual, vec![2, 3], 4),
+                        constant(zero_i, 5),
+                    ],
+                    BytecodeTerminator::CondBranch {
+                        condition: 4,
+                        if_true: edge(1, vec![3, 5]),
+                        if_false: edge(4, vec![5]),
+                    },
+                ),
+                block(
+                    1,
+                    vec![6, 7],
+                    vec![i(Opcode::VectorGet, vec![0, 6], 8)],
+                    BytecodeTerminator::VariantSwitch {
+                        value: 8,
+                        cases: vec![
+                            case(BuiltinCase::None, 4, vec![arg(7)]),
+                            case(BuiltinCase::Some, 2, vec![payload, arg(7), arg(6)]),
+                        ],
+                    },
+                ),
+                block(
+                    2,
+                    vec![9, 10, 11],
+                    vec![i(Opcode::IntAddChecked, vec![10, 9], 12)],
+                    BytecodeTerminator::VariantSwitch {
+                        value: 12,
+                        cases: vec![
+                            case(BuiltinCase::Ok, 3, vec![payload, arg(11)]),
+                            case(BuiltinCase::Err, 5, vec![payload]),
+                        ],
+                    },
+                ),
+                block(
+                    3,
+                    vec![13, 14],
+                    vec![i(Opcode::IntAddChecked, vec![14, 1], 15)],
+                    BytecodeTerminator::VariantSwitch {
+                        value: 15,
+                        cases: vec![
+                            case(BuiltinCase::Err, 5, vec![payload]),
+                            case(BuiltinCase::Ok, 1, vec![payload, arg(13)]),
+                        ],
+                    },
+                ),
+                block(4, vec![16], vec![], BytecodeTerminator::Return(16)),
+                block(
+                    5,
+                    vec![17],
+                    vec![],
+                    BytecodeTerminator::Trap {
+                        code: 3,
+                        payload: Some(17),
+                    },
+                ),
+            ],
+        };
+        let constants = [
+            ConstantDefinition {
+                entity_id: zero_u,
+                value: uint(0),
+            },
+            ConstantDefinition {
+                entity_id: zero_i,
+                value: sint(0),
+            },
+        ];
+        let words = Plan::compile(&bytecode).unwrap().words.unwrap();
+        let fast = &words.functions[0].fast;
+        assert!(
+            fast.iter().any(|f| f
+                .steps
+                .iter()
+                .any(|s| matches!(s.op, Op::VecGet(..)) && matches!(s.guard, Guarded::Ok(_)))),
+            "a fast block reads the vector behind a guard: {fast:?}"
+        );
+        let xs = |items: &[i128]| ConstValue {
+            value_type: vector.clone(),
+            data: ConstData::Sequence(items.iter().map(|&v| sint(v)).collect()),
+        };
+        let max = i128::from(i64::MAX);
+        let min = i128::from(i64::MIN);
+        let lists: [&[i128]; 5] = [&[], &[7], &[1, 2, 3, 4, 5], &[-5, 7, 0, 9, min], &[max, 1]];
+        let mut rows = Vec::new();
+        for list in lists {
+            for k in [1, 2, 3, u128::from(u64::MAX)] {
+                rows.push(vec![xs(list), uint(k)]);
+            }
+        }
         sweep(bytecode, &constants, &rows);
     }
 
@@ -2274,7 +2737,7 @@ mod tests {
             let word = compile_step(general, &instruction, ty).unwrap();
             let mut words = [wx, wy, 0];
             let mut flags = [false, false, true];
-            let units = exec(&word, &[], &mut words, &mut flags);
+            let units = exec(&word, &[], &[], &mut words, &mut flags);
             let (shape, atom) = (expected.shape, expected.atom);
             let failed = shape == Shape::Err;
             let answer = match atom {
