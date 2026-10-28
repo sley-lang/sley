@@ -137,6 +137,25 @@ def check_local(name, text, version):
     return result(name, text, checks)
 
 
+def text_links(line):
+    """(label, url) for each https URL on one line of a text surface.
+
+    A Markdown link `[label](url)` is labelled by its bracket text. Any other URL
+    on the line keeps the `Label: url` reading: the text before the line's first
+    colon, without a list marker.
+    """
+    found, spans = [], []
+    for match in MARKDOWN_LINK.finditer(line):
+        if URL.fullmatch(match.group(2)):
+            found.append((match.group(1), match.group(2)))
+            spans.append(match.span(2))
+    prefix = line.split(':', 1)[0].lstrip('- ')
+    for match in URL.finditer(line):
+        if not any(start <= match.start() < end for start, end in spans):
+            found.append((prefix, match.group().rstrip('.,;')))
+    return found
+
+
 def check_live(path, body, version):
     is_html = path not in ('/README.txt', '/llms.txt')
     page = Page()
@@ -145,9 +164,8 @@ def check_live(path, body, version):
     legacy = re.search(r'^Sley 1\.x Legacy[^\n]*\n-+\n(.*?)(?=^\S[^\n]*\n-+\n|\Z)',
                        body, re.M | re.S) if not is_html else None
     targets = [(label, url, False) for label, url in page.links] if is_html else [
-        (line.group().split(':', 1)[0].lstrip('- '), u.rstrip('.,;'),
-         bool(legacy and legacy.start(1) <= line.start() < legacy.end(1)))
-        for line in re.finditer(r'^.*$', body, re.M) for u in URL.findall(line.group())]
+        (label, url, bool(legacy and legacy.start(1) <= line.start() < legacy.end(1)))
+        for line in re.finditer(r'^.*$', body, re.M) for label, url in text_links(line.group())]
     checks = []
     # All primary claims are checked, not just one occurrence of the expected version.
     claims = re.findall(r'\b(?:version\s+|Download Sley\s+|Install Sley\s+|Yes:\s*Sley\s+)('

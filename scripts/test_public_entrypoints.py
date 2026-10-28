@@ -152,6 +152,32 @@ Self-rebuild bundle: sley-2.1.0-selfhost-linux-x86_64.tar.gz from https://github
         self.assertEqual(c.check_live('/README.txt', bad, VERSION)['status'], 'FAIL')
         self.assertEqual(c.check_live('/README.txt', bad + legacy, VERSION)['status'], 'FAIL')
 
+    def test_text_markdown_links_use_their_labels(self):
+        md = '''Current release: Sley 2.1 (version 2.1.1)
+- [Sley 2.1.1 release](https://github.com/sley-lang/sley/releases/tag/v2.1.1): static binaries
+- [sley-2.1.1-linux-x86_64.tar.gz](https://github.com/sley-lang/sley/releases/download/v2.1.1/sley-2.1.1-linux-x86_64.tar.gz): SHA-256 0
+[Concepts](https://github.com/sley-lang/sley/blob/v2.1.1/docs/CONCEPTS.md) explains the model, and the [Quickstart](https://github.com/sley-lang/sley/blob/v2.1.1/docs/QUICKSTART.md) adds more.
+- The word tier ran 2.2x faster ([2.0.0 release notes](https://github.com/sley-lang/sley/blob/v2.0.0/docs/release/SLEY-2.0.0.md#benchmarks)).
+Self-rebuild bundle: sley-2.1.0-selfhost-linux-x86_64.tar.gz from the [2.1.0 release](https://github.com/sley-lang/sley/releases/tag/v2.1.0).
+- [Self-hosting record](https://github.com/sley-lang/sley/blob/v2.1.0/docs/release/SH2_SELF_HOSTING.md)
+- [2.1.1 release notes](https://github.com/sley-lang/sley/blob/v2.1.1/docs/release/SLEY-2.1.1.md)
+'''
+        for path in ('/llms.txt', '/README.txt'):
+            self.assertEqual(c.check_live(path, md, VERSION)['status'], 'PASS', path)
+        self.assertEqual(c.text_links('Quickstart: https://x.example/a. [b](https://x.example/b)'),
+                         [('b', 'https://x.example/b'), ('Quickstart', 'https://x.example/a')])
+        # A historical note still needs its exact "<version> release notes" label.
+        for stale in ('[benchmarks](https://github.com/sley-lang/sley/blob/v2.0.0/docs/release/SLEY-2.0.0.md',
+                      '[2.0.1 release notes](https://github.com/sley-lang/sley/blob/v2.0.0/docs/release/SLEY-2.0.0.md'):
+            bad = md.replace('[2.0.0 release notes](https://github.com/sley-lang/sley/blob/v2.0.0/docs/release/SLEY-2.0.0.md', stale)
+            self.assertEqual(c.check_live('/llms.txt', bad, VERSION)['status'], 'FAIL', stale)
+        # A Markdown label does not launder a wrong primary destination.
+        wrong = md.replace('blob/v2.1.1/docs/QUICKSTART.md', 'blob/v2.0.1/docs/QUICKSTART.md')
+        self.assertEqual(c.check_live('/README.txt', wrong, VERSION)['status'], 'FAIL')
+        old_bundle = md.replace('from the [2.1.0 release](https://github.com/sley-lang/sley/releases/tag/v2.1.0)',
+                                'from the [old build](https://github.com/sley-lang/sley/releases/tag/v2.1.0)')
+        self.assertEqual(c.check_live('/llms.txt', old_bundle, VERSION)['status'], 'FAIL')
+
     def test_default_never_fetches_and_uses_cargo_version(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
