@@ -10,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "a4d4646d3602cb4c53b621876885a15e27cb3ff9ed1383b11cb9270d9e61e054",
+  "dossier_digest": "7f1d4170445eddb4843565c7c11989771c17f644f2c9419802635d17d2411a73",
   "entries": [
     {
       "evidence": [
@@ -35,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "ad281d1b3ce6565dc63b67b463260f94df254a1a"
+      "value": "f5ef71254c57cb8fdbef33bc6077287cc1cdaa43"
     },
     {
       "evidence": [
@@ -146,9 +146,9 @@
           "scanned_manifests": 25
         },
         "property_tests": 0,
-        "python_tests": 946,
+        "python_tests": 947,
         "rust_ignored_emitters": 44,
-        "rust_unit_tests": 3275
+        "rust_unit_tests": 3277
       }
     },
     {
@@ -274,7 +274,7 @@
       "item": "artifact path",
       "note": "the local candidate artifact name; no published path exists",
       "state": "EVIDENCED",
-      "value": "sley-2.1.6-linux-x86_64.tar.gz"
+      "value": "sley-2.1.7-linux-x86_64.tar.gz"
     },
     {
       "evidence": [
@@ -284,7 +284,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "0751911baa8a74dbd5d9751c3ee0c65b9a91e70016b37540a155f318c3f1bfab"
+      "value": "a44b76e070228e2924c7efe16319d5339b233abf1e45986431c59a4c88460923"
     },
     {
       "evidence": [
@@ -293,7 +293,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 7675247
+      "value": 7677962
     },
     {
       "evidence": [
@@ -432,7 +432,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0.6 2.0.6 on 2026-10-04 (machine summary release_decision; ga_claimed false, final commit ad281d1b3ce6565dc63b67b463260f94df254a1a); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 31 evidenced, 17 awaiting review, and 4 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0.6 2.0.6 on 2026-10-04 (machine summary release_decision; ga_claimed false, final commit f5ef71254c57cb8fdbef33bc6077287cc1cdaa43); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 31 evidenced, 17 awaiting review, and 4 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -456,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "60d918630b394fa36354a8ef5cee744dc8b9de232b7bf907e1d633088de15c0a",
+  "entries_digest": "4c87e8d2380b92776a1a4ec5fa74d6658c76db2366612ddfc83c215227c33ebb",
   "evidenced": 24,
   "gated": 10,
   "gates": {

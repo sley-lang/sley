@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function isqrt(n: number): number {\n  let total = 0;\n  for (let i = 0; i < n; i++) {\n    let lo = 0;\n    let hi = i + 1;\n    while (hi - lo > 1) {\n      const mid = Math.floor((lo + hi) / 2);\n      if (mid * mid < i) {\n        lo = mid;\n      } else {\n        hi = mid;\n      }\n    }\n    total += lo;\n  }\n  return total;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { isqrt } from \"./isqrt.js\";\n\ntest(\"isqrt\", () => {\n  assert.equal(isqrt(10), 16);\n  assert.equal(isqrt(100), 615);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 isqrt (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  13 !== 16\n  \n      at TestContext.<anonymous> (file:///work/dist/isqrt.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 13,\n    expected: 16,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "mid * mid < i\nmid * mid <= i"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

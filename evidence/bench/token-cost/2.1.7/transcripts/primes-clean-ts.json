@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "export function primes(n: number): number {\n  let count = 0;\n  for (let k = 2; k < n; k++) {\n    let isP = true;\n    for (let d = 2; d * d <= k; d++) {\n      if (k % d === 0) {\n        isP = false;\n        break;\n      }\n    }\n    if (isP) {\n      count++;\n    }\n  }\n  return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { primes } from \"./primes.js\";\n\ntest(\"primes\", () => {\n  assert.equal(primes(10), 4);\n  assert.equal(primes(100), 25);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

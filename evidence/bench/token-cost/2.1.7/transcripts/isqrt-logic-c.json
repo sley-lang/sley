@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long isqrt(long long n) {\n    long long total = 0;\n    for (long long i = 0; i < n; i++) {\n        long long lo = 0, hi = i + 1;\n        while (hi - lo > 1) {\n            long long mid = (lo + hi) / 2;\n            if (mid * mid < i)\n                lo = mid;\n            else\n                hi = mid;\n        }\n        total += lo;\n    }\n    return total;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"isqrt.c\"\n\nint main(void) {\n    assert(isqrt(10) == 16);\n    assert(isqrt(100) == 615);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_isqrt test_isqrt.c && ./test_isqrt"
+ ],
+ [
+  "read",
+  "output",
+  "test_isqrt: test_isqrt.c:5: main: Assertion `isqrt(10) == 16' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "mid * mid < i\nmid * mid <= i"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_isqrt test_isqrt.c && ./test_isqrt"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

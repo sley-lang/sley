@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn tak(x: i64, y: i64, z: i64) -> i64 {\n    if y < x {\n        return tak(tak(x - 1, y, z), tak(y - 1, z, x), tak(z - 1, x, y));\n    }\n    y\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_tak() {\n        assert_eq!(tak(6, 4, 2), 3);\n        assert_eq!(tak(12, 8, 4), 5);\n        assert_eq!(tak(1, 2, 3), 3);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\ntests::test_tak --- FAILED\n\nfailures:\n\n---- tests::test_tak stdout ----\n\nthread 'tests::test_tak' (1) panicked at src/lib.rs:14:9:\nassertion `left == right` failed\n  left: 6\n right: 3\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    tests::test_tak\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--lib`\n"
+ ],
+ [
+  "write",
+  "edit",
+  "    y\n\n    z\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

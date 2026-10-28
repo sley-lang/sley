@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long triples(long long n) {\n    long long count = 0;\n    for (long long c = 1; c <= n; c++)\n        for (long long b = 1; b < c; b++)\n            for (long long a = 1; a < b; a++)\n                if (a * a + b * b == c * c)\n                    cnt++;\n    return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"triples.c\"\n\nint main(void) {\n    assert(triples(5) == 1);\n    assert(triples(20) == 6);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_triples test_triples.c && ./test_triples"
+ ],
+ [
+  "read",
+  "output",
+  "In file included from test_triples.c:2:\ntriples.c: In function \u2018triples\u2019:\ntriples.c:7:21: error: \u2018cnt\u2019 undeclared (first use in this function); did you mean \u2018int\u2019?\n    7 |                     cnt++;\n      |                     ^~~\n      |                     int\ntriples.c:7:21: note: each undeclared identifier is reported only once for each function it appears in\n"
+ ],
+ [
+  "write",
+  "edit",
+  "cnt++\ncount++"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_triples test_triples.c && ./test_triples"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

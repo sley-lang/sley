@@ -1,0 +1,32 @@
+[
+ [
+  "write",
+  "program",
+  "def tak(x: int, y: int, z: int) -> int:\n    if y < x:\n        return tak(tak(x - 1, y, z), tak(y - 1, z, x), tak(z - 1, x, w))\n    return z\n\n\ndef test_tak():\n    assert tak(6, 4, 2) == 3\n    assert tak(12, 8, 4) == 5\n    assert tak(1, 2, 3) == 3\n"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar tak.py"
+ ],
+ [
+  "read",
+  "output",
+  "tak.py:3:70: unknown name `w`\n        return tak(tak(x - 1, y, z), tak(y - 1, z, x), tak(z - 1, x, w))\n                                                                     ^\ndraft d1@r1: incomplete\n"
+ ],
+ [
+  "write",
+  "edit",
+  "tak(z - 1, x, w)\ntak(z - 1, x, y)"
+ ],
+ [
+  "write",
+  "command",
+  "sley-agent try --familiar tak.py"
+ ],
+ [
+  "read",
+  "output",
+  "c1: 3 passed (advisory) d2@r1\n"
+ ]
+]

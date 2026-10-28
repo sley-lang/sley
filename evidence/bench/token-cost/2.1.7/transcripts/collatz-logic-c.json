@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long collatz(long long limit) {\n    long long best = 0, best_n = 0;\n    for (long long n = 1; n < limit; n++) {\n        long long x = n, steps = 0;\n        while (x != 1) {\n            if (x % 2 == 0)\n                x = x / 2;\n            else\n                x = 3 * x + 1;\n            steps++;\n        }\n        if (steps > best) {\n            best = steps;\n            best_n = steps;\n        }\n    }\n    return best_n;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"collatz.c\"\n\nint main(void) {\n    assert(collatz(10) == 9);\n    assert(collatz(100) == 97);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_collatz test_collatz.c && ./test_collatz"
+ ],
+ [
+  "read",
+  "output",
+  "test_collatz: test_collatz.c:5: main: Assertion `collatz(10) == 9' failed.\nAborted\n"
+ ],
+ [
+  "write",
+  "edit",
+  "best_n = steps\nbest_n = n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_collatz test_collatz.c && ./test_collatz"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def triples(n: int) -> int:\n    count = 0\n    for c in range(1, n + 1):\n        for b in range(1, c):\n            for a in range(1, b):\n                if a * a + b * b == c * c:\n                    cnt += 1\n    return count\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom triples import triples\n\n\ndef test_triples():\n    assert triples(5) == 1\n    assert triples(20) == 6\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_triples.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________________________________ test_triples _________________________________\n\n    def test_triples():\n>       assert triples(5) == 1\n               ^^^^^^^^^^\n\ntest_triples.py:7: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nn = 5\n\n    def triples(n: int) -> int:\n        count = 0\n        for c in range(1, n + 1):\n            for b in range(1, c):\n                for a in range(1, b):\n                    if a * a + b * b == c * c:\n>                       cnt += 1\n                        ^^^\nE                       UnboundLocalError: cannot access local variable 'cnt' where it is not associated with a value\n\ntriples.py:7: UnboundLocalError\n=========================== short test summary info ============================\nFAILED test_triples.py::test_triples - UnboundLocalError: cannot access local...\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "cnt += 1\ncount += 1"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_triples.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "#include <stddef.h>\n\nlong long inversions(const long long *xs, long long n) {\n    long long count = 0;\n    for (long long i = 0; i < n; i++) {\n        long long x = xs[i];\n        for (long long j = i + 1; j < n; j++)\n            if (xs[j] < x)\n                count++;\n    }\n    return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"inversions.c\"\n\nint main(void) {\n    assert(inversions((long long[]){3, 1, 2}, 3) == 2);\n    assert(inversions((long long[]){2, 2, 1}, 3) == 2);\n    assert(inversions((long long[]){5, 4, 3, 2, 1}, 5) == 10);\n    assert(inversions(NULL, 0) == 0);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_inversions test_inversions.c && ./test_inversions"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

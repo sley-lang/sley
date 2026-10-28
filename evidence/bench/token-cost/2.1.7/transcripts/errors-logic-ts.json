@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function withdraw(balance: number, amount: number): number {\n  if (amount <= 0) {\n    throw new RangeError(\"amount must be positive\");\n  }\n  if (amount >= balance) {\n    throw new RangeError(\"insufficient funds\");\n  }\n  return balance - amount;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { withdraw } from \"./errors.js\";\n\ntest(\"withdraw\", () => {\n  assert.equal(withdraw(100, 30), 70);\n  assert.equal(withdraw(50, 50), 0);\n  assert.throws(() => withdraw(100, 0), RangeError);\n  assert.throws(() => withdraw(10, 30), RangeError);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 withdraw (1ms)\n  RangeError [Error]: insufficient funds\n      at withdraw (file:///work/dist/errors.js:6:15)\n      at TestContext.<anonymous> (file:///work/dist/errors.test.js:6:18)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8)\n"
+ ],
+ [
+  "write",
+  "edit",
+  "amount >= balance\namount > balance"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

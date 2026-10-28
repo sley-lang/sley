@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "package calc\n\nfunc loopsum(n int64) int64 {\n\tvar s int64\n\tfor i := int64(0); i < n; i++ {\n\t\ts = (s + j*i) % 1000000007\n\t}\n\treturn s\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "package calc\n\nimport \"testing\"\n\nfunc TestLoopsum(t *testing.T) {\n\tif got := loopsum(0); got != 0 {\n\t\tt.Errorf(\"loopsum(0) = %d, want 0\", got)\n\t}\n\tif got := loopsum(10); got != 285 {\n\t\tt.Errorf(\"loopsum(10) = %d, want 285\", got)\n\t}\n\tif got := loopsum(1000); got != 332833500 {\n\t\tt.Errorf(\"loopsum(1000) = %d, want 332833500\", got)\n\t}\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "FAIL\tcalc [build failed]\n# calc [calc.test]\n./calc.go:6:12: undefined: j\n"
+ ],
+ [
+  "write",
+  "edit",
+  "s + j*i\ns + i*i"
+ ],
+ [
+  "write",
+  "command",
+  "go test"
+ ],
+ [
+  "read",
+  "output",
+  "PASS\nok  \tcalc\t0.001s\n"
+ ]
+]

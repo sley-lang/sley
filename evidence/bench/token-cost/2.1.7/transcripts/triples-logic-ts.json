@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function triples(n: number): number {\n  let count = 0;\n  for (let c = 1; c < n; c++) {\n    for (let b = 1; b < c; b++) {\n      for (let a = 1; a < b; a++) {\n        if (a * a + b * b === c * c) {\n          count++;\n        }\n      }\n    }\n  }\n  return count;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { triples } from \"./triples.js\";\n\ntest(\"triples\", () => {\n  assert.equal(triples(5), 1);\n  assert.equal(triples(20), 6);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 triples (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  0 !== 1\n  \n      at TestContext.<anonymous> (file:///work/dist/triples.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 0,\n    expected: 1,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "c < n\nc <= n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

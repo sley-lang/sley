@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "export function digitsum(n: number): number {\n  let total = 0;\n  for (let i = 0; i < n; i++) {\n    let x = i;\n    while (x > 1) {\n      total += x % 10;\n      x = Math.floor(x / 10);\n    }\n  }\n  return total;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { digitsum } from \"./digitsum.js\";\n\ntest(\"digitsum\", () => {\n  assert.equal(digitsum(10), 45);\n  assert.equal(digitsum(100), 900);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  "X\n\nFailed tests:\n\n\u2716 digitsum (1ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  44 !== 45\n  \n      at TestContext.<anonymous> (file:///work/dist/digitsum.test.js:5:12)\n      at Test.runInAsyncScope (node:async_hooks:206:9)\n      at Test.run (node:internal/test_runner/test:796:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:526:18)\n      at node:internal/test_runner/harness:255:12\n      at node:internal/process/task_queues:140:7\n      at AsyncResource.runInAsyncScope (node:async_hooks:206:9)\n      at AsyncResource.runMicrotask (node:internal/process/task_queues:137:8) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 44,\n    expected: 45,\n    operator: 'strictEqual'\n  }\n"
+ ],
+ [
+  "write",
+  "edit",
+  "x > 1\nx > 0"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

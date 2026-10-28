@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "pub fn loopsum(n: i64) -> i64 {\n    let mut s = 0;\n    for i in 0..n {\n        s = (s + i * i) % 1_000_000_007;\n    }\n    s\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_loopsum() {\n        assert_eq!(loopsum(0), 0);\n        assert_eq!(loopsum(10), 285);\n        assert_eq!(loopsum(1000), 332833500);\n    }\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "cargo test -q"
+ ],
+ [
+  "read",
+  "output",
+  "\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+ ]
+]

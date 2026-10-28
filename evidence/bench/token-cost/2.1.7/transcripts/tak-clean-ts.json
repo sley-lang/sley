@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "export function tak(x: number, y: number, z: number): number {\n  if (y < x) {\n    return tak(tak(x - 1, y, z), tak(y - 1, z, x), tak(z - 1, x, y));\n  }\n  return z;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { tak } from \"./tak.js\";\n\ntest(\"tak\", () => {\n  assert.equal(tak(6, 4, 2), 3);\n  assert.equal(tak(12, 8, 4), 5);\n  assert.equal(tak(1, 2, 3), 3);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]

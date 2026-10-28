@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def loopsum(n: int) -> int:\n    s = 0\n    for i in range(n):\n        s = (s + i + i) % 1000000007\n    return s\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom loopsum import loopsum\n\n\ndef test_loopsum():\n    assert loopsum(0) == 0\n    assert loopsum(10) == 285\n    assert loopsum(1000) == 332833500\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________________________________ test_loopsum _________________________________\n\n    def test_loopsum():\n        assert loopsum(0) == 0\n>       assert loopsum(10) == 285\nE       assert 90 == 285\nE        +  where 90 = loopsum(10)\n\ntest_loopsum.py:8: AssertionError\n=========================== short test summary info ============================\nFAILED test_loopsum.py::test_loopsum - assert 90 == 285\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "i + i\ni * i"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_loopsum.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "long long digitsum(long long n) {\n    long long total = 0;\n    for (long long i = 0; i < n; i++) {\n        long long x = i;\n        while (x > 0) {\n            total += z % 10;\n            x /= 10;\n        }\n    }\n    return total;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "#include <assert.h>\n#include \"digitsum.c\"\n\nint main(void) {\n    assert(digitsum(10) == 45);\n    assert(digitsum(100) == 900);\n    return 0;\n}\n"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_digitsum test_digitsum.c && ./test_digitsum"
+ ],
+ [
+  "read",
+  "output",
+  "In file included from test_digitsum.c:2:\ndigitsum.c: In function \u2018digitsum\u2019:\ndigitsum.c:6:22: error: \u2018z\u2019 undeclared (first use in this function)\n    6 |             total += z % 10;\n      |                      ^\ndigitsum.c:6:22: note: each undeclared identifier is reported only once for each function it appears in\n"
+ ],
+ [
+  "write",
+  "edit",
+  "z % 10\nx % 10"
+ ],
+ [
+  "write",
+  "command",
+  "gcc -O2 -Wall -o test_digitsum test_digitsum.c && ./test_digitsum"
+ ],
+ [
+  "read",
+  "output",
+  ""
+ ]
+]

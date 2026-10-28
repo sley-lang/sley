@@ -1,0 +1,37 @@
+[
+ [
+  "write",
+  "program",
+  "def isqrt(n: int) -> int:\n    total = 0\n    for i in range(n):\n        lo = 0\n        hi = i + 1\n        while hi - lo > 1:\n            mid = (lo + hi) // 2\n            if mid * mid <= i:\n                lo = mid\n            else:\n                hi = mid\n        total += low\n    return total\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import pytest\n\nfrom isqrt import isqrt\n\n\ndef test_isqrt():\n    assert isqrt(10) == 16\n    assert isqrt(100) == 615\n"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_isqrt.py"
+ ],
+ [
+  "read",
+  "output",
+  "F                                                                        [100%]\n=================================== FAILURES ===================================\n__________________________________ test_isqrt __________________________________\n\n    def test_isqrt():\n>       assert isqrt(10) == 16\n               ^^^^^^^^^\n\ntest_isqrt.py:7: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nn = 10\n\n    def isqrt(n: int) -> int:\n        total = 0\n        for i in range(n):\n            lo = 0\n            hi = i + 1\n            while hi - lo > 1:\n                mid = (lo + hi) // 2\n                if mid * mid <= i:\n                    lo = mid\n                else:\n                    hi = mid\n>           total += low\n                     ^^^\nE           NameError: name 'low' is not defined\n\nisqrt.py:12: NameError\n=========================== short test summary info ============================\nFAILED test_isqrt.py::test_isqrt - NameError: name 'low' is not defined\n1 failed in 0.01s\n"
+ ],
+ [
+  "write",
+  "edit",
+  "total += low\ntotal += lo"
+ ],
+ [
+  "write",
+  "command",
+  "python -m pytest -q test_isqrt.py"
+ ],
+ [
+  "read",
+  "output",
+  ".                                                                        [100%]\n1 passed in 0.01s\n"
+ ]
+]

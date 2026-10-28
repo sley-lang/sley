@@ -1,0 +1,22 @@
+[
+ [
+  "write",
+  "program",
+  "export function digitsum(n: number): number {\n  let total = 0;\n  for (let i = 0; i < n; i++) {\n    let x = i;\n    while (x > 0) {\n      total += x % 10;\n      x = Math.floor(x / 10);\n    }\n  }\n  return total;\n}\n"
+ ],
+ [
+  "write",
+  "tests",
+  "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { digitsum } from \"./digitsum.js\";\n\ntest(\"digitsum\", () => {\n  assert.equal(digitsum(10), 45);\n  assert.equal(digitsum(100), 900);\n});\n"
+ ],
+ [
+  "write",
+  "command",
+  "tsc && node --test --test-reporter=dot"
+ ],
+ [
+  "read",
+  "output",
+  ".\n"
+ ]
+]
