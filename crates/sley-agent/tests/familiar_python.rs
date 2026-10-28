@@ -946,3 +946,150 @@ def test_manhattan():
     assert_eq!(status, 0, "{out}");
     assert_eq!(out, "c2: 5 passed (advisory) d2@r1\n");
 }
+
+/// The full `call` report (result, fuel, instructions), optionally on the
+/// reference runner.
+fn call_report(dir: &Path, handle: &str, name: &str, args: &[Value], reference: bool) -> Value {
+    let mut words: Vec<String> = vec!["--json".into(), "call".into()];
+    if reference {
+        words.push("--reference".into());
+    }
+    words.push(name.into());
+    words.extend(args.iter().map(Value::to_string));
+    words.extend(["--on".into(), handle.into()]);
+    let refs: Vec<&str> = words.iter().map(String::as_str).collect();
+    let (_, out) = run(dir, &refs);
+    let mut report: Value =
+        serde_json::from_str(out.trim()).unwrap_or_else(|_| panic!("not JSON: {out}"));
+    if let Some(map) = report.as_object_mut() {
+        map.remove("vm_micros");
+    }
+    report
+}
+
+/// Indexed loops (`fast_*`) and twins indexing by a converted copy (`slow_*`).
+const INDEX_PROGRAMS: &str = "\
+def fast_inv(xs: list[int]) -> int:
+    count = 0
+    n = len(xs)
+    for i in range(n):
+        x = xs[i]
+        for j in range(i + 1, n):
+            if xs[j] < x:
+                count += 1
+    return count
+
+def slow_inv(xs: list[int]) -> int:
+    count = 0
+    n = len(xs)
+    for i in range(n):
+        a = i * 1
+        x = xs[a]
+        for j in range(i + 1, n):
+            b = j * 1
+            if xs[b] < x:
+                count += 1
+    return count
+
+def fast_diff(xs: list[int], lo: int, k: int) -> int:
+    total = 0
+    for i in range(lo, len(xs)):
+        total += xs[i] - xs[i - k] + xs[i + 1 - 1]
+    return total
+
+def slow_diff(xs: list[int], lo: int, k: int) -> int:
+    total = 0
+    for i in range(lo, len(xs)):
+        a = i * 1
+        total += xs[a] - xs[a - k] + xs[a + 1 - 1]
+    return total
+
+def fast_from(xs: list[int], s: int) -> int:
+    total = 0
+    for i in range(2, len(xs)):
+        for j in range(i, len(xs)):
+            total += xs[j] * (j - i + s)
+        total += xs[i + s] if i + s < len(xs) else 0
+    return total
+
+def slow_from(xs: list[int], s: int) -> int:
+    total = 0
+    for i in range(2, len(xs)):
+        for j in range(i, len(xs)):
+            b = j * 1
+            total += xs[b] * (j - i + s)
+        a = i * 1 + s
+        total += xs[a] if i + s < len(xs) else 0
+    return total
+
+def fast_enum(xs: list[int]) -> int:
+    total = 0
+    for k, x in enumerate(xs):
+        total += k * x + (xs[k - 1] if k else 0)
+    return total
+
+def slow_enum(xs: list[int]) -> int:
+    total = 0
+    for k, x in enumerate(xs):
+        a = k * 1
+        total += a * x + (xs[a - 1] if a else 0)
+    return total
+";
+
+#[test]
+fn python_indexes_by_loop_counters_match_converted_indexes() {
+    // Each `fast` function indexes by a range counter (directly, at an
+    // offset, or through a nested range starting at it), which lowers to a
+    // u64 copy of the counter; each `slow` twin indexes by a plain variable
+    // equal to it (`i * 1`), which converts on every access. They agree on every
+    // input, failures included, and the fast tier agrees with the
+    // reference runner on fuel and instructions.
+    let temp = workspace("python-index-shadow");
+    let text = INDEX_PROGRAMS;
+    let h = accepted(&temp.path, text);
+    let lists = [
+        json!([]),
+        json!([7]),
+        json!([3, 1, 2]),
+        json!([5, -4, 3, 2, 2, -1]),
+        json!([9, 8, 7, 6, 5, 4, 3, 2, 1, 0]),
+    ];
+    let mut failures = 0;
+    for xs in &lists {
+        let mut cases: Vec<(&str, Vec<Value>)> =
+            vec![("inv", vec![xs.clone()]), ("enum", vec![xs.clone()])];
+        for lo in [-2, 0, 1, 3] {
+            for k in [0, 1, 2] {
+                cases.push(("diff", vec![xs.clone(), json!(lo), json!(k)]));
+            }
+        }
+        for s in [-3, 0, 1, 2] {
+            cases.push(("from", vec![xs.clone(), json!(s)]));
+        }
+        for (name, args) in cases {
+            let fast = call_report(&temp.path, &h, &format!("fast_{name}"), &args, false);
+            let slow = call(&temp.path, &h, &format!("slow_{name}"), &args);
+            assert_eq!(fast["result"], slow, "{name}{args:?}");
+            failures += usize::from(traps(&slow));
+            let reference = call_report(&temp.path, &h, &format!("fast_{name}"), &args, true);
+            assert_eq!(fast, reference, "{name}{args:?} against the reference");
+        }
+    }
+    assert!(failures > 0, "the cases include failing indexes");
+    let xs = [json!([5, -4, 3, 2, 2, -1, 7, 8])];
+    let count = |name: &str| {
+        call_report(&temp.path, &h, name, &xs, false)["instructions"]
+            .as_u64()
+            .unwrap()
+    };
+    for name in ["inv", "enum"] {
+        let (fast, slow) = (
+            count(&format!("fast_{name}")),
+            count(&format!("slow_{name}")),
+        );
+        assert!(
+            fast < slow,
+            "{name}: the copy saves the conversions ({fast} vs {slow})"
+        );
+    }
+}

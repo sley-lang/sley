@@ -337,7 +337,17 @@ struct LoopCx {
     exit_args: Env,
     header: String,
     before: Env,
-    step: Option<String>,
+    step: Vec<String>,
+}
+
+/// A loop counter and a second loop-carried copy of it in another integer
+/// type (`shadow == to(shadow_ty, counter)` wherever both are in scope), so a
+/// conversion of the counter in the body (a Python index `xs[i]`, an
+/// `enumerate` index) reads the copy instead of running the binary-digit loop.
+#[derive(Clone)]
+struct Shadow {
+    counter: String,
+    shadow: String,
 }
 
 struct Block {
@@ -366,6 +376,8 @@ struct Fn<'c, 'a> {
     depth: usize,
     /// The loops enclosing the statement being lowered, innermost last.
     loops: Vec<LoopCx>,
+    /// Counters with a converted copy, innermost last.
+    shadows: Vec<Shadow>,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -420,6 +432,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             origins: Vec::new(),
             pending_exit: None,
             loops: Vec::new(),
+            shadows: Vec::new(),
             depth: 0,
         })
     }
@@ -770,6 +783,12 @@ impl<'c, 'a> Fn<'c, 'a> {
                 self.handler(mode, at)?;
                 if source == target {
                     return Ok((v, target));
+                }
+                if let Some(copy) = self.shadow_value(&v, &target, env) {
+                    return Ok((copy, target));
+                }
+                if let Some(copy) = self.shadow_offset(x, &target, mode, env, at)? {
+                    return Ok((copy, target));
                 }
                 self.convert(v, &source, &target, mode, env, at)
             }
@@ -1172,6 +1191,103 @@ impl<'c, 'a> Fn<'c, 'a> {
         Ok((Value::String(result), ty))
     }
 
+    /// The converted copy of `v` when `v` is a shadowed loop counter (or the
+    /// copy itself, converted back): equal by the shadow invariant.
+    fn shadow_value(&self, v: &Value, target: &str, env: &Env) -> Option<Value> {
+        if v.is_null() {
+            return None;
+        }
+        for s in self.shadows.iter().rev() {
+            let (Some(c), Some(h)) = (env.get(&s.counter), env.get(&s.shadow)) else {
+                continue;
+            };
+            if &c.operand == v && h.ty == target {
+                return Some(h.operand.clone());
+            }
+            if &h.operand == v && c.ty == target {
+                return Some(c.operand.clone());
+            }
+        }
+        None
+    }
+
+    /// The u64 value of a name in scope that is a shadowed counter.
+    fn shadow_of_name(&self, name: &Value, env: &Env) -> Option<Value> {
+        let b = env.get(name.as_str()?)?;
+        self.shadow_value(&b.operand, "u64", env)
+    }
+
+    /// `to(u64, i + k)`, `to(u64, k + i)` and `to(u64, i - k)` for a shadowed
+    /// counter `i` and a literal `k >= 0`: the same arithmetic on the u64
+    /// copy. `x` was already evaluated in i64, so an i64 overflow has
+    /// already failed; `i - k < 0` fails as an unsigned underflow, the way
+    /// the conversion of a negative value fails under `mode`.
+    fn shadow_offset(
+        &mut self,
+        x: &Value,
+        target: &str,
+        mode: Option<&str>,
+        env: &mut Env,
+        at: &str,
+    ) -> R<Option<Value>> {
+        if target != "u64" {
+            return Ok(None);
+        }
+        let Some(items) = x.as_array().filter(|i| i.len() == 3) else {
+            return Ok(None);
+        };
+        let (base, k) = match items[0].as_str() {
+            Some("add") => match (literal_u64(&items[1]), literal_u64(&items[2])) {
+                (None, Some(k)) => (&items[1], k),
+                (Some(k), None) => (&items[2], k),
+                _ => return Ok(None),
+            },
+            Some("sub") => match literal_u64(&items[2]) {
+                Some(k) => (&items[1], k),
+                None => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        let Some(copy) = self.shadow_of_name(base, env) else {
+            return Ok(None);
+        };
+        let suffix = mode.map_or(String::new(), |m| format!("?{m}"));
+        let held = self.hold(env, copy, "u64");
+        let op = format!("{}{suffix}", items[0].as_str().unwrap_or_default());
+        let (v, _) = self.expr(
+            &json!([op, held, {"type": "u64", "value": k}]),
+            env,
+            at,
+            Some("u64"),
+        )?;
+        env.remove(&held);
+        Ok(Some(v))
+    }
+
+    /// The u64 start of a range whose i64 start is a literal `k >= 0`, a
+    /// shadowed counter `i`, or `i + k`; `None` otherwise (no copy).
+    fn shadow_start(&mut self, start: &Value, key: &str, env: &mut Env, at: &str) -> Option<Value> {
+        if let Some(k) = literal_u64(start) {
+            return Some(Self::lit(&json!(k), "u64"));
+        }
+        if let Some(copy) = self.shadow_value(&env.operand(key), "u64", env) {
+            return Some(copy);
+        }
+        let items = start.as_array().filter(|i| i.len() == 3 && i[0] == "add")?;
+        let (base, k) = match (literal_u64(&items[1]), literal_u64(&items[2])) {
+            (None, Some(k)) => (&items[1], k),
+            (Some(k), None) => (&items[2], k),
+            _ => return None,
+        };
+        let copy = self.shadow_of_name(base, env)?;
+        let trap = self.trap_block();
+        Some(self.emit_value(
+            &format!("add?{trap}"),
+            vec![copy, Self::lit(&json!(k), "u64")],
+            at,
+        ))
+    }
+
     /// Integer conversion by binary digits with checked arithmetic in the
     /// target type: exact for every in-range value; out of range fails like
     /// a checked operation under `mode`.
@@ -1445,7 +1561,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                     let (target, args) = if kind == "break" {
                         (cx.exit, state.scoped(&cx.exit_args).operands())
                     } else {
-                        if let Some(step) = &cx.step {
+                        for step in &cx.step {
                             self.advance(&mut state, step, &here);
                         }
                         (cx.header, state.scoped(&cx.before).operands())
@@ -1804,6 +1920,22 @@ impl<'c, 'a> Fn<'c, 'a> {
             }
             keys.push(self.hold(env, value, &ty));
         }
+        // An i64 counter the body converts to u64 (an index) gets a u64 copy
+        // when its start is known to be non-negative.
+        let mut steps = vec![keys[0].clone()];
+        let shadowed = if ty == "i64" && body.iter().any(|s| converts(s, var, "u64")) {
+            self.shadow_start(&items[2], &keys[0], env, at)
+        } else {
+            None
+        };
+        if let Some(start) = shadowed {
+            let copy = self.hold(env, start, "u64");
+            self.shadows.push(Shadow {
+                counter: keys[0].clone(),
+                shadow: copy.clone(),
+            });
+            steps.push(copy);
+        }
         let before = env.clone();
         let (local, header) = self.enter_loop(env, at);
         let more = self.emit_value(
@@ -1826,7 +1958,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             exit_args: local.clone(),
             header: header.clone(),
             before: before.clone(),
-            step: Some(keys[0].clone()),
+            step: steps.clone(),
         });
         self.depth += 1;
         let falls = self.stmts(body, &mut inner, &format!("{at}/4"), false)?;
@@ -1834,8 +1966,10 @@ impl<'c, 'a> Fn<'c, 'a> {
         self.loops.pop();
         self.pending_exit = pending;
         if falls {
-            // Since index < end <= MAX, this checked step cannot overflow.
-            self.advance(&mut inner, &keys[0], at);
+            // Since index < end <= MAX, these checked steps cannot overflow.
+            for step in &steps {
+                self.advance(&mut inner, step, at);
+            }
         }
         self.close_loop(
             &header,
@@ -1846,6 +1980,10 @@ impl<'c, 'a> Fn<'c, 'a> {
             at,
         );
         Self::release(env, &keys);
+        if steps.len() > 1 {
+            self.shadows.pop();
+            Self::release(env, &steps[1..]);
+        }
         Ok(())
     }
 
@@ -1899,6 +2037,19 @@ impl<'c, 'a> Fn<'c, 'a> {
                 mutable: false,
             },
         );
+        // An index the body converts to i64 (Python's enumerate) gets an
+        // i64 copy, counted alongside it.
+        let mut steps = vec![index.clone()];
+        if let Some(name) = visible_index
+            && body.iter().any(|s| converts(s, name, "i64"))
+        {
+            let copy = self.hold(env, Self::lit(&json!(0), "i64"), "i64");
+            self.shadows.push(Shadow {
+                counter: index.clone(),
+                shadow: copy.clone(),
+            });
+            steps.push(copy);
+        }
         let before = env.clone();
         let (local, header) = self.enter_loop(env, at);
         let current = local.operand(&vector);
@@ -1933,7 +2084,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             exit_args: local.clone(),
             header: header.clone(),
             before: before.clone(),
-            step: Some(index.clone()),
+            step: steps.clone(),
         });
         self.depth += 1;
         let falls = self.stmts(body, &mut inner, &format!("{at}/{}", 3 + offset), false)?;
@@ -1941,7 +2092,9 @@ impl<'c, 'a> Fn<'c, 'a> {
         self.loops.pop();
         self.pending_exit = pending;
         if falls {
-            self.advance(&mut inner, &index, at);
+            for step in &steps {
+                self.advance(&mut inner, step, at);
+            }
         }
         self.close_loop(
             &header,
@@ -1953,6 +2106,10 @@ impl<'c, 'a> Fn<'c, 'a> {
         );
         env.remove(&index);
         env.remove(&vector);
+        if steps.len() > 1 {
+            self.shadows.pop();
+            Self::release(env, &steps[1..]);
+        }
         Ok(())
     }
 
@@ -1984,7 +2141,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             exit_args: local.clone(),
             header: header.clone(),
             before: before.clone(),
-            step: None,
+            step: Vec::new(),
         });
         self.depth += 1;
         let falls = self.stmts(body, &mut inner, &part(2), internal)?;
@@ -2027,4 +2184,71 @@ impl<'c, 'a> Fn<'c, 'a> {
         }
         Ok(std::mem::take(&mut self.blocks))
     }
+}
+
+/// A non-negative integer literal (`3` or `{"type": T, "value": 3}`).
+fn literal_u64(v: &Value) -> Option<u64> {
+    let n = v.get("value").filter(|_| v.is_object()).unwrap_or(v);
+    n.as_i64()
+        .filter(|k| *k >= 0)
+        .and_then(|k| u64::try_from(k).ok())
+}
+
+/// `i`, `i + k`, `k + i` or `i - k` for the name `var` and a literal `k >= 0`.
+fn counter_offset(v: &Value, var: &str, subtract: bool) -> bool {
+    if v.as_str() == Some(var) {
+        return true;
+    }
+    let Some(items) = v.as_array().filter(|i| i.len() == 3) else {
+        return false;
+    };
+    match items[0].as_str() {
+        Some("add") => {
+            (items[1].as_str() == Some(var) && literal_u64(&items[2]).is_some())
+                || (items[2].as_str() == Some(var) && literal_u64(&items[1]).is_some())
+        }
+        Some("sub") => {
+            subtract && items[1].as_str() == Some(var) && literal_u64(&items[2]).is_some()
+        }
+        _ => false,
+    }
+}
+
+/// Whether `e` converts the loop variable `var` to `target` (directly, at an
+/// offset, or as the start of a nested range or fold whose own variable it
+/// converts): only then does the loop carry a converted copy.
+fn converts(e: &Value, var: &str, target: &str) -> bool {
+    let Some(items) = e.as_array() else {
+        return false;
+    };
+    let head = items.first().and_then(Value::as_str);
+    if head == Some("to")
+        && items.len() == 3
+        && items[1].as_str().map(normal).as_deref() == Some(target)
+        && counter_offset(&items[2], var, true)
+    {
+        return true;
+    }
+    if target == "u64" {
+        // ["range", w, start, end, body]
+        if head == Some("range")
+            && items.len() == 5
+            && counter_offset(&items[2], var, false)
+            && let (Some(w), Some(body)) = (items[1].as_str(), items[4].as_array())
+            && body.iter().any(|s| converts(s, w, target))
+        {
+            return true;
+        }
+        // ["fold", kind, x, ["range", start, end], value, condition?]
+        if head == Some("fold")
+            && let (Some(x), Some(range)) = (items.get(2).and_then(Value::as_str), items.get(3))
+            && let Some(r) = range.as_array()
+            && r.first().and_then(Value::as_str) == Some("range")
+            && r.get(1).is_some_and(|s| counter_offset(s, var, false))
+            && items[4..].iter().any(|s| converts(s, x, target))
+        {
+            return true;
+        }
+    }
+    items.iter().any(|i| converts(i, var, target))
 }
