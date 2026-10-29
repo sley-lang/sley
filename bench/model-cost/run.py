@@ -29,8 +29,15 @@ SYSTEM = ("You write one source file for an automated benchmark. Reply with exac
           "function; the harness runs its own tests.")
 
 
+# The harness grades with its own tests and tells models not to write any, so
+# the Sley card is the dialect card without the inline-test syntax.
+CARD_TOPIC = "python-task"
+
+
 def card():
-    out = subprocess.run([langs.sley_agent(), "help", "python"], capture_output=True, text=True)
+    out = subprocess.run([langs.sley_agent(), "help", CARD_TOPIC], capture_output=True, text=True)
+    if out.returncode != 0 or not out.stdout.strip():
+        raise RuntimeError(f"`sley-agent help {CARD_TOPIC}` failed; this sley-agent predates the task card: {out.stderr.strip()}")
     return out.stdout.strip()
 
 
@@ -372,6 +379,7 @@ def main():
                 "tasks_sha256": sha256(os.path.join(HERE, "tasks.py")),
                 "mode": "paid" if a.paid else "mock", "tier": a.tier, "reps": reps, "models": a.models,
                 "langs": a.langs, "tasks": names, "guard_usd": a.guard, "started_utc": accounting.utc_now().isoformat(),
+                "sley_card_topic": CARD_TOPIC,
                 "sley_card_sha256": hashlib.sha256(run.card.encode()).hexdigest() if run.card else None,
                 "labels": {m: prices["models"][m]["label"] for m in a.models if prices["models"][m].get("label")}}
     json.dump(manifest, open(os.path.join(a.out, "manifest.json"), "w"), indent=2)

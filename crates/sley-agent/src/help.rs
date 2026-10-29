@@ -42,10 +42,25 @@ pub const FAMILIAR: &str = include_str!("../data/help-familiar.md");
 pub const CARD: &str = include_str!("../data/help-card.md");
 /// The Python dialect of the familiar frontend, for an author's system prompt.
 #[cfg(feature = "familiar")]
-pub const PYTHON: &str = include_str!("../data/help-python.md");
+pub const PYTHON: &str = concat!(
+    include_str!("../data/help-python-intro.md"),
+    include_str!("../data/help-python-tests.md"),
+    include_str!("../data/help-python-body.md"),
+);
+/// The Python dialect card without the inline-test syntax, for a task whose
+/// tests come from elsewhere (a harness, a grader): `help python` less the
+/// `def test_*` and assertion lines.
+#[cfg(feature = "familiar")]
+pub const PYTHON_TASK: &str = concat!(
+    include_str!("../data/help-python-intro.md"),
+    include_str!("../data/help-python-body.md"),
+);
 /// What `help python` says when the frontend is not built in.
 #[cfg(not(feature = "familiar"))]
 pub const PYTHON: &str = FAMILIAR;
+/// What `help python-task` says when the frontend is not built in.
+#[cfg(not(feature = "familiar"))]
+pub const PYTHON_TASK: &str = FAMILIAR;
 /// What `help card` says when the frontend is not built in.
 #[cfg(not(feature = "familiar"))]
 pub const CARD: &str = FAMILIAR;
@@ -70,6 +85,7 @@ pub const TOPICS: &[&str] = &[
     "familiar",
     "card",
     "python",
+    "python-task",
     "residual",
     "residual-quick",
     "residual-reference",
@@ -92,6 +108,7 @@ pub fn topic(name: &str) -> Option<String> {
         "familiar" => FAMILIAR.to_owned(),
         "card" => CARD.to_owned(),
         "python" => PYTHON.to_owned(),
+        "python-task" => PYTHON_TASK.to_owned(),
         "residual" | "residual-quick" => RESIDUAL_QUICK.to_owned(),
         "residual-reference" => RESIDUAL.to_owned(),
         "opcodes" => opcodes(),

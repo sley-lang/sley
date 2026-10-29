@@ -1294,3 +1294,48 @@ fn python_refusals_name_the_fix() {
         16,
     );
 }
+
+/// `help python-task` is `help python` without the inline-test lines, and its
+/// "locals are inferred" line holds: unannotated locals of every kind compile.
+#[test]
+fn python_task_card_drops_test_syntax_and_locals_need_no_types() {
+    let full = sley_agent::help::topic("python").unwrap();
+    let task = sley_agent::help::topic("python-task").unwrap();
+    assert!(task.len() < full.len());
+    for absent in ["def test_", "pytest", "TestCases", "assert f(", "predicate"] {
+        assert!(full.contains(absent), "{absent}");
+        assert!(!task.contains(absent), "{absent}");
+    }
+    // Every line of the task card is a line of the full card.
+    for line in task.lines() {
+        assert!(full.lines().any(|l| l == line), "{line}");
+    }
+    assert!(task.contains("locals are inferred (total = 0)"));
+    let temp = workspace("python-task-card");
+    let h = accepted(
+        &temp.path,
+        "\
+def run_sum(xs: list[int], lo: int) -> int:
+    total = 0
+    seen = False
+    best = xs[0] if xs else lo
+    for x in xs:
+        v = x * 2 if x % 2 else x
+        total += v
+        if v > best:
+            best = v
+            seen = True
+    return total + best if seen else total
+",
+    );
+    check(
+        &temp.path,
+        &h,
+        "run_sum",
+        &[
+            (json!([[], 5]), json!(0)),
+            (json!([[1, 2, 3], 0]), json!(16)),
+            (json!([[4], 0]), json!(4)),
+        ],
+    );
+}
