@@ -1,0 +1,14 @@
+{"kind": "reserve", "id": 0, "amount": 0.00125, "label": "claude-code-haiku-5-5/calibration", "utc": "2026-10-29T18:58:08.227765+00:00"}
+{"kind": "settle", "id": 0, "cost": 0.0002676, "label": "claude-code-haiku-5-5/calibration", "spent": 0.0002676, "utc": "2026-10-29T18:58:13.595557+00:00"}
+{"kind": "reserve", "id": 1, "amount": 0.001023375, "label": "claude-code-haiku-5-5/fib/python/1/a1", "utc": "2026-10-29T18:58:13.598263+00:00"}
+{"kind": "reserve", "id": 2, "amount": 0.001096, "label": "claude-code-haiku-5-5/fib/sley/1/a1", "utc": "2026-10-29T18:58:13.599029+00:00"}
+{"kind": "settle", "id": 1, "cost": 0.0003608, "label": "claude-code-haiku-5-5/fib/python/1/a1", "spent": 0.0006284, "utc": "2026-10-29T18:58:17.854877+00:00"}
+{"kind": "reserve", "id": 3, "amount": 0.001023625, "label": "claude-code-haiku-5-5/fib/c/1/a1", "utc": "2026-10-29T18:58:18.224888+00:00"}
+{"kind": "settle", "id": 2, "cost": 0.0004894000000000001, "label": "claude-code-haiku-5-5/fib/sley/1/a1", "spent": 0.0011178, "utc": "2026-10-29T18:58:18.702857+00:00"}
+{"kind": "reserve", "id": 4, "amount": 0.0010345, "label": "claude-code-haiku-5-5/parse_int/python/1/a1", "utc": "2026-10-29T18:58:19.596695+00:00"}
+{"kind": "settle", "id": 3, "cost": 0.0003549, "label": "claude-code-haiku-5-5/fib/c/1/a1", "spent": 0.0014727, "utc": "2026-10-29T18:58:22.699844+00:00"}
+{"kind": "reserve", "id": 5, "amount": 0.001107125, "label": "claude-code-haiku-5-5/parse_int/sley/1/a1", "utc": "2026-10-29T18:58:22.837082+00:00"}
+{"kind": "settle", "id": 4, "cost": 0.00041160000000000003, "label": "claude-code-haiku-5-5/parse_int/python/1/a1", "spent": 0.0018843, "utc": "2026-10-29T18:58:24.819948+00:00"}
+{"kind": "reserve", "id": 6, "amount": 0.001041125, "label": "claude-code-haiku-5-5/parse_int/c/1/a1", "utc": "2026-10-29T18:58:25.163893+00:00"}
+{"kind": "settle", "id": 5, "cost": 0.0005248799999999999, "label": "claude-code-haiku-5-5/parse_int/sley/1/a1", "spent": 0.00240918, "utc": "2026-10-29T18:58:28.891524+00:00"}
+{"kind": "settle", "id": 6, "cost": 0.0008778, "label": "claude-code-haiku-5-5/parse_int/c/1/a1", "spent": 0.00328698, "utc": "2026-10-29T18:58:34.990885+00:00"}
