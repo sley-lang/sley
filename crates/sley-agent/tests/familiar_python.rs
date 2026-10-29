@@ -1339,3 +1339,97 @@ def run_sum(xs: list[int], lo: int) -> int:
         ],
     );
 }
+
+/// The card's "instead of" lines (Counter, bisect, a sieve, clamping) compile
+/// as written and give Python's answers. The shapes are the ones Claude Haiku
+/// 5.5 wrote in passing Sley programs in the 2.1.8 model cost run.
+#[test]
+fn python_card_workarounds_compile_as_written() {
+    let card = sley_agent::help::topic("python-task").unwrap();
+    for needle in [
+        "c = sum(1 for y in xs if y == x)",
+        "lo, hi = 0, len(xs)\nand while lo < hi",
+        "while d * d <= k for each k",
+        "min(max(v, lo), hi)",
+    ] {
+        assert!(card.contains(needle), "{needle}");
+    }
+    let temp = workspace("python-card-workarounds");
+    let h = accepted(
+        &temp.path,
+        "\
+def mode_value(xs: list[int]) -> int:
+    best = xs[0]
+    best_count = 0
+    for x in xs:
+        c = sum(1 for y in xs if y == x)
+        if c > best_count or (c == best_count and x < best):
+            best = x
+            best_count = c
+    return best
+
+def count_leq(xs: list[int], x: int) -> int:
+    lo, hi = 0, len(xs)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if xs[mid] <= x:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+def primes(n: int) -> int:
+    count = 0
+    for k in range(2, n):
+        d = 2
+        while d * d <= k and k % d != 0:
+            d += 1
+        if d * d > k:
+            count += 1
+    return count
+
+def clamp_sum(xs: list[int], lo: int, hi: int) -> int:
+    return sum(min(max(v, lo), hi) for v in xs)
+",
+    );
+    check(
+        &temp.path,
+        &h,
+        "mode_value",
+        &[
+            (json!([[3, 1, 3, 1, 2]]), json!(1)),
+            (json!([[5]]), json!(5)),
+            (json!([[2, 7, 7]]), json!(7)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "count_leq",
+        &[
+            (json!([[], 4]), json!(0)),
+            (json!([[1, 2, 2, 5], 2]), json!(3)),
+            (json!([[1, 2, 2, 5], 9]), json!(4)),
+            (json!([[1, 2, 2, 5], 0]), json!(0)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "primes",
+        &[
+            (json!([0]), json!(0)),
+            (json!([10]), json!(4)),
+            (json!([100]), json!(25)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "clamp_sum",
+        &[
+            (json!([[1, 9, -4], 0, 5]), json!(6)),
+            (json!([[], 0, 1]), json!(0)),
+        ],
+    );
+}
