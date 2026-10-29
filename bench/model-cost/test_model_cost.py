@@ -407,6 +407,13 @@ class DryRun(unittest.TestCase):
             self.assertIn("Claude Code cloud session: tokens as reported; $ estimated at API list price, not billed per token", md)
             self.assertIn("Claude Code overhead", md)
             self.assertIn("calibration", s)
+            # 1-hour cache writes count toward the cache writes the overhead line reports
+            cal = os.path.join(d, "calibration.json")
+            c = json.load(open(cal))
+            c["billed_tokens"].update(cache_write=0, cache_write_1h=1327)
+            json.dump(c, open(cal, "w"))
+            summarize.summarize(d)
+            self.assertIn("1327 cache writes", open(os.path.join(d, "summary.md")).read())
         finally:
             shutil.rmtree(d)
 
