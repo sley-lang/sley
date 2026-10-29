@@ -49,6 +49,7 @@ def summarize(run_dir):
     md = [f"# Genuine model cost: {manifest['tier']} tier, {manifest['mode']} run", "",
           ("**Dry run: the mock provider answered every call. Dollar figures price synthetic usage at real list prices; "
            "nothing was billed and they say nothing about any model.**" if manifest["mode"] == "mock" else
+           "Usage as each route reports it, priced at the list prices in prices.json." if manifest.get("labels") else
            "Billed usage at the list prices in prices.json."), "",
           *[f"**{m}: {label}.**" for m, label in sorted((manifest.get("labels") or {}).items())],
           *([""] if manifest.get("labels") else []),
