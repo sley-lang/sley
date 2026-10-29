@@ -1,5 +1,5 @@
 pub fn collatz(limit: i64) -> i64 {
-    let (mut best, mut best_n) = (0, 0);
+    let (mut best, mut best_n) = (-1, 0);
     for n in 1..limit {
         let (mut x, mut steps) = (n, 0);
         while x != 1 {

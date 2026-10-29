@@ -96,7 +96,7 @@ def reference(name, args):
             a, b = b, a + b
         return a
     if name == "collatz":
-        best, best_n = 0, 0
+        best, best_n = -1, 0
         for n in range(1, args[0]):
             x, steps = n, 0
             while x != 1:

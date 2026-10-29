@@ -98,6 +98,10 @@
     {
       "date": "2026-10-29",
       "change": "Optional model claude-code-haiku-5-5: Claude Haiku 5.5 through the Claude Code CLI, paid from Claude Code cloud-session credit at the owner's request. Its dollars are estimates at API list price, not billed per token, and its rows are labeled as such; it is not pooled with API-billed rows."
+    },
+    {
+      "date": "2026-10-29",
+      "change": "Oracle fix for collatz: with limit = 2 the only starting value is n = 1 (0 steps), so the statement's answer is 1, but the oracle and the six reference programs started the running best at 0 steps and returned 0. They now start it at -1. Only limit = 2 changes (hidden case 3 of 128, run in every trial). The first full-tier Claude Code run (2.1.8/claude-code-full) was scored with the old oracle, so its collatz rows failed in every language; they are re-scored with the fixed oracle and both scores are published."
     }
   ]
 }
