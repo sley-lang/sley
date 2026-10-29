@@ -1,0 +1,67 @@
+{
+  "currency": "USD",
+  "unit": "per 1,000,000 tokens",
+  "checked": "2026-10-28",
+  "note": "Prices are read from the providers' official pages on the date shown. Spend is computed from the usage each API bills (response usage objects), never from local token counts. Re-check before a paid run; a changed price is recorded, not silently applied.",
+  "models": {
+    "gpt-6-luna": {
+      "provider": "openai",
+      "input": 0.1,
+      "cached_input": 0.01,
+      "cache_write": 0.125,
+      "output": 0.5,
+      "batch_discount": 0.5,
+      "batch": true,
+      "reasoning_billed_as_output": true,
+      "sources": [
+        {
+          "url": "https://platform.openai.com/docs/models/gpt-6-luna",
+          "checked": "2026-10-28"
+        },
+        {
+          "url": "https://platform.openai.com/docs/pricing",
+          "checked": "2026-10-28"
+        }
+      ]
+    },
+    "grok-build-0.1": {
+      "provider": "xai",
+      "input": 1.0,
+      "cached_input": 0.2,
+      "output": 2.0,
+      "long_context_threshold": 200000,
+      "batch": false,
+      "reasoning_billed_as_output": true,
+      "reasoning_billed_note": "Assumed true (worst case) until the 1-call pilot confirms how usage reports reasoning tokens.",
+      "sources": [
+        {
+          "url": "https://docs.x.ai/docs/models/grok-build-0.1",
+          "checked": "2026-10-28"
+        }
+      ]
+    },
+    "deepseek-flash": {
+      "provider": "deepseek",
+      "optional": true,
+      "api_model": null,
+      "input": 0.3,
+      "cached_input": 0.006,
+      "output": 1.2,
+      "off_peak": {
+        "input": 0.15,
+        "cached_input": 0.003,
+        "output": 0.6,
+        "peak_hours_utc": "01:00-04:00 and 06:00-10:00, Monday to Friday"
+      },
+      "batch": false,
+      "reasoning_billed_as_output": true,
+      "sources": [
+        {
+          "url": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "checked": "2026-10-28"
+        }
+      ],
+      "api_model_note": "V4.1-Flash-1017 per the pricing page; set the API model id from the page before an optional run."
+    }
+  }
+}

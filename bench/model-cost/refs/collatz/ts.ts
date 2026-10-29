@@ -1,0 +1,17 @@
+export function collatz(limit: number): number {
+  let best = 0;
+  let bestN = 0;
+  for (let n = 1; n < limit; n++) {
+    let x = n;
+    let steps = 0;
+    while (x !== 1) {
+      x = x % 2 === 0 ? x / 2 : 3 * x + 1;
+      steps++;
+    }
+    if (steps > best) {
+      best = steps;
+      bestN = n;
+    }
+  }
+  return bestN;
+}
