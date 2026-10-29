@@ -1,5 +1,5 @@
 def collatz(limit: int) -> int:
-    best = 0
+    best = -1
     best_n = 0
     for n in range(1, limit):
         x = n

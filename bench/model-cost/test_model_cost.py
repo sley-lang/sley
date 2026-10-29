@@ -25,6 +25,11 @@ class TaskSet(unittest.TestCase):
     def test_visible_cases_agree_with_the_oracle(self):
         tasks.check_visible()
 
+    def test_collatz_limit_two_is_one(self):
+        # 1 is the only start below 2; it takes 0 steps and is still the answer
+        self.assertEqual(tasks.reference("collatz", [2]), 1)
+        self.assertEqual(tasks.reference("collatz", [1]), 0)
+
     def test_hidden_cases_are_seeded_and_fit_every_language(self):
         for t in tasks.TASKS:
             a, b = tasks.cases(t["name"]), tasks.cases(t["name"])
