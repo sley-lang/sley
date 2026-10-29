@@ -1,0 +1,660 @@
+{"kind": "reserve", "id": 0, "amount": 0.00125, "label": "claude-code-haiku-5-5/calibration", "utc": "2026-10-29T21:03:37.218929+00:00"}
+{"kind": "settle", "id": 0, "cost": 0.0002678, "label": "claude-code-haiku-5-5/calibration", "spent": 0.0002678, "utc": "2026-10-29T21:03:41.600105+00:00"}
+{"kind": "reserve", "id": 1, "amount": 0.001023375, "label": "claude-code-haiku-5-5/fib/python/1/a1", "utc": "2026-10-29T21:03:41.604445+00:00"}
+{"kind": "reserve", "id": 2, "amount": 0.0010805, "label": "claude-code-haiku-5-5/fib/sley/1/a1", "utc": "2026-10-29T21:03:41.610112+00:00"}
+{"kind": "settle", "id": 1, "cost": 0.0003485, "label": "claude-code-haiku-5-5/fib/python/1/a1", "spent": 0.0006163, "utc": "2026-10-29T21:03:45.605541+00:00"}
+{"kind": "reserve", "id": 3, "amount": 0.001023625, "label": "claude-code-haiku-5-5/fib/c/1/a1", "utc": "2026-10-29T21:03:45.926148+00:00"}
+{"kind": "settle", "id": 2, "cost": 0.0004715000000000001, "label": "claude-code-haiku-5-5/fib/sley/1/a1", "spent": 0.0010878, "utc": "2026-10-29T21:03:46.107108+00:00"}
+{"kind": "reserve", "id": 4, "amount": 0.001023875, "label": "claude-code-haiku-5-5/fib/rust/1/a1", "utc": "2026-10-29T21:03:47.242065+00:00"}
+{"kind": "settle", "id": 3, "cost": 0.00035600000000000003, "label": "claude-code-haiku-5-5/fib/c/1/a1", "spent": 0.0014438, "utc": "2026-10-29T21:03:51.775040+00:00"}
+{"kind": "reserve", "id": 5, "amount": 0.001024, "label": "claude-code-haiku-5-5/fib/go/1/a1", "utc": "2026-10-29T21:03:51.967700+00:00"}
+{"kind": "settle", "id": 4, "cost": 0.00035200000000000005, "label": "claude-code-haiku-5-5/fib/rust/1/a1", "spent": 0.0017958000000000002, "utc": "2026-10-29T21:03:52.225300+00:00"}
+{"kind": "reserve", "id": 6, "amount": 0.001025125, "label": "claude-code-haiku-5-5/fib/ts/1/a1", "utc": "2026-10-29T21:03:52.857742+00:00"}
+{"kind": "settle", "id": 5, "cost": 0.0003821, "label": "claude-code-haiku-5-5/fib/go/1/a1", "spent": 0.0021779, "utc": "2026-10-29T21:03:57.505414+00:00"}
+{"kind": "settle", "id": 6, "cost": 0.0003465, "label": "claude-code-haiku-5-5/fib/ts/1/a1", "spent": 0.0025244, "utc": "2026-10-29T21:03:57.755216+00:00"}
+{"kind": "reserve", "id": 7, "amount": 0.001029125, "label": "claude-code-haiku-5-5/collatz/python/1/a1", "utc": "2026-10-29T21:03:58.380955+00:00"}
+{"kind": "reserve", "id": 8, "amount": 0.001086375, "label": "claude-code-haiku-5-5/collatz/sley/1/a1", "utc": "2026-10-29T21:03:59.884782+00:00"}
+{"kind": "settle", "id": 7, "cost": 0.00041910000000000005, "label": "claude-code-haiku-5-5/collatz/python/1/a1", "spent": 0.0029435, "utc": "2026-10-29T21:04:04.770735+00:00"}
+{"kind": "reserve", "id": 9, "amount": 0.0010295, "label": "claude-code-haiku-5-5/collatz/c/1/a1", "utc": "2026-10-29T21:04:05.219575+00:00"}
+{"kind": "settle", "id": 8, "cost": 0.00056887, "label": "claude-code-haiku-5-5/collatz/sley/1/a1", "spent": 0.00351237, "utc": "2026-10-29T21:04:06.017446+00:00"}
+{"kind": "reserve", "id": 10, "amount": 0.00102975, "label": "claude-code-haiku-5-5/collatz/rust/1/a1", "utc": "2026-10-29T21:04:08.096212+00:00"}
+{"kind": "settle", "id": 9, "cost": 0.0005141, "label": "claude-code-haiku-5-5/collatz/c/1/a1", "spent": 0.00402647, "utc": "2026-10-29T21:04:11.677471+00:00"}
+{"kind": "reserve", "id": 11, "amount": 0.00102975, "label": "claude-code-haiku-5-5/collatz/go/1/a1", "utc": "2026-10-29T21:04:11.936314+00:00"}
+{"kind": "settle", "id": 10, "cost": 0.000668, "label": "claude-code-haiku-5-5/collatz/rust/1/a1", "spent": 0.00469447, "utc": "2026-10-29T21:04:15.894121+00:00"}
+{"kind": "reserve", "id": 12, "amount": 0.001031, "label": "claude-code-haiku-5-5/collatz/ts/1/a1", "utc": "2026-10-29T21:04:17.243829+00:00"}
+{"kind": "settle", "id": 11, "cost": 0.0009679, "label": "claude-code-haiku-5-5/collatz/go/1/a1", "spent": 0.00566237, "utc": "2026-10-29T21:04:23.500779+00:00"}
+{"kind": "reserve", "id": 13, "amount": 0.001022625, "label": "claude-code-haiku-5-5/primes/python/1/a1", "utc": "2026-10-29T21:04:24.179682+00:00"}
+{"kind": "settle", "id": 12, "cost": 0.0010139, "label": "claude-code-haiku-5-5/collatz/ts/1/a1", "spent": 0.00667627, "utc": "2026-10-29T21:04:29.710308+00:00"}
+{"kind": "settle", "id": 13, "cost": 0.00037210000000000005, "label": "claude-code-haiku-5-5/primes/python/1/a1", "spent": 0.00704837, "utc": "2026-10-29T21:04:30.149674+00:00"}
+{"kind": "reserve", "id": 14, "amount": 0.00107975, "label": "claude-code-haiku-5-5/primes/sley/1/a1", "utc": "2026-10-29T21:04:30.638006+00:00"}
+{"kind": "reserve", "id": 15, "amount": 0.001022875, "label": "claude-code-haiku-5-5/primes/c/1/a1", "utc": "2026-10-29T21:04:31.685458+00:00"}
+{"kind": "settle", "id": 14, "cost": 0.0004978700000000001, "label": "claude-code-haiku-5-5/primes/sley/1/a1", "spent": 0.00754624, "utc": "2026-10-29T21:04:37.035332+00:00"}
+{"kind": "reserve", "id": 16, "amount": 0.0011126250000000001, "label": "claude-code-haiku-5-5/primes/sley/1/a2", "utc": "2026-10-29T21:04:37.064502+00:00"}
+{"kind": "settle", "id": 15, "cost": 0.0004261, "label": "claude-code-haiku-5-5/primes/c/1/a1", "spent": 0.00797234, "utc": "2026-10-29T21:04:37.758495+00:00"}
+{"kind": "reserve", "id": 17, "amount": 0.001023125, "label": "claude-code-haiku-5-5/primes/rust/1/a1", "utc": "2026-10-29T21:04:38.055448+00:00"}
+{"kind": "settle", "id": 16, "cost": 0.00055327, "label": "claude-code-haiku-5-5/primes/sley/1/a2", "spent": 0.00852561, "utc": "2026-10-29T21:04:43.214885+00:00"}
+{"kind": "settle", "id": 17, "cost": 0.0004037, "label": "claude-code-haiku-5-5/primes/rust/1/a1", "spent": 0.00892931, "utc": "2026-10-29T21:04:43.633287+00:00"}
+{"kind": "reserve", "id": 18, "amount": 0.00102325, "label": "claude-code-haiku-5-5/primes/go/1/a1", "utc": "2026-10-29T21:04:44.746810+00:00"}
+{"kind": "reserve", "id": 19, "amount": 0.0010243750000000001, "label": "claude-code-haiku-5-5/primes/ts/1/a1", "utc": "2026-10-29T21:04:45.181726+00:00"}
+{"kind": "settle", "id": 19, "cost": 0.00040600000000000006, "label": "claude-code-haiku-5-5/primes/ts/1/a1", "spent": 0.00933531, "utc": "2026-10-29T21:04:50.323981+00:00"}
+{"kind": "settle", "id": 18, "cost": 0.0004225, "label": "claude-code-haiku-5-5/primes/go/1/a1", "spent": 0.009757809999999999, "utc": "2026-10-29T21:04:50.997920+00:00"}
+{"kind": "reserve", "id": 20, "amount": 0.001024, "label": "claude-code-haiku-5-5/digitsum/python/1/a1", "utc": "2026-10-29T21:04:51.924431+00:00"}
+{"kind": "reserve", "id": 21, "amount": 0.00108125, "label": "claude-code-haiku-5-5/digitsum/sley/1/a1", "utc": "2026-10-29T21:04:52.565438+00:00"}
+{"kind": "settle", "id": 20, "cost": 0.0003324, "label": "claude-code-haiku-5-5/digitsum/python/1/a1", "spent": 0.010090209999999999, "utc": "2026-10-29T21:04:56.396381+00:00"}
+{"kind": "reserve", "id": 22, "amount": 0.0010243750000000001, "label": "claude-code-haiku-5-5/digitsum/c/1/a1", "utc": "2026-10-29T21:04:56.939761+00:00"}
+{"kind": "settle", "id": 21, "cost": 0.00043247, "label": "claude-code-haiku-5-5/digitsum/sley/1/a1", "spent": 0.01052268, "utc": "2026-10-29T21:04:58.206677+00:00"}
+{"kind": "reserve", "id": 23, "amount": 0.001024625, "label": "claude-code-haiku-5-5/digitsum/rust/1/a1", "utc": "2026-10-29T21:04:59.540581+00:00"}
+{"kind": "settle", "id": 22, "cost": 0.00038620000000000006, "label": "claude-code-haiku-5-5/digitsum/c/1/a1", "spent": 0.01090888, "utc": "2026-10-29T21:05:04.447772+00:00"}
+{"kind": "settle", "id": 23, "cost": 0.00037620000000000004, "label": "claude-code-haiku-5-5/digitsum/rust/1/a1", "spent": 0.01128508, "utc": "2026-10-29T21:05:04.744381+00:00"}
+{"kind": "reserve", "id": 24, "amount": 0.001024625, "label": "claude-code-haiku-5-5/digitsum/go/1/a1", "utc": "2026-10-29T21:05:05.032866+00:00"}
+{"kind": "reserve", "id": 25, "amount": 0.001025875, "label": "claude-code-haiku-5-5/digitsum/ts/1/a1", "utc": "2026-10-29T21:05:05.817337+00:00"}
+{"kind": "settle", "id": 24, "cost": 0.00037030000000000006, "label": "claude-code-haiku-5-5/digitsum/go/1/a1", "spent": 0.01165538, "utc": "2026-10-29T21:05:09.741332+00:00"}
+{"kind": "reserve", "id": 26, "amount": 0.001025375, "label": "claude-code-haiku-5-5/isqrt/python/1/a1", "utc": "2026-10-29T21:05:10.364376+00:00"}
+{"kind": "settle", "id": 25, "cost": 0.00035360000000000003, "label": "claude-code-haiku-5-5/digitsum/ts/1/a1", "spent": 0.01200898, "utc": "2026-10-29T21:05:10.907377+00:00"}
+{"kind": "reserve", "id": 27, "amount": 0.0010825000000000001, "label": "claude-code-haiku-5-5/isqrt/sley/1/a1", "utc": "2026-10-29T21:05:12.706664+00:00"}
+{"kind": "settle", "id": 26, "cost": 0.00038500000000000003, "label": "claude-code-haiku-5-5/isqrt/python/1/a1", "spent": 0.01239398, "utc": "2026-10-29T21:05:15.741828+00:00"}
+{"kind": "reserve", "id": 28, "amount": 0.00102575, "label": "claude-code-haiku-5-5/isqrt/c/1/a1", "utc": "2026-10-29T21:05:16.120583+00:00"}
+{"kind": "settle", "id": 27, "cost": 0.00044857, "label": "claude-code-haiku-5-5/isqrt/sley/1/a1", "spent": 0.012842550000000001, "utc": "2026-10-29T21:05:17.869275+00:00"}
+{"kind": "reserve", "id": 29, "amount": 0.001026, "label": "claude-code-haiku-5-5/isqrt/rust/1/a1", "utc": "2026-10-29T21:05:19.193037+00:00"}
+{"kind": "settle", "id": 28, "cost": 0.000462, "label": "claude-code-haiku-5-5/isqrt/c/1/a1", "spent": 0.013304550000000002, "utc": "2026-10-29T21:05:21.868803+00:00"}
+{"kind": "reserve", "id": 30, "amount": 0.001026, "label": "claude-code-haiku-5-5/isqrt/go/1/a1", "utc": "2026-10-29T21:05:22.273735+00:00"}
+{"kind": "settle", "id": 29, "cost": 0.00042060000000000003, "label": "claude-code-haiku-5-5/isqrt/rust/1/a1", "spent": 0.013725150000000002, "utc": "2026-10-29T21:05:24.845243+00:00"}
+{"kind": "reserve", "id": 31, "amount": 0.001027125, "label": "claude-code-haiku-5-5/isqrt/ts/1/a1", "utc": "2026-10-29T21:05:26.312134+00:00"}
+{"kind": "settle", "id": 30, "cost": 0.00048230000000000007, "label": "claude-code-haiku-5-5/isqrt/go/1/a1", "spent": 0.014207450000000002, "utc": "2026-10-29T21:05:28.339327+00:00"}
+{"kind": "reserve", "id": 32, "amount": 0.0010252500000000001, "label": "claude-code-haiku-5-5/inversions/python/1/a1", "utc": "2026-10-29T21:05:28.859215+00:00"}
+{"kind": "settle", "id": 31, "cost": 0.00044090000000000004, "label": "claude-code-haiku-5-5/isqrt/ts/1/a1", "spent": 0.014648350000000001, "utc": "2026-10-29T21:05:32.828663+00:00"}
+{"kind": "reserve", "id": 33, "amount": 0.0010825000000000001, "label": "claude-code-haiku-5-5/inversions/sley/1/a1", "utc": "2026-10-29T21:05:34.680480+00:00"}
+{"kind": "settle", "id": 32, "cost": 0.0004947, "label": "claude-code-haiku-5-5/inversions/python/1/a1", "spent": 0.015143050000000002, "utc": "2026-10-29T21:05:35.450149+00:00"}
+{"kind": "reserve", "id": 34, "amount": 0.00102925, "label": "claude-code-haiku-5-5/inversions/c/1/a1", "utc": "2026-10-29T21:05:35.836337+00:00"}
+{"kind": "settle", "id": 33, "cost": 0.00040717, "label": "claude-code-haiku-5-5/inversions/sley/1/a1", "spent": 0.015550220000000002, "utc": "2026-10-29T21:05:40.042733+00:00"}
+{"kind": "settle", "id": 34, "cost": 0.0009517, "label": "claude-code-haiku-5-5/inversions/c/1/a1", "spent": 0.016501920000000003, "utc": "2026-10-29T21:05:45.891775+00:00"}
+{"kind": "reserve", "id": 35, "amount": 0.001025875, "label": "claude-code-haiku-5-5/inversions/rust/1/a1", "utc": "2026-10-29T21:05:46.218117+00:00"}
+{"kind": "reserve", "id": 36, "amount": 0.001026875, "label": "claude-code-haiku-5-5/inversions/go/1/a1", "utc": "2026-10-29T21:05:46.556906+00:00"}
+{"kind": "settle", "id": 35, "cost": 0.0005355000000000001, "label": "claude-code-haiku-5-5/inversions/rust/1/a1", "spent": 0.017037420000000005, "utc": "2026-10-29T21:05:53.213573+00:00"}
+{"kind": "reserve", "id": 37, "amount": 0.001026875, "label": "claude-code-haiku-5-5/inversions/ts/1/a1", "utc": "2026-10-29T21:05:54.220511+00:00"}
+{"kind": "settle", "id": 36, "cost": 0.0005904, "label": "claude-code-haiku-5-5/inversions/go/1/a1", "spent": 0.017627820000000006, "utc": "2026-10-29T21:05:54.371509+00:00"}
+{"kind": "reserve", "id": 38, "amount": 0.001028, "label": "claude-code-haiku-5-5/transform/python/1/a1", "utc": "2026-10-29T21:05:55.002488+00:00"}
+{"kind": "settle", "id": 37, "cost": 0.0005201, "label": "claude-code-haiku-5-5/inversions/ts/1/a1", "spent": 0.018147920000000005, "utc": "2026-10-29T21:06:01.105008+00:00"}
+{"kind": "settle", "id": 38, "cost": 0.0004315, "label": "claude-code-haiku-5-5/transform/python/1/a1", "spent": 0.018579420000000006, "utc": "2026-10-29T21:06:01.284832+00:00"}
+{"kind": "reserve", "id": 39, "amount": 0.00108525, "label": "claude-code-haiku-5-5/transform/sley/1/a1", "utc": "2026-10-29T21:06:01.622566+00:00"}
+{"kind": "reserve", "id": 40, "amount": 0.0010315, "label": "claude-code-haiku-5-5/transform/c/1/a1", "utc": "2026-10-29T21:06:03.095221+00:00"}
+{"kind": "settle", "id": 39, "cost": 0.00045047, "label": "claude-code-haiku-5-5/transform/sley/1/a1", "spent": 0.019029890000000008, "utc": "2026-10-29T21:06:07.183228+00:00"}
+{"kind": "reserve", "id": 41, "amount": 0.001028625, "label": "claude-code-haiku-5-5/transform/rust/1/a1", "utc": "2026-10-29T21:06:08.945222+00:00"}
+{"kind": "settle", "id": 40, "cost": 0.0007452, "label": "claude-code-haiku-5-5/transform/c/1/a1", "spent": 0.01977509000000001, "utc": "2026-10-29T21:06:12.692547+00:00"}
+{"kind": "reserve", "id": 42, "amount": 0.0010295, "label": "claude-code-haiku-5-5/transform/go/1/a1", "utc": "2026-10-29T21:06:13.623806+00:00"}
+{"kind": "settle", "id": 41, "cost": 0.0006649000000000001, "label": "claude-code-haiku-5-5/transform/rust/1/a1", "spent": 0.02043999000000001, "utc": "2026-10-29T21:06:17.690234+00:00"}
+{"kind": "reserve", "id": 43, "amount": 0.001029875, "label": "claude-code-haiku-5-5/transform/ts/1/a1", "utc": "2026-10-29T21:06:18.395836+00:00"}
+{"kind": "settle", "id": 42, "cost": 0.0007061999999999999, "label": "claude-code-haiku-5-5/transform/go/1/a1", "spent": 0.02114619000000001, "utc": "2026-10-29T21:06:22.405674+00:00"}
+{"kind": "reserve", "id": 44, "amount": 0.0010345, "label": "claude-code-haiku-5-5/parse_int/python/1/a1", "utc": "2026-10-29T21:06:22.982836+00:00"}
+{"kind": "settle", "id": 43, "cost": 0.0004622, "label": "claude-code-haiku-5-5/transform/ts/1/a1", "spent": 0.02160839000000001, "utc": "2026-10-29T21:06:24.020602+00:00"}
+{"kind": "reserve", "id": 45, "amount": 0.001091625, "label": "claude-code-haiku-5-5/parse_int/sley/1/a1", "utc": "2026-10-29T21:06:25.694496+00:00"}
+{"kind": "settle", "id": 44, "cost": 0.00041180000000000003, "label": "claude-code-haiku-5-5/parse_int/python/1/a1", "spent": 0.02202019000000001, "utc": "2026-10-29T21:06:27.800037+00:00"}
+{"kind": "reserve", "id": 46, "amount": 0.001041125, "label": "claude-code-haiku-5-5/parse_int/c/1/a1", "utc": "2026-10-29T21:06:28.230934+00:00"}
+{"kind": "settle", "id": 45, "cost": 0.00040667000000000003, "label": "claude-code-haiku-5-5/parse_int/sley/1/a1", "spent": 0.02242686000000001, "utc": "2026-10-29T21:06:31.491977+00:00"}
+{"kind": "reserve", "id": 47, "amount": 0.001034625, "label": "claude-code-haiku-5-5/parse_int/rust/1/a1", "utc": "2026-10-29T21:06:36.449998+00:00"}
+{"kind": "settle", "id": 46, "cost": 0.0008985, "label": "claude-code-haiku-5-5/parse_int/c/1/a1", "spent": 0.02332536000000001, "utc": "2026-10-29T21:06:39.073386+00:00"}
+{"kind": "reserve", "id": 48, "amount": 0.00103525, "label": "claude-code-haiku-5-5/parse_int/go/1/a1", "utc": "2026-10-29T21:06:39.546408+00:00"}
+{"kind": "settle", "id": 47, "cost": 0.00048400000000000006, "label": "claude-code-haiku-5-5/parse_int/rust/1/a1", "spent": 0.02380936000000001, "utc": "2026-10-29T21:06:42.254070+00:00"}
+{"kind": "reserve", "id": 49, "amount": 0.00103675, "label": "claude-code-haiku-5-5/parse_int/ts/1/a1", "utc": "2026-10-29T21:06:43.533122+00:00"}
+{"kind": "settle", "id": 48, "cost": 0.0004912, "label": "claude-code-haiku-5-5/parse_int/go/1/a1", "spent": 0.02430056000000001, "utc": "2026-10-29T21:06:44.852730+00:00"}
+{"kind": "reserve", "id": 50, "amount": 0.0010255, "label": "claude-code-haiku-5-5/longest_run/python/1/a1", "utc": "2026-10-29T21:06:45.461338+00:00"}
+{"kind": "settle", "id": 49, "cost": 0.0004669, "label": "claude-code-haiku-5-5/parse_int/ts/1/a1", "spent": 0.02476746000000001, "utc": "2026-10-29T21:06:49.147212+00:00"}
+{"kind": "settle", "id": 50, "cost": 0.0003592, "label": "claude-code-haiku-5-5/longest_run/python/1/a1", "spent": 0.02512666000000001, "utc": "2026-10-29T21:06:50.162200+00:00"}
+{"kind": "reserve", "id": 51, "amount": 0.001082625, "label": "claude-code-haiku-5-5/longest_run/sley/1/a1", "utc": "2026-10-29T21:06:50.606357+00:00"}
+{"kind": "reserve", "id": 52, "amount": 0.0010285000000000001, "label": "claude-code-haiku-5-5/longest_run/c/1/a1", "utc": "2026-10-29T21:06:51.032657+00:00"}
+{"kind": "settle", "id": 52, "cost": 0.0003976, "label": "claude-code-haiku-5-5/longest_run/c/1/a1", "spent": 0.02552426000000001, "utc": "2026-10-29T21:06:55.995974+00:00"}
+{"kind": "settle", "id": 51, "cost": 0.00044747000000000005, "label": "claude-code-haiku-5-5/longest_run/sley/1/a1", "spent": 0.02597173000000001, "utc": "2026-10-29T21:06:56.397053+00:00"}
+{"kind": "reserve", "id": 53, "amount": 0.0010261250000000001, "label": "claude-code-haiku-5-5/longest_run/rust/1/a1", "utc": "2026-10-29T21:06:56.556693+00:00"}
+{"kind": "settle", "id": 53, "cost": 0.0003824000000000001, "label": "claude-code-haiku-5-5/longest_run/rust/1/a1", "spent": 0.02635413000000001, "utc": "2026-10-29T21:07:01.599683+00:00"}
+{"kind": "reserve", "id": 54, "amount": 0.001026625, "label": "claude-code-haiku-5-5/longest_run/go/1/a1", "utc": "2026-10-29T21:07:01.712659+00:00"}
+{"kind": "reserve", "id": 55, "amount": 0.001027, "label": "claude-code-haiku-5-5/longest_run/ts/1/a1", "utc": "2026-10-29T21:07:02.300426+00:00"}
+{"kind": "settle", "id": 55, "cost": 0.00038060000000000004, "label": "claude-code-haiku-5-5/longest_run/ts/1/a1", "spent": 0.026734730000000012, "utc": "2026-10-29T21:07:08.229944+00:00"}
+{"kind": "settle", "id": 54, "cost": 0.00040320000000000004, "label": "claude-code-haiku-5-5/longest_run/go/1/a1", "spent": 0.02713793000000001, "utc": "2026-10-29T21:07:08.481892+00:00"}
+{"kind": "reserve", "id": 56, "amount": 0.00102925, "label": "claude-code-haiku-5-5/second_largest/python/1/a1", "utc": "2026-10-29T21:07:09.230081+00:00"}
+{"kind": "reserve", "id": 57, "amount": 0.0010865, "label": "claude-code-haiku-5-5/second_largest/sley/1/a1", "utc": "2026-10-29T21:07:10.257964+00:00"}
+{"kind": "settle", "id": 56, "cost": 0.000402, "label": "claude-code-haiku-5-5/second_largest/python/1/a1", "spent": 0.02753993000000001, "utc": "2026-10-29T21:07:14.483574+00:00"}
+{"kind": "reserve", "id": 58, "amount": 0.0010350000000000001, "label": "claude-code-haiku-5-5/second_largest/c/1/a1", "utc": "2026-10-29T21:07:14.816630+00:00"}
+{"kind": "settle", "id": 57, "cost": 0.00050177, "label": "claude-code-haiku-5-5/second_largest/sley/1/a1", "spent": 0.02804170000000001, "utc": "2026-10-29T21:07:16.324370+00:00"}
+{"kind": "reserve", "id": 59, "amount": 0.0010293750000000001, "label": "claude-code-haiku-5-5/second_largest/rust/1/a1", "utc": "2026-10-29T21:07:21.756355+00:00"}
+{"kind": "settle", "id": 58, "cost": 0.0007407, "label": "claude-code-haiku-5-5/second_largest/c/1/a1", "spent": 0.02878240000000001, "utc": "2026-10-29T21:07:23.196417+00:00"}
+{"kind": "reserve", "id": 60, "amount": 0.001029875, "label": "claude-code-haiku-5-5/second_largest/go/1/a1", "utc": "2026-10-29T21:07:24.054048+00:00"}
+{"kind": "settle", "id": 59, "cost": 0.0004303, "label": "claude-code-haiku-5-5/second_largest/rust/1/a1", "spent": 0.02921270000000001, "utc": "2026-10-29T21:07:28.379269+00:00"}
+{"kind": "reserve", "id": 61, "amount": 0.001030625, "label": "claude-code-haiku-5-5/second_largest/ts/1/a1", "utc": "2026-10-29T21:07:29.403747+00:00"}
+{"kind": "settle", "id": 60, "cost": 0.0004584000000000001, "label": "claude-code-haiku-5-5/second_largest/go/1/a1", "spent": 0.029671100000000013, "utc": "2026-10-29T21:07:30.694565+00:00"}
+{"kind": "reserve", "id": 62, "amount": 0.001024875, "label": "claude-code-haiku-5-5/pair_count/python/1/a1", "utc": "2026-10-29T21:07:31.223074+00:00"}
+{"kind": "settle", "id": 61, "cost": 0.00042090000000000004, "label": "claude-code-haiku-5-5/second_largest/ts/1/a1", "spent": 0.03009200000000001, "utc": "2026-10-29T21:07:34.700405+00:00"}
+{"kind": "reserve", "id": 63, "amount": 0.001082, "label": "claude-code-haiku-5-5/pair_count/sley/1/a1", "utc": "2026-10-29T21:07:36.585071+00:00"}
+{"kind": "settle", "id": 62, "cost": 0.0004104, "label": "claude-code-haiku-5-5/pair_count/python/1/a1", "spent": 0.030502400000000013, "utc": "2026-10-29T21:07:37.081701+00:00"}
+{"kind": "reserve", "id": 64, "amount": 0.001028125, "label": "claude-code-haiku-5-5/pair_count/c/1/a1", "utc": "2026-10-29T21:07:37.489444+00:00"}
+{"kind": "settle", "id": 63, "cost": 0.00039667, "label": "claude-code-haiku-5-5/pair_count/sley/1/a1", "spent": 0.030899070000000015, "utc": "2026-10-29T21:07:42.052210+00:00"}
+{"kind": "reserve", "id": 65, "amount": 0.001025375, "label": "claude-code-haiku-5-5/pair_count/rust/1/a1", "utc": "2026-10-29T21:07:48.708239+00:00"}
+{"kind": "settle", "id": 64, "cost": 0.0011534, "label": "claude-code-haiku-5-5/pair_count/c/1/a1", "spent": 0.03205247000000001, "utc": "2026-10-29T21:07:50.410394+00:00"}
+{"kind": "reserve", "id": 66, "amount": 0.001026, "label": "claude-code-haiku-5-5/pair_count/go/1/a1", "utc": "2026-10-29T21:07:50.926864+00:00"}
+{"kind": "settle", "id": 65, "cost": 0.000561, "label": "claude-code-haiku-5-5/pair_count/rust/1/a1", "spent": 0.03261347000000001, "utc": "2026-10-29T21:07:56.669229+00:00"}
+{"kind": "settle", "id": 66, "cost": 0.00038300000000000004, "label": "claude-code-haiku-5-5/pair_count/go/1/a1", "spent": 0.032996470000000014, "utc": "2026-10-29T21:07:56.928217+00:00"}
+{"kind": "reserve", "id": 67, "amount": 0.001026375, "label": "claude-code-haiku-5-5/pair_count/ts/1/a1", "utc": "2026-10-29T21:07:57.593034+00:00"}
+{"kind": "reserve", "id": 68, "amount": 0.00103625, "label": "claude-code-haiku-5-5/max_depth/python/1/a1", "utc": "2026-10-29T21:07:57.775553+00:00"}
+{"kind": "settle", "id": 68, "cost": 0.00040930000000000003, "label": "claude-code-haiku-5-5/max_depth/python/1/a1", "spent": 0.033405770000000015, "utc": "2026-10-29T21:08:03.298537+00:00"}
+{"kind": "reserve", "id": 69, "amount": 0.0010935, "label": "claude-code-haiku-5-5/max_depth/sley/1/a1", "utc": "2026-10-29T21:08:03.663807+00:00"}
+{"kind": "settle", "id": 67, "cost": 0.00041650000000000004, "label": "claude-code-haiku-5-5/pair_count/ts/1/a1", "spent": 0.033822270000000015, "utc": "2026-10-29T21:08:03.791532+00:00"}
+{"kind": "reserve", "id": 70, "amount": 0.001043, "label": "claude-code-haiku-5-5/max_depth/c/1/a1", "utc": "2026-10-29T21:08:05.865844+00:00"}
+{"kind": "settle", "id": 69, "cost": 0.00049117, "label": "claude-code-haiku-5-5/max_depth/sley/1/a1", "spent": 0.034313440000000014, "utc": "2026-10-29T21:08:09.348859+00:00"}
+{"kind": "reserve", "id": 71, "amount": 0.001036375, "label": "claude-code-haiku-5-5/max_depth/rust/1/a1", "utc": "2026-10-29T21:08:11.191467+00:00"}
+{"kind": "settle", "id": 70, "cost": 0.0006347, "label": "claude-code-haiku-5-5/max_depth/c/1/a1", "spent": 0.034948140000000016, "utc": "2026-10-29T21:08:12.260463+00:00"}
+{"kind": "reserve", "id": 72, "amount": 0.001037125, "label": "claude-code-haiku-5-5/max_depth/go/1/a1", "utc": "2026-10-29T21:08:13.123063+00:00"}
+{"kind": "settle", "id": 71, "cost": 0.00045450000000000004, "label": "claude-code-haiku-5-5/max_depth/rust/1/a1", "spent": 0.03540264000000001, "utc": "2026-10-29T21:08:16.870885+00:00"}
+{"kind": "reserve", "id": 73, "amount": 0.001037625, "label": "claude-code-haiku-5-5/max_depth/ts/1/a1", "utc": "2026-10-29T21:08:17.974442+00:00"}
+{"kind": "settle", "id": 72, "cost": 0.0004711, "label": "claude-code-haiku-5-5/max_depth/go/1/a1", "spent": 0.035873740000000015, "utc": "2026-10-29T21:08:19.476334+00:00"}
+{"kind": "reserve", "id": 74, "amount": 0.001028, "label": "claude-code-haiku-5-5/mode_value/python/1/a1", "utc": "2026-10-29T21:08:20.122933+00:00"}
+{"kind": "settle", "id": 73, "cost": 0.00043770000000000007, "label": "claude-code-haiku-5-5/max_depth/ts/1/a1", "spent": 0.036311440000000014, "utc": "2026-10-29T21:08:22.686780+00:00"}
+{"kind": "reserve", "id": 75, "amount": 0.001085125, "label": "claude-code-haiku-5-5/mode_value/sley/1/a1", "utc": "2026-10-29T21:08:24.475160+00:00"}
+{"kind": "settle", "id": 74, "cost": 0.0003621, "label": "claude-code-haiku-5-5/mode_value/python/1/a1", "spent": 0.03667354000000001, "utc": "2026-10-29T21:08:25.789257+00:00"}
+{"kind": "reserve", "id": 76, "amount": 0.00103275, "label": "claude-code-haiku-5-5/mode_value/c/1/a1", "utc": "2026-10-29T21:08:26.148651+00:00"}
+{"kind": "settle", "id": 75, "cost": 0.00049837, "label": "claude-code-haiku-5-5/mode_value/sley/1/a1", "spent": 0.03717191000000001, "utc": "2026-10-29T21:08:30.552344+00:00"}
+{"kind": "reserve", "id": 77, "amount": 0.001028, "label": "claude-code-haiku-5-5/mode_value/rust/1/a1", "utc": "2026-10-29T21:08:34.018151+00:00"}
+{"kind": "settle", "id": 76, "cost": 0.0006443, "label": "claude-code-haiku-5-5/mode_value/c/1/a1", "spent": 0.03781621000000001, "utc": "2026-10-29T21:08:34.892001+00:00"}
+{"kind": "reserve", "id": 78, "amount": 0.001028375, "label": "claude-code-haiku-5-5/mode_value/go/1/a1", "utc": "2026-10-29T21:08:35.607410+00:00"}
+{"kind": "settle", "id": 77, "cost": 0.00046730000000000003, "label": "claude-code-haiku-5-5/mode_value/rust/1/a1", "spent": 0.03828351000000001, "utc": "2026-10-29T21:08:40.234864+00:00"}
+{"kind": "settle", "id": 78, "cost": 0.0004594, "label": "claude-code-haiku-5-5/mode_value/go/1/a1", "spent": 0.038742910000000005, "utc": "2026-10-29T21:08:41.008461+00:00"}
+{"kind": "reserve", "id": 79, "amount": 0.0010293750000000001, "label": "claude-code-haiku-5-5/mode_value/ts/1/a1", "utc": "2026-10-29T21:08:41.420090+00:00"}
+{"kind": "reserve", "id": 80, "amount": 0.001027875, "label": "claude-code-haiku-5-5/max_subarray/python/1/a1", "utc": "2026-10-29T21:08:41.590114+00:00"}
+{"kind": "settle", "id": 79, "cost": 0.00041050000000000006, "label": "claude-code-haiku-5-5/mode_value/ts/1/a1", "spent": 0.03915341000000001, "utc": "2026-10-29T21:08:46.485464+00:00"}
+{"kind": "settle", "id": 80, "cost": 0.0004003, "label": "claude-code-haiku-5-5/max_subarray/python/1/a1", "spent": 0.039553710000000006, "utc": "2026-10-29T21:08:46.752736+00:00"}
+{"kind": "reserve", "id": 81, "amount": 0.001085, "label": "claude-code-haiku-5-5/max_subarray/sley/1/a1", "utc": "2026-10-29T21:08:47.182451+00:00"}
+{"kind": "reserve", "id": 82, "amount": 0.0010326250000000001, "label": "claude-code-haiku-5-5/max_subarray/c/1/a1", "utc": "2026-10-29T21:08:48.468071+00:00"}
+{"kind": "settle", "id": 81, "cost": 0.0005089700000000001, "label": "claude-code-haiku-5-5/max_subarray/sley/1/a1", "spent": 0.04006268, "utc": "2026-10-29T21:08:53.344985+00:00"}
+{"kind": "settle", "id": 82, "cost": 0.0006624000000000001, "label": "claude-code-haiku-5-5/max_subarray/c/1/a1", "spent": 0.040725080000000004, "utc": "2026-10-29T21:08:56.688768+00:00"}
+{"kind": "reserve", "id": 83, "amount": 0.001027875, "label": "claude-code-haiku-5-5/max_subarray/rust/1/a1", "utc": "2026-10-29T21:08:57.455542+00:00"}
+{"kind": "reserve", "id": 84, "amount": 0.001028125, "label": "claude-code-haiku-5-5/max_subarray/go/1/a1", "utc": "2026-10-29T21:08:57.723648+00:00"}
+{"kind": "settle", "id": 84, "cost": 0.00042100000000000004, "label": "claude-code-haiku-5-5/max_subarray/go/1/a1", "spent": 0.04114608, "utc": "2026-10-29T21:09:02.671141+00:00"}
+{"kind": "reserve", "id": 85, "amount": 0.00102925, "label": "claude-code-haiku-5-5/max_subarray/ts/1/a1", "utc": "2026-10-29T21:09:03.247759+00:00"}
+{"kind": "settle", "id": 83, "cost": 0.0005553, "label": "claude-code-haiku-5-5/max_subarray/rust/1/a1", "spent": 0.04170138, "utc": "2026-10-29T21:09:06.855275+00:00"}
+{"kind": "reserve", "id": 86, "amount": 0.001026, "label": "claude-code-haiku-5-5/count_leq/python/1/a1", "utc": "2026-10-29T21:09:07.814361+00:00"}
+{"kind": "settle", "id": 85, "cost": 0.00039850000000000004, "label": "claude-code-haiku-5-5/max_subarray/ts/1/a1", "spent": 0.042099880000000006, "utc": "2026-10-29T21:09:10.028123+00:00"}
+{"kind": "reserve", "id": 87, "amount": 0.001083125, "label": "claude-code-haiku-5-5/count_leq/sley/1/a1", "utc": "2026-10-29T21:09:11.722927+00:00"}
+{"kind": "settle", "id": 86, "cost": 0.0003442, "label": "claude-code-haiku-5-5/count_leq/python/1/a1", "spent": 0.04244408000000001, "utc": "2026-10-29T21:09:12.375286+00:00"}
+{"kind": "reserve", "id": 88, "amount": 0.00102925, "label": "claude-code-haiku-5-5/count_leq/c/1/a1", "utc": "2026-10-29T21:09:12.723123+00:00"}
+{"kind": "settle", "id": 87, "cost": 0.00034607, "label": "claude-code-haiku-5-5/count_leq/sley/1/a1", "spent": 0.042790150000000006, "utc": "2026-10-29T21:09:17.275410+00:00"}
+{"kind": "settle", "id": 88, "cost": 0.0004041, "label": "claude-code-haiku-5-5/count_leq/c/1/a1", "spent": 0.043194250000000003, "utc": "2026-10-29T21:09:17.885107+00:00"}
+{"kind": "reserve", "id": 89, "amount": 0.001026625, "label": "claude-code-haiku-5-5/count_leq/rust/1/a1", "utc": "2026-10-29T21:09:18.899568+00:00"}
+{"kind": "reserve", "id": 90, "amount": 0.00102725, "label": "claude-code-haiku-5-5/count_leq/go/1/a1", "utc": "2026-10-29T21:09:20.344646+00:00"}
+{"kind": "settle", "id": 90, "cost": 0.00040500000000000003, "label": "claude-code-haiku-5-5/count_leq/go/1/a1", "spent": 0.043599250000000006, "utc": "2026-10-29T21:09:25.059844+00:00"}
+{"kind": "settle", "id": 89, "cost": 0.0003944, "label": "claude-code-haiku-5-5/count_leq/rust/1/a1", "spent": 0.04399365000000001, "utc": "2026-10-29T21:09:25.420713+00:00"}
+{"kind": "reserve", "id": 91, "amount": 0.0010276250000000001, "label": "claude-code-haiku-5-5/count_leq/ts/1/a1", "utc": "2026-10-29T21:09:25.620221+00:00"}
+{"kind": "reserve", "id": 92, "amount": 0.00102675, "label": "claude-code-haiku-5-5/root_sum/python/1/a1", "utc": "2026-10-29T21:09:26.504283+00:00"}
+{"kind": "settle", "id": 91, "cost": 0.0003733, "label": "claude-code-haiku-5-5/count_leq/ts/1/a1", "spent": 0.04436695000000001, "utc": "2026-10-29T21:09:30.542832+00:00"}
+{"kind": "settle", "id": 92, "cost": 0.00045010000000000004, "label": "claude-code-haiku-5-5/root_sum/python/1/a1", "spent": 0.04481705000000001, "utc": "2026-10-29T21:09:32.229392+00:00"}
+{"kind": "reserve", "id": 93, "amount": 0.0010840000000000001, "label": "claude-code-haiku-5-5/root_sum/sley/1/a1", "utc": "2026-10-29T21:09:32.330297+00:00"}
+{"kind": "reserve", "id": 94, "amount": 0.001027125, "label": "claude-code-haiku-5-5/root_sum/c/1/a1", "utc": "2026-10-29T21:09:32.774036+00:00"}
+{"kind": "settle", "id": 93, "cost": 0.00039957, "label": "claude-code-haiku-5-5/root_sum/sley/1/a1", "spent": 0.04521662000000001, "utc": "2026-10-29T21:09:37.332344+00:00"}
+{"kind": "settle", "id": 94, "cost": 0.0004462, "label": "claude-code-haiku-5-5/root_sum/c/1/a1", "spent": 0.045662820000000014, "utc": "2026-10-29T21:09:37.925692+00:00"}
+{"kind": "reserve", "id": 95, "amount": 0.001027375, "label": "claude-code-haiku-5-5/root_sum/rust/1/a1", "utc": "2026-10-29T21:09:38.304019+00:00"}
+{"kind": "reserve", "id": 96, "amount": 0.00102725, "label": "claude-code-haiku-5-5/root_sum/go/1/a1", "utc": "2026-10-29T21:09:39.301039+00:00"}
+{"kind": "settle", "id": 95, "cost": 0.00042540000000000004, "label": "claude-code-haiku-5-5/root_sum/rust/1/a1", "spent": 0.04608822000000001, "utc": "2026-10-29T21:09:44.303173+00:00"}
+{"kind": "settle", "id": 96, "cost": 0.00041, "label": "claude-code-haiku-5-5/root_sum/go/1/a1", "spent": 0.046498220000000014, "utc": "2026-10-29T21:09:45.072065+00:00"}
+{"kind": "reserve", "id": 97, "amount": 0.001028375, "label": "claude-code-haiku-5-5/root_sum/ts/1/a1", "utc": "2026-10-29T21:09:45.519836+00:00"}
+{"kind": "reserve", "id": 98, "amount": 0.00103575, "label": "claude-code-haiku-5-5/clamp_sum/python/1/a1", "utc": "2026-10-29T21:09:45.860179+00:00"}
+{"kind": "settle", "id": 98, "cost": 0.00044650000000000007, "label": "claude-code-haiku-5-5/clamp_sum/python/1/a1", "spent": 0.046944720000000016, "utc": "2026-10-29T21:09:51.666372+00:00"}
+{"kind": "settle", "id": 97, "cost": 0.00041200000000000004, "label": "claude-code-haiku-5-5/root_sum/ts/1/a1", "spent": 0.04735672000000002, "utc": "2026-10-29T21:09:51.939026+00:00"}
+{"kind": "reserve", "id": 99, "amount": 0.001092875, "label": "claude-code-haiku-5-5/clamp_sum/sley/1/a1", "utc": "2026-10-29T21:09:52.057522+00:00"}
+{"kind": "reserve", "id": 100, "amount": 0.001050875, "label": "claude-code-haiku-5-5/clamp_sum/c/1/a1", "utc": "2026-10-29T21:09:54.018246+00:00"}
+{"kind": "settle", "id": 99, "cost": 0.00048807000000000006, "label": "claude-code-haiku-5-5/clamp_sum/sley/1/a1", "spent": 0.04784479000000002, "utc": "2026-10-29T21:09:57.569953+00:00"}
+{"kind": "reserve", "id": 101, "amount": 0.001036625, "label": "claude-code-haiku-5-5/clamp_sum/rust/1/a1", "utc": "2026-10-29T21:09:58.868569+00:00"}
+{"kind": "settle", "id": 100, "cost": 0.0005146, "label": "claude-code-haiku-5-5/clamp_sum/c/1/a1", "spent": 0.048359390000000016, "utc": "2026-10-29T21:09:59.767292+00:00"}
+{"kind": "reserve", "id": 102, "amount": 0.001038875, "label": "claude-code-haiku-5-5/clamp_sum/go/1/a1", "utc": "2026-10-29T21:10:00.592268+00:00"}
+{"kind": "settle", "id": 101, "cost": 0.0005968, "label": "claude-code-haiku-5-5/clamp_sum/rust/1/a1", "spent": 0.04895619000000002, "utc": "2026-10-29T21:10:05.429122+00:00"}
+{"kind": "settle", "id": 102, "cost": 0.0004427, "label": "claude-code-haiku-5-5/clamp_sum/go/1/a1", "spent": 0.049398890000000015, "utc": "2026-10-29T21:10:06.058993+00:00"}
+{"kind": "reserve", "id": 103, "amount": 0.001039375, "label": "claude-code-haiku-5-5/clamp_sum/ts/1/a1", "utc": "2026-10-29T21:10:06.374877+00:00"}
+{"kind": "reserve", "id": 104, "amount": 0.0010350000000000001, "label": "claude-code-haiku-5-5/count_multiples/python/1/a1", "utc": "2026-10-29T21:10:06.653130+00:00"}
+{"kind": "settle", "id": 103, "cost": 0.000485, "label": "claude-code-haiku-5-5/clamp_sum/ts/1/a1", "spent": 0.049883890000000014, "utc": "2026-10-29T21:10:11.933641+00:00"}
+{"kind": "reserve", "id": 105, "amount": 0.001092125, "label": "claude-code-haiku-5-5/count_multiples/sley/1/a1", "utc": "2026-10-29T21:10:13.631992+00:00"}
+{"kind": "settle", "id": 104, "cost": 0.00043390000000000003, "label": "claude-code-haiku-5-5/count_multiples/python/1/a1", "spent": 0.050317790000000015, "utc": "2026-10-29T21:10:14.035761+00:00"}
+{"kind": "reserve", "id": 106, "amount": 0.001046375, "label": "claude-code-haiku-5-5/count_multiples/c/1/a1", "utc": "2026-10-29T21:10:14.432901+00:00"}
+{"kind": "settle", "id": 105, "cost": 0.00038107000000000006, "label": "claude-code-haiku-5-5/count_multiples/sley/1/a1", "spent": 0.05069886000000001, "utc": "2026-10-29T21:10:19.423481+00:00"}
+{"kind": "reserve", "id": 107, "amount": 0.001036375, "label": "claude-code-haiku-5-5/count_multiples/rust/1/a1", "utc": "2026-10-29T21:10:21.021319+00:00"}
+{"kind": "settle", "id": 106, "cost": 0.0005198, "label": "claude-code-haiku-5-5/count_multiples/c/1/a1", "spent": 0.05121866000000001, "utc": "2026-10-29T21:10:21.035265+00:00"}
+{"kind": "reserve", "id": 108, "amount": 0.001038375, "label": "claude-code-haiku-5-5/count_multiples/go/1/a1", "utc": "2026-10-29T21:10:21.713515+00:00"}
+{"kind": "settle", "id": 108, "cost": 0.0004557, "label": "claude-code-haiku-5-5/count_multiples/go/1/a1", "spent": 0.051674360000000016, "utc": "2026-10-29T21:10:27.021381+00:00"}
+{"kind": "settle", "id": 107, "cost": 0.0004625, "label": "claude-code-haiku-5-5/count_multiples/rust/1/a1", "spent": 0.052136860000000014, "utc": "2026-10-29T21:10:27.377664+00:00"}
+{"kind": "reserve", "id": 109, "amount": 0.0010375, "label": "claude-code-haiku-5-5/count_multiples/ts/1/a1", "utc": "2026-10-29T21:10:27.595579+00:00"}
+{"kind": "reserve", "id": 110, "amount": 0.001023375, "label": "claude-code-haiku-5-5/fib/python/2/a1", "utc": "2026-10-29T21:10:28.193697+00:00"}
+{"kind": "settle", "id": 110, "cost": 0.00021816, "label": "claude-code-haiku-5-5/fib/python/2/a1", "spent": 0.052355020000000016, "utc": "2026-10-29T21:10:33.124023+00:00"}
+{"kind": "reserve", "id": 111, "amount": 0.0010805, "label": "claude-code-haiku-5-5/fib/sley/2/a1", "utc": "2026-10-29T21:10:33.454375+00:00"}
+{"kind": "settle", "id": 109, "cost": 0.00047880000000000004, "label": "claude-code-haiku-5-5/count_multiples/ts/1/a1", "spent": 0.05283382000000002, "utc": "2026-10-29T21:10:33.586715+00:00"}
+{"kind": "reserve", "id": 112, "amount": 0.001023625, "label": "claude-code-haiku-5-5/fib/c/2/a1", "utc": "2026-10-29T21:10:35.359778+00:00"}
+{"kind": "settle", "id": 111, "cost": 0.00022459, "label": "claude-code-haiku-5-5/fib/sley/2/a1", "spent": 0.053058410000000014, "utc": "2026-10-29T21:10:38.112240+00:00"}
+{"kind": "reserve", "id": 113, "amount": 0.001023875, "label": "claude-code-haiku-5-5/fib/rust/2/a1", "utc": "2026-10-29T21:10:39.234934+00:00"}
+{"kind": "settle", "id": 112, "cost": 0.00021969, "label": "claude-code-haiku-5-5/fib/c/2/a1", "spent": 0.053278100000000016, "utc": "2026-10-29T21:10:40.788228+00:00"}
+{"kind": "reserve", "id": 114, "amount": 0.001024, "label": "claude-code-haiku-5-5/fib/go/2/a1", "utc": "2026-10-29T21:10:41.028602+00:00"}
+{"kind": "settle", "id": 113, "cost": 0.00021957000000000001, "label": "claude-code-haiku-5-5/fib/rust/2/a1", "spent": 0.05349767000000002, "utc": "2026-10-29T21:10:43.878155+00:00"}
+{"kind": "reserve", "id": 115, "amount": 0.001025125, "label": "claude-code-haiku-5-5/fib/ts/2/a1", "utc": "2026-10-29T21:10:44.472882+00:00"}
+{"kind": "settle", "id": 114, "cost": 0.00021964, "label": "claude-code-haiku-5-5/fib/go/2/a1", "spent": 0.05371731000000002, "utc": "2026-10-29T21:10:45.767846+00:00"}
+{"kind": "reserve", "id": 116, "amount": 0.001029125, "label": "claude-code-haiku-5-5/collatz/python/2/a1", "utc": "2026-10-29T21:10:46.254530+00:00"}
+{"kind": "settle", "id": 115, "cost": 0.00023618, "label": "claude-code-haiku-5-5/fib/ts/2/a1", "spent": 0.05395349000000002, "utc": "2026-10-29T21:10:49.350358+00:00"}
+{"kind": "reserve", "id": 117, "amount": 0.001086375, "label": "claude-code-haiku-5-5/collatz/sley/2/a1", "utc": "2026-10-29T21:10:51.236677+00:00"}
+{"kind": "settle", "id": 116, "cost": 0.00052802, "label": "claude-code-haiku-5-5/collatz/python/2/a1", "spent": 0.05448151000000002, "utc": "2026-10-29T21:10:55.152127+00:00"}
+{"kind": "reserve", "id": 118, "amount": 0.0010295, "label": "claude-code-haiku-5-5/collatz/c/2/a1", "utc": "2026-10-29T21:10:55.611191+00:00"}
+{"kind": "settle", "id": 117, "cost": 0.00040455000000000005, "label": "claude-code-haiku-5-5/collatz/sley/2/a1", "spent": 0.054886060000000014, "utc": "2026-10-29T21:10:57.631315+00:00"}
+{"kind": "reserve", "id": 119, "amount": 0.00102975, "label": "claude-code-haiku-5-5/collatz/rust/2/a1", "utc": "2026-10-29T21:10:59.705774+00:00"}
+{"kind": "settle", "id": 119, "cost": 0.00039013000000000003, "label": "claude-code-haiku-5-5/collatz/rust/2/a1", "spent": 0.05527619000000002, "utc": "2026-10-29T21:11:06.380039+00:00"}
+{"kind": "settle", "id": 118, "cost": 0.00067855, "label": "claude-code-haiku-5-5/collatz/c/2/a1", "spent": 0.05595474000000002, "utc": "2026-10-29T21:11:07.317579+00:00"}
+{"kind": "reserve", "id": 120, "amount": 0.00102975, "label": "claude-code-haiku-5-5/collatz/go/2/a1", "utc": "2026-10-29T21:11:07.622486+00:00"}
+{"kind": "reserve", "id": 121, "amount": 0.001031, "label": "claude-code-haiku-5-5/collatz/ts/2/a1", "utc": "2026-10-29T21:11:07.715256+00:00"}
+{"kind": "settle", "id": 121, "cost": 0.00068854, "label": "claude-code-haiku-5-5/collatz/ts/2/a1", "spent": 0.05664328000000002, "utc": "2026-10-29T21:11:19.133490+00:00"}
+{"kind": "settle", "id": 120, "cost": 0.00104109, "label": "claude-code-haiku-5-5/collatz/go/2/a1", "spent": 0.05768437000000002, "utc": "2026-10-29T21:11:20.389556+00:00"}
+{"kind": "reserve", "id": 122, "amount": 0.001022625, "label": "claude-code-haiku-5-5/primes/python/2/a1", "utc": "2026-10-29T21:11:20.968833+00:00"}
+{"kind": "reserve", "id": 123, "amount": 0.00107975, "label": "claude-code-haiku-5-5/primes/sley/2/a1", "utc": "2026-10-29T21:11:21.117828+00:00"}
+{"kind": "settle", "id": 122, "cost": 0.00024987, "label": "claude-code-haiku-5-5/primes/python/2/a1", "spent": 0.05793424000000002, "utc": "2026-10-29T21:11:26.353538+00:00"}
+{"kind": "reserve", "id": 124, "amount": 0.001022875, "label": "claude-code-haiku-5-5/primes/c/2/a1", "utc": "2026-10-29T21:11:26.781575+00:00"}
+{"kind": "settle", "id": 123, "cost": 0.0003859, "label": "claude-code-haiku-5-5/primes/sley/2/a1", "spent": 0.05832014000000002, "utc": "2026-10-29T21:11:26.939216+00:00"}
+{"kind": "reserve", "id": 125, "amount": 0.0011102500000000001, "label": "claude-code-haiku-5-5/primes/sley/2/a2", "utc": "2026-10-29T21:11:26.965880+00:00"}
+{"kind": "settle", "id": 124, "cost": 0.0002929, "label": "claude-code-haiku-5-5/primes/c/2/a1", "spent": 0.05861304000000002, "utc": "2026-10-29T21:11:32.101409+00:00"}
+{"kind": "reserve", "id": 126, "amount": 0.001023125, "label": "claude-code-haiku-5-5/primes/rust/2/a1", "utc": "2026-10-29T21:11:32.399502+00:00"}
+{"kind": "settle", "id": 125, "cost": 0.00054027, "label": "claude-code-haiku-5-5/primes/sley/2/a2", "spent": 0.05915331000000002, "utc": "2026-10-29T21:11:32.846342+00:00"}
+{"kind": "reserve", "id": 127, "amount": 0.00102325, "label": "claude-code-haiku-5-5/primes/go/2/a1", "utc": "2026-10-29T21:11:34.476876+00:00"}
+{"kind": "settle", "id": 126, "cost": 0.00027638, "label": "claude-code-haiku-5-5/primes/rust/2/a1", "spent": 0.05942969000000002, "utc": "2026-10-29T21:11:37.961202+00:00"}
+{"kind": "reserve", "id": 128, "amount": 0.0010243750000000001, "label": "claude-code-haiku-5-5/primes/ts/2/a1", "utc": "2026-10-29T21:11:38.915406+00:00"}
+{"kind": "settle", "id": 127, "cost": 0.00029574, "label": "claude-code-haiku-5-5/primes/go/2/a1", "spent": 0.059725430000000024, "utc": "2026-10-29T21:11:40.365007+00:00"}
+{"kind": "reserve", "id": 129, "amount": 0.001024, "label": "claude-code-haiku-5-5/digitsum/python/2/a1", "utc": "2026-10-29T21:11:40.966817+00:00"}
+{"kind": "settle", "id": 128, "cost": 0.00027809000000000004, "label": "claude-code-haiku-5-5/primes/ts/2/a1", "spent": 0.060003520000000025, "utc": "2026-10-29T21:11:43.930486+00:00"}
+{"kind": "reserve", "id": 130, "amount": 0.00108125, "label": "claude-code-haiku-5-5/digitsum/sley/2/a1", "utc": "2026-10-29T21:11:45.724572+00:00"}
+{"kind": "settle", "id": 129, "cost": 0.00026015, "label": "claude-code-haiku-5-5/digitsum/python/2/a1", "spent": 0.060263670000000026, "utc": "2026-10-29T21:11:46.804695+00:00"}
+{"kind": "reserve", "id": 131, "amount": 0.0010243750000000001, "label": "claude-code-haiku-5-5/digitsum/c/2/a1", "utc": "2026-10-29T21:11:47.484040+00:00"}
+{"kind": "settle", "id": 130, "cost": 0.00030358, "label": "claude-code-haiku-5-5/digitsum/sley/2/a1", "spent": 0.060567250000000024, "utc": "2026-10-29T21:11:50.733450+00:00"}
+{"kind": "reserve", "id": 132, "amount": 0.001024625, "label": "claude-code-haiku-5-5/digitsum/rust/2/a1", "utc": "2026-10-29T21:11:52.153761+00:00"}
+{"kind": "settle", "id": 131, "cost": 0.00021958, "label": "claude-code-haiku-5-5/digitsum/c/2/a1", "spent": 0.06078683000000002, "utc": "2026-10-29T21:11:52.681651+00:00"}
+{"kind": "reserve", "id": 133, "amount": 0.001024625, "label": "claude-code-haiku-5-5/digitsum/go/2/a1", "utc": "2026-10-29T21:11:53.225700+00:00"}
+{"kind": "settle", "id": 132, "cost": 0.00026226, "label": "claude-code-haiku-5-5/digitsum/rust/2/a1", "spent": 0.06104909000000002, "utc": "2026-10-29T21:11:57.306976+00:00"}
+{"kind": "reserve", "id": 134, "amount": 0.001025875, "label": "claude-code-haiku-5-5/digitsum/ts/2/a1", "utc": "2026-10-29T21:11:58.285724+00:00"}
+{"kind": "settle", "id": 133, "cost": 0.00023502, "label": "claude-code-haiku-5-5/digitsum/go/2/a1", "spent": 0.061284110000000024, "utc": "2026-10-29T21:11:58.301314+00:00"}
+{"kind": "reserve", "id": 135, "amount": 0.001025375, "label": "claude-code-haiku-5-5/isqrt/python/2/a1", "utc": "2026-10-29T21:11:59.142855+00:00"}
+{"kind": "settle", "id": 134, "cost": 0.00022307000000000002, "label": "claude-code-haiku-5-5/digitsum/ts/2/a1", "spent": 0.06150718000000002, "utc": "2026-10-29T21:12:03.443988+00:00"}
+{"kind": "reserve", "id": 136, "amount": 0.0010825000000000001, "label": "claude-code-haiku-5-5/isqrt/sley/2/a1", "utc": "2026-10-29T21:12:05.375386+00:00"}
+{"kind": "settle", "id": 135, "cost": 0.00025361000000000003, "label": "claude-code-haiku-5-5/isqrt/python/2/a1", "spent": 0.061760790000000024, "utc": "2026-10-29T21:12:05.719551+00:00"}
+{"kind": "reserve", "id": 137, "amount": 0.00102575, "label": "claude-code-haiku-5-5/isqrt/c/2/a1", "utc": "2026-10-29T21:12:06.428370+00:00"}
+{"kind": "settle", "id": 136, "cost": 0.00030764, "label": "claude-code-haiku-5-5/isqrt/sley/2/a1", "spent": 0.06206843000000002, "utc": "2026-10-29T21:12:10.746552+00:00"}
+{"kind": "settle", "id": 137, "cost": 0.00028164, "label": "claude-code-haiku-5-5/isqrt/c/2/a1", "spent": 0.06235007000000002, "utc": "2026-10-29T21:12:12.169461+00:00"}
+{"kind": "reserve", "id": 138, "amount": 0.001026, "label": "claude-code-haiku-5-5/isqrt/rust/2/a1", "utc": "2026-10-29T21:12:12.189002+00:00"}
+{"kind": "reserve", "id": 139, "amount": 0.001026, "label": "claude-code-haiku-5-5/isqrt/go/2/a1", "utc": "2026-10-29T21:12:12.576622+00:00"}
+{"kind": "settle", "id": 138, "cost": 0.00030442, "label": "claude-code-haiku-5-5/isqrt/rust/2/a1", "spent": 0.06265449000000002, "utc": "2026-10-29T21:12:18.539080+00:00"}
+{"kind": "settle", "id": 139, "cost": 0.00039818000000000004, "label": "claude-code-haiku-5-5/isqrt/go/2/a1", "spent": 0.06305267000000002, "utc": "2026-10-29T21:12:18.926871+00:00"}
+{"kind": "reserve", "id": 140, "amount": 0.001027125, "label": "claude-code-haiku-5-5/isqrt/ts/2/a1", "utc": "2026-10-29T21:12:19.563476+00:00"}
+{"kind": "reserve", "id": 141, "amount": 0.0010252500000000001, "label": "claude-code-haiku-5-5/inversions/python/2/a1", "utc": "2026-10-29T21:12:20.380482+00:00"}
+{"kind": "settle", "id": 140, "cost": 0.00033723, "label": "claude-code-haiku-5-5/isqrt/ts/2/a1", "spent": 0.06338990000000001, "utc": "2026-10-29T21:12:25.530815+00:00"}
+{"kind": "settle", "id": 141, "cost": 0.00035860000000000004, "label": "claude-code-haiku-5-5/inversions/python/2/a1", "spent": 0.06374850000000001, "utc": "2026-10-29T21:12:26.032711+00:00"}
+{"kind": "reserve", "id": 142, "amount": 0.0010825000000000001, "label": "claude-code-haiku-5-5/inversions/sley/2/a1", "utc": "2026-10-29T21:12:26.543847+00:00"}
+{"kind": "reserve", "id": 143, "amount": 0.00102925, "label": "claude-code-haiku-5-5/inversions/c/2/a1", "utc": "2026-10-29T21:12:27.793496+00:00"}
+{"kind": "settle", "id": 142, "cost": 0.00027733, "label": "claude-code-haiku-5-5/inversions/sley/2/a1", "spent": 0.06402583000000002, "utc": "2026-10-29T21:12:31.498202+00:00"}
+{"kind": "settle", "id": 143, "cost": 0.00069122, "label": "claude-code-haiku-5-5/inversions/c/2/a1", "spent": 0.06471705000000003, "utc": "2026-10-29T21:12:38.003053+00:00"}
+{"kind": "reserve", "id": 144, "amount": 0.001025875, "label": "claude-code-haiku-5-5/inversions/rust/2/a1", "utc": "2026-10-29T21:12:38.018763+00:00"}
+{"kind": "reserve", "id": 145, "amount": 0.001026875, "label": "claude-code-haiku-5-5/inversions/go/2/a1", "utc": "2026-10-29T21:12:38.424211+00:00"}
+{"kind": "settle", "id": 144, "cost": 0.00074929, "label": "claude-code-haiku-5-5/inversions/rust/2/a1", "spent": 0.06546634000000003, "utc": "2026-10-29T21:12:47.026040+00:00"}
+{"kind": "settle", "id": 145, "cost": 0.00069392, "label": "claude-code-haiku-5-5/inversions/go/2/a1", "spent": 0.06616026000000003, "utc": "2026-10-29T21:12:47.456771+00:00"}
+{"kind": "reserve", "id": 146, "amount": 0.001026875, "label": "claude-code-haiku-5-5/inversions/ts/2/a1", "utc": "2026-10-29T21:12:48.101404+00:00"}
+{"kind": "reserve", "id": 147, "amount": 0.001028, "label": "claude-code-haiku-5-5/transform/python/2/a1", "utc": "2026-10-29T21:12:48.204424+00:00"}
+{"kind": "settle", "id": 147, "cost": 0.00028249, "label": "claude-code-haiku-5-5/transform/python/2/a1", "spent": 0.06644275000000002, "utc": "2026-10-29T21:12:56.079467+00:00"}
+{"kind": "reserve", "id": 148, "amount": 0.00108525, "label": "claude-code-haiku-5-5/transform/sley/2/a1", "utc": "2026-10-29T21:12:56.556489+00:00"}
+{"kind": "settle", "id": 146, "cost": 0.00039081, "label": "claude-code-haiku-5-5/inversions/ts/2/a1", "spent": 0.06683356000000003, "utc": "2026-10-29T21:12:57.706969+00:00"}
+{"kind": "reserve", "id": 149, "amount": 0.0010315, "label": "claude-code-haiku-5-5/transform/c/2/a1", "utc": "2026-10-29T21:12:59.704607+00:00"}
+{"kind": "settle", "id": 148, "cost": 0.00036162, "label": "claude-code-haiku-5-5/transform/sley/2/a1", "spent": 0.06719518000000002, "utc": "2026-10-29T21:13:02.277935+00:00"}
+{"kind": "reserve", "id": 150, "amount": 0.001028625, "label": "claude-code-haiku-5-5/transform/rust/2/a1", "utc": "2026-10-29T21:13:04.089430+00:00"}
+{"kind": "settle", "id": 149, "cost": 0.0007528599999999999, "label": "claude-code-haiku-5-5/transform/c/2/a1", "spent": 0.06794804000000002, "utc": "2026-10-29T21:13:09.997266+00:00"}
+{"kind": "reserve", "id": 151, "amount": 0.0010295, "label": "claude-code-haiku-5-5/transform/go/2/a1", "utc": "2026-10-29T21:13:10.898854+00:00"}
+{"kind": "settle", "id": 150, "cost": 0.00038548, "label": "claude-code-haiku-5-5/transform/rust/2/a1", "spent": 0.06833352000000001, "utc": "2026-10-29T21:13:12.533664+00:00"}
+{"kind": "reserve", "id": 152, "amount": 0.001029875, "label": "claude-code-haiku-5-5/transform/ts/2/a1", "utc": "2026-10-29T21:13:13.568234+00:00"}
+{"kind": "settle", "id": 152, "cost": 0.0003051, "label": "claude-code-haiku-5-5/transform/ts/2/a1", "spent": 0.06863862000000001, "utc": "2026-10-29T21:13:19.673610+00:00"}
+{"kind": "reserve", "id": 153, "amount": 0.0010345, "label": "claude-code-haiku-5-5/parse_int/python/2/a1", "utc": "2026-10-29T21:13:21.614202+00:00"}
+{"kind": "settle", "id": 153, "cost": 0.00033533, "label": "claude-code-haiku-5-5/parse_int/python/2/a1", "spent": 0.06897395, "utc": "2026-10-29T21:13:27.849252+00:00"}
+{"kind": "reserve", "id": 154, "amount": 0.001091625, "label": "claude-code-haiku-5-5/parse_int/sley/2/a1", "utc": "2026-10-29T21:13:28.205092+00:00"}
+{"kind": "settle", "id": 151, "cost": 0.0018684, "label": "claude-code-haiku-5-5/transform/go/2/a1", "spent": 0.07084235000000001, "utc": "2026-10-29T21:13:29.246026+00:00"}
+{"kind": "reserve", "id": 155, "amount": 0.0010645, "label": "claude-code-haiku-5-5/transform/go/2/a2", "utc": "2026-10-29T21:13:29.246372+00:00"}
+{"kind": "settle", "id": 154, "cost": 0.00028036, "label": "claude-code-haiku-5-5/parse_int/sley/2/a1", "spent": 0.07112271, "utc": "2026-10-29T21:13:33.394873+00:00"}
+{"kind": "settle", "id": 155, "cost": 0.0004998, "label": "claude-code-haiku-5-5/transform/go/2/a2", "spent": 0.07162251, "utc": "2026-10-29T21:13:35.166025+00:00"}
+{"kind": "reserve", "id": 156, "amount": 0.001041125, "label": "claude-code-haiku-5-5/parse_int/c/2/a1", "utc": "2026-10-29T21:13:35.767945+00:00"}
+{"kind": "reserve", "id": 157, "amount": 0.001034625, "label": "claude-code-haiku-5-5/parse_int/rust/2/a1", "utc": "2026-10-29T21:13:38.669466+00:00"}
+{"kind": "settle", "id": 156, "cost": 0.00030057, "label": "claude-code-haiku-5-5/parse_int/c/2/a1", "spent": 0.07192308, "utc": "2026-10-29T21:13:41.993411+00:00"}
+{"kind": "reserve", "id": 158, "amount": 0.00103525, "label": "claude-code-haiku-5-5/parse_int/go/2/a1", "utc": "2026-10-29T21:13:42.478150+00:00"}
+{"kind": "settle", "id": 157, "cost": 0.00033599000000000004, "label": "claude-code-haiku-5-5/parse_int/rust/2/a1", "spent": 0.07225907, "utc": "2026-10-29T21:13:44.504658+00:00"}
+{"kind": "reserve", "id": 159, "amount": 0.00103675, "label": "claude-code-haiku-5-5/parse_int/ts/2/a1", "utc": "2026-10-29T21:13:45.855369+00:00"}
+{"kind": "settle", "id": 158, "cost": 0.00044653, "label": "claude-code-haiku-5-5/parse_int/go/2/a1", "spent": 0.0727056, "utc": "2026-10-29T21:13:50.282977+00:00"}
+{"kind": "reserve", "id": 160, "amount": 0.0010255, "label": "claude-code-haiku-5-5/longest_run/python/2/a1", "utc": "2026-10-29T21:13:50.825547+00:00"}
+{"kind": "settle", "id": 159, "cost": 0.00031609, "label": "claude-code-haiku-5-5/parse_int/ts/2/a1", "spent": 0.07302169, "utc": "2026-10-29T21:13:51.996654+00:00"}
+{"kind": "reserve", "id": 161, "amount": 0.001082625, "label": "claude-code-haiku-5-5/longest_run/sley/2/a1", "utc": "2026-10-29T21:13:54.109014+00:00"}
+{"kind": "settle", "id": 160, "cost": 0.00022708, "label": "claude-code-haiku-5-5/longest_run/python/2/a1", "spent": 0.07324877, "utc": "2026-10-29T21:13:56.232252+00:00"}
+{"kind": "reserve", "id": 162, "amount": 0.0010285000000000001, "label": "claude-code-haiku-5-5/longest_run/c/2/a1", "utc": "2026-10-29T21:13:56.649901+00:00"}
+{"kind": "settle", "id": 161, "cost": 0.00026171, "label": "claude-code-haiku-5-5/longest_run/sley/2/a1", "spent": 0.07351048, "utc": "2026-10-29T21:13:59.351414+00:00"}
+{"kind": "reserve", "id": 163, "amount": 0.0010261250000000001, "label": "claude-code-haiku-5-5/longest_run/rust/2/a1", "utc": "2026-10-29T21:14:01.621917+00:00"}
+{"kind": "settle", "id": 162, "cost": 0.00026101, "label": "claude-code-haiku-5-5/longest_run/c/2/a1", "spent": 0.07377149000000001, "utc": "2026-10-29T21:14:01.772744+00:00"}
+{"kind": "reserve", "id": 164, "amount": 0.001026625, "label": "claude-code-haiku-5-5/longest_run/go/2/a1", "utc": "2026-10-29T21:14:02.513743+00:00"}
+{"kind": "settle", "id": 164, "cost": 0.00026125000000000003, "label": "claude-code-haiku-5-5/longest_run/go/2/a1", "spent": 0.07403274000000001, "utc": "2026-10-29T21:14:07.782440+00:00"}
+{"kind": "reserve", "id": 165, "amount": 0.001027, "label": "claude-code-haiku-5-5/longest_run/ts/2/a1", "utc": "2026-10-29T21:14:08.492427+00:00"}
+{"kind": "settle", "id": 165, "cost": 0.00024779, "label": "claude-code-haiku-5-5/longest_run/ts/2/a1", "spent": 0.07428053000000001, "utc": "2026-10-29T21:14:13.938402+00:00"}
+{"kind": "reserve", "id": 166, "amount": 0.00102925, "label": "claude-code-haiku-5-5/second_largest/python/2/a1", "utc": "2026-10-29T21:14:16.040879+00:00"}
+{"kind": "settle", "id": 163, "cost": 0.00024965, "label": "claude-code-haiku-5-5/longest_run/rust/2/a1", "spent": 0.07453018000000002, "utc": "2026-10-29T21:14:16.202653+00:00"}
+{"kind": "reserve", "id": 167, "amount": 0.0010865, "label": "claude-code-haiku-5-5/second_largest/sley/2/a1", "utc": "2026-10-29T21:14:16.938791+00:00"}
+{"kind": "settle", "id": 166, "cost": 0.00025764, "label": "claude-code-haiku-5-5/second_largest/python/2/a1", "spent": 0.07478782000000002, "utc": "2026-10-29T21:14:21.162214+00:00"}
+{"kind": "reserve", "id": 168, "amount": 0.0010350000000000001, "label": "claude-code-haiku-5-5/second_largest/c/2/a1", "utc": "2026-10-29T21:14:21.565192+00:00"}
+{"kind": "settle", "id": 167, "cost": 0.00045697, "label": "claude-code-haiku-5-5/second_largest/sley/2/a1", "spent": 0.07524479000000002, "utc": "2026-10-29T21:14:24.757434+00:00"}
+{"kind": "settle", "id": 168, "cost": 0.00050629, "label": "claude-code-haiku-5-5/second_largest/c/2/a1", "spent": 0.07575108000000003, "utc": "2026-10-29T21:14:29.860268+00:00"}
+{"kind": "reserve", "id": 169, "amount": 0.0010293750000000001, "label": "claude-code-haiku-5-5/second_largest/rust/2/a1", "utc": "2026-10-29T21:14:30.624266+00:00"}
+{"kind": "reserve", "id": 170, "amount": 0.001029875, "label": "claude-code-haiku-5-5/second_largest/go/2/a1", "utc": "2026-10-29T21:14:31.355079+00:00"}
+{"kind": "settle", "id": 170, "cost": 0.00031774, "label": "claude-code-haiku-5-5/second_largest/go/2/a1", "spent": 0.07606882000000002, "utc": "2026-10-29T21:14:36.908022+00:00"}
+{"kind": "reserve", "id": 171, "amount": 0.001030625, "label": "claude-code-haiku-5-5/second_largest/ts/2/a1", "utc": "2026-10-29T21:14:37.526065+00:00"}
+{"kind": "settle", "id": 169, "cost": 0.00028438, "label": "claude-code-haiku-5-5/second_largest/rust/2/a1", "spent": 0.07635320000000002, "utc": "2026-10-29T21:14:38.012784+00:00"}
+{"kind": "reserve", "id": 172, "amount": 0.001024875, "label": "claude-code-haiku-5-5/pair_count/python/2/a1", "utc": "2026-10-29T21:14:39.129306+00:00"}
+{"kind": "settle", "id": 171, "cost": 0.00047099, "label": "claude-code-haiku-5-5/second_largest/ts/2/a1", "spent": 0.07682419000000003, "utc": "2026-10-29T21:14:44.760956+00:00"}
+{"kind": "settle", "id": 172, "cost": 0.00028074, "label": "claude-code-haiku-5-5/pair_count/python/2/a1", "spent": 0.07710493000000003, "utc": "2026-10-29T21:14:45.298272+00:00"}
+{"kind": "reserve", "id": 173, "amount": 0.001082, "label": "claude-code-haiku-5-5/pair_count/sley/2/a1", "utc": "2026-10-29T21:14:45.828566+00:00"}
+{"kind": "reserve", "id": 174, "amount": 0.001028125, "label": "claude-code-haiku-5-5/pair_count/c/2/a1", "utc": "2026-10-29T21:14:46.950298+00:00"}
+{"kind": "settle", "id": 173, "cost": 0.00029487000000000003, "label": "claude-code-haiku-5-5/pair_count/sley/2/a1", "spent": 0.07739980000000003, "utc": "2026-10-29T21:14:51.823267+00:00"}
+{"kind": "reserve", "id": 175, "amount": 0.001025375, "label": "claude-code-haiku-5-5/pair_count/rust/2/a1", "utc": "2026-10-29T21:14:58.530721+00:00"}
+{"kind": "settle", "id": 174, "cost": 0.00181651, "label": "claude-code-haiku-5-5/pair_count/c/2/a1", "spent": 0.07921631000000003, "utc": "2026-10-29T21:15:05.918023+00:00"}
+{"kind": "reserve", "id": 176, "amount": 0.00105925, "label": "claude-code-haiku-5-5/pair_count/c/2/a2", "utc": "2026-10-29T21:15:05.918378+00:00"}
+{"kind": "settle", "id": 175, "cost": 0.00039572, "label": "claude-code-haiku-5-5/pair_count/rust/2/a1", "spent": 0.07961203000000003, "utc": "2026-10-29T21:15:06.302499+00:00"}
+{"kind": "reserve", "id": 177, "amount": 0.001026, "label": "claude-code-haiku-5-5/pair_count/go/2/a1", "utc": "2026-10-29T21:15:07.582904+00:00"}
+{"kind": "settle", "id": 176, "cost": 0.00048390000000000005, "label": "claude-code-haiku-5-5/pair_count/c/2/a2", "spent": 0.08009593000000002, "utc": "2026-10-29T21:15:11.715927+00:00"}
+{"kind": "reserve", "id": 178, "amount": 0.001026375, "label": "claude-code-haiku-5-5/pair_count/ts/2/a1", "utc": "2026-10-29T21:15:12.599075+00:00"}
+{"kind": "settle", "id": 177, "cost": 0.00032521000000000004, "label": "claude-code-haiku-5-5/pair_count/go/2/a1", "spent": 0.08042114000000003, "utc": "2026-10-29T21:15:14.494501+00:00"}
+{"kind": "reserve", "id": 179, "amount": 0.00103625, "label": "claude-code-haiku-5-5/max_depth/python/2/a1", "utc": "2026-10-29T21:15:15.046456+00:00"}
+{"kind": "settle", "id": 178, "cost": 0.00028835000000000004, "label": "claude-code-haiku-5-5/pair_count/ts/2/a1", "spent": 0.08070949000000004, "utc": "2026-10-29T21:15:18.271509+00:00"}
+{"kind": "reserve", "id": 180, "amount": 0.0010935, "label": "claude-code-haiku-5-5/max_depth/sley/2/a1", "utc": "2026-10-29T21:15:20.357888+00:00"}
+{"kind": "settle", "id": 179, "cost": 0.00026016, "label": "claude-code-haiku-5-5/max_depth/python/2/a1", "spent": 0.08096965000000003, "utc": "2026-10-29T21:15:20.462831+00:00"}
+{"kind": "reserve", "id": 181, "amount": 0.001043, "label": "claude-code-haiku-5-5/max_depth/c/2/a1", "utc": "2026-10-29T21:15:20.847903+00:00"}
+{"kind": "settle", "id": 180, "cost": 0.00034109, "label": "claude-code-haiku-5-5/max_depth/sley/2/a1", "spent": 0.08131074000000003, "utc": "2026-10-29T21:15:26.071114+00:00"}
+{"kind": "settle", "id": 181, "cost": 0.00034730000000000004, "label": "claude-code-haiku-5-5/max_depth/c/2/a1", "spent": 0.08165804000000003, "utc": "2026-10-29T21:15:26.315820+00:00"}
+{"kind": "reserve", "id": 182, "amount": 0.001036375, "label": "claude-code-haiku-5-5/max_depth/rust/2/a1", "utc": "2026-10-29T21:15:27.211401+00:00"}
+{"kind": "reserve", "id": 183, "amount": 0.001037125, "label": "claude-code-haiku-5-5/max_depth/go/2/a1", "utc": "2026-10-29T21:15:27.772403+00:00"}
+{"kind": "settle", "id": 183, "cost": 0.00031882000000000004, "label": "claude-code-haiku-5-5/max_depth/go/2/a1", "spent": 0.08197686000000003, "utc": "2026-10-29T21:15:33.676861+00:00"}
+{"kind": "settle", "id": 182, "cost": 0.00034472, "label": "claude-code-haiku-5-5/max_depth/rust/2/a1", "spent": 0.08232158000000003, "utc": "2026-10-29T21:15:33.834395+00:00"}
+{"kind": "reserve", "id": 184, "amount": 0.001037625, "label": "claude-code-haiku-5-5/max_depth/ts/2/a1", "utc": "2026-10-29T21:15:34.303359+00:00"}
+{"kind": "reserve", "id": 185, "amount": 0.001028, "label": "claude-code-haiku-5-5/mode_value/python/2/a1", "utc": "2026-10-29T21:15:35.199994+00:00"}
+{"kind": "settle", "id": 184, "cost": 0.00030422, "label": "claude-code-haiku-5-5/max_depth/ts/2/a1", "spent": 0.08262580000000003, "utc": "2026-10-29T21:15:39.493592+00:00"}
+{"kind": "settle", "id": 185, "cost": 0.00022569000000000002, "label": "claude-code-haiku-5-5/mode_value/python/2/a1", "spent": 0.08285149000000003, "utc": "2026-10-29T21:15:40.113971+00:00"}
+{"kind": "reserve", "id": 186, "amount": 0.001085125, "label": "claude-code-haiku-5-5/mode_value/sley/2/a1", "utc": "2026-10-29T21:15:40.474088+00:00"}
+{"kind": "reserve", "id": 187, "amount": 0.00103275, "label": "claude-code-haiku-5-5/mode_value/c/2/a1", "utc": "2026-10-29T21:15:41.324431+00:00"}
+{"kind": "settle", "id": 186, "cost": 0.00045792, "label": "claude-code-haiku-5-5/mode_value/sley/2/a1", "spent": 0.08330941000000003, "utc": "2026-10-29T21:15:47.927220+00:00"}
+{"kind": "settle", "id": 187, "cost": 0.00070575, "label": "claude-code-haiku-5-5/mode_value/c/2/a1", "spent": 0.08401516000000003, "utc": "2026-10-29T21:15:50.546001+00:00"}
+{"kind": "reserve", "id": 188, "amount": 0.001028, "label": "claude-code-haiku-5-5/mode_value/rust/2/a1", "utc": "2026-10-29T21:15:51.277699+00:00"}
+{"kind": "reserve", "id": 189, "amount": 0.001028375, "label": "claude-code-haiku-5-5/mode_value/go/2/a1", "utc": "2026-10-29T21:15:51.442244+00:00"}
+{"kind": "settle", "id": 189, "cost": 0.00029958999999999997, "label": "claude-code-haiku-5-5/mode_value/go/2/a1", "spent": 0.08431475000000004, "utc": "2026-10-29T21:15:56.586915+00:00"}
+{"kind": "reserve", "id": 190, "amount": 0.0010293750000000001, "label": "claude-code-haiku-5-5/mode_value/ts/2/a1", "utc": "2026-10-29T21:15:57.155981+00:00"}
+{"kind": "settle", "id": 188, "cost": 0.00029691000000000006, "label": "claude-code-haiku-5-5/mode_value/rust/2/a1", "spent": 0.08461166000000003, "utc": "2026-10-29T21:15:57.614994+00:00"}
+{"kind": "reserve", "id": 191, "amount": 0.001027875, "label": "claude-code-haiku-5-5/max_subarray/python/2/a1", "utc": "2026-10-29T21:15:58.957956+00:00"}
+{"kind": "settle", "id": 190, "cost": 0.00029789, "label": "claude-code-haiku-5-5/mode_value/ts/2/a1", "spent": 0.08490955000000003, "utc": "2026-10-29T21:16:02.017129+00:00"}
+{"kind": "reserve", "id": 192, "amount": 0.001085, "label": "claude-code-haiku-5-5/max_subarray/sley/2/a1", "utc": "2026-10-29T21:16:03.756502+00:00"}
+{"kind": "settle", "id": 191, "cost": 0.0002805, "label": "claude-code-haiku-5-5/max_subarray/python/2/a1", "spent": 0.08519005000000003, "utc": "2026-10-29T21:16:04.745744+00:00"}
+{"kind": "reserve", "id": 193, "amount": 0.0010326250000000001, "label": "claude-code-haiku-5-5/max_subarray/c/2/a1", "utc": "2026-10-29T21:16:05.078627+00:00"}
+{"kind": "settle", "id": 192, "cost": 0.00034193, "label": "claude-code-haiku-5-5/max_subarray/sley/2/a1", "spent": 0.08553198000000004, "utc": "2026-10-29T21:16:09.710421+00:00"}
+{"kind": "settle", "id": 193, "cost": 0.00037146, "label": "claude-code-haiku-5-5/max_subarray/c/2/a1", "spent": 0.08590344000000004, "utc": "2026-10-29T21:16:11.399549+00:00"}
+{"kind": "reserve", "id": 194, "amount": 0.001027875, "label": "claude-code-haiku-5-5/max_subarray/rust/2/a1", "utc": "2026-10-29T21:16:12.137831+00:00"}
+{"kind": "reserve", "id": 195, "amount": 0.001028125, "label": "claude-code-haiku-5-5/max_subarray/go/2/a1", "utc": "2026-10-29T21:16:13.904673+00:00"}
+{"kind": "settle", "id": 194, "cost": 0.00027352, "label": "claude-code-haiku-5-5/max_subarray/rust/2/a1", "spent": 0.08617696000000004, "utc": "2026-10-29T21:16:17.988208+00:00"}
+{"kind": "reserve", "id": 196, "amount": 0.00102925, "label": "claude-code-haiku-5-5/max_subarray/ts/2/a1", "utc": "2026-10-29T21:16:18.810703+00:00"}
+{"kind": "settle", "id": 195, "cost": 0.00028194, "label": "claude-code-haiku-5-5/max_subarray/go/2/a1", "spent": 0.08645890000000003, "utc": "2026-10-29T21:16:18.983533+00:00"}
+{"kind": "reserve", "id": 197, "amount": 0.001026, "label": "claude-code-haiku-5-5/count_leq/python/2/a1", "utc": "2026-10-29T21:16:19.678875+00:00"}
+{"kind": "settle", "id": 196, "cost": 0.00026814000000000004, "label": "claude-code-haiku-5-5/max_subarray/ts/2/a1", "spent": 0.08672704000000003, "utc": "2026-10-29T21:16:24.155997+00:00"}
+{"kind": "settle", "id": 197, "cost": 0.00019770000000000003, "label": "claude-code-haiku-5-5/count_leq/python/2/a1", "spent": 0.08692474000000003, "utc": "2026-10-29T21:16:25.083813+00:00"}
+{"kind": "reserve", "id": 198, "amount": 0.001083125, "label": "claude-code-haiku-5-5/count_leq/sley/2/a1", "utc": "2026-10-29T21:16:25.502666+00:00"}
+{"kind": "reserve", "id": 199, "amount": 0.00102925, "label": "claude-code-haiku-5-5/count_leq/c/2/a1", "utc": "2026-10-29T21:16:25.968107+00:00"}
+{"kind": "settle", "id": 198, "cost": 0.00023133000000000002, "label": "claude-code-haiku-5-5/count_leq/sley/2/a1", "spent": 0.08715607000000003, "utc": "2026-10-29T21:16:30.291259+00:00"}
+{"kind": "settle", "id": 199, "cost": 0.00028547, "label": "claude-code-haiku-5-5/count_leq/c/2/a1", "spent": 0.08744154000000003, "utc": "2026-10-29T21:16:31.512212+00:00"}
+{"kind": "reserve", "id": 200, "amount": 0.001026625, "label": "claude-code-haiku-5-5/count_leq/rust/2/a1", "utc": "2026-10-29T21:16:32.644840+00:00"}
+{"kind": "reserve", "id": 201, "amount": 0.00102725, "label": "claude-code-haiku-5-5/count_leq/go/2/a1", "utc": "2026-10-29T21:16:34.032596+00:00"}
+{"kind": "settle", "id": 200, "cost": 0.00026928, "label": "claude-code-haiku-5-5/count_leq/rust/2/a1", "spent": 0.08771082000000002, "utc": "2026-10-29T21:16:37.782318+00:00"}
+{"kind": "settle", "id": 201, "cost": 0.00026941000000000004, "label": "claude-code-haiku-5-5/count_leq/go/2/a1", "spent": 0.08798023000000002, "utc": "2026-10-29T21:16:38.953358+00:00"}
+{"kind": "reserve", "id": 202, "amount": 0.0010276250000000001, "label": "claude-code-haiku-5-5/count_leq/ts/2/a1", "utc": "2026-10-29T21:16:39.259907+00:00"}
+{"kind": "reserve", "id": 203, "amount": 0.00102675, "label": "claude-code-haiku-5-5/root_sum/python/2/a1", "utc": "2026-10-29T21:16:39.678222+00:00"}
+{"kind": "settle", "id": 202, "cost": 0.00023781000000000003, "label": "claude-code-haiku-5-5/count_leq/ts/2/a1", "spent": 0.08821804000000003, "utc": "2026-10-29T21:16:44.536712+00:00"}
+{"kind": "settle", "id": 203, "cost": 0.00025255000000000004, "label": "claude-code-haiku-5-5/root_sum/python/2/a1", "spent": 0.08847059000000003, "utc": "2026-10-29T21:16:45.060165+00:00"}
+{"kind": "reserve", "id": 204, "amount": 0.0010840000000000001, "label": "claude-code-haiku-5-5/root_sum/sley/2/a1", "utc": "2026-10-29T21:16:45.628798+00:00"}
+{"kind": "reserve", "id": 205, "amount": 0.001027125, "label": "claude-code-haiku-5-5/root_sum/c/2/a1", "utc": "2026-10-29T21:16:46.620415+00:00"}
+{"kind": "settle", "id": 204, "cost": 0.00031368, "label": "claude-code-haiku-5-5/root_sum/sley/2/a1", "spent": 0.08878427000000003, "utc": "2026-10-29T21:16:51.679958+00:00"}
+{"kind": "settle", "id": 205, "cost": 0.00027128, "label": "claude-code-haiku-5-5/root_sum/c/2/a1", "spent": 0.08905555000000002, "utc": "2026-10-29T21:16:52.046394+00:00"}
+{"kind": "reserve", "id": 206, "amount": 0.001027375, "label": "claude-code-haiku-5-5/root_sum/rust/2/a1", "utc": "2026-10-29T21:16:52.691752+00:00"}
+{"kind": "reserve", "id": 207, "amount": 0.00102725, "label": "claude-code-haiku-5-5/root_sum/go/2/a1", "utc": "2026-10-29T21:16:53.890700+00:00"}
+{"kind": "settle", "id": 206, "cost": 0.00026236, "label": "claude-code-haiku-5-5/root_sum/rust/2/a1", "spent": 0.08931791000000003, "utc": "2026-10-29T21:16:58.301214+00:00"}
+{"kind": "reserve", "id": 208, "amount": 0.001028375, "label": "claude-code-haiku-5-5/root_sum/ts/2/a1", "utc": "2026-10-29T21:16:59.625948+00:00"}
+{"kind": "settle", "id": 207, "cost": 0.00033358, "label": "claude-code-haiku-5-5/root_sum/go/2/a1", "spent": 0.08965149000000003, "utc": "2026-10-29T21:16:59.832845+00:00"}
+{"kind": "reserve", "id": 209, "amount": 0.00103575, "label": "claude-code-haiku-5-5/clamp_sum/python/2/a1", "utc": "2026-10-29T21:17:00.693356+00:00"}
+{"kind": "settle", "id": 208, "cost": 0.00030077, "label": "claude-code-haiku-5-5/root_sum/ts/2/a1", "spent": 0.08995226000000003, "utc": "2026-10-29T21:17:04.881416+00:00"}
+{"kind": "settle", "id": 209, "cost": 0.00028533, "label": "claude-code-haiku-5-5/clamp_sum/python/2/a1", "spent": 0.09023759000000003, "utc": "2026-10-29T21:17:06.537217+00:00"}
+{"kind": "reserve", "id": 210, "amount": 0.001092875, "label": "claude-code-haiku-5-5/clamp_sum/sley/2/a1", "utc": "2026-10-29T21:17:06.889947+00:00"}
+{"kind": "reserve", "id": 211, "amount": 0.001050875, "label": "claude-code-haiku-5-5/clamp_sum/c/2/a1", "utc": "2026-10-29T21:17:07.015017+00:00"}
+{"kind": "settle", "id": 210, "cost": 0.00034326, "label": "claude-code-haiku-5-5/clamp_sum/sley/2/a1", "spent": 0.09058085000000003, "utc": "2026-10-29T21:17:12.311640+00:00"}
+{"kind": "settle", "id": 211, "cost": 0.00035508, "label": "claude-code-haiku-5-5/clamp_sum/c/2/a1", "spent": 0.09093593000000003, "utc": "2026-10-29T21:17:13.109270+00:00"}
+{"kind": "reserve", "id": 212, "amount": 0.001036625, "label": "claude-code-haiku-5-5/clamp_sum/rust/2/a1", "utc": "2026-10-29T21:17:13.678706+00:00"}
+{"kind": "reserve", "id": 213, "amount": 0.001038875, "label": "claude-code-haiku-5-5/clamp_sum/go/2/a1", "utc": "2026-10-29T21:17:13.861735+00:00"}
+{"kind": "settle", "id": 212, "cost": 0.00034363000000000004, "label": "claude-code-haiku-5-5/clamp_sum/rust/2/a1", "spent": 0.09127956000000002, "utc": "2026-10-29T21:17:19.876190+00:00"}
+{"kind": "reserve", "id": 214, "amount": 0.001039375, "label": "claude-code-haiku-5-5/clamp_sum/ts/2/a1", "utc": "2026-10-29T21:17:20.774858+00:00"}
+{"kind": "settle", "id": 213, "cost": 0.00046303, "label": "claude-code-haiku-5-5/clamp_sum/go/2/a1", "spent": 0.09174259000000003, "utc": "2026-10-29T21:17:21.679715+00:00"}
+{"kind": "reserve", "id": 215, "amount": 0.0010350000000000001, "label": "claude-code-haiku-5-5/count_multiples/python/2/a1", "utc": "2026-10-29T21:17:22.303814+00:00"}
+{"kind": "settle", "id": 214, "cost": 0.00038931, "label": "claude-code-haiku-5-5/clamp_sum/ts/2/a1", "spent": 0.09213190000000003, "utc": "2026-10-29T21:17:26.585814+00:00"}
+{"kind": "settle", "id": 215, "cost": 0.00024756, "label": "claude-code-haiku-5-5/count_multiples/python/2/a1", "spent": 0.09237946000000002, "utc": "2026-10-29T21:17:27.316309+00:00"}
+{"kind": "reserve", "id": 216, "amount": 0.001092125, "label": "claude-code-haiku-5-5/count_multiples/sley/2/a1", "utc": "2026-10-29T21:17:27.691133+00:00"}
+{"kind": "reserve", "id": 217, "amount": 0.001046375, "label": "claude-code-haiku-5-5/count_multiples/c/2/a1", "utc": "2026-10-29T21:17:28.614809+00:00"}
+{"kind": "settle", "id": 216, "cost": 0.00032319, "label": "claude-code-haiku-5-5/count_multiples/sley/2/a1", "spent": 0.09270265000000003, "utc": "2026-10-29T21:17:32.943335+00:00"}
+{"kind": "reserve", "id": 218, "amount": 0.001036375, "label": "claude-code-haiku-5-5/count_multiples/rust/2/a1", "utc": "2026-10-29T21:17:34.508412+00:00"}
+{"kind": "settle", "id": 217, "cost": 0.00032861, "label": "claude-code-haiku-5-5/count_multiples/c/2/a1", "spent": 0.09303126000000003, "utc": "2026-10-29T21:17:34.715014+00:00"}
+{"kind": "reserve", "id": 219, "amount": 0.001038375, "label": "claude-code-haiku-5-5/count_multiples/go/2/a1", "utc": "2026-10-29T21:17:35.374090+00:00"}
+{"kind": "settle", "id": 218, "cost": 0.00027076, "label": "claude-code-haiku-5-5/count_multiples/rust/2/a1", "spent": 0.09330202000000003, "utc": "2026-10-29T21:17:39.565244+00:00"}
+{"kind": "settle", "id": 219, "cost": 0.00029332, "label": "claude-code-haiku-5-5/count_multiples/go/2/a1", "spent": 0.09359534000000003, "utc": "2026-10-29T21:17:39.790957+00:00"}
+{"kind": "reserve", "id": 220, "amount": 0.0010375, "label": "claude-code-haiku-5-5/count_multiples/ts/2/a1", "utc": "2026-10-29T21:17:40.422911+00:00"}
+{"kind": "reserve", "id": 221, "amount": 0.001023375, "label": "claude-code-haiku-5-5/fib/python/3/a1", "utc": "2026-10-29T21:17:40.442855+00:00"}
+{"kind": "settle", "id": 221, "cost": 0.00023106000000000003, "label": "claude-code-haiku-5-5/fib/python/3/a1", "spent": 0.09382640000000003, "utc": "2026-10-29T21:17:45.541385+00:00"}
+{"kind": "settle", "id": 220, "cost": 0.00032178, "label": "claude-code-haiku-5-5/count_multiples/ts/2/a1", "spent": 0.09414818000000003, "utc": "2026-10-29T21:17:45.821977+00:00"}
+{"kind": "reserve", "id": 222, "amount": 0.0010805, "label": "claude-code-haiku-5-5/fib/sley/3/a1", "utc": "2026-10-29T21:17:45.874311+00:00"}
+{"kind": "reserve", "id": 223, "amount": 0.001023625, "label": "claude-code-haiku-5-5/fib/c/3/a1", "utc": "2026-10-29T21:17:47.686845+00:00"}
+{"kind": "settle", "id": 222, "cost": 0.00023159, "label": "claude-code-haiku-5-5/fib/sley/3/a1", "spent": 0.09437977000000003, "utc": "2026-10-29T21:17:50.350492+00:00"}
+{"kind": "reserve", "id": 224, "amount": 0.001023875, "label": "claude-code-haiku-5-5/fib/rust/3/a1", "utc": "2026-10-29T21:17:51.404985+00:00"}
+{"kind": "settle", "id": 223, "cost": 0.00023009000000000001, "label": "claude-code-haiku-5-5/fib/c/3/a1", "spent": 0.09460986000000003, "utc": "2026-10-29T21:17:52.258858+00:00"}
+{"kind": "reserve", "id": 225, "amount": 0.001024, "label": "claude-code-haiku-5-5/fib/go/3/a1", "utc": "2026-10-29T21:17:52.434384+00:00"}
+{"kind": "settle", "id": 224, "cost": 0.00021917000000000003, "label": "claude-code-haiku-5-5/fib/rust/3/a1", "spent": 0.09482903000000004, "utc": "2026-10-29T21:17:55.973276+00:00"}
+{"kind": "reserve", "id": 226, "amount": 0.001025125, "label": "claude-code-haiku-5-5/fib/ts/3/a1", "utc": "2026-10-29T21:17:56.595397+00:00"}
+{"kind": "settle", "id": 225, "cost": 0.00024724, "label": "claude-code-haiku-5-5/fib/go/3/a1", "spent": 0.09507627000000003, "utc": "2026-10-29T21:17:57.782818+00:00"}
+{"kind": "reserve", "id": 227, "amount": 0.001029125, "label": "claude-code-haiku-5-5/collatz/python/3/a1", "utc": "2026-10-29T21:17:58.400055+00:00"}
+{"kind": "settle", "id": 226, "cost": 0.00024368000000000003, "label": "claude-code-haiku-5-5/fib/ts/3/a1", "spent": 0.09531995000000003, "utc": "2026-10-29T21:18:01.766187+00:00"}
+{"kind": "reserve", "id": 228, "amount": 0.001086375, "label": "claude-code-haiku-5-5/collatz/sley/3/a1", "utc": "2026-10-29T21:18:03.731165+00:00"}
+{"kind": "settle", "id": 227, "cost": 0.00060222, "label": "claude-code-haiku-5-5/collatz/python/3/a1", "spent": 0.09592217000000003, "utc": "2026-10-29T21:18:08.235994+00:00"}
+{"kind": "reserve", "id": 229, "amount": 0.0010295, "label": "claude-code-haiku-5-5/collatz/c/3/a1", "utc": "2026-10-29T21:18:08.718635+00:00"}
+{"kind": "settle", "id": 228, "cost": 0.00045805, "label": "claude-code-haiku-5-5/collatz/sley/3/a1", "spent": 0.09638022000000003, "utc": "2026-10-29T21:18:09.911024+00:00"}
+{"kind": "reserve", "id": 230, "amount": 0.00102975, "label": "claude-code-haiku-5-5/collatz/rust/3/a1", "utc": "2026-10-29T21:18:11.780342+00:00"}
+{"kind": "settle", "id": 229, "cost": 0.00037605, "label": "claude-code-haiku-5-5/collatz/c/3/a1", "spent": 0.09675627000000003, "utc": "2026-10-29T21:18:15.055948+00:00"}
+{"kind": "reserve", "id": 231, "amount": 0.00102975, "label": "claude-code-haiku-5-5/collatz/go/3/a1", "utc": "2026-10-29T21:18:15.354026+00:00"}
+{"kind": "settle", "id": 230, "cost": 0.00042053, "label": "claude-code-haiku-5-5/collatz/rust/3/a1", "spent": 0.09717680000000004, "utc": "2026-10-29T21:18:18.506401+00:00"}
+{"kind": "reserve", "id": 232, "amount": 0.001031, "label": "claude-code-haiku-5-5/collatz/ts/3/a1", "utc": "2026-10-29T21:18:19.775849+00:00"}
+{"kind": "settle", "id": 231, "cost": 0.00088699, "label": "claude-code-haiku-5-5/collatz/go/3/a1", "spent": 0.09806379000000004, "utc": "2026-10-29T21:18:28.086812+00:00"}
+{"kind": "settle", "id": 232, "cost": 0.00065954, "label": "claude-code-haiku-5-5/collatz/ts/3/a1", "spent": 0.09872333000000004, "utc": "2026-10-29T21:18:28.698883+00:00"}
+{"kind": "reserve", "id": 233, "amount": 0.001022625, "label": "claude-code-haiku-5-5/primes/python/3/a1", "utc": "2026-10-29T21:18:28.724176+00:00"}
+{"kind": "reserve", "id": 234, "amount": 0.00107975, "label": "claude-code-haiku-5-5/primes/sley/3/a1", "utc": "2026-10-29T21:18:30.948055+00:00"}
+{"kind": "settle", "id": 233, "cost": 0.00024727, "label": "claude-code-haiku-5-5/primes/python/3/a1", "spent": 0.09897060000000003, "utc": "2026-10-29T21:18:33.945560+00:00"}
+{"kind": "reserve", "id": 235, "amount": 0.001022875, "label": "claude-code-haiku-5-5/primes/c/3/a1", "utc": "2026-10-29T21:18:34.365650+00:00"}
+{"kind": "settle", "id": 234, "cost": 0.00036340000000000005, "label": "claude-code-haiku-5-5/primes/sley/3/a1", "spent": 0.09933400000000003, "utc": "2026-10-29T21:18:36.577445+00:00"}
+{"kind": "reserve", "id": 236, "amount": 0.001023125, "label": "claude-code-haiku-5-5/primes/rust/3/a1", "utc": "2026-10-29T21:18:38.187287+00:00"}
+{"kind": "settle", "id": 235, "cost": 0.0002705, "label": "claude-code-haiku-5-5/primes/c/3/a1", "spent": 0.09960450000000004, "utc": "2026-10-29T21:18:39.753148+00:00"}
+{"kind": "reserve", "id": 237, "amount": 0.00102325, "label": "claude-code-haiku-5-5/primes/go/3/a1", "utc": "2026-10-29T21:18:40.010120+00:00"}
+{"kind": "settle", "id": 236, "cost": 0.00027638, "label": "claude-code-haiku-5-5/primes/rust/3/a1", "spent": 0.09988088000000005, "utc": "2026-10-29T21:18:43.955997+00:00"}
+{"kind": "reserve", "id": 238, "amount": 0.0010243750000000001, "label": "claude-code-haiku-5-5/primes/ts/3/a1", "utc": "2026-10-29T21:18:44.897386+00:00"}
+{"kind": "settle", "id": 237, "cost": 0.00029904, "label": "claude-code-haiku-5-5/primes/go/3/a1", "spent": 0.10017992000000005, "utc": "2026-10-29T21:18:45.954308+00:00"}
+{"kind": "reserve", "id": 239, "amount": 0.001024, "label": "claude-code-haiku-5-5/digitsum/python/3/a1", "utc": "2026-10-29T21:18:46.607998+00:00"}
+{"kind": "settle", "id": 238, "cost": 0.00027889000000000006, "label": "claude-code-haiku-5-5/primes/ts/3/a1", "spent": 0.10045881000000005, "utc": "2026-10-29T21:18:49.912573+00:00"}
+{"kind": "settle", "id": 239, "cost": 0.00020495000000000002, "label": "claude-code-haiku-5-5/digitsum/python/3/a1", "spent": 0.10066376000000005, "utc": "2026-10-29T21:18:50.964881+00:00"}
+{"kind": "reserve", "id": 240, "amount": 0.00108125, "label": "claude-code-haiku-5-5/digitsum/sley/3/a1", "utc": "2026-10-29T21:18:51.482049+00:00"}
+{"kind": "reserve", "id": 241, "amount": 0.0010243750000000001, "label": "claude-code-haiku-5-5/digitsum/c/3/a1", "utc": "2026-10-29T21:18:51.701497+00:00"}
+{"kind": "settle", "id": 240, "cost": 0.00027058000000000003, "label": "claude-code-haiku-5-5/digitsum/sley/3/a1", "spent": 0.10093434000000005, "utc": "2026-10-29T21:18:56.212004+00:00"}
+{"kind": "settle", "id": 241, "cost": 0.00025217999999999996, "label": "claude-code-haiku-5-5/digitsum/c/3/a1", "spent": 0.10118652000000006, "utc": "2026-10-29T21:18:57.529738+00:00"}
+{"kind": "reserve", "id": 242, "amount": 0.001024625, "label": "claude-code-haiku-5-5/digitsum/rust/3/a1", "utc": "2026-10-29T21:18:57.732619+00:00"}
+{"kind": "reserve", "id": 243, "amount": 0.001024625, "label": "claude-code-haiku-5-5/digitsum/go/3/a1", "utc": "2026-10-29T21:18:58.050384+00:00"}
+{"kind": "settle", "id": 242, "cost": 0.00024826000000000004, "label": "claude-code-haiku-5-5/digitsum/rust/3/a1", "spent": 0.10143478000000006, "utc": "2026-10-29T21:19:02.867394+00:00"}
+{"kind": "settle", "id": 243, "cost": 0.00027252, "label": "claude-code-haiku-5-5/digitsum/go/3/a1", "spent": 0.10170730000000006, "utc": "2026-10-29T21:19:03.289873+00:00"}
+{"kind": "reserve", "id": 244, "amount": 0.001025875, "label": "claude-code-haiku-5-5/digitsum/ts/3/a1", "utc": "2026-10-29T21:19:03.846777+00:00"}
+{"kind": "reserve", "id": 245, "amount": 0.001025375, "label": "claude-code-haiku-5-5/isqrt/python/3/a1", "utc": "2026-10-29T21:19:03.948499+00:00"}
+{"kind": "settle", "id": 244, "cost": 0.00022307000000000002, "label": "claude-code-haiku-5-5/digitsum/ts/3/a1", "spent": 0.10193037000000006, "utc": "2026-10-29T21:19:09.270908+00:00"}
+{"kind": "settle", "id": 245, "cost": 0.00024361000000000003, "label": "claude-code-haiku-5-5/isqrt/python/3/a1", "spent": 0.10217398000000007, "utc": "2026-10-29T21:19:09.729670+00:00"}
+{"kind": "reserve", "id": 246, "amount": 0.0010825000000000001, "label": "claude-code-haiku-5-5/isqrt/sley/3/a1", "utc": "2026-10-29T21:19:10.175570+00:00"}
+{"kind": "reserve", "id": 247, "amount": 0.00102575, "label": "claude-code-haiku-5-5/isqrt/c/3/a1", "utc": "2026-10-29T21:19:11.164602+00:00"}
+{"kind": "settle", "id": 246, "cost": 0.00036834, "label": "claude-code-haiku-5-5/isqrt/sley/3/a1", "spent": 0.10254232000000006, "utc": "2026-10-29T21:19:16.752246+00:00"}
+{"kind": "settle", "id": 247, "cost": 0.00030714, "label": "claude-code-haiku-5-5/isqrt/c/3/a1", "spent": 0.10284946000000006, "utc": "2026-10-29T21:19:16.866088+00:00"}
+{"kind": "reserve", "id": 248, "amount": 0.001026, "label": "claude-code-haiku-5-5/isqrt/rust/3/a1", "utc": "2026-10-29T21:19:17.297315+00:00"}
+{"kind": "reserve", "id": 249, "amount": 0.001026, "label": "claude-code-haiku-5-5/isqrt/go/3/a1", "utc": "2026-10-29T21:19:18.133012+00:00"}
+{"kind": "settle", "id": 248, "cost": 0.00029532, "label": "claude-code-haiku-5-5/isqrt/rust/3/a1", "spent": 0.10314478000000006, "utc": "2026-10-29T21:19:22.749948+00:00"}
+{"kind": "settle", "id": 249, "cost": 0.00029708, "label": "claude-code-haiku-5-5/isqrt/go/3/a1", "spent": 0.10344186000000007, "utc": "2026-10-29T21:19:23.589741+00:00"}
+{"kind": "reserve", "id": 250, "amount": 0.001027125, "label": "claude-code-haiku-5-5/isqrt/ts/3/a1", "utc": "2026-10-29T21:19:24.163198+00:00"}
+{"kind": "reserve", "id": 251, "amount": 0.0010252500000000001, "label": "claude-code-haiku-5-5/inversions/python/3/a1", "utc": "2026-10-29T21:19:24.279887+00:00"}
+{"kind": "settle", "id": 250, "cost": 0.00029873, "label": "claude-code-haiku-5-5/isqrt/ts/3/a1", "spent": 0.10374059000000006, "utc": "2026-10-29T21:19:29.838572+00:00"}
+{"kind": "settle", "id": 251, "cost": 0.00036130000000000005, "label": "claude-code-haiku-5-5/inversions/python/3/a1", "spent": 0.10410189000000006, "utc": "2026-10-29T21:19:30.318329+00:00"}
+{"kind": "reserve", "id": 252, "amount": 0.0010825000000000001, "label": "claude-code-haiku-5-5/inversions/sley/3/a1", "utc": "2026-10-29T21:19:30.678865+00:00"}
+{"kind": "reserve", "id": 253, "amount": 0.00102925, "label": "claude-code-haiku-5-5/inversions/c/3/a1", "utc": "2026-10-29T21:19:31.647247+00:00"}
+{"kind": "settle", "id": 252, "cost": 0.00025633000000000003, "label": "claude-code-haiku-5-5/inversions/sley/3/a1", "spent": 0.10435822000000006, "utc": "2026-10-29T21:19:35.602800+00:00"}
+{"kind": "reserve", "id": 254, "amount": 0.001025875, "label": "claude-code-haiku-5-5/inversions/rust/3/a1", "utc": "2026-10-29T21:19:41.551059+00:00"}
+{"kind": "settle", "id": 253, "cost": 0.00090512, "label": "claude-code-haiku-5-5/inversions/c/3/a1", "spent": 0.10526334000000005, "utc": "2026-10-29T21:19:43.175438+00:00"}
+{"kind": "reserve", "id": 255, "amount": 0.00113675, "label": "claude-code-haiku-5-5/inversions/c/3/a2", "utc": "2026-10-29T21:19:43.198756+00:00"}
+{"kind": "settle", "id": 254, "cost": 0.00040828999999999996, "label": "claude-code-haiku-5-5/inversions/rust/3/a1", "spent": 0.10567163000000006, "utc": "2026-10-29T21:19:48.154910+00:00"}
+{"kind": "reserve", "id": 256, "amount": 0.001026875, "label": "claude-code-haiku-5-5/inversions/go/3/a1", "utc": "2026-10-29T21:19:49.048748+00:00"}
+{"kind": "settle", "id": 255, "cost": 0.0009325, "label": "claude-code-haiku-5-5/inversions/c/3/a2", "spent": 0.10660413000000006, "utc": "2026-10-29T21:19:50.142491+00:00"}
+{"kind": "reserve", "id": 257, "amount": 0.001026875, "label": "claude-code-haiku-5-5/inversions/ts/3/a1", "utc": "2026-10-29T21:19:50.538475+00:00"}
+{"kind": "settle", "id": 257, "cost": 0.0004248100000000001, "label": "claude-code-haiku-5-5/inversions/ts/3/a1", "spent": 0.10702894000000006, "utc": "2026-10-29T21:19:57.036499+00:00"}
+{"kind": "settle", "id": 256, "cost": 0.00068742, "label": "claude-code-haiku-5-5/inversions/go/3/a1", "spent": 0.10771636000000005, "utc": "2026-10-29T21:19:58.417757+00:00"}
+{"kind": "reserve", "id": 258, "amount": 0.001028, "label": "claude-code-haiku-5-5/transform/python/3/a1", "utc": "2026-10-29T21:19:58.894321+00:00"}
+{"kind": "reserve", "id": 259, "amount": 0.00108525, "label": "claude-code-haiku-5-5/transform/sley/3/a1", "utc": "2026-10-29T21:19:59.036605+00:00"}
+{"kind": "settle", "id": 258, "cost": 0.00022369000000000002, "label": "claude-code-haiku-5-5/transform/python/3/a1", "spent": 0.10794005000000005, "utc": "2026-10-29T21:20:04.298760+00:00"}
+{"kind": "reserve", "id": 260, "amount": 0.0010315, "label": "claude-code-haiku-5-5/transform/c/3/a1", "utc": "2026-10-29T21:20:04.676321+00:00"}
+{"kind": "settle", "id": 259, "cost": 0.00038452, "label": "claude-code-haiku-5-5/transform/sley/3/a1", "spent": 0.10832457000000005, "utc": "2026-10-29T21:20:05.356248+00:00"}
+{"kind": "reserve", "id": 261, "amount": 0.001028625, "label": "claude-code-haiku-5-5/transform/rust/3/a1", "utc": "2026-10-29T21:20:06.829270+00:00"}
+{"kind": "settle", "id": 261, "cost": 0.00042468000000000003, "label": "claude-code-haiku-5-5/transform/rust/3/a1", "spent": 0.10874925000000005, "utc": "2026-10-29T21:20:13.506900+00:00"}
+{"kind": "settle", "id": 260, "cost": 0.0005995600000000001, "label": "claude-code-haiku-5-5/transform/c/3/a1", "spent": 0.10934881000000005, "utc": "2026-10-29T21:20:13.884300+00:00"}
+{"kind": "reserve", "id": 262, "amount": 0.0010295, "label": "claude-code-haiku-5-5/transform/go/3/a1", "utc": "2026-10-29T21:20:14.347995+00:00"}
+{"kind": "reserve", "id": 263, "amount": 0.001029875, "label": "claude-code-haiku-5-5/transform/ts/3/a1", "utc": "2026-10-29T21:20:14.728753+00:00"}
+{"kind": "settle", "id": 263, "cost": 0.0003326, "label": "claude-code-haiku-5-5/transform/ts/3/a1", "spent": 0.10968141000000005, "utc": "2026-10-29T21:20:20.647674+00:00"}
+{"kind": "reserve", "id": 264, "amount": 0.0010345, "label": "claude-code-haiku-5-5/parse_int/python/3/a1", "utc": "2026-10-29T21:20:22.369735+00:00"}
+{"kind": "settle", "id": 262, "cost": 0.0005505, "label": "claude-code-haiku-5-5/transform/go/3/a1", "spent": 0.11023191000000004, "utc": "2026-10-29T21:20:23.209773+00:00"}
+{"kind": "reserve", "id": 265, "amount": 0.001091625, "label": "claude-code-haiku-5-5/parse_int/sley/3/a1", "utc": "2026-10-29T21:20:23.754000+00:00"}
+{"kind": "settle", "id": 264, "cost": 0.00026723000000000003, "label": "claude-code-haiku-5-5/parse_int/python/3/a1", "spent": 0.11049914000000004, "utc": "2026-10-29T21:20:27.257202+00:00"}
+{"kind": "reserve", "id": 266, "amount": 0.001041125, "label": "claude-code-haiku-5-5/parse_int/c/3/a1", "utc": "2026-10-29T21:20:27.618875+00:00"}
+{"kind": "settle", "id": 265, "cost": 0.00043346, "label": "claude-code-haiku-5-5/parse_int/sley/3/a1", "spent": 0.11093260000000003, "utc": "2026-10-29T21:20:30.329419+00:00"}
+{"kind": "reserve", "id": 267, "amount": 0.001034625, "label": "claude-code-haiku-5-5/parse_int/rust/3/a1", "utc": "2026-10-29T21:20:34.894617+00:00"}
+{"kind": "settle", "id": 266, "cost": 0.0009263699999999999, "label": "claude-code-haiku-5-5/parse_int/c/3/a1", "spent": 0.11185897000000003, "utc": "2026-10-29T21:20:37.694031+00:00"}
+{"kind": "reserve", "id": 268, "amount": 0.00103525, "label": "claude-code-haiku-5-5/parse_int/go/3/a1", "utc": "2026-10-29T21:20:38.176609+00:00"}
+{"kind": "settle", "id": 267, "cost": 0.00042849, "label": "claude-code-haiku-5-5/parse_int/rust/3/a1", "spent": 0.11228746000000003, "utc": "2026-10-29T21:20:41.697237+00:00"}
+{"kind": "reserve", "id": 269, "amount": 0.00103675, "label": "claude-code-haiku-5-5/parse_int/ts/3/a1", "utc": "2026-10-29T21:20:42.801794+00:00"}
+{"kind": "settle", "id": 268, "cost": 0.00046603, "label": "claude-code-haiku-5-5/parse_int/go/3/a1", "spent": 0.11275349000000004, "utc": "2026-10-29T21:20:45.910070+00:00"}
+{"kind": "reserve", "id": 270, "amount": 0.0010255, "label": "claude-code-haiku-5-5/longest_run/python/3/a1", "utc": "2026-10-29T21:20:46.427770+00:00"}
+{"kind": "settle", "id": 269, "cost": 0.00030539, "label": "claude-code-haiku-5-5/parse_int/ts/3/a1", "spent": 0.11305888000000004, "utc": "2026-10-29T21:20:47.906912+00:00"}
+{"kind": "reserve", "id": 271, "amount": 0.001082625, "label": "claude-code-haiku-5-5/longest_run/sley/3/a1", "utc": "2026-10-29T21:20:49.662279+00:00"}
+{"kind": "settle", "id": 270, "cost": 0.00022668, "label": "claude-code-haiku-5-5/longest_run/python/3/a1", "spent": 0.11328556000000005, "utc": "2026-10-29T21:20:51.108996+00:00"}
+{"kind": "reserve", "id": 272, "amount": 0.0010285000000000001, "label": "claude-code-haiku-5-5/longest_run/c/3/a1", "utc": "2026-10-29T21:20:51.452651+00:00"}
+{"kind": "settle", "id": 271, "cost": 0.00023931, "label": "claude-code-haiku-5-5/longest_run/sley/3/a1", "spent": 0.11352487000000006, "utc": "2026-10-29T21:20:54.448657+00:00"}
+{"kind": "settle", "id": 272, "cost": 0.00026191, "label": "claude-code-haiku-5-5/longest_run/c/3/a1", "spent": 0.11378678000000006, "utc": "2026-10-29T21:20:56.526521+00:00"}
+{"kind": "reserve", "id": 273, "amount": 0.0010261250000000001, "label": "claude-code-haiku-5-5/longest_run/rust/3/a1", "utc": "2026-10-29T21:20:57.061876+00:00"}
+{"kind": "reserve", "id": 274, "amount": 0.001026625, "label": "claude-code-haiku-5-5/longest_run/go/3/a1", "utc": "2026-10-29T21:20:57.358735+00:00"}
+{"kind": "settle", "id": 274, "cost": 0.00024575000000000004, "label": "claude-code-haiku-5-5/longest_run/go/3/a1", "spent": 0.11403253000000006, "utc": "2026-10-29T21:21:01.913494+00:00"}
+{"kind": "settle", "id": 273, "cost": 0.00024885, "label": "claude-code-haiku-5-5/longest_run/rust/3/a1", "spent": 0.11428138000000006, "utc": "2026-10-29T21:21:02.122163+00:00"}
+{"kind": "reserve", "id": 275, "amount": 0.001027, "label": "claude-code-haiku-5-5/longest_run/ts/3/a1", "utc": "2026-10-29T21:21:02.488915+00:00"}
+{"kind": "reserve", "id": 276, "amount": 0.00102925, "label": "claude-code-haiku-5-5/second_largest/python/3/a1", "utc": "2026-10-29T21:21:02.818263+00:00"}
+{"kind": "settle", "id": 275, "cost": 0.00024838999999999997, "label": "claude-code-haiku-5-5/longest_run/ts/3/a1", "spent": 0.11452977000000006, "utc": "2026-10-29T21:21:07.107357+00:00"}
+{"kind": "settle", "id": 276, "cost": 0.00027394, "label": "claude-code-haiku-5-5/second_largest/python/3/a1", "spent": 0.11480371000000006, "utc": "2026-10-29T21:21:08.374936+00:00"}
+{"kind": "reserve", "id": 277, "amount": 0.0010865, "label": "claude-code-haiku-5-5/second_largest/sley/3/a1", "utc": "2026-10-29T21:21:08.838194+00:00"}
+{"kind": "reserve", "id": 278, "amount": 0.0010350000000000001, "label": "claude-code-haiku-5-5/second_largest/c/3/a1", "utc": "2026-10-29T21:21:08.910335+00:00"}
+{"kind": "settle", "id": 277, "cost": 0.00044947, "label": "claude-code-haiku-5-5/second_largest/sley/3/a1", "spent": 0.11525318000000005, "utc": "2026-10-29T21:21:15.705692+00:00"}
+{"kind": "settle", "id": 278, "cost": 0.00061779, "label": "claude-code-haiku-5-5/second_largest/c/3/a1", "spent": 0.11587097000000005, "utc": "2026-10-29T21:21:18.209292+00:00"}
+{"kind": "reserve", "id": 279, "amount": 0.0010293750000000001, "label": "claude-code-haiku-5-5/second_largest/rust/3/a1", "utc": "2026-10-29T21:21:18.889810+00:00"}
+{"kind": "reserve", "id": 280, "amount": 0.001029875, "label": "claude-code-haiku-5-5/second_largest/go/3/a1", "utc": "2026-10-29T21:21:21.047352+00:00"}
+{"kind": "settle", "id": 280, "cost": 0.00031854, "label": "claude-code-haiku-5-5/second_largest/go/3/a1", "spent": 0.11618951000000005, "utc": "2026-10-29T21:21:27.610248+00:00"}
+{"kind": "reserve", "id": 281, "amount": 0.001030625, "label": "claude-code-haiku-5-5/second_largest/ts/3/a1", "utc": "2026-10-29T21:21:28.194505+00:00"}
+{"kind": "settle", "id": 279, "cost": 0.00053258, "label": "claude-code-haiku-5-5/second_largest/rust/3/a1", "spent": 0.11672209000000006, "utc": "2026-10-29T21:21:28.490570+00:00"}
+{"kind": "reserve", "id": 282, "amount": 0.001024875, "label": "claude-code-haiku-5-5/pair_count/python/3/a1", "utc": "2026-10-29T21:21:29.686553+00:00"}
+{"kind": "settle", "id": 281, "cost": 0.00029149000000000004, "label": "claude-code-haiku-5-5/second_largest/ts/3/a1", "spent": 0.11701358000000006, "utc": "2026-10-29T21:21:33.677439+00:00"}
+{"kind": "settle", "id": 282, "cost": 0.00022883999999999998, "label": "claude-code-haiku-5-5/pair_count/python/3/a1", "spent": 0.11724242000000006, "utc": "2026-10-29T21:21:34.723879+00:00"}
+{"kind": "reserve", "id": 283, "amount": 0.001082, "label": "claude-code-haiku-5-5/pair_count/sley/3/a1", "utc": "2026-10-29T21:21:35.099276+00:00"}
+{"kind": "reserve", "id": 284, "amount": 0.001028125, "label": "claude-code-haiku-5-5/pair_count/c/3/a1", "utc": "2026-10-29T21:21:35.560162+00:00"}
+{"kind": "settle", "id": 283, "cost": 0.00034867000000000003, "label": "claude-code-haiku-5-5/pair_count/sley/3/a1", "spent": 0.11759109000000005, "utc": "2026-10-29T21:21:40.608754+00:00"}
+{"kind": "settle", "id": 284, "cost": 0.0006430100000000001, "label": "claude-code-haiku-5-5/pair_count/c/3/a1", "spent": 0.11823410000000005, "utc": "2026-10-29T21:21:43.792778+00:00"}
+{"kind": "reserve", "id": 285, "amount": 0.001025375, "label": "claude-code-haiku-5-5/pair_count/rust/3/a1", "utc": "2026-10-29T21:21:44.632305+00:00"}
+{"kind": "reserve", "id": 286, "amount": 0.001026, "label": "claude-code-haiku-5-5/pair_count/go/3/a1", "utc": "2026-10-29T21:21:46.466456+00:00"}
+{"kind": "settle", "id": 285, "cost": 0.00039742, "label": "claude-code-haiku-5-5/pair_count/rust/3/a1", "spent": 0.11863152000000005, "utc": "2026-10-29T21:21:51.877296+00:00"}
+{"kind": "settle", "id": 286, "cost": 0.00028171, "label": "claude-code-haiku-5-5/pair_count/go/3/a1", "spent": 0.11891323000000005, "utc": "2026-10-29T21:21:52.139173+00:00"}
+{"kind": "reserve", "id": 287, "amount": 0.001026375, "label": "claude-code-haiku-5-5/pair_count/ts/3/a1", "utc": "2026-10-29T21:21:52.683287+00:00"}
+{"kind": "reserve", "id": 288, "amount": 0.00103625, "label": "claude-code-haiku-5-5/max_depth/python/3/a1", "utc": "2026-10-29T21:21:52.856351+00:00"}
+{"kind": "settle", "id": 288, "cost": 0.00026016, "label": "claude-code-haiku-5-5/max_depth/python/3/a1", "spent": 0.11917339000000005, "utc": "2026-10-29T21:21:57.658380+00:00"}
+{"kind": "settle", "id": 287, "cost": 0.00023435000000000003, "label": "claude-code-haiku-5-5/pair_count/ts/3/a1", "spent": 0.11940774000000004, "utc": "2026-10-29T21:21:57.918891+00:00"}
+{"kind": "reserve", "id": 289, "amount": 0.0010935, "label": "claude-code-haiku-5-5/max_depth/sley/3/a1", "utc": "2026-10-29T21:21:58.043897+00:00"}
+{"kind": "reserve", "id": 290, "amount": 0.001043, "label": "claude-code-haiku-5-5/max_depth/c/3/a1", "utc": "2026-10-29T21:21:59.847494+00:00"}
+{"kind": "settle", "id": 289, "cost": 0.00035169, "label": "claude-code-haiku-5-5/max_depth/sley/3/a1", "spent": 0.11975943000000004, "utc": "2026-10-29T21:22:03.624267+00:00"}
+{"kind": "reserve", "id": 291, "amount": 0.001036375, "label": "claude-code-haiku-5-5/max_depth/rust/3/a1", "utc": "2026-10-29T21:22:05.349892+00:00"}
+{"kind": "settle", "id": 290, "cost": 0.0003572, "label": "claude-code-haiku-5-5/max_depth/c/3/a1", "spent": 0.12011663000000004, "utc": "2026-10-29T21:22:05.939677+00:00"}
+{"kind": "reserve", "id": 292, "amount": 0.001037125, "label": "claude-code-haiku-5-5/max_depth/go/3/a1", "utc": "2026-10-29T21:22:06.703059+00:00"}
+{"kind": "settle", "id": 291, "cost": 0.00030992, "label": "claude-code-haiku-5-5/max_depth/rust/3/a1", "spent": 0.12042655000000005, "utc": "2026-10-29T21:22:11.284112+00:00"}
+{"kind": "settle", "id": 292, "cost": 0.00031842000000000003, "label": "claude-code-haiku-5-5/max_depth/go/3/a1", "spent": 0.12074497000000005, "utc": "2026-10-29T21:22:11.770600+00:00"}
+{"kind": "reserve", "id": 293, "amount": 0.001037625, "label": "claude-code-haiku-5-5/max_depth/ts/3/a1", "utc": "2026-10-29T21:22:12.393422+00:00"}
+{"kind": "reserve", "id": 294, "amount": 0.001028, "label": "claude-code-haiku-5-5/mode_value/python/3/a1", "utc": "2026-10-29T21:22:12.405604+00:00"}
+{"kind": "settle", "id": 293, "cost": 0.00028572000000000005, "label": "claude-code-haiku-5-5/max_depth/ts/3/a1", "spent": 0.12103069000000005, "utc": "2026-10-29T21:22:17.233325+00:00"}
+{"kind": "settle", "id": 294, "cost": 0.00025069000000000003, "label": "claude-code-haiku-5-5/mode_value/python/3/a1", "spent": 0.12128138000000005, "utc": "2026-10-29T21:22:18.424747+00:00"}
+{"kind": "reserve", "id": 295, "amount": 0.001085125, "label": "claude-code-haiku-5-5/mode_value/sley/3/a1", "utc": "2026-10-29T21:22:18.814318+00:00"}
+{"kind": "reserve", "id": 296, "amount": 0.00103275, "label": "claude-code-haiku-5-5/mode_value/c/3/a1", "utc": "2026-10-29T21:22:19.043945+00:00"}
+{"kind": "settle", "id": 295, "cost": 0.00043612, "label": "claude-code-haiku-5-5/mode_value/sley/3/a1", "spent": 0.12171750000000005, "utc": "2026-10-29T21:22:25.005919+00:00"}
+{"kind": "settle", "id": 296, "cost": 0.00055285, "label": "claude-code-haiku-5-5/mode_value/c/3/a1", "spent": 0.12227035000000004, "utc": "2026-10-29T21:22:27.993822+00:00"}
+{"kind": "reserve", "id": 297, "amount": 0.001028, "label": "claude-code-haiku-5-5/mode_value/rust/3/a1", "utc": "2026-10-29T21:22:28.467349+00:00"}
+{"kind": "reserve", "id": 298, "amount": 0.001028375, "label": "claude-code-haiku-5-5/mode_value/go/3/a1", "utc": "2026-10-29T21:22:28.741612+00:00"}
+{"kind": "settle", "id": 298, "cost": 0.00030039, "label": "claude-code-haiku-5-5/mode_value/go/3/a1", "spent": 0.12257074000000004, "utc": "2026-10-29T21:22:33.765215+00:00"}
+{"kind": "settle", "id": 297, "cost": 0.00029541, "label": "claude-code-haiku-5-5/mode_value/rust/3/a1", "spent": 0.12286615000000004, "utc": "2026-10-29T21:22:33.925047+00:00"}
+{"kind": "reserve", "id": 299, "amount": 0.0010293750000000001, "label": "claude-code-haiku-5-5/mode_value/ts/3/a1", "utc": "2026-10-29T21:22:34.344325+00:00"}
+{"kind": "reserve", "id": 300, "amount": 0.001027875, "label": "claude-code-haiku-5-5/max_subarray/python/3/a1", "utc": "2026-10-29T21:22:35.227080+00:00"}
+{"kind": "settle", "id": 299, "cost": 0.00028589, "label": "claude-code-haiku-5-5/mode_value/ts/3/a1", "spent": 0.12315204000000003, "utc": "2026-10-29T21:22:39.328147+00:00"}
+{"kind": "settle", "id": 300, "cost": 0.000256, "label": "claude-code-haiku-5-5/max_subarray/python/3/a1", "spent": 0.12340804000000004, "utc": "2026-10-29T21:22:40.656516+00:00"}
+{"kind": "reserve", "id": 301, "amount": 0.001085, "label": "claude-code-haiku-5-5/max_subarray/sley/3/a1", "utc": "2026-10-29T21:22:40.990722+00:00"}
+{"kind": "reserve", "id": 302, "amount": 0.0010326250000000001, "label": "claude-code-haiku-5-5/max_subarray/c/3/a1", "utc": "2026-10-29T21:22:41.020464+00:00"}
+{"kind": "settle", "id": 301, "cost": 0.00035693, "label": "claude-code-haiku-5-5/max_subarray/sley/3/a1", "spent": 0.12376497000000004, "utc": "2026-10-29T21:22:46.146157+00:00"}
+{"kind": "settle", "id": 302, "cost": 0.00042146, "label": "claude-code-haiku-5-5/max_subarray/c/3/a1", "spent": 0.12418643000000004, "utc": "2026-10-29T21:22:47.669458+00:00"}
+{"kind": "reserve", "id": 303, "amount": 0.001027875, "label": "claude-code-haiku-5-5/max_subarray/rust/3/a1", "utc": "2026-10-29T21:22:48.468170+00:00"}
+{"kind": "reserve", "id": 304, "amount": 0.001028125, "label": "claude-code-haiku-5-5/max_subarray/go/3/a1", "utc": "2026-10-29T21:22:50.295229+00:00"}
+{"kind": "settle", "id": 303, "cost": 0.00036952, "label": "claude-code-haiku-5-5/max_subarray/rust/3/a1", "spent": 0.12455595000000004, "utc": "2026-10-29T21:22:54.525053+00:00"}
+{"kind": "reserve", "id": 305, "amount": 0.00102925, "label": "claude-code-haiku-5-5/max_subarray/ts/3/a1", "utc": "2026-10-29T21:22:55.297191+00:00"}
+{"kind": "settle", "id": 304, "cost": 0.00028194, "label": "claude-code-haiku-5-5/max_subarray/go/3/a1", "spent": 0.12483789000000003, "utc": "2026-10-29T21:22:55.348392+00:00"}
+{"kind": "reserve", "id": 306, "amount": 0.001026, "label": "claude-code-haiku-5-5/count_leq/python/3/a1", "utc": "2026-10-29T21:22:55.914885+00:00"}
+{"kind": "settle", "id": 305, "cost": 0.00025154, "label": "claude-code-haiku-5-5/max_subarray/ts/3/a1", "spent": 0.12508943000000003, "utc": "2026-10-29T21:23:00.019242+00:00"}
+{"kind": "settle", "id": 306, "cost": 0.00022530000000000003, "label": "claude-code-haiku-5-5/count_leq/python/3/a1", "spent": 0.12531473000000004, "utc": "2026-10-29T21:23:00.583071+00:00"}
+{"kind": "reserve", "id": 307, "amount": 0.001083125, "label": "claude-code-haiku-5-5/count_leq/sley/3/a1", "utc": "2026-10-29T21:23:00.938947+00:00"}
+{"kind": "reserve", "id": 308, "amount": 0.00102925, "label": "claude-code-haiku-5-5/count_leq/c/3/a1", "utc": "2026-10-29T21:23:01.903251+00:00"}
+{"kind": "settle", "id": 307, "cost": 0.00026523, "label": "claude-code-haiku-5-5/count_leq/sley/3/a1", "spent": 0.12557996000000005, "utc": "2026-10-29T21:23:05.757273+00:00"}
+{"kind": "settle", "id": 308, "cost": 0.00028127, "label": "claude-code-haiku-5-5/count_leq/c/3/a1", "spent": 0.12586123000000005, "utc": "2026-10-29T21:23:07.400536+00:00"}
+{"kind": "reserve", "id": 309, "amount": 0.001026625, "label": "claude-code-haiku-5-5/count_leq/rust/3/a1", "utc": "2026-10-29T21:23:08.557082+00:00"}
+{"kind": "reserve", "id": 310, "amount": 0.00102725, "label": "claude-code-haiku-5-5/count_leq/go/3/a1", "utc": "2026-10-29T21:23:08.913308+00:00"}
+{"kind": "settle", "id": 310, "cost": 0.00026431, "label": "claude-code-haiku-5-5/count_leq/go/3/a1", "spent": 0.12612554000000004, "utc": "2026-10-29T21:23:14.744408+00:00"}
+{"kind": "settle", "id": 309, "cost": 0.00026878000000000004, "label": "claude-code-haiku-5-5/count_leq/rust/3/a1", "spent": 0.12639432000000003, "utc": "2026-10-29T21:23:15.080331+00:00"}
+{"kind": "reserve", "id": 311, "amount": 0.0010276250000000001, "label": "claude-code-haiku-5-5/count_leq/ts/3/a1", "utc": "2026-10-29T21:23:15.292225+00:00"}
+{"kind": "reserve", "id": 312, "amount": 0.00102675, "label": "claude-code-haiku-5-5/root_sum/python/3/a1", "utc": "2026-10-29T21:23:16.170555+00:00"}
+{"kind": "settle", "id": 311, "cost": 0.00023781000000000003, "label": "claude-code-haiku-5-5/count_leq/ts/3/a1", "spent": 0.12663213000000004, "utc": "2026-10-29T21:23:20.735450+00:00"}
+{"kind": "settle", "id": 312, "cost": 0.00024965, "label": "claude-code-haiku-5-5/root_sum/python/3/a1", "spent": 0.12688178000000003, "utc": "2026-10-29T21:23:21.294961+00:00"}
+{"kind": "reserve", "id": 313, "amount": 0.0010840000000000001, "label": "claude-code-haiku-5-5/root_sum/sley/3/a1", "utc": "2026-10-29T21:23:21.856967+00:00"}
+{"kind": "reserve", "id": 314, "amount": 0.001027125, "label": "claude-code-haiku-5-5/root_sum/c/3/a1", "utc": "2026-10-29T21:23:22.758109+00:00"}
+{"kind": "settle", "id": 313, "cost": 0.00034528, "label": "claude-code-haiku-5-5/root_sum/sley/3/a1", "spent": 0.12722706000000003, "utc": "2026-10-29T21:23:27.556417+00:00"}
+{"kind": "settle", "id": 314, "cost": 0.00027118, "label": "claude-code-haiku-5-5/root_sum/c/3/a1", "spent": 0.12749824000000004, "utc": "2026-10-29T21:23:28.225265+00:00"}
+{"kind": "reserve", "id": 315, "amount": 0.001027375, "label": "claude-code-haiku-5-5/root_sum/rust/3/a1", "utc": "2026-10-29T21:23:28.608324+00:00"}
+{"kind": "reserve", "id": 316, "amount": 0.00102725, "label": "claude-code-haiku-5-5/root_sum/go/3/a1", "utc": "2026-10-29T21:23:29.317033+00:00"}
+{"kind": "settle", "id": 316, "cost": 0.00028518, "label": "claude-code-haiku-5-5/root_sum/go/3/a1", "spent": 0.12778342000000004, "utc": "2026-10-29T21:23:34.990819+00:00"}
+{"kind": "settle", "id": 315, "cost": 0.00033076000000000004, "label": "claude-code-haiku-5-5/root_sum/rust/3/a1", "spent": 0.12811418000000005, "utc": "2026-10-29T21:23:35.462952+00:00"}
+{"kind": "reserve", "id": 317, "amount": 0.001028375, "label": "claude-code-haiku-5-5/root_sum/ts/3/a1", "utc": "2026-10-29T21:23:35.756043+00:00"}
+{"kind": "reserve", "id": 318, "amount": 0.00103575, "label": "claude-code-haiku-5-5/clamp_sum/python/3/a1", "utc": "2026-10-29T21:23:36.567056+00:00"}
+{"kind": "settle", "id": 318, "cost": 0.00027663, "label": "claude-code-haiku-5-5/clamp_sum/python/3/a1", "spent": 0.12839081000000005, "utc": "2026-10-29T21:23:41.106807+00:00"}
+{"kind": "reserve", "id": 319, "amount": 0.001092875, "label": "claude-code-haiku-5-5/clamp_sum/sley/3/a1", "utc": "2026-10-29T21:23:41.446268+00:00"}
+{"kind": "settle", "id": 317, "cost": 0.00025647, "label": "claude-code-haiku-5-5/root_sum/ts/3/a1", "spent": 0.12864728000000006, "utc": "2026-10-29T21:23:41.506160+00:00"}
+{"kind": "reserve", "id": 320, "amount": 0.001050875, "label": "claude-code-haiku-5-5/clamp_sum/c/3/a1", "utc": "2026-10-29T21:23:43.586925+00:00"}
+{"kind": "settle", "id": 319, "cost": 0.00036636000000000004, "label": "claude-code-haiku-5-5/clamp_sum/sley/3/a1", "spent": 0.12901364000000007, "utc": "2026-10-29T21:23:46.813869+00:00"}
+{"kind": "reserve", "id": 321, "amount": 0.001036625, "label": "claude-code-haiku-5-5/clamp_sum/rust/3/a1", "utc": "2026-10-29T21:23:48.155055+00:00"}
+{"kind": "settle", "id": 320, "cost": 0.00036468000000000004, "label": "claude-code-haiku-5-5/clamp_sum/c/3/a1", "spent": 0.12937832000000007, "utc": "2026-10-29T21:23:49.655537+00:00"}
+{"kind": "reserve", "id": 322, "amount": 0.001038875, "label": "claude-code-haiku-5-5/clamp_sum/go/3/a1", "utc": "2026-10-29T21:23:50.454242+00:00"}
+{"kind": "settle", "id": 321, "cost": 0.00034023, "label": "claude-code-haiku-5-5/clamp_sum/rust/3/a1", "spent": 0.12971855000000007, "utc": "2026-10-29T21:23:53.859878+00:00"}
+{"kind": "reserve", "id": 323, "amount": 0.001039375, "label": "claude-code-haiku-5-5/clamp_sum/ts/3/a1", "utc": "2026-10-29T21:23:54.724051+00:00"}
+{"kind": "settle", "id": 322, "cost": 0.00030303000000000003, "label": "claude-code-haiku-5-5/clamp_sum/go/3/a1", "spent": 0.13002158000000008, "utc": "2026-10-29T21:23:55.327440+00:00"}
+{"kind": "reserve", "id": 324, "amount": 0.0010350000000000001, "label": "claude-code-haiku-5-5/count_multiples/python/3/a1", "utc": "2026-10-29T21:23:55.913416+00:00"}
+{"kind": "settle", "id": 324, "cost": 0.00028565999999999997, "label": "claude-code-haiku-5-5/count_multiples/python/3/a1", "spent": 0.13030724000000007, "utc": "2026-10-29T21:24:00.642939+00:00"}
+{"kind": "settle", "id": 323, "cost": 0.00032831, "label": "claude-code-haiku-5-5/clamp_sum/ts/3/a1", "spent": 0.13063555000000007, "utc": "2026-10-29T21:24:00.934335+00:00"}
+{"kind": "reserve", "id": 325, "amount": 0.001092125, "label": "claude-code-haiku-5-5/count_multiples/sley/3/a1", "utc": "2026-10-29T21:24:01.006382+00:00"}
+{"kind": "reserve", "id": 326, "amount": 0.001046375, "label": "claude-code-haiku-5-5/count_multiples/c/3/a1", "utc": "2026-10-29T21:24:02.942597+00:00"}
+{"kind": "settle", "id": 325, "cost": 0.00026059000000000005, "label": "claude-code-haiku-5-5/count_multiples/sley/3/a1", "spent": 0.13089614000000008, "utc": "2026-10-29T21:24:06.128411+00:00"}
+{"kind": "reserve", "id": 327, "amount": 0.001036375, "label": "claude-code-haiku-5-5/count_multiples/rust/3/a1", "utc": "2026-10-29T21:24:07.598305+00:00"}
+{"kind": "settle", "id": 326, "cost": 0.00034401, "label": "claude-code-haiku-5-5/count_multiples/c/3/a1", "spent": 0.13124015000000008, "utc": "2026-10-29T21:24:08.585341+00:00"}
+{"kind": "reserve", "id": 328, "amount": 0.001038375, "label": "claude-code-haiku-5-5/count_multiples/go/3/a1", "utc": "2026-10-29T21:24:09.299373+00:00"}
+{"kind": "settle", "id": 327, "cost": 0.00026076, "label": "claude-code-haiku-5-5/count_multiples/rust/3/a1", "spent": 0.13150091000000008, "utc": "2026-10-29T21:24:12.402728+00:00"}
+{"kind": "reserve", "id": 329, "amount": 0.0010375, "label": "claude-code-haiku-5-5/count_multiples/ts/3/a1", "utc": "2026-10-29T21:24:13.198622+00:00"}
+{"kind": "settle", "id": 328, "cost": 0.00027892, "label": "claude-code-haiku-5-5/count_multiples/go/3/a1", "spent": 0.13177983000000007, "utc": "2026-10-29T21:24:13.747262+00:00"}
+{"kind": "settle", "id": 329, "cost": 0.00031598, "label": "claude-code-haiku-5-5/count_multiples/ts/3/a1", "spent": 0.13209581000000006, "utc": "2026-10-29T21:24:18.977155+00:00"}
