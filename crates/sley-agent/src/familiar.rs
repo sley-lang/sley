@@ -1688,6 +1688,14 @@ impl Parser {
                 let pos = self.bump().pos;
                 let (field, field_pos) = self.ident("a field name")?;
                 if self.at_op("(") {
+                    if self.python
+                        && let Some(hint) = py_method_hint(&field)
+                    {
+                        return refuse(
+                            field_pos,
+                            format!("methods are not supported (`.{field}()`): {hint}"),
+                        );
+                    }
                     return refuse(
                         field_pos,
                         format!(
@@ -1724,7 +1732,11 @@ impl Parser {
                     continue;
                 }
                 if self.python && (self.at_op(":") || self.peek_at(1).text == ":") {
-                    return refuse(pos, "slices are not supported");
+                    return refuse(
+                        pos,
+                        "slices are not supported as values: loop over one directly \
+                         (`for x in xs[1:]`) or index with range(a, b)",
+                    );
                 }
                 let mut index = self.expr()?;
                 self.expect_op("]")?;
@@ -1765,7 +1777,9 @@ impl Parser {
             Kind::Op if tok.text == "[" && self.python => {
                 return refuse(
                     tok.pos,
-                    "list values are not supported: loop, or use sum/any/all/len over a generator",
+                    "list values are not supported (lists cannot be built or grown): keep a \
+                     count, sum or best value in a loop, or use sum/any/all/len/max/min over a \
+                     generator",
                 );
             }
             Kind::Name => {}
@@ -1801,6 +1815,13 @@ impl Parser {
             }
             "True" | "False" => return refuse(tok.pos, "write true or false"),
             "if" => return self.if_expr(),
+            "None" if self.python => {
+                return refuse(
+                    tok.pos,
+                    "there is no None: raise ValueError(...) when there is no result, or return \
+                     an int",
+                );
+            }
             "None" | "null" | "nil" => return refuse(tok.pos, "there is no null value"),
             _ if KEYWORDS.contains(&name) => {
                 return refuse(tok.pos, format!("`{name}` cannot start an expression"));
@@ -2272,6 +2293,25 @@ fn is_python(text: &str) -> bool {
         })
 }
 
+/// The fix for a dict or set literal.
+const DICT_HINT: &str = "dicts and sets are not supported: count matches with \
+                         sum(1 for y in xs if y == x), distinct values with len(set(xs))";
+
+/// What to write instead of a Python list or dict method the dialect lacks.
+fn py_method_hint(method: &str) -> Option<&'static str> {
+    Some(match method {
+        "append" | "extend" | "insert" | "pop" | "remove" | "clear" | "sort" | "reverse"
+        | "copy" => {
+            "lists cannot change: keep a count, sum or best value in a loop, or use \
+             sum/any/all/len/max/min over a generator"
+        }
+        "get" | "items" | "keys" | "values" | "setdefault" | "update" | "add" => DICT_HINT,
+        "count" => "count matches with sum(1 for y in xs if y == x)",
+        "index" | "find" => "find a position with a loop over enumerate(xs)",
+        _ => return None,
+    })
+}
+
 /// Multi-character Python operators, longest first.
 const PY_OPERATORS: [&str; 32] = [
     "//=", "**=", "<<=", ">>=", "->", "//", "**", "<<", ">>", "==", "!=", "<=", ">=", "+=", "-=",
@@ -2287,8 +2327,8 @@ const PY_FOREIGN: [(&str, &str); 7] = [
     ("~", "bitwise operators are not supported"),
     ("@", "decorators and matrix products are not supported"),
     (";", "write one statement per line"),
-    ("{", "dicts and sets are not supported"),
-    ("}", "dicts and sets are not supported"),
+    ("{", DICT_HINT),
+    ("}", DICT_HINT),
 ];
 
 /// Tokenizes the Python dialect: the familiar token kinds plus `Newline`,
@@ -3648,6 +3688,25 @@ impl Parser {
 
     fn py_expression_statement(&mut self) -> P<Option<Node>> {
         let tok = self.peek().clone();
+        // `out.append(x)` and `print(x)`: name what to write instead.
+        if tok.kind == Kind::Name
+            && self.peek_at(1).text == "."
+            && self.peek_at(2).kind == Kind::Name
+            && self.peek_at(3).text == "("
+            && let Some(hint) = py_method_hint(&self.peek_at(2).text)
+        {
+            let method = self.peek_at(2).clone();
+            return refuse(
+                method.pos,
+                format!("methods are not supported (`.{}()`): {hint}", method.text),
+            );
+        }
+        if tok.kind == Kind::Name && tok.text == "print" && self.peek_at(1).text == "(" {
+            return refuse(
+                tok.pos,
+                "print is not supported: return the value (a test checks it with assert)",
+            );
+        }
         if Self::starts_expression(&tok) {
             return refuse(
                 tok.pos,

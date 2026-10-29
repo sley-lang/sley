@@ -1056,7 +1056,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                 let Some((params, returns)) = self.signature(callee) else {
                     return fail(
                         at,
-                        format!("`{callee}` is not a known function with a complete signature"),
+                        format!(
+                            "`{callee}` is not a known function with a complete signature{}",
+                            builtin_hint(callee)
+                        ),
                     );
                 };
                 if params.len() != args.len() - 1 {
@@ -2187,6 +2190,26 @@ impl<'c, 'a> Fn<'c, 'a> {
 }
 
 /// A non-negative integer literal (`3` or `{"type": T, "value": 3}`).
+/// What to write instead of a Python built-in the dialect does not have.
+fn builtin_hint(name: &str) -> &'static str {
+    match name {
+        "sorted" | "reversed" => {
+            ": lists cannot be built or reordered; compare elements in nested loops, or track \
+             the value you need in one pass"
+        }
+        "str" | "repr" | "chr" | "ord" | "float" | "format" => {
+            ": strings and floats are not values here; work on the int (x % 10 and x // 10 \
+             give its digits)"
+        }
+        "list" | "dict" | "set" | "tuple" | "map" | "filter" => {
+            ": build no collection; use sum/any/all/len/max/min over a generator (len(set(xs)) \
+             counts distinct values)"
+        }
+        "print" | "input" | "open" => ": there is no I/O; return the value",
+        _ => "",
+    }
+}
+
 fn literal_u64(v: &Value) -> Option<u64> {
     let n = v.get("value").filter(|_| v.is_object()).unwrap_or(v);
     n.as_i64()

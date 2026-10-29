@@ -1093,3 +1093,64 @@ fn python_indexes_by_loop_counters_match_converted_indexes() {
         );
     }
 }
+
+#[test]
+fn python_refusals_name_the_fix() {
+    let temp = workspace("python-fix-hints");
+    refused(
+        &temp.path,
+        "def f(xs: list[int]) -> int:\n    xs.append(1)\n    return 0\n",
+        "lists cannot change",
+        2,
+        8,
+    );
+    refused(
+        &temp.path,
+        "def f(xs: list[int]) -> int:\n    return xs.count(1)\n",
+        "sum(1 for y in xs if y == x)",
+        2,
+        15,
+    );
+    refused(
+        &temp.path,
+        "def f(xs: list[int]) -> int:\n    d = {}\n    return 0\n",
+        "len(set(xs))",
+        2,
+        9,
+    );
+    refused(
+        &temp.path,
+        "def f(x: int) -> int:\n    if x > 0:\n        return x\n    return None\n",
+        "raise ValueError",
+        4,
+        12,
+    );
+    refused(
+        &temp.path,
+        "def f(x: int) -> int:\n    print(x)\n    return x\n",
+        "return the value",
+        2,
+        5,
+    );
+    refused(
+        &temp.path,
+        "def f(xs: list[int]) -> int:\n    out = []\n    return len(out)\n",
+        "keep a count, sum or best value",
+        2,
+        11,
+    );
+    refused(
+        &temp.path,
+        "def f(xs: list[int]) -> int:\n    ys = sorted(xs)\n    return ys[0]\n",
+        "nested loops",
+        2,
+        10,
+    );
+    refused(
+        &temp.path,
+        "def f(x: int) -> int:\n    return len(str(x))\n",
+        "x // 10",
+        2,
+        16,
+    );
+}
