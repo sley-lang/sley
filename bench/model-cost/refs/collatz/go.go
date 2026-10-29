@@ -1,7 +1,7 @@
 package solution
 
 func Collatz(limit int64) int64 {
-	var best, bestN int64
+	var best, bestN int64 = -1, 0
 	for n := int64(1); n < limit; n++ {
 		x, steps := n, int64(0)
 		for x != 1 {

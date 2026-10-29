@@ -1,5 +1,5 @@
 export function collatz(limit: number): number {
-  let best = 0;
+  let best = -1;
   let bestN = 0;
   for (let n = 1; n < limit; n++) {
     let x = n;
