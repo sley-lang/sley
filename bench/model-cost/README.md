@@ -67,7 +67,7 @@ it.) The guard stops a run before billed spend could pass $10.
 | `refs/<task>/` | a reference program per language (checked by `verify_refs.py`) |
 | `starters/<task>/` | the existing file for the two edit tasks |
 | `langs.py` | signatures, visible tests, toolchain runs and oracle drivers per language |
-| `providers.py` | Anthropic (Messages + Message Batches, prompt caching), OpenAI (Responses + Batch), xAI and DeepSeek clients; `MockTransport` |
+| `providers.py` | Anthropic (Messages + Message Batches, prompt caching), Claude Code CLI, OpenAI (Responses + Batch), xAI and DeepSeek clients; `MockTransport` |
 | `accounting.py` | usage normalization, pricing, the spend guard |
 | `run.py` | the run (`--project` for the projection) |
 | `summarize.py` | `summary.json` and `summary.md` |
@@ -107,6 +107,60 @@ top of `completion_tokens` (the worse case); pass `--reasoning-in-completion`
 if the pilot's usage shows it is already included. Publish `results.jsonl`,
 `summary.json`, `summary.md` and `manifest.json` under
 `evidence/bench/model-cost/2.1.8/`.
+
+## Claude Code route (`claude-code-haiku-5-5`)
+
+An optional model that reaches Claude Haiku 5.5 through the logged-in Claude
+Code CLI instead of the API, so a Claude subscription or Claude Code
+cloud-session credit pays for it. Its rows are labeled **"Claude Code cloud
+session: tokens as reported; $ estimated at API list price, not billed per
+token"** and are never pooled with API-billed rows.
+
+Each call is
+
+```sh
+CLAUDE_CODE_MAX_OUTPUT_TOKENS=2000 claude -p --output-format json --model claude-haiku-5-5 \
+  --tools "" --system-prompt "<the harness system text, with the card on Sley>" --effort low \
+  --safe-mode --disable-slash-commands --no-session-persistence --strict-mcp-config   # < prompt on stdin
+```
+
+run in an empty temporary directory. Flags the installed CLI does not list in
+`claude --help` are dropped (and recorded in the calibration entry); a CLI
+without `--output-format`, `--system-prompt`, `--tools` or `--model` is refused.
+
+What this removes from Claude Code's own scaffolding: its system prompt
+(replaced), every tool and MCP server, CLAUDE.md, skills, plugins, hooks and
+custom agents (`--safe-mode`), session files, and any project files. What may
+remain is whatever the CLI still adds to each request. A **calibration call**
+at the start of every run (system "Reply with the single word OK.", prompt
+"OK?", about 10 tokens of text) measures it: its reported input tokens minus
+about 10 is the per-call overhead, written to `calibration.json` and to the
+summary. The calibration call is counted in the run's spend.
+
+Other differences from the API route, disclosed with the results:
+- No Batch API: every call is priced at the standard rate.
+- `claude -p` takes one prompt, so a retry sends the task, the earlier
+  replies and their feedback as text (`<previous_attempt>`/`<feedback>`
+  blocks) instead of as separate turns.
+- Usage comes from the CLI's JSON `usage` (Messages API field names). A call
+  whose `modelUsage` shows any model other than the pinned one is rejected as
+  an infrastructure failure, so a fallback model cannot leak into the results.
+- The output cap is set through `CLAUDE_CODE_MAX_OUTPUT_TOKENS`; a reply at
+  the cap counts as truncated.
+
+Run it where `claude` is logged in (for example inside a Claude Code cloud
+session), or from another machine with `CLAUDE_CODE_SSH=user@host`:
+
+```sh
+python run.py --paid --models claude-code-haiku-5-5 --tasks fib,parse_int --langs python,sley --jobs 2 --out /tmp/cc-pilot
+python run.py --paid --models claude-code-haiku-5-5 --tier small --jobs 2 --out ../../evidence/bench/model-cost/2.1.8/claude-code-small
+python summarize.py ../../evidence/bench/model-cost/2.1.8/claude-code-small
+```
+
+`run.py --project --models claude-code-haiku-5-5` estimates $0.11 for the
+small tier and $0.39 for the full tier at list price. Those are estimates for
+the benchmark calls only. In a cloud session, the session's own agent also
+uses credit, and that is usually much more.
 
 ## Conventions
 

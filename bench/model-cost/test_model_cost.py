@@ -209,6 +209,66 @@ class Providers(unittest.TestCase):
         got = p.batch_results(p.wait_batch(p.submit_batch([("a", self.MSGS), ("b", self.MSGS)])))
         self.assertTrue(all(isinstance(v, providers.InfraError) for v in got.values()))
 
+    def test_claude_code_cli_call(self):
+        t = providers.MockTransport(echo_model())
+        p = providers.make("claude-code-haiku-5-5", PRICES["models"]["claude-code-haiku-5-5"], t, False, 2000)
+        self.assertIsInstance(p, providers.ClaudeCodeProvider)
+        a = p.argv("SYS")
+        self.assertEqual(a[:4], ["claude", "-p", "--output-format", "json"])
+        self.assertEqual(a[a.index("--model") + 1], "claude-haiku-5-5")
+        self.assertEqual(a[a.index("--tools") + 1], "")
+        self.assertEqual(a[a.index("--system-prompt") + 1], "SYS")
+        for f in ("--safe-mode", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands"):
+            self.assertIn(f, a)
+        self.assertEqual(p.env(), {"CLAUDE_CODE_MAX_OUTPUT_TOKENS": "2000"})
+        r = p.complete(self.MSGS)
+        self.assertEqual((r.finish, r.batch), ("stop", False))
+        self.assertIn("return 1", r.text)
+        self.assertEqual(r.usage["claude_code"]["modelUsage"].keys(), {"claude-haiku-5-5"})
+        tok = accounting.normalize_usage("claude-code", r.usage)
+        self.assertEqual(tok["input"], r.usage["input_tokens"] + r.usage["cache_read_input_tokens"]
+                         + r.usage["cache_creation_input_tokens"])
+        c = p.calibrate()
+        self.assertGreater(accounting.normalize_usage("claude-code", c.usage)["input"], 20)
+
+    def test_claude_code_retries_carry_the_transcript(self):
+        msgs = self.MSGS + [{"role": "assistant", "content": "```python\nx\n```"},
+                            {"role": "user", "content": "The visible tests failed."}]
+        f = providers.flatten(msgs)
+        self.assertIn("<previous_attempt>", f)
+        self.assertEqual(providers.unflatten(f), msgs[1:])
+        self.assertEqual(providers.flatten(self.MSGS), "hello")
+
+    def test_claude_code_rejects_unpinned_or_failed_calls(self):
+        p = providers.ClaudeCodeProvider("claude-haiku-5-5", None, probe=False)
+        ok = {"type": "result", "subtype": "success", "is_error": False, "result": "x", "stop_reason": "end_turn",
+              "usage": {"input_tokens": 10, "output_tokens": 5}, "modelUsage": {"claude-haiku-5-5": {}}}
+        self.assertEqual(p.parse(0, json.dumps(ok).encode(), b"").finish, "stop")
+        with self.assertRaises(providers.InfraError):  # a different model answered
+            p.parse(0, json.dumps(dict(ok, modelUsage={"claude-opus-5-5": {}})).encode(), b"")
+        with self.assertRaises(providers.InfraError):  # an extra model ran alongside
+            p.parse(0, json.dumps(dict(ok, modelUsage={"claude-haiku-5-5": {}, "claude-sonnet-5-5": {}})).encode(), b"")
+        with self.assertRaises(providers.InfraError):
+            p.parse(1, b"", b"Not logged in")
+        with self.assertRaises(providers.InfraError):
+            p.parse(1, json.dumps(dict(ok, is_error=True, subtype="error_during_execution")).encode(), b"")
+        cut = dict(ok, usage={"input_tokens": 10, "output_tokens": 2000})
+        self.assertEqual(p.parse(0, json.dumps(cut).encode(), b"").finish, "length")
+        self.assertEqual(p.parse(0, json.dumps(dict(ok, stop_reason="max_tokens")).encode(), b"").finish, "length")
+
+    def test_claude_code_probe_drops_flags_the_cli_lacks(self):
+        class Old:
+            def run(self, argv, stdin, env=None, timeout=None):
+                return 0, b"--output-format --system-prompt --tools --model --strict-mcp-config", b""
+        p = providers.ClaudeCodeProvider("claude-haiku-5-5", Old())
+        self.assertEqual(p.flags, ["--strict-mcp-config"])
+
+        class Ancient:
+            def run(self, argv, stdin, env=None, timeout=None):
+                return 0, b"--output-format --model", b""
+        with self.assertRaises(providers.InfraError):
+            providers.ClaudeCodeProvider("claude-haiku-5-5", Ancient())
+
     def test_truncation_and_cache_reporting(self):
         t = providers.MockTransport(echo_model(finish="length"))
         p = providers.OpenAIProvider("gpt-6-luna", t)
@@ -323,6 +383,25 @@ class DryRun(unittest.TestCase):
             import summarize
             s = summarize.summarize(d)
             self.assertEqual(s["mode"], "mock")
+        finally:
+            shutil.rmtree(d)
+
+    def test_claude_code_mock_run(self):
+        d, r = self.run_cli("--models", "claude-code-haiku-5-5")
+        try:
+            self.assertEqual(r.returncode, 0, r.stderr)
+            rows = [json.loads(l) for l in open(os.path.join(d, "results.jsonl"))]
+            self.assertEqual(sum(1 for x in rows if x["kind"] == "trial"), 6)
+            self.assertEqual(sum(1 for x in rows if x["kind"] == "calibration"), 1)
+            calls = [x for x in rows if x["kind"] == "call"]
+            self.assertTrue(calls and not any(x["batch"] for x in calls))
+            self.assertTrue(any(x["attempt"] > 1 for x in calls))  # retries go through the flattened transcript
+            import summarize
+            s = summarize.summarize(d)
+            md = open(os.path.join(d, "summary.md")).read()
+            self.assertIn("Claude Code cloud session: tokens as reported; $ estimated at API list price, not billed per token", md)
+            self.assertIn("Claude Code overhead", md)
+            self.assertIn("calibration", s)
         finally:
             shutil.rmtree(d)
 

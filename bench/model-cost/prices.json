@@ -116,6 +116,38 @@
         }
       ],
       "api_model_note": "V4.1-Flash-1017 per the pricing page; set the API model id from the page before an optional run."
+    },
+    "claude-code-haiku-5-5": {
+      "input": 0.1,
+      "cache_write": 0.125,
+      "cache_write_1h": 0.2,
+      "cached_input": 0.01,
+      "output": 0.5,
+      "long_context": {
+        "threshold": 100000,
+        "input": 0.5,
+        "cache_write": 0.625,
+        "cache_write_1h": 1.0,
+        "cached_input": 0.05,
+        "output": 2.5
+      },
+      "reasoning_billed_as_output": true,
+      "min_cacheable_prompt_tokens": 512,
+      "tokenizer_factor": 1.3,
+      "provider": "claude-code",
+      "api_model": "claude-haiku-5-5",
+      "batch": false,
+      "optional": true,
+      "billing": "not billed per token: Claude Code cloud-session credit or a Claude subscription",
+      "label": "Claude Code cloud session: tokens as reported; $ estimated at API list price, not billed per token",
+      "price_note": "The same list prices as claude-haiku-5-5 at the standard (non-batch) rate, used only to put a dollar estimate on the tokens Claude Code reports.",
+      "sources": [
+        {
+          "url": "https://docs.anthropic.com/en/docs/about-claude/pricing",
+          "checked": "2026-10-29",
+          "read": "Haiku 5.5 (prompts up to 100,000 tokens): input $0.10, 5m cache write $0.125, 1h cache write $0.20, cache hits $0.01, output $0.50 per MTok; Batch $0.05 / $0.25; over 100,000 tokens $0.50 / $0.625 / $1 / $0.05 / $2.50, Batch $0.25 / $1.25; cache multipliers stack with the Batch discount"
+        }
+      ]
     }
   }
 }

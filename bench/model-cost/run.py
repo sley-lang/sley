@@ -7,7 +7,9 @@
 
 Without --paid every call goes to the in-process MockTransport: no network,
 no key, no spend (the dry run). --paid sends real, billed requests and needs
-ANTHROPIC_API_KEY / XAI_API_KEY (OPENAI_API_KEY for the optional gpt-6-luna); the spend guard stops the run before billed
+ANTHROPIC_API_KEY / XAI_API_KEY (OPENAI_API_KEY for the optional gpt-6-luna);
+the claude-code model runs the logged-in `claude` CLI (locally, or over SSH with
+CLAUDE_CODE_SSH=user@host) and needs no key; the spend guard stops the run before billed
 spend could pass --guard dollars. --project prints the cost projection from
 the plan's assumptions and real prices, and sends nothing.
 """
@@ -85,6 +87,8 @@ def mock_answer_factory(seed=218):
     def answer(model, messages):
         user = [m["content"] for m in messages if m["role"] == "user"]
         first = user[0]
+        if not re.search(r"^Language: ", first, re.M):
+            return "OK", "stop"  # the claude-code calibration call
         lang = lang_of[re.search(r"^Language: (.*)$", first, re.M).group(1)]
         fname = re.search(r"^Write: (?:def |pub fn |func |export function |int |long long )(\w+)\(", first, re.M).group(1)
         task = by_fn[(fname, lang)]
@@ -146,7 +150,7 @@ class Run:
             reply = pre_reply
         when = accounting.utc_now()
         tokens = accounting.normalize_usage(prov.name, reply.usage, price.get("reasoning_billed_as_output", True)
-                                            if prov.name in ("openai", "anthropic") else self.a.reasoning_in_completion)
+                                            if prov.name in ("openai", "anthropic", "claude-code") else self.a.reasoning_in_completion)
         cost = accounting.cost(price, tokens, batch=reply.batch, when=when)
         self.guard.settle(rid, cost, f"{model}/{'/'.join(map(str, key))}/a{attempt}")
         self.log({"kind": "call", **self.ids(model, key), "attempt": attempt, "utc": when.isoformat(),
@@ -154,6 +158,32 @@ class Run:
                   "model_reported": reply.model_reported, "usage": reply.usage, "billed_tokens": tokens,
                   "cost_usd": round(cost, 8), "prices_checked": self.prices["checked"]})
         return reply, cost
+
+    def calibrate(self, prov, model):
+        """Measure what Claude Code adds to every call: one near-empty call,
+        logged, guarded and counted in the spend like any other."""
+        price = self.prices["models"][model]
+        rid = self.guard.reserve(accounting.worst_case(price, 2000, MAX_OUT), f"{model}/calibration")
+        try:
+            reply = prov.calibrate()
+        except providers.InfraError as e:
+            self.guard.settle(rid, 0.0, "calibration infra")
+            self.log({"kind": "calibration", "model": model, "infra_error": str(e)[:500],
+                      "utc": accounting.utc_now().isoformat()})
+            raise
+        tokens = accounting.normalize_usage(prov.name, reply.usage)
+        cost = accounting.cost(price, tokens)
+        self.guard.settle(rid, cost, f"{model}/calibration")
+        sent = "Reply with the single word OK." + "OK?"
+        entry = {"kind": "calibration", "model": model, "utc": accounting.utc_now().isoformat(),
+                 "argv": prov.argv("<system prompt>"), "env": prov.env(), "usage": reply.usage,
+                 "billed_tokens": tokens, "cost_usd": round(cost, 8), "sent_chars": len(sent),
+                 "overhead_input_tokens_estimate": tokens["input"] - max(1, len(sent) // 4),
+                 "note": "input tokens of a call whose own text is about 10 tokens; the rest is what Claude Code adds"}
+        self.log(entry)
+        json.dump(entry, open(os.path.join(self.out, "calibration.json"), "w"), indent=2)
+        print(f"{model}: calibration call: {tokens['input']} input tokens for ~{max(1, len(sent) // 4)} tokens of text",
+              file=sys.stderr)
 
     @staticmethod
     def ids(model, key):
@@ -219,6 +249,8 @@ class Run:
         prov = providers.make(model, price, self.transport, self.a.paid, MAX_OUT, self.a.effort,
                               sleep=(lambda s: None) if not self.a.paid else __import__("time").sleep)
         keys = [k for k in keys if (model,) + k not in self.done]
+        if prov.name == "claude-code" and keys:
+            self.calibrate(prov, model)
         firsts = {}
         if price.get("batch") and hasattr(prov, "submit_batch") and not self.a.no_batch and keys:
             reqs, rids, key_of = [], {}, {}
@@ -276,7 +308,7 @@ def projection(prices, models, tier, reps):
         if "off_peak" in p:
             import datetime
             when = datetime.datetime(2026, 11, 7, 12, tzinfo=datetime.timezone.utc)  # a Saturday: off-peak
-        if p["provider"] == "anthropic":
+        if p["provider"] in ("anthropic", "claude-code"):
             # Batch cache hits are best effort, so first attempts pay the card as a cache write;
             # retries run seconds later and read it from the cache.
             first_tok = {"input": round(1000 * f + card_avg), "cached": 0, "cache_write": round(card_avg), "output": round(1200 * f)}
@@ -291,7 +323,7 @@ def projection(prices, models, tier, reps):
         # (4,000 characters, about 1,400 tokens); on Claude every prompt token is priced as a cache write.
         def cap(n):
             prompt = round(2000 * f + (n - 1) * (2000 + 1400 * f))
-            return {"input": prompt, "cached": 0, "cache_write": prompt if p["provider"] == "anthropic" else 0,
+            return {"input": prompt, "cached": 0, "cache_write": prompt if p["provider"] in ("anthropic", "claude-code") else 0,
                     "output": 2000}
         ceiling = trials * (accounting.cost(p, cap(1), batch=b, when=when)
                             + accounting.cost(p, cap(2), when=when) + accounting.cost(p, cap(3), when=when))
@@ -340,7 +372,8 @@ def main():
                 "tasks_sha256": sha256(os.path.join(HERE, "tasks.py")),
                 "mode": "paid" if a.paid else "mock", "tier": a.tier, "reps": reps, "models": a.models,
                 "langs": a.langs, "tasks": names, "guard_usd": a.guard, "started_utc": accounting.utc_now().isoformat(),
-                "sley_card_sha256": hashlib.sha256(run.card.encode()).hexdigest() if run.card else None}
+                "sley_card_sha256": hashlib.sha256(run.card.encode()).hexdigest() if run.card else None,
+                "labels": {m: prices["models"][m]["label"] for m in a.models if prices["models"][m].get("label")}}
     json.dump(manifest, open(os.path.join(a.out, "manifest.json"), "w"), indent=2)
     for m in a.models:
         run.run_model(m, keys)
