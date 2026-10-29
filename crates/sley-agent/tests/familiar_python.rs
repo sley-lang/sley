@@ -1094,6 +1094,145 @@ fn python_indexes_by_loop_counters_match_converted_indexes() {
     }
 }
 
+/// Floor division and modulo on values that are never negative (`fast_*`),
+/// and twins (`slow_*`) that add a parameter `z` (always called with 0), so
+/// the analysis cannot prove the operands non-negative and keeps Python's
+/// sign correction. `neg_*` functions take values below zero on purpose.
+const FLOOR_PROGRAMS: &str = "\
+def fast_digits(n: int) -> int:
+    total = 0
+    for i in range(n):
+        x = i
+        while x > 0:
+            total += x % 10
+            x //= 10
+    return total
+
+def slow_digits(n: int, z: int) -> int:
+    total = 0
+    for i in range(n):
+        x = i + z
+        while x > 0:
+            total += x % 10
+            x //= 10
+    return total
+
+def fast_mods(n: int, m: int) -> int:
+    total = 0
+    for i in range(n):
+        for k in range(m):
+            total += i % k + i // k
+    return total
+
+def slow_mods(n: int, m: int, z: int) -> int:
+    total = 0
+    for i in range(n):
+        for k in range(m):
+            total += (i + z) % (k + z) + (i + z) // (k + z)
+    return total
+
+def fast_euclid(n: int) -> int:
+    total = 0
+    for i in range(1, n):
+        for j in range(1, n):
+            a = i
+            b = j
+            while b != 0:
+                a, b = b, a % b
+            total += a
+    return total
+
+def slow_euclid(n: int, z: int) -> int:
+    total = 0
+    for i in range(1, n):
+        for j in range(1, n):
+            a = i + z
+            b = j + z
+            while b != 0:
+                a, b = b, a % b
+            total += a
+    return total
+
+def neg_mixed(n: int) -> int:
+    x = 5
+    x = x - n
+    return (x // 3) * 100 + x % 3
+
+def neg_counter(n: int) -> int:
+    total = 0
+    for i in range(-n, n):
+        total += (i // 4) * 10 + i % 4
+    return total
+";
+
+#[test]
+fn python_floor_operations_on_non_negative_values_skip_the_sign_fixup() {
+    let temp = workspace("python-floor-nonneg");
+    let h = accepted(&temp.path, FLOOR_PROGRAMS);
+    let mut cases: Vec<(&str, Vec<Value>)> = Vec::new();
+    for n in [0, 1, 9, 10, 11, 99, 100, 1234] {
+        cases.push(("digits", vec![json!(n)]));
+    }
+    // `m >= 1` makes `k` start at 0: a zero divisor fails in both forms.
+    for (n, m) in [(0, 0), (5, 0), (7, 1), (12, 4), (30, 7)] {
+        cases.push(("mods", vec![json!(n), json!(m)]));
+    }
+    for n in [1, 2, 6, 13] {
+        cases.push(("euclid", vec![json!(n)]));
+    }
+    let mut failures = 0;
+    for (name, args) in &cases {
+        let fast = call_report(&temp.path, &h, &format!("fast_{name}"), args, false);
+        let mut slow_args = args.clone();
+        slow_args.push(json!(0));
+        let slow = call(&temp.path, &h, &format!("slow_{name}"), &slow_args);
+        assert_eq!(fast["result"], slow, "{name}{args:?}");
+        failures += usize::from(traps(&slow));
+        let reference = call_report(&temp.path, &h, &format!("fast_{name}"), args, true);
+        assert_eq!(fast, reference, "{name}{args:?} against the reference");
+    }
+    assert!(failures > 0, "the cases include a zero divisor");
+    // Values that go negative keep Python's floor semantics (from CPython 3.13).
+    check(
+        &temp.path,
+        &h,
+        "neg_mixed",
+        &[
+            (json!([0]), json!(102)),
+            (json!([5]), json!(0)),
+            (json!([7]), json!(-99)),
+            (json!([12]), json!(-298)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "neg_counter",
+        &[
+            (json!([0]), json!(0)),
+            (json!([3]), json!(-21)),
+            (json!([9]), json!(-63)),
+        ],
+    );
+    let count = |name: &str, args: &[Value]| {
+        call_report(&temp.path, &h, name, args, false)["instructions"]
+            .as_u64()
+            .unwrap()
+    };
+    for (name, args) in [
+        ("digits", vec![json!(500)]),
+        ("mods", vec![json!(20), json!(5)]),
+        ("euclid", vec![json!(12)]),
+    ] {
+        let mut slow_args = args.clone();
+        slow_args.push(json!(0));
+        let (fast, slow) = (
+            count(&format!("fast_{name}"), &args),
+            count(&format!("slow_{name}"), &slow_args),
+        );
+        assert!(fast < slow, "{name}: no sign fixup ({fast} vs {slow})");
+    }
+
 #[test]
 fn python_refusals_name_the_fix() {
     let temp = workspace("python-fix-hints");

@@ -19,7 +19,8 @@
 //!   function) or `op?Case` (return error case `Case`).
 //! - `floordiv floormod`: Python's `//` and `%` (the quotient rounds toward
 //!   negative infinity; the remainder takes the divisor's sign); checked like
-//!   `div` and `rem`.
+//!   `div` and `rem`. When both operands are provably non-negative (see
+//!   `nonnegative_names`) they lower to plain `div` and `rem`.
 //! - `to`: `["to", T, x]` converts between integer types; a value outside
 //!   `T` fails like a checked operation (`to?`, `to?Case`).
 //! - `min max clamp`: total; `clamp(x, lo, hi)` is `min(max(x, lo), hi)`.
@@ -46,7 +47,7 @@
 //! variable or the return type, else `i64`. Evaluation is left to right;
 //! `for` visits elements in order.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value, json};
 
@@ -378,6 +379,9 @@ struct Fn<'c, 'a> {
     loops: Vec<LoopCx>,
     /// Counters with a converted copy, innermost last.
     shadows: Vec<Shadow>,
+    /// Body names whose every binding is a non-negative integer (see
+    /// `nonnegative_names`): Python's `//` and `%` on them need no sign fixup.
+    nonneg: BTreeSet<String>,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -417,6 +421,11 @@ impl<'c, 'a> Fn<'c, 'a> {
                 _ => return fail(&format!("{at}/params/{k}"), "a parameter is [name, type]"),
             }
         }
+        let nonneg = decl
+            .get("body")
+            .and_then(Value::as_array)
+            .map(|body| nonnegative_names(body, &params))
+            .unwrap_or_default();
         Ok(Self {
             cx,
             frame_signatures,
@@ -434,6 +443,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             loops: Vec::new(),
             shadows: Vec::new(),
             depth: 0,
+            nonneg,
         })
     }
 
@@ -829,6 +839,19 @@ impl<'c, 'a> Fn<'c, 'a> {
                 let (vals, ty) = self.operands(args, env, at, hint)?;
                 if !is_int(&ty) {
                     return fail(at, format!("`{base}` needs integer operands, not {ty}"));
+                }
+                // Both operands non-negative: floor and truncation agree, so
+                // the quotient or remainder is the plain `div` or `rem` (a zero
+                // divisor fails exactly as before; `MIN / -1` cannot occur).
+                if nonneg_expr(&args[0], &self.nonneg) && nonneg_expr(&args[1], &self.nonneg) {
+                    let plain = if base == "floordiv" { "div" } else { "rem" };
+                    let suffix = &word[base.len()..];
+                    return self.expr(
+                        &json!([format!("{plain}{suffix}"), args[0], args[1]]),
+                        env,
+                        at,
+                        hint,
+                    );
                 }
                 self.handler(mode, at)?;
                 // Python's floor division and modulo: the truncating quotient
@@ -2186,6 +2209,142 @@ impl<'c, 'a> Fn<'c, 'a> {
             self.end(json!(["trap"]), &at);
         }
         Ok(std::mem::take(&mut self.blocks))
+    }
+}
+
+/// The names bound in `body` whose every binding is provably a non-negative
+/// integer, whatever the inputs. Each `let`, `var`, `set` and `declare`, each
+/// `range` counter (at least its start), `for-indexed` index and fold variable
+/// is a binding of its name; names are merged across scopes, which can only
+/// lose facts. The set is the greatest fixed point: start from every bound
+/// name and drop any with a binding not shown non-negative from the rest.
+/// Parameters, `for` elements and names never bound in the body are never in
+/// it. A name in the set holds a value >= 0 at every point it can be read,
+/// because every value ever stored in it was built from literals >= 0 and
+/// names in the set by operations that keep (or trap instead of losing)
+/// non-negativity.
+fn nonnegative_names(body: &[Value], params: &BTreeMap<String, String>) -> BTreeSet<String> {
+    let mut sites: BTreeMap<String, Vec<Option<Value>>> = BTreeMap::new();
+    collect_sites(body, &mut sites);
+    let mut set: BTreeSet<String> = sites
+        .keys()
+        .filter(|n| !params.contains_key(*n))
+        .cloned()
+        .collect();
+    loop {
+        let drop: Vec<String> = set
+            .iter()
+            .filter(|n| {
+                sites[*n]
+                    .iter()
+                    .any(|site| !site.as_ref().is_some_and(|e| nonneg_expr(e, &set)))
+            })
+            .cloned()
+            .collect();
+        if drop.is_empty() {
+            return set;
+        }
+        for n in drop {
+            set.remove(&n);
+        }
+    }
+}
+
+/// Records each binding of a name: `Some(e)` when the bound value is `e` (or
+/// at least `e`, for a range counter), `None` when nothing is known.
+fn collect_sites(stmts: &[Value], sites: &mut BTreeMap<String, Vec<Option<Value>>>) {
+    for s in stmts {
+        let Some(items) = s.as_array() else { continue };
+        let kind = items.first().and_then(Value::as_str).unwrap_or_default();
+        let name = |i: usize| items.get(i).and_then(Value::as_str).map(str::to_owned);
+        let mut add = |n: Option<String>, site: Option<Value>| {
+            if let Some(n) = n {
+                sites.entry(n).or_default().push(site);
+            }
+        };
+        match kind {
+            // A range counter is at least its start.
+            "let" | "set" | "range" => add(name(1), items.get(2).cloned()),
+            "var" => add(name(1), items.last().cloned().filter(|_| items.len() >= 3)),
+            "declare" => add(name(1), Some(json!(0))),
+            "for" => add(name(1), None),
+            "for-indexed" => {
+                add(name(1), Some(json!(0)));
+                add(name(2), None);
+            }
+            _ => {}
+        }
+        for item in items.iter().skip(1) {
+            collect_folds(item, sites);
+            if let Some(list) = item.as_array()
+                && list.iter().all(|x| {
+                    x.as_array()
+                        .is_some_and(|y| y.first().is_some_and(Value::is_string))
+                })
+                && !list.is_empty()
+            {
+                collect_sites(list, sites);
+            }
+        }
+    }
+}
+
+/// Fold variables bound inside expressions: the start of a range, else unknown.
+fn collect_folds(e: &Value, sites: &mut BTreeMap<String, Vec<Option<Value>>>) {
+    let Some(items) = e.as_array() else { return };
+    if items.first().and_then(Value::as_str) == Some("fold")
+        && let Some(x) = items.get(2).and_then(Value::as_str)
+    {
+        let site = items
+            .get(3)
+            .and_then(Value::as_array)
+            .filter(|r| r.len() == 3 && r[0].as_str() == Some("range"))
+            .map(|r| r[1].clone());
+        sites.entry(x.to_owned()).or_default().push(site);
+    }
+    for item in items {
+        collect_folds(item, sites);
+    }
+}
+
+/// Whether `e` is a non-negative integer whenever it produces a value, given
+/// that every name in `set` holds one. Checked operations that would wrap
+/// trap instead, so they keep the property.
+fn nonneg_expr(e: &Value, set: &BTreeSet<String>) -> bool {
+    match e {
+        Value::Number(n) => n.as_i64().is_some_and(|k| k >= 0) || n.as_u64().is_some(),
+        Value::String(name) => set.contains(name),
+        Value::Object(o) => {
+            o.len() == 2
+                && o.get("type")
+                    .and_then(Value::as_str)
+                    .is_some_and(|t| is_int(&normal(t)))
+                && o.get("value").is_some_and(|v| nonneg_expr(v, set))
+        }
+        Value::Array(items) => {
+            let Some(op) = items.first().and_then(Value::as_str) else {
+                return false;
+            };
+            let args = &items[1..];
+            let all = |xs: &[Value]| !xs.is_empty() && xs.iter().all(|x| nonneg_expr(x, set));
+            match split_op(op).0 {
+                "add" | "mul" | "div" | "rem" | "floordiv" | "floormod" | "min" | "gcd" => {
+                    args.len() == 2 && all(args)
+                }
+                "max" => args.len() == 2 && args.iter().any(|x| nonneg_expr(x, set)),
+                "abs" | "len" => args.len() == 1,
+                "pow" => args.len() == 2 && nonneg_expr(&args[0], set),
+                "to" => args.len() == 2 && nonneg_expr(&args[1], set),
+                "if" => args.len() == 3 && all(&args[1..]),
+                "fold" => match args.first().and_then(Value::as_str) {
+                    Some("count") => true,
+                    Some("sum" | "max" | "min") => args.get(3).is_some_and(|v| nonneg_expr(v, set)),
+                    _ => false,
+                },
+                _ => false,
+            }
+        }
+        _ => false,
     }
 }
 
