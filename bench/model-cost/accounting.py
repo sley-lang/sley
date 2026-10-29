@@ -53,7 +53,7 @@ def normalize_usage(provider, usage, reasoning_in_output=True):
     output: completion tokens billed at the output rate (reasoning included);
     reasoning: the reasoning part of output (reported, already counted)."""
     usage = usage or {}
-    if provider == "anthropic":
+    if provider in ("anthropic", "claude-code"):
         # Messages API: input_tokens counts only the uncached prompt; cache
         # reads and writes are reported beside it. Thinking bills as output and
         # is included in output_tokens.

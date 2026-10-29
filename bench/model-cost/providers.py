@@ -162,6 +162,36 @@ class MockTransport:
             return 200, self.msg_batches[m.group(1)]["_results"]
         return 404, json.dumps({"type": "error", "error": {"type": "not_found_error", "message": f"mock: no route {method} {path}"}}).encode()
 
+    def run(self, argv, stdin, env=None, timeout=None):
+        """Plays `claude -p --output-format json` (the Claude Code CLI) in process."""
+        self.calls.append(("EXEC", "claude-code://" + " ".join(a for a in argv[:2])))
+        assert argv[0] == "claude" and "-p" in argv and argv[argv.index("--output-format") + 1] == "json", argv
+        model = argv[argv.index("--model") + 1]
+        system = argv[argv.index("--system-prompt") + 1] if "--system-prompt" in argv else ""
+        assert argv[argv.index("--tools") + 1] == "", "tools must be disabled"
+        msgs = [{"role": "system", "content": system}] + unflatten(stdin)
+        text, finish = self.answer(model, msgs)
+        cap = int((env or {}).get("CLAUDE_CODE_MAX_OUTPUT_TOKENS", 10 ** 9))
+        prompt = sum(self.toks(m["content"]) for m in msgs) + 4 * len(msgs) + self.CLAUDE_CODE_OVERHEAD
+        p = self.toks(system) + self.CLAUDE_CODE_OVERHEAD
+        cr = cw = 0
+        if p >= 512:
+            cr, cw = (p, 0) if system in self.seen_prefixes else (0, p)
+        self.seen_prefixes.add(system)
+        out = min(self.toks(text) + 40, cap)
+        if finish == "length":
+            text = text[: len(text) // 2]
+        usage = {"input_tokens": prompt - cr - cw, "cache_creation_input_tokens": cw, "cache_read_input_tokens": cr,
+                 "output_tokens": out, "server_tool_use": {"web_search_requests": 0}, "service_tier": "standard"}
+        res = {"type": "result", "subtype": "success", "is_error": False, "duration_ms": 1200, "num_turns": 1,
+               "result": text, "stop_reason": "max_tokens" if finish == "length" else "end_turn",
+               "session_id": str(uuid.uuid4()), "total_cost_usd": 0.0, "usage": usage,
+               "modelUsage": {model: {"inputTokens": usage["input_tokens"], "outputTokens": out,
+                                      "cacheReadInputTokens": cr, "cacheCreationInputTokens": cw, "costUSD": 0.0}}}
+        return 0, json.dumps(res).encode(), b""
+
+    CLAUDE_CODE_OVERHEAD = 30  # mock stand-in for whatever the CLI adds; the calibration call measures the real one
+
     def request(self, method, url, headers, body=None):
         self.calls.append((method, url))
         path = re.sub(r"^https://[^/]+", "", url)
@@ -431,6 +461,145 @@ class AnthropicProvider:
         return out
 
 
+# ---- Claude Code (subscription or cloud session) ------------------------------
+
+ATTEMPT = re.compile(r"<previous_attempt>\n(.*?)\n</previous_attempt>\n<feedback>\n(.*?)\n</feedback>", re.S)
+
+
+def flatten(messages):
+    """`claude -p` takes one prompt, so a retry carries the earlier turns as text:
+    the task, then each earlier reply and the feedback on it."""
+    turns = [m for m in messages if m["role"] in ("user", "assistant")]
+    out = [turns[0]["content"]]
+    for a, u in zip(turns[1::2], turns[2::2]):
+        out.append(f"<previous_attempt>\n{a['content']}\n</previous_attempt>\n<feedback>\n{u['content']}\n</feedback>")
+    return "\n\n".join(out)
+
+
+def unflatten(prompt):
+    """The inverse of flatten (used by the mock)."""
+    first = prompt.split("\n\n<previous_attempt>\n", 1)[0]
+    msgs = [{"role": "user", "content": first}]
+    for a, u in ATTEMPT.findall(prompt):
+        msgs += [{"role": "assistant", "content": a}, {"role": "user", "content": u}]
+    return msgs
+
+
+class LocalRunner:
+    """Runs the `claude` CLI on this machine (inside a Claude Code cloud session, or wherever it is logged in)."""
+
+    def run(self, argv, stdin, env=None, timeout=600):
+        import subprocess, tempfile
+        with tempfile.TemporaryDirectory(prefix="sley-cc-") as d:  # an empty cwd: no project files or CLAUDE.md
+            try:
+                r = subprocess.run(argv, input=stdin.encode(), capture_output=True, cwd=d, timeout=timeout,
+                                   env=dict(os.environ, **(env or {})))
+            except (OSError, subprocess.TimeoutExpired) as e:
+                raise InfraError(f"claude CLI: {e}")
+            return r.returncode, r.stdout, r.stderr
+
+
+class SshRunner:
+    """Runs the `claude` CLI on another machine over SSH (CLAUDE_CODE_SSH=user@host)."""
+
+    def __init__(self, target):
+        self.target = target
+
+    def run(self, argv, stdin, env=None, timeout=600):
+        import shlex, subprocess
+        envs = " ".join(f"{k}={shlex.quote(v)}" for k, v in (env or {}).items())
+        remote = (f"d=$(mktemp -d) && cd \"$d\" && {envs} {' '.join(shlex.quote(a) for a in argv)}; "
+                  f"rc=$?; cd / && rm -rf \"$d\"; exit $rc")
+        try:
+            r = subprocess.run(["ssh", "-o", "BatchMode=yes", self.target, remote], input=stdin.encode(),
+                               capture_output=True, timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            raise InfraError(f"ssh {self.target}: {e}")
+        if r.returncode == 255:
+            raise InfraError(f"ssh {self.target}: {r.stderr[:300]!r}")
+        return r.returncode, r.stdout, r.stderr
+
+
+class ClaudeCodeProvider:
+    """A Claude model reached through the Claude Code CLI (`claude -p --output-format json`).
+
+    The run is billed to a Claude subscription or to Claude Code cloud-session
+    credit, not per token, so dollars are estimates at API list price. To keep
+    the token counts about the task and not about Claude Code itself:
+    - `--system-prompt` replaces Claude Code's system prompt with the
+      harness's (the same text the API route sends);
+    - `--tools ""` removes every tool, `--strict-mcp-config` every MCP server;
+    - `--safe-mode` (when the CLI has it) drops CLAUDE.md, skills, plugins, hooks
+      and custom agents; `--disable-slash-commands` and
+      `--no-session-persistence` keep each call standalone;
+    - each call runs in an empty temporary directory;
+    - `CLAUDE_CODE_MAX_OUTPUT_TOKENS` holds the output cap.
+    What remains is measured by `calibrate()` and recorded with the run.
+    Usage comes from the CLI's JSON (`usage`, in the Messages API's field
+    names), and `modelUsage` must show only the pinned model, or the call is
+    rejected as an infrastructure failure."""
+    name = "claude-code"
+    OPTIONAL_FLAGS = ("--safe-mode", "--disable-slash-commands", "--no-session-persistence", "--strict-mcp-config")
+
+    def __init__(self, model, runner, effort="low", max_output=2000, probe=True):
+        self.model = model
+        self.runner = runner
+        self.effort = effort
+        self.max_output = max_output
+        self.flags = list(self.OPTIONAL_FLAGS)
+        if probe and not isinstance(runner, MockTransport):
+            rc, out, _ = runner.run(["claude", "--help"], "", timeout=60)
+            text = out.decode(errors="replace")
+            self.flags = [f for f in self.OPTIONAL_FLAGS if f in text]
+            for f in ("--output-format", "--system-prompt", "--tools", "--model"):
+                if f not in text:
+                    raise InfraError(f"claude CLI lacks {f}; cannot run the claude-code provider")
+
+    def argv(self, system):
+        a = ["claude", "-p", "--output-format", "json", "--model", self.model, "--tools", ""]
+        if system:
+            a += ["--system-prompt", system]
+        if self.effort:
+            a += ["--effort", self.effort]
+        return a + self.flags
+
+    def env(self):
+        return {"CLAUDE_CODE_MAX_OUTPUT_TOKENS": str(self.max_output)}
+
+    def parse(self, rc, out, err):
+        lines = [l for l in out.decode(errors="replace").splitlines() if l.strip().startswith("{")]
+        if not lines:
+            raise InfraError(f"claude CLI exit {rc}, no JSON: {err[:300]!r} {out[:200]!r}")
+        r = json.loads(lines[-1])
+        usage = dict(r.get("usage") or {})
+        mu = r.get("modelUsage") or {}
+        others = [m for m in mu if not m.startswith(self.model)]
+        if others or not mu:
+            raise InfraError(f"claude-code: model not pinned to {self.model}: modelUsage {sorted(mu)}")
+        sr = r.get("stop_reason")
+        if sr == "max_tokens" or "max_tokens" in str(r.get("subtype", "")) or \
+                int(usage.get("output_tokens", 0)) >= self.max_output:
+            finish = "length"
+        elif r.get("is_error") or r.get("subtype") != "success":
+            raise InfraError(f"claude-code: {r.get('subtype')} {str(r.get('result'))[:300]}")
+        else:
+            finish = "stop"
+        usage["claude_code"] = {k: r.get(k) for k in ("total_cost_usd", "num_turns", "duration_ms", "session_id",
+                                                      "modelUsage", "subtype", "stop_reason")}
+        return Reply(r.get("result") or "", usage, finish, False, r.get("session_id"), ",".join(sorted(mu)))
+
+    def complete(self, messages):
+        system = "\n\n".join(m["content"] for m in messages if m["role"] in ("system", "developer"))
+        rc, out, err = self.runner.run(self.argv(system), flatten(messages), self.env())
+        return self.parse(rc, out, err)
+
+    def calibrate(self):
+        """One near-empty call. Its input tokens minus those of the two short
+        strings it sends is what Claude Code still adds to every call."""
+        return self.complete([{"role": "system", "content": "Reply with the single word OK."},
+                              {"role": "user", "content": "OK?"}])
+
+
 class ChatProvider:
     """xAI and DeepSeek: OpenAI-style chat completions."""
 
@@ -457,7 +626,7 @@ class ChatProvider:
                      r.get("id"), r.get("model"))
 
 
-KEYS = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
+KEYS = {"claude-code": None, "anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
 BASES = {"xai": "https://api.x.ai", "deepseek": "https://api.deepseek.com"}
 
 
@@ -465,6 +634,12 @@ def make(model, price, transport, paid, max_output, effort="low", sleep=time.sle
     """A provider for `model`. Paid providers need their key in the environment."""
     prov = price["provider"]
     key = None
+    if prov == "claude-code":
+        api_model = price.get("api_model") or model
+        if not paid:
+            return ClaudeCodeProvider(api_model, transport, effort, max_output)
+        target = os.environ.get("CLAUDE_CODE_SSH")
+        return ClaudeCodeProvider(api_model, SshRunner(target) if target else LocalRunner(), effort, max_output)
     if paid:
         key = os.environ.get(KEYS[prov])
         if not key:

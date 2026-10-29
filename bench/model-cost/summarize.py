@@ -50,6 +50,8 @@ def summarize(run_dir):
           ("**Dry run: the mock provider answered every call. Dollar figures price synthetic usage at real list prices; "
            "nothing was billed and they say nothing about any model.**" if manifest["mode"] == "mock" else
            "Billed usage at the list prices in prices.json."), "",
+          *[f"**{m}: {label}.**" for m, label in sorted((manifest.get("labels") or {}).items())],
+          *([""] if manifest.get("labels") else []),
           f"prereg.json SHA-256 `{manifest['prereg_sha256']}`; prices checked {json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'prices.json')))['checked']}.", "",
           "| Model | Language | Correct | First try | $ per correct | $ per trial | Attempts | Input / cached / output tokens per trial |",
           "|---|---|---|---|---|---|---|---|"]
@@ -60,6 +62,15 @@ def summarize(run_dir):
                   f"${c['usd_per_trial']:.5f} | {c['attempts_per_trial']:.2f} | "
                   f"{t['input']:.0f} / {t['cached']:.0f} / {t['output']:.0f} |")
     md += ["", f"Total spend: ${total:.5f}.", f"Infrastructure failures (excluded): {len(s['infra_failures'])}."]
+    cal = os.path.join(run_dir, "calibration.json")
+    if os.path.exists(cal):
+        c = json.load(open(cal))
+        s["calibration"] = c
+        md += ["", f"Claude Code overhead: a calibration call whose own text is about {c['sent_chars'] // 4} tokens "
+               f"reported {c['billed_tokens']['input']} input tokens ({c['billed_tokens']['cached']} cache reads, "
+               f"{c['billed_tokens']['cache_write']} cache writes), so about {c['overhead_input_tokens_estimate']} "
+               f"input tokens per call come from the CLI itself, not the task."]
+        json.dump(s, open(os.path.join(run_dir, "summary.json"), "w"), indent=2)
     open(os.path.join(run_dir, "summary.md"), "w").write("\n".join(md) + "\n")
     return s
 
