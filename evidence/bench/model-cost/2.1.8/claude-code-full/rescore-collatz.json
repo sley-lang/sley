@@ -1,0 +1,383 @@
+{
+  "oracle_fix": "sley-lang/sley#80",
+  "trials": [
+    {
+      "lang": "sley",
+      "rep": 1,
+      "program": "programs/claude-code-haiku-5-5/collatz-1.sley.py",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "python",
+      "rep": 1,
+      "program": "programs/claude-code-haiku-5-5/collatz-1.python.py",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "c",
+      "rep": 1,
+      "program": "programs/claude-code-haiku-5-5/collatz-1.c.c",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "rust",
+      "rep": 1,
+      "program": "programs/claude-code-haiku-5-5/collatz-1.rust.rs",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "go",
+      "rep": 1,
+      "program": "programs/claude-code-haiku-5-5/collatz-1.go.go",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "ts",
+      "rep": 1,
+      "program": "programs/claude-code-haiku-5-5/collatz-1.ts.ts",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "python",
+      "rep": 2,
+      "program": "programs/claude-code-haiku-5-5/collatz-2.python.py",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "sley",
+      "rep": 2,
+      "program": "programs/claude-code-haiku-5-5/collatz-2.sley.py",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "rust",
+      "rep": 2,
+      "program": "programs/claude-code-haiku-5-5/collatz-2.rust.rs",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "c",
+      "rep": 2,
+      "program": "programs/claude-code-haiku-5-5/collatz-2.c.c",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "ts",
+      "rep": 2,
+      "program": "programs/claude-code-haiku-5-5/collatz-2.ts.ts",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "go",
+      "rep": 2,
+      "program": "programs/claude-code-haiku-5-5/collatz-2.go.go",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "python",
+      "rep": 3,
+      "program": "programs/claude-code-haiku-5-5/collatz-3.python.py",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "sley",
+      "rep": 3,
+      "program": "programs/claude-code-haiku-5-5/collatz-3.sley.py",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "c",
+      "rep": 3,
+      "program": "programs/claude-code-haiku-5-5/collatz-3.c.c",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "rust",
+      "rep": 3,
+      "program": "programs/claude-code-haiku-5-5/collatz-3.rust.rs",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "go",
+      "rep": 3,
+      "program": "programs/claude-code-haiku-5-5/collatz-3.go.go",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    },
+    {
+      "lang": "ts",
+      "rep": 3,
+      "program": "programs/claude-code-haiku-5-5/collatz-3.ts.ts",
+      "before": {
+        "hidden_passed": 126,
+        "success": false,
+        "first_failure": {
+          "args": [
+            2
+          ],
+          "want": "0",
+          "got": "1"
+        }
+      },
+      "after": {
+        "hidden_passed": 128,
+        "success": true,
+        "first_failure": null
+      }
+    }
+  ]
+}

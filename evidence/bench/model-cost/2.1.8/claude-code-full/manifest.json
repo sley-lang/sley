@@ -1,0 +1,45 @@
+{
+  "prereg_sha256": "c605c7cd7a34ce7f68bb20dae799e4a3fa78182c5572c6fb8a180bcafc729183",
+  "prices_sha256": "61b915d8f088cae59f3f9c479dbff89db39a65279660c0d3b8ffcb4445e2eed5",
+  "tasks_sha256": "81a2acf6c197539e7b59c0a39bfa6e0363c81bc7743bd318bfe41b5bd1a64756",
+  "mode": "paid",
+  "tier": "full",
+  "reps": 3,
+  "models": [
+    "claude-code-haiku-5-5"
+  ],
+  "langs": [
+    "python",
+    "sley",
+    "c",
+    "rust",
+    "go",
+    "ts"
+  ],
+  "tasks": [
+    "fib",
+    "collatz",
+    "primes",
+    "digitsum",
+    "isqrt",
+    "inversions",
+    "transform",
+    "parse_int",
+    "longest_run",
+    "second_largest",
+    "pair_count",
+    "max_depth",
+    "mode_value",
+    "max_subarray",
+    "count_leq",
+    "root_sum",
+    "clamp_sum",
+    "count_multiples"
+  ],
+  "guard_usd": 10.0,
+  "started_utc": "2026-10-29T19:10:25.943804+00:00",
+  "sley_card_sha256": "44556a4d6b08b031bf83cceb3c7f5c1f9901156405f917fc411741c44f4d6f8c",
+  "labels": {
+    "claude-code-haiku-5-5": "Claude Code cloud session: tokens as reported; $ estimated at API list price, not billed per token"
+  }
+}
