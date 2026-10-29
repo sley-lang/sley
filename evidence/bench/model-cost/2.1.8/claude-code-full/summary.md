@@ -18,4 +18,4 @@ prereg.json SHA-256 `c605c7cd7a34ce7f68bb20dae799e4a3fa78182c5572c6fb8a180bcafc7
 Total spend: $0.11935.
 Infrastructure failures (excluded): 0.
 
-Claude Code overhead: a calibration call whose own text is about 8 tokens reported 1333 input tokens (0 cache reads, 0 cache writes), so about 1325 input tokens per call come from the CLI itself, not the task.
+Claude Code overhead: a calibration call whose own text is about 8 tokens reported 1333 input tokens (0 cache reads, 1331 cache writes), so about 1325 input tokens per call come from the CLI itself, not the task.
