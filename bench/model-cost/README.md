@@ -18,7 +18,7 @@ Everything here is fixed before the first paid call: `prereg.json` (design),
 | Trials | small: 15 tasks x 6 languages x 1 = 90 per model; full: 18 x 6 x 3 = 324 per model |
 | Attempts | 1 + at most 2 retries; a retry gets the visible test or compiler output (4,000 characters at most) |
 | Output cap | 2,000 tokens including reasoning; a reply cut off by the cap is a failed attempt (and still bills) |
-| Sley card | `sley-agent help python` is sent with every Sley attempt, billed, first in the prompt so it can be cached |
+| Sley card | `sley-agent help python-task` (the dialect card without the inline-test syntax, since the harness supplies the tests; `help python` before 29 Oct 2026, see `prereg.json` amendments) is sent with every Sley attempt, billed, first in the prompt so it can be cached |
 | Oracle | 128 seeded cases per task (seed 218), edge cases first, from `tasks.reference`; independent of the visible tests |
 | Success | the final program passes the visible tests and all 128 hidden cases |
 | Exclusions | provider or network failures and guard stops are recorded and shown, and left out of the denominators |

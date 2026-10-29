@@ -102,6 +102,10 @@
     {
       "date": "2026-10-29",
       "change": "Oracle fix for collatz: with limit = 2 the only starting value is n = 1 (0 steps), so the statement's answer is 1, but the oracle and the six reference programs started the running best at 0 steps and returned 0. They now start it at -1. Only limit = 2 changes (hidden case 3 of 128, run in every trial). The first full-tier Claude Code run (2.1.8/claude-code-full) was scored with the old oracle, so its collatz rows failed in every language; they are re-scored with the fixed oracle and both scores are published."
+    },
+    {
+      "date": "2026-10-29",
+      "change": "Sley card: `sley-agent help python-task` replaces `help python`. It is the same dialect card without the lines on writing inline tests (`def test_*`, `pytest.raises`, assertions), which the prompt tells every model not to write, plus one line that only parameters and returns need types. It is a 2.1.8 change under test: the full-tier Claude Code run of 29 Oct (2.1.8/claude-code-full, `help python`) is the before measurement, and runs with the new card are published beside it, not pooled with it. The manifest records the card topic and SHA-256."
     }
   ]
 }
