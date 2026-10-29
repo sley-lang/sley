@@ -1,14 +1,14 @@
 {
   "mode": "mock",
   "manifest": {
-    "prereg_sha256": "9e2b54748c01d9ecf8a2a042878395423dea89f1306ae9dd53666fbd97ce8aa7",
-    "prices_sha256": "ca7f5c4ad18d6575695995466ae629095d1108ccb10d31a18beb3ab04932b868",
+    "prereg_sha256": "be471ef7672aee338438d0569608a453ec01614d9c560e70b82225e299fae369",
+    "prices_sha256": "c497245625e206ac8ba149fa719e0ffea2239dec7fe82ef43eeaef1f73f3cff5",
     "tasks_sha256": "81a2acf6c197539e7b59c0a39bfa6e0363c81bc7743bd318bfe41b5bd1a64756",
     "mode": "mock",
     "tier": "small",
     "reps": 1,
     "models": [
-      "gpt-6-luna",
+      "claude-haiku-5-5",
       "grok-build-0.1"
     ],
     "langs": [
@@ -37,147 +37,147 @@
       "count_multiples"
     ],
     "guard_usd": 10.0,
-    "started_utc": "2026-10-29T00:57:49.197792+00:00",
+    "started_utc": "2026-10-29T18:03:40.582127+00:00",
     "sley_card_sha256": "44556a4d6b08b031bf83cceb3c7f5c1f9901156405f917fc411741c44f4d6f8c"
   },
   "cells": [
     {
-      "model": "gpt-6-luna",
+      "model": "claude-haiku-5-5",
       "lang": "c",
       "trials": 15,
       "infra_excluded": 0,
-      "success": 14,
-      "success_rate": 0.9333333333333333,
-      "first_try": 10,
+      "success": 15,
+      "success_rate": 1.0,
+      "first_try": 11,
       "visible_pass_hidden_fail": 0,
-      "attempts_per_trial": 1.4,
-      "spend_usd": 0.0016127,
-      "usd_per_trial": 0.00010751333333333333,
-      "usd_per_correct": 0.00011519285714285713,
+      "attempts_per_trial": 1.2666666666666666,
+      "spend_usd": 0.0015294,
+      "usd_per_trial": 0.00010195999999999999,
+      "usd_per_correct": 0.00010195999999999999,
       "tokens_per_trial": {
-        "input": 400.6,
+        "input": 356.4,
         "cached": 0.0,
-        "output": 264.93333333333334,
-        "reasoning": 56.0
+        "output": 266.3333333333333,
+        "reasoning": 0.0
       },
-      "calls": 21,
+      "calls": 19,
       "batch_calls": 15,
       "truncated_calls": 1
     },
     {
-      "model": "gpt-6-luna",
+      "model": "claude-haiku-5-5",
       "lang": "go",
       "trials": 15,
       "infra_excluded": 0,
       "success": 14,
       "success_rate": 0.9333333333333333,
-      "first_try": 9,
-      "visible_pass_hidden_fail": 0,
-      "attempts_per_trial": 1.4666666666666666,
-      "spend_usd": 0.0009243,
-      "usd_per_trial": 6.162e-05,
-      "usd_per_correct": 6.602142857142857e-05,
-      "tokens_per_trial": {
-        "input": 275.06666666666666,
-        "cached": 0.0,
-        "output": 126.0,
-        "reasoning": 58.666666666666664
-      },
-      "calls": 22,
-      "batch_calls": 15,
-      "truncated_calls": 0
-    },
-    {
-      "model": "gpt-6-luna",
-      "lang": "python",
-      "trials": 15,
-      "infra_excluded": 0,
-      "success": 14,
-      "success_rate": 0.9333333333333333,
-      "first_try": 9,
-      "visible_pass_hidden_fail": 0,
-      "attempts_per_trial": 1.4666666666666666,
-      "spend_usd": 0.0011269,
-      "usd_per_trial": 7.512666666666667e-05,
-      "usd_per_correct": 8.049285714285714e-05,
-      "tokens_per_trial": {
-        "input": 348.93333333333334,
-        "cached": 0.0,
-        "output": 148.2,
-        "reasoning": 58.666666666666664
-      },
-      "calls": 22,
-      "batch_calls": 15,
-      "truncated_calls": 0
-    },
-    {
-      "model": "gpt-6-luna",
-      "lang": "rust",
-      "trials": 15,
-      "infra_excluded": 0,
-      "success": 14,
-      "success_rate": 0.9333333333333333,
-      "first_try": 10,
-      "visible_pass_hidden_fail": 0,
-      "attempts_per_trial": 1.4,
-      "spend_usd": 0.0008425,
-      "usd_per_trial": 5.616666666666667e-05,
-      "usd_per_correct": 6.017857142857143e-05,
-      "tokens_per_trial": {
-        "input": 264.0,
-        "cached": 0.0,
-        "output": 116.93333333333334,
-        "reasoning": 56.0
-      },
-      "calls": 21,
-      "batch_calls": 15,
-      "truncated_calls": 0
-    },
-    {
-      "model": "gpt-6-luna",
-      "lang": "sley",
-      "trials": 15,
-      "infra_excluded": 0,
-      "success": 13,
-      "success_rate": 0.8666666666666667,
-      "first_try": 9,
+      "first_try": 8,
       "visible_pass_hidden_fail": 0,
       "attempts_per_trial": 1.5333333333333334,
-      "spend_usd": 0.00246125,
-      "usd_per_trial": 0.00016408333333333333,
-      "usd_per_correct": 0.00018932692307692308,
+      "spend_usd": 0.00158105,
+      "usd_per_trial": 0.00010540333333333334,
+      "usd_per_correct": 0.00011293214285714286,
       "tokens_per_trial": {
-        "input": 1091.7333333333333,
+        "input": 378.4,
         "cached": 0.0,
-        "output": 283.93333333333334,
-        "reasoning": 61.333333333333336
+        "output": 257.6,
+        "reasoning": 0.0
       },
       "calls": 23,
       "batch_calls": 15,
       "truncated_calls": 1
     },
     {
-      "model": "gpt-6-luna",
-      "lang": "ts",
+      "model": "claude-haiku-5-5",
+      "lang": "python",
       "trials": 15,
       "infra_excluded": 0,
       "success": 15,
       "success_rate": 1.0,
+      "first_try": 8,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.4666666666666666,
+      "spend_usd": 0.00173375,
+      "usd_per_trial": 0.00011558333333333334,
+      "usd_per_correct": 0.00011558333333333334,
+      "tokens_per_trial": {
+        "input": 408.0,
+        "cached": 0.0,
+        "output": 280.8,
+        "reasoning": 0.0
+      },
+      "calls": 22,
+      "batch_calls": 15,
+      "truncated_calls": 1
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "rust",
+      "trials": 15,
+      "infra_excluded": 0,
+      "success": 13,
+      "success_rate": 0.8666666666666667,
       "first_try": 10,
       "visible_pass_hidden_fail": 0,
-      "attempts_per_trial": 1.3333333333333333,
-      "spend_usd": 0.00082105,
-      "usd_per_trial": 5.473666666666667e-05,
-      "usd_per_correct": 5.473666666666667e-05,
+      "attempts_per_trial": 1.4666666666666666,
+      "spend_usd": 0.0010582,
+      "usd_per_trial": 7.054666666666667e-05,
+      "usd_per_correct": 8.14e-05,
       "tokens_per_trial": {
-        "input": 249.33333333333334,
+        "input": 303.46666666666664,
         "cached": 0.0,
-        "output": 120.06666666666666,
-        "reasoning": 53.333333333333336
+        "output": 164.73333333333332,
+        "reasoning": 0.0
       },
-      "calls": 20,
+      "calls": 22,
       "batch_calls": 15,
-      "truncated_calls": 0
+      "truncated_calls": 1
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "sley",
+      "trials": 15,
+      "infra_excluded": 0,
+      "success": 14,
+      "success_rate": 0.9333333333333333,
+      "first_try": 10,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.4,
+      "spend_usd": 0.0025923,
+      "usd_per_trial": 0.00017282000000000002,
+      "usd_per_correct": 0.00018516428571428573,
+      "tokens_per_trial": {
+        "input": 1015.2666666666667,
+        "cached": 0.0,
+        "output": 357.1333333333333,
+        "reasoning": 0.0
+      },
+      "calls": 21,
+      "batch_calls": 15,
+      "truncated_calls": 2
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "ts",
+      "trials": 15,
+      "infra_excluded": 0,
+      "success": 13,
+      "success_rate": 0.8666666666666667,
+      "first_try": 8,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.6,
+      "spend_usd": 0.0032189,
+      "usd_per_trial": 0.00021459333333333333,
+      "usd_per_correct": 0.0002476076923076923,
+      "tokens_per_trial": {
+        "input": 629.0666666666667,
+        "cached": 0.0,
+        "output": 592.8666666666667,
+        "reasoning": 0.0
+      },
+      "calls": 24,
+      "batch_calls": 15,
+      "truncated_calls": 4
     },
     {
       "model": "grok-build-0.1",
@@ -318,6 +318,6 @@
       "truncated_calls": 2
     }
   ],
-  "spend_usd": 0.1203497,
+  "spend_usd": 0.1242746,
   "infra_failures": []
 }

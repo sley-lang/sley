@@ -10,7 +10,8 @@ sys.path.insert(0, HERE)
 import accounting, langs, providers, run, tasks  # noqa: E402
 
 PRICES = accounting.load_prices()
-LUNA, GROK, DS = (PRICES["models"][m] for m in ("gpt-6-luna", "grok-build-0.1", "deepseek-flash"))
+LUNA, GROK, DS, HAIKU = (PRICES["models"][m] for m in ("gpt-6-luna", "grok-build-0.1", "deepseek-flash",
+                                                         "claude-haiku-5-5"))
 
 
 class TaskSet(unittest.TestCase):
@@ -48,6 +49,10 @@ class Accounting(unittest.TestCase):
     def test_per_attempt_costs_match_the_plan(self):
         self.assertAlmostEqual(accounting.cost(LUNA, self.TOK, batch=True), 0.00035, places=5)
         self.assertAlmostEqual(accounting.cost(GROK, self.TOK), 0.00341, places=5)
+        # Haiku 5.5 on the Batch API: 1,000 in at $0.05, 68 cache reads at $0.005, 1,200 out at $0.25 per MTok
+        self.assertAlmostEqual(accounting.cost(HAIKU, self.TOK, batch=True), 0.00035034, places=8)
+        # standard rate: $0.10 / $0.01 / $0.50
+        self.assertAlmostEqual(accounting.cost(HAIKU, self.TOK), 0.00070068, places=8)
         sat = datetime.datetime(2026, 11, 7, 12, tzinfo=datetime.timezone.utc)
         self.assertAlmostEqual(accounting.cost(DS, self.TOK, when=sat), 0.00087, places=5)
 
@@ -68,11 +73,42 @@ class Accounting(unittest.TestCase):
         self.assertEqual(accounting.normalize_usage("xai", u, reasoning_in_output=False)["output"], 300)
         self.assertEqual(accounting.normalize_usage("xai", u, reasoning_in_output=True)["output"], 200)
 
+    def test_anthropic_usage_normalization(self):
+        u = {"input_tokens": 40, "cache_creation_input_tokens": 600, "cache_read_input_tokens": 0, "output_tokens": 900,
+             "cache_creation": {"ephemeral_5m_input_tokens": 600, "ephemeral_1h_input_tokens": 0}}
+        o = accounting.normalize_usage("anthropic", u)
+        self.assertEqual(o, {"input": 640, "cached": 0, "cache_write": 600, "cache_write_1h": 0, "output": 900,
+                             "reasoning": 0})
+        # 40 x $0.10 + 600 x $0.125 + 900 x $0.50 per MTok
+        self.assertAlmostEqual(accounting.cost(HAIKU, o), (40 * 0.10 + 600 * 0.125 + 900 * 0.50) / 1e6, places=12)
+        r = accounting.normalize_usage("anthropic", dict(u, cache_creation_input_tokens=0, cache_read_input_tokens=600,
+                                                         cache_creation={}))
+        self.assertEqual((r["input"], r["cached"], r["cache_write"]), (640, 600, 0))
+        self.assertAlmostEqual(accounting.cost(HAIKU, r, batch=True), (40 * 0.05 + 600 * 0.005 + 900 * 0.25) / 1e6,
+                               places=12)
+        h = accounting.normalize_usage("anthropic", dict(u, cache_creation={"ephemeral_5m_input_tokens": 0,
+                                                                            "ephemeral_1h_input_tokens": 600}))
+        self.assertEqual((h["cache_write"], h["cache_write_1h"]), (0, 600))
+        self.assertAlmostEqual(accounting.cost(HAIKU, h), (40 * 0.10 + 600 * 0.20 + 900 * 0.50) / 1e6, places=12)
+
+    def test_haiku_long_context_prices(self):
+        small = {"input": 100000, "cached": 0, "cache_write": 0, "output": 0}
+        big = {"input": 100001, "cached": 0, "cache_write": 0, "output": 1000}
+        self.assertAlmostEqual(accounting.cost(HAIKU, small), 0.01, places=10)
+        self.assertAlmostEqual(accounting.cost(HAIKU, big), (100001 * 0.50 + 1000 * 2.50) / 1e6, places=10)
+        self.assertAlmostEqual(accounting.cost(HAIKU, big, batch=True), (100001 * 0.25 + 1000 * 1.25) / 1e6, places=10)
+
     def test_worst_case_bounds_any_capped_call(self):
-        for p in (LUNA, GROK, DS):
+        for p in (LUNA, GROK, DS, HAIKU):
             for b in (False, True):
-                full = {"input": 3000, "cached": 0, "cache_write": 0, "output": 2000}
-                self.assertGreaterEqual(accounting.worst_case(p, 3000, 2000, batch=b) + 1e-12, accounting.cost(p, full, batch=b))
+                for n in (3000, 150000):
+                    full = {"input": n, "cached": 0, "cache_write": 0, "output": 2000}
+                    self.assertGreaterEqual(accounting.worst_case(p, n, 2000, batch=b) + 1e-12,
+                                            accounting.cost(p, full, batch=b))
+                    if p is HAIKU:
+                        cw = dict(full, cache_write=n)
+                        self.assertGreaterEqual(accounting.worst_case(p, n, 2000, batch=b) + 1e-12,
+                                                accounting.cost(p, cw, batch=b))
 
     def test_guard_refuses_and_persists(self):
         d = tempfile.mkdtemp()
@@ -113,6 +149,66 @@ class Providers(unittest.TestCase):
         self.assertEqual(line["body"]["max_output_tokens"], 2000)
         self.assertEqual(line["body"]["reasoning"], {"effort": "low"})
 
+    def test_anthropic_batch_round_trip(self):
+        t = providers.MockTransport(echo_model(), batch_polls=3)
+        p = providers.AnthropicProvider("claude-haiku-5-5", t, sleep=lambda s: None)
+        bid = p.submit_batch([("fib-sley-1", self.MSGS), ("parse_int-c-2", self.MSGS)])
+        b = p.wait_batch(bid)
+        got = p.batch_results(b)
+        self.assertEqual(sorted(got), ["fib-sley-1", "parse_int-c-2"])
+        self.assertTrue(all(r.batch and r.finish == "stop" and "return 1" in r.text for r in got.values()))
+        urls = [u for _, u in t.calls]
+        self.assertIn("https://api.anthropic.com/v1/messages/batches", urls)
+        self.assertTrue(any(u.endswith("/results") for u in urls))
+        params = t.msg_batches[bid]["_requests"][0]["params"]
+        self.assertEqual(params["max_tokens"], 2000)
+        self.assertEqual(params["output_config"], {"effort": "low"})
+        self.assertEqual(params["system"][0]["cache_control"], {"type": "ephemeral"})
+        self.assertEqual([m["role"] for m in params["messages"]], ["user"])
+        # the second request read the system prefix the first one wrote
+        u = sorted((r.usage for r in got.values()), key=lambda u: u["cache_read_input_tokens"])
+        self.assertGreater(u[0]["cache_creation_input_tokens"], 0)
+        self.assertGreater(u[1]["cache_read_input_tokens"], 0)
+
+    def test_anthropic_messages_cache_truncation_and_errors(self):
+        t = providers.MockTransport(echo_model(finish="length"))
+        p = providers.AnthropicProvider("claude-haiku-5-5", t)
+        r1, r2 = p.complete(self.MSGS), p.complete(self.MSGS)
+        self.assertEqual(r1.finish, "length")
+        self.assertFalse(r1.batch)
+        self.assertGreater(r1.usage["cache_creation_input_tokens"], 0)
+        self.assertGreater(r2.usage["cache_read_input_tokens"], 0)
+        # under the 512-token minimum the API caches nothing
+        short = [{"role": "system", "content": "x" * 400}, {"role": "user", "content": "hi"}]
+        r3 = p.complete(short)
+        self.assertEqual((r3.usage["cache_creation_input_tokens"], r3.usage["cache_read_input_tokens"]), (0, 0))
+        self.assertEqual(providers.AnthropicProvider.parse(
+            {"content": [{"type": "text", "text": "x"}], "stop_reason": "refusal", "usage": {}}, False).finish, "stop")
+
+        class Overloaded:
+            def request(self, *a):
+                return 529, b'{"type":"error","error":{"type":"overloaded_error"}}'
+        with self.assertRaises(providers.InfraError):
+            providers.AnthropicProvider("m", Overloaded(), sleep=lambda s: None).complete(self.MSGS)
+
+        class Bad:
+            def request(self, *a):
+                return 400, b'{"type":"error","error":{"type":"invalid_request_error"}}'
+        with self.assertRaises(providers.InfraError):
+            providers.AnthropicProvider("m", Bad()).complete(self.MSGS)
+
+    def test_anthropic_batch_errored_items_are_infrastructure(self):
+        class T(providers.MockTransport):
+            def request(self, method, url, headers, body=None):
+                if url.endswith("/results"):
+                    return 200, (json.dumps({"custom_id": "a", "result": {"type": "errored", "error": {"type": "x"}}})
+                                 + "\n" + json.dumps({"custom_id": "b", "result": {"type": "expired"}}) + "\n").encode()
+                return super().request(method, url, headers, body)
+        t = T(echo_model())
+        p = providers.AnthropicProvider("claude-haiku-5-5", t, sleep=lambda s: None)
+        got = p.batch_results(p.wait_batch(p.submit_batch([("a", self.MSGS), ("b", self.MSGS)])))
+        self.assertTrue(all(isinstance(v, providers.InfraError) for v in got.values()))
+
     def test_truncation_and_cache_reporting(self):
         t = providers.MockTransport(echo_model(finish="length"))
         p = providers.OpenAIProvider("gpt-6-luna", t)
@@ -141,13 +237,18 @@ class Providers(unittest.TestCase):
             providers.ChatProvider("xai", "https://api.x.ai", "m", Down(), sleep=lambda s: None).complete(self.MSGS)
 
     def test_paid_needs_the_key(self):
-        env = os.environ.pop("XAI_API_KEY", None)
-        try:
-            with self.assertRaises(SystemExit):
-                providers.make("grok-build-0.1", GROK, providers.MockTransport(echo_model()), True, 2000)
-        finally:
-            if env is not None:
-                os.environ["XAI_API_KEY"] = env
+        for var, model, price in (("XAI_API_KEY", "grok-build-0.1", GROK),
+                                  ("ANTHROPIC_API_KEY", "claude-haiku-5-5", HAIKU)):
+            env = os.environ.pop(var, None)
+            try:
+                with self.assertRaises(SystemExit):
+                    providers.make(model, price, providers.MockTransport(echo_model()), True, 2000)
+            finally:
+                if env is not None:
+                    os.environ[var] = env
+        p = providers.make("claude-haiku-5-5", HAIKU, providers.MockTransport(echo_model()), False, 2000)
+        self.assertIsInstance(p, providers.AnthropicProvider)
+        self.assertEqual(p.model, "claude-haiku-5-5")
 
 
 class Prompts(unittest.TestCase):
@@ -211,8 +312,13 @@ class DryRun(unittest.TestCase):
             trials = [x for x in rows if x["kind"] == "trial"]
             self.assertEqual(len(trials), 12)
             self.assertTrue(any(x["kind"] == "batch" for x in rows))
-            luna_first = [x for x in rows if x["kind"] == "call" and x["model"] == "gpt-6-luna" and x["attempt"] == 1]
-            self.assertTrue(luna_first and all(x["batch"] for x in luna_first))
+            claude_first = [x for x in rows if x["kind"] == "call" and x["model"] == "claude-haiku-5-5" and x["attempt"] == 1]
+            self.assertTrue(claude_first and all(x["batch"] for x in claude_first))
+            # billed as the Messages API reports it: cache reads and writes beside input_tokens
+            self.assertTrue(all("cache_read_input_tokens" in x["usage"] and "cache_write_1h" in x["billed_tokens"]
+                                for x in claude_first))
+            grok = [x for x in rows if x["kind"] == "call" and x["model"] == "grok-build-0.1"]
+            self.assertTrue(grok and not any(x["batch"] for x in grok))
             self.assertTrue(all(x["attempt"] <= 3 for x in rows if x["kind"] == "call"))
             import summarize
             s = summarize.summarize(d)
@@ -240,12 +346,17 @@ class DryRun(unittest.TestCase):
 
 class Projection(unittest.TestCase):
     def test_lean_budget(self):
-        small = run.projection(PRICES, ["gpt-6-luna", "grok-build-0.1"], "small", 1)
-        full = run.projection(PRICES, ["gpt-6-luna", "grok-build-0.1"], "full", 3)
+        small = run.projection(PRICES, ["claude-haiku-5-5", "grok-build-0.1"], "small", 1)
+        full = run.projection(PRICES, ["claude-haiku-5-5", "grok-build-0.1"], "full", 3)
         self.assertEqual(small["trials_per_model"], 90)
         self.assertEqual(full["trials_per_model"], 324)
-        self.assertLess(small["ceiling"], 2.0)
-        self.assertLess(full["ceiling"], 10.0)
+        self.assertLess(small["expected"], 0.5)
+        self.assertLess(full["expected"], 2.0)
+        self.assertLess(small["ceiling"], 10.0)  # the full tier's theoretical ceiling passes the guard; the guard binds
+        haiku = full["rows"][0]
+        # per trial: first attempt on the Batch API + 0.3 standard-rate retries
+        self.assertAlmostEqual(haiku["per_attempt_first"], (1300 * 0.05 + 88 * 0.0625 + 1560 * 0.25) / 1e6, places=10)
+        self.assertAlmostEqual(haiku["per_attempt_retry"], (1300 * 0.10 + 88 * 0.01 + 1560 * 0.50) / 1e6, places=10)
 
 
 if __name__ == "__main__":

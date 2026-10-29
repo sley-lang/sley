@@ -4,22 +4,69 @@
   "registered": "2026-10-28",
   "question": "What does a correct program cost, in billed dollars, when a current low-cost model writes it in Python, Sley (Python dialect), C, Rust, Go or TypeScript?",
   "primary_metric": "dollars per correct program = billed spend on all attempts / programs passing all 128 hidden cases",
-  "secondary_metrics": ["hidden-case success rate", "first-attempt success rate", "dollars per trial", "billed input / cached / output tokens per trial", "attempts per trial"],
+  "secondary_metrics": [
+    "hidden-case success rate",
+    "first-attempt success rate",
+    "dollars per trial",
+    "billed input / cached / output tokens per trial",
+    "attempts per trial"
+  ],
   "models": {
-    "default": ["gpt-6-luna", "grok-build-0.1"],
-    "optional": ["deepseek-flash"],
+    "default": [
+      "claude-haiku-5-5",
+      "grok-build-0.1"
+    ],
+    "optional": [
+      "gpt-6-luna",
+      "deepseek-flash"
+    ],
     "settings": {
-      "gpt-6-luna": {"api": "responses", "reasoning_effort": "low", "batch_first_attempts": true},
-      "grok-build-0.1": {"api": "chat.completions", "batch_first_attempts": false},
-      "deepseek-flash": {"api": "chat.completions", "off_peak_only": true}
+      "claude-haiku-5-5": {
+        "api": "messages",
+        "effort": "low",
+        "batch_first_attempts": true,
+        "prompt_cache": "one 5-minute cache breakpoint at the end of the system block (shared text, plus the card on Sley); prefixes under 512 tokens are not cached by the API"
+      },
+      "gpt-6-luna": {
+        "api": "responses",
+        "reasoning_effort": "low",
+        "batch_first_attempts": true
+      },
+      "grok-build-0.1": {
+        "api": "chat.completions",
+        "batch_first_attempts": false
+      },
+      "deepseek-flash": {
+        "api": "chat.completions",
+        "off_peak_only": true
+      }
     }
   },
-  "languages": ["python", "sley", "c", "rust", "go", "ts"],
+  "languages": [
+    "python",
+    "sley",
+    "c",
+    "rust",
+    "go",
+    "ts"
+  ],
   "tiers": {
-    "small": {"tasks": 15, "repetitions": 1, "trials_per_model": 90},
-    "full": {"tasks": 18, "repetitions": 3, "trials_per_model": 324}
+    "small": {
+      "tasks": 15,
+      "repetitions": 1,
+      "trials_per_model": 90
+    },
+    "full": {
+      "tasks": 18,
+      "repetitions": 3,
+      "trials_per_model": 324
+    }
   },
-  "attempts": {"max": 3, "retries": 2, "retry_feedback": "visible test or compiler output, truncated to 4,000 characters"},
+  "attempts": {
+    "max": 3,
+    "retries": 2,
+    "retry_feedback": "visible test or compiler output, truncated to 4,000 characters"
+  },
   "output_cap_tokens": 2000,
   "output_cap_note": "The cap includes reasoning tokens. A response stopped by the cap is a failed attempt (it still bills).",
   "temperature": "provider default",
@@ -28,8 +75,17 @@
   "oracle": "128 seeded cases per task (seed 218), edge cases first, from tasks.reference; independent of the visible tests and of any model",
   "success": "the final program passes the visible tests and all 128 hidden cases",
   "exclusions": "infrastructure failures (HTTP 5xx, timeouts, rate limits after retries, toolchain crashes) are recorded and shown, and excluded from the success denominator; refusals, truncations, syntax errors and wrong answers are failures",
-  "spend_guard": {"per_run_usd": 10.0, "rule": "before each call, reserve its worst-case cost (prompt + full output cap at list price); refuse the call if spent + reserved would pass the guard"},
+  "spend_guard": {
+    "per_run_usd": 10.0,
+    "rule": "before each call, reserve its worst-case cost (prompt + full output cap at list price); refuse the call if spent + reserved would pass the guard"
+  },
   "held_out": "max_subarray, count_leq, root_sum, clamp_sum (edit) and count_multiples (edit) were written after the token-loop benchmark; their statements are new but the problems are classic, so contamination is possible and is disclosed",
   "publish": "results.jsonl (every call, UTC-stamped, with billed usage), summary.json, summary.md, the price table with URLs and dates, and this file's SHA-256",
-  "evidence_dir": "evidence/bench/model-cost/2.1.8"
+  "evidence_dir": "evidence/bench/model-cost/2.1.8",
+  "amendments": [
+    {
+      "date": "2026-10-29",
+      "change": "Default models: gpt-6-luna replaced by claude-haiku-5-5 (Anthropic Messages API, Message Batches for first attempts, effort low) at the owner's request. gpt-6-luna moves to optional. No paid call had been made under the original registration, so no result is affected."
+    }
+  ]
 }
