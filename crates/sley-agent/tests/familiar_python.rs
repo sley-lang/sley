@@ -1232,6 +1232,7 @@ fn python_floor_operations_on_non_negative_values_skip_the_sign_fixup() {
         );
         assert!(fast < slow, "{name}: no sign fixup ({fast} vs {slow})");
     }
+}
 
 #[test]
 fn python_refusals_name_the_fix() {
