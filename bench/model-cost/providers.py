@@ -1,10 +1,12 @@
-"""Model providers: OpenAI (Responses API, with the Batch API for first
-attempts), xAI and DeepSeek (chat completions), over a pluggable transport.
+"""Model providers: Anthropic (Messages API, with Message Batches for first
+attempts and a prompt-cache breakpoint on the system block), OpenAI (Responses
+API, with the Batch API for first attempts), xAI and DeepSeek (chat
+completions), over a pluggable transport.
 
 `HttpTransport` is the only code that touches the network. `MockTransport`
-answers the same endpoints in process (files, batches, responses, chat
-completions) so every request, batch and parsing path runs in a dry run
-without a key or a paid call.
+answers the same endpoints in process (messages, message batches, files,
+batches, responses, chat completions) so every request, batch and parsing path
+runs in a dry run without a key or a paid call.
 """
 import json, os, random, re, time, urllib.error, urllib.request, uuid
 
@@ -43,12 +45,16 @@ class HttpTransport:
 
 
 class MockTransport:
-    """In-process stand-in for the OpenAI and xAI endpoints the harness uses.
+    """In-process stand-in for the Anthropic, OpenAI and xAI endpoints the
+    harness uses.
 
     `answer(model, messages) -> (text, finish)` plays the model. Usage is
     synthesized from text length (about 4 characters per token) with the
     provider's field names; a repeated system prefix of 1,024+ tokens is
-    reported as cached, as OpenAI and xAI do. Network calls: none."""
+    reported as cached, as OpenAI and xAI do. On the Anthropic shape, a system
+    block marked with cache_control and at least 512 tokens long is reported as
+    a cache write the first time and a cache read after, as the Messages API
+    does for Claude Haiku 5.5. Network calls: none."""
 
     def __init__(self, answer, batch_polls=1):
         self.answer = answer
@@ -57,6 +63,8 @@ class MockTransport:
         self.calls = []
         self.batch_polls = batch_polls
         self.seen_prefixes = set()
+        self.msg_batches = {}
+        self.cache_marks = []
 
     @staticmethod
     def toks(text):
@@ -92,9 +100,73 @@ class MockTransport:
                             "content": [{"type": "output_text", "text": text}]}],
                 "usage": usage}
 
+    def _message(self, body):
+        system = body.get("system") or []
+        sys_text = "".join(b["text"] for b in system)
+        marked = any(b.get("cache_control") for b in system)
+        msgs = [{"role": "system", "content": sys_text}] + [
+            {"role": m["role"], "content": m["content"] if isinstance(m["content"], str)
+             else "".join(c.get("text", "") for c in m["content"])} for m in body["messages"]]
+        self.cache_marks.append(marked)
+        text, finish = self.answer(body["model"], msgs)
+        prompt = sum(self.toks(m["content"]) for m in msgs) + 4 * len(msgs)
+        p = self.toks(sys_text)
+        cr = cw = 0
+        if marked and p >= 512:
+            if sys_text in self.seen_prefixes:
+                cr = p
+            else:
+                cw = p
+        self.seen_prefixes.add(sys_text)
+        max_out = body.get("max_tokens", 10 ** 9)
+        out = min(self.toks(text) + 40, max_out)  # +40 for adaptive thinking, billed as output
+        if finish == "length":
+            text = text[: len(text) // 2]
+        return {"id": "msg_" + uuid.uuid4().hex[:12], "type": "message", "role": "assistant", "model": body["model"],
+                "content": [{"type": "thinking", "thinking": "", "signature": "x"}, {"type": "text", "text": text}],
+                "stop_reason": "max_tokens" if finish == "length" else "end_turn", "stop_sequence": None,
+                "usage": {"input_tokens": prompt - cr - cw, "cache_creation_input_tokens": cw,
+                          "cache_read_input_tokens": cr, "output_tokens": out,
+                          "cache_creation": {"ephemeral_5m_input_tokens": cw, "ephemeral_1h_input_tokens": 0}}}
+
+    def _anthropic(self, method, path, headers, body):
+        assert headers.get("anthropic-version") and headers.get("x-api-key"), headers
+        if path == "/v1/messages" and method == "POST":
+            return 200, json.dumps(self._message(json.loads(body))).encode()
+        if path == "/v1/messages/batches" and method == "POST":
+            b = json.loads(body)
+            for r in b["requests"]:
+                assert re.match(r"^[a-zA-Z0-9_-]{1,64}$", r["custom_id"]), r["custom_id"]
+            bid = "msgbatch_" + uuid.uuid4().hex[:12]
+            self.msg_batches[bid] = {"id": bid, "type": "message_batch", "processing_status": "in_progress",
+                                     "request_counts": {"processing": len(b["requests"]), "succeeded": 0,
+                                                        "errored": 0, "canceled": 0, "expired": 0},
+                                     "results_url": None, "polls": 0, "_requests": b["requests"]}
+            return 200, json.dumps({k: v for k, v in self.msg_batches[bid].items() if not k.startswith("_")}).encode()
+        m = re.match(r"^/v1/messages/batches/([\w-]+)$", path)
+        if m and method == "GET":
+            bt = self.msg_batches[m.group(1)]
+            bt["polls"] += 1
+            if bt["polls"] >= self.batch_polls and bt["processing_status"] != "ended":
+                lines = []
+                for r in bt["_requests"]:
+                    lines.append(json.dumps({"custom_id": r["custom_id"],
+                                             "result": {"type": "succeeded", "message": self._message(r["params"])}}))
+                bt["_results"] = ("\n".join(lines) + "\n").encode()
+                n = len(lines)
+                bt.update(processing_status="ended", results_url=f"https://api.anthropic.com/v1/messages/batches/{bt['id']}/results",
+                          request_counts={"processing": 0, "succeeded": n, "errored": 0, "canceled": 0, "expired": 0})
+            return 200, json.dumps({k: v for k, v in bt.items() if not k.startswith("_")}).encode()
+        m = re.match(r"^/v1/messages/batches/([\w-]+)/results$", path)
+        if m and method == "GET":
+            return 200, self.msg_batches[m.group(1)]["_results"]
+        return 404, json.dumps({"type": "error", "error": {"type": "not_found_error", "message": f"mock: no route {method} {path}"}}).encode()
+
     def request(self, method, url, headers, body=None):
         self.calls.append((method, url))
         path = re.sub(r"^https://[^/]+", "", url)
+        if url.startswith("https://api.anthropic.com/"):
+            return self._anthropic(method, path, headers, body)
         if path == "/v1/responses" and method == "POST":
             return 200, json.dumps(self._response(json.loads(body))).encode()
         if path == "/v1/chat/completions" and method == "POST":
@@ -260,6 +332,105 @@ class OpenAIProvider:
         return out
 
 
+class AnthropicProvider:
+    """Claude through the Messages API. First attempts can go through the
+    Message Batches API (billed at half price). The system block carries one
+    5-minute cache breakpoint, so the shared text and the Sley card are a
+    cacheable prefix; the API caches it only when it is at least the model's
+    minimum (512 tokens on Claude Haiku 5.5), and reports cache writes and
+    reads in usage, which is what gets billed."""
+    name = "anthropic"
+    base = "https://api.anthropic.com"
+    version = "2023-06-01"
+
+    def __init__(self, model, transport, key=None, effort="low", max_output=2000, poll_seconds=30,
+                 sleep=time.sleep, cache=True):
+        self.model = model
+        self.t = transport
+        self.key = key or "mock-key"
+        self.effort = effort
+        self.max_output = max_output
+        self.poll_seconds = poll_seconds
+        self.sleep = sleep
+        self.cache = cache
+
+    def headers(self):
+        return {"x-api-key": self.key, "anthropic-version": self.version, "content-type": "application/json"}
+
+    def body(self, messages):
+        system = [m["content"] for m in messages if m["role"] in ("system", "developer")]
+        b = {"model": self.model, "max_tokens": self.max_output,
+             "messages": [{"role": m["role"], "content": m["content"]} for m in messages
+                          if m["role"] in ("user", "assistant")]}
+        if system:
+            block = {"type": "text", "text": "\n\n".join(system)}
+            if self.cache:
+                block["cache_control"] = {"type": "ephemeral"}
+            b["system"] = [block]
+        if self.effort:
+            b["output_config"] = {"effort": self.effort}
+        return b
+
+    @staticmethod
+    def parse(msg, batch):
+        text = "".join(c.get("text", "") for c in msg.get("content", []) if c.get("type") == "text")
+        sr = msg.get("stop_reason")
+        finish = "length" if sr == "max_tokens" else ("stop" if sr in ("end_turn", "stop_sequence", "refusal") else "error")
+        return Reply(text, msg.get("usage") or {}, finish, batch, msg.get("id"), msg.get("model"))
+
+    def complete(self, messages):
+        status, body = _retrying(lambda: self.t.request("POST", self.base + "/v1/messages", self.headers(),
+                                                        json.dumps(self.body(messages)).encode()), sleep=self.sleep)
+        if status != 200:
+            raise InfraError(f"messages HTTP {status}: {body[:300]!r}")
+        return self.parse(json.loads(body), batch=False)
+
+    def submit_batch(self, requests):
+        """requests: [(custom_id, messages)] -> message batch id."""
+        reqs = [{"custom_id": cid, "params": self.body(msgs)} for cid, msgs in requests]
+        status, body = _retrying(lambda: self.t.request("POST", self.base + "/v1/messages/batches", self.headers(),
+                                                        json.dumps({"requests": reqs}).encode()), sleep=self.sleep)
+        if status != 200:
+            raise InfraError(f"message batch create HTTP {status}: {body[:300]!r}")
+        return json.loads(body)["id"]
+
+    def wait_batch(self, batch_id, max_wait=26 * 3600):
+        start = time.monotonic()
+        while True:
+            status, body = _retrying(lambda: self.t.request("GET", f"{self.base}/v1/messages/batches/{batch_id}",
+                                                            self.headers()), sleep=self.sleep)
+            if status != 200:
+                raise InfraError(f"message batch poll HTTP {status}: {body[:300]!r}")
+            b = json.loads(body)
+            if b["processing_status"] == "ended":
+                b["status"] = "completed"
+                return b
+            if time.monotonic() - start > max_wait:
+                raise InfraError(f"message batch {batch_id} still {b['processing_status']} after {max_wait}s")
+            self.sleep(self.poll_seconds)
+
+    def batch_results(self, batch):
+        """{custom_id: Reply or InfraError}. Errored, canceled and expired
+        items are not billed and come back as infrastructure failures."""
+        url = batch.get("results_url")
+        if not url:
+            return {}
+        status, body = _retrying(lambda: self.t.request("GET", url, self.headers()), sleep=self.sleep)
+        if status != 200:
+            raise InfraError(f"message batch results HTTP {status}")
+        out = {}
+        for line in body.decode().splitlines():
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            res = r.get("result") or {}
+            if res.get("type") == "succeeded":
+                out[r["custom_id"]] = self.parse(res["message"], batch=True)
+            else:
+                out[r["custom_id"]] = InfraError(f"batch item {r['custom_id']}: {res.get('type')} {res.get('error')}")
+        return out
+
+
 class ChatProvider:
     """xAI and DeepSeek: OpenAI-style chat completions."""
 
@@ -286,7 +457,7 @@ class ChatProvider:
                      r.get("id"), r.get("model"))
 
 
-KEYS = {"openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
+KEYS = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
 BASES = {"xai": "https://api.x.ai", "deepseek": "https://api.deepseek.com"}
 
 
@@ -301,6 +472,8 @@ def make(model, price, transport, paid, max_output, effort="low", sleep=time.sle
     api_model = price.get("api_model", model) if "api_model" in price else model
     if api_model is None:
         raise SystemExit(f"{model}: set api_model in prices.json before running it")
+    if prov == "anthropic":
+        return AnthropicProvider(api_model, transport, key, effort, max_output, sleep=sleep)
     if prov == "openai":
         return OpenAIProvider(api_model, transport, key, effort, max_output, sleep=sleep)
     return ChatProvider(prov, BASES[prov], api_model, transport, key, max_output, sleep=sleep)

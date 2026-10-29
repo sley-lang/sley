@@ -29,11 +29,18 @@ def off_peak(model_price, when):
     return not (1 <= when.hour < 4 or 6 <= when.hour < 10)
 
 
-def rates(price, batch=False, when=None):
-    """(input, cached input, cache write, output) dollars per token for one call."""
+def rates(price, batch=False, when=None, prompt_tokens=0):
+    """(input, cached input, cache write, output) dollars per token for one call.
+
+    A model with a `long_context` table (Claude Haiku 5.5 above 100,000 prompt
+    tokens) uses it when the call's whole prompt, cache reads and writes
+    included, passes the threshold."""
     p = price
     if when is not None and off_peak(price, when):
         p = dict(price, **price["off_peak"])
+    lc = price.get("long_context")
+    if lc and prompt_tokens > lc["threshold"]:
+        p = dict(p, **{k: v for k, v in lc.items() if k != "threshold"})
     k = price.get("batch_discount", 1.0) if batch else 1.0
     return (p["input"] * k / M, p["cached_input"] * k / M, p.get("cache_write", p["input"]) * k / M, p["output"] * k / M)
 
@@ -46,6 +53,16 @@ def normalize_usage(provider, usage, reasoning_in_output=True):
     output: completion tokens billed at the output rate (reasoning included);
     reasoning: the reasoning part of output (reported, already counted)."""
     usage = usage or {}
+    if provider == "anthropic":
+        # Messages API: input_tokens counts only the uncached prompt; cache
+        # reads and writes are reported beside it. Thinking bills as output and
+        # is included in output_tokens.
+        cr = int(usage.get("cache_read_input_tokens", 0) or 0)
+        cw = int(usage.get("cache_creation_input_tokens", 0) or 0)
+        split = usage.get("cache_creation") or {}
+        cw_1h = int(split.get("ephemeral_1h_input_tokens", 0) or 0)
+        return {"input": int(usage.get("input_tokens", 0)) + cr + cw, "cached": cr, "cache_write": cw - cw_1h,
+                "cache_write_1h": cw_1h, "output": int(usage.get("output_tokens", 0)), "reasoning": 0}
     if provider == "openai":
         d = usage.get("input_tokens_details") or {}
         o = usage.get("output_tokens_details") or {}
@@ -65,16 +82,25 @@ def normalize_usage(provider, usage, reasoning_in_output=True):
 
 
 def cost(price, tokens, batch=False, when=None):
-    i, c, w, o = rates(price, batch, when)
-    uncached = max(tokens["input"] - tokens["cached"] - tokens["cache_write"], 0)
-    return uncached * i + tokens["cached"] * c + tokens["cache_write"] * w + tokens["output"] * o
+    i, c, w, o = rates(price, batch, when, tokens["input"])
+    w1 = tokens.get("cache_write_1h", 0)
+    w1_rate = 0.0
+    if w1:
+        p = price
+        lc = price.get("long_context")
+        if lc and tokens["input"] > lc["threshold"]:
+            p = dict(price, **lc)
+        w1_rate = p.get("cache_write_1h", p["input"] * 2) * (price.get("batch_discount", 1.0) if batch else 1.0) / M
+    uncached = max(tokens["input"] - tokens["cached"] - tokens["cache_write"] - w1, 0)
+    return uncached * i + tokens["cached"] * c + tokens["cache_write"] * w + w1 * w1_rate + tokens["output"] * o
 
 
 def worst_case(price, prompt_tokens, max_output, batch=False):
     """The most a call can bill: every prompt token at the higher of the input
     and cache-write rate (peak rate where there is one) and the full output cap."""
-    i, _, w, o = rates(price, batch)
-    return prompt_tokens * max(i, w) + max_output * o
+    i, _, w, o = rates(price, batch, prompt_tokens=prompt_tokens)
+    w1 = price.get("cache_write_1h", 0.0) * (price.get("batch_discount", 1.0) if batch else 1.0) / M
+    return prompt_tokens * max(i, w, w1 if price.get("cache_ttl") == "1h" else 0.0) + max_output * o
 
 
 def estimate_tokens(text):

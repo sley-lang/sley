@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Run the genuine model cost benchmark (pre-registered in prereg.json).
 
-  run.py --out DIR [--tier small|full] [--models gpt-6-luna,grok-build-0.1]
+  run.py --out DIR [--tier small|full] [--models claude-haiku-5-5,grok-build-0.1]
          [--langs ...] [--tasks ...] [--reps N] [--guard 10] [--jobs 4]
          [--mock | --paid] [--project]
 
 Without --paid every call goes to the in-process MockTransport: no network,
 no key, no spend (the dry run). --paid sends real, billed requests and needs
-OPENAI_API_KEY / XAI_API_KEY; the spend guard stops the run before billed
+ANTHROPIC_API_KEY / XAI_API_KEY (OPENAI_API_KEY for the optional gpt-6-luna); the spend guard stops the run before billed
 spend could pass --guard dollars. --project prints the cost projection from
 the plan's assumptions and real prices, and sends nothing.
 """
@@ -146,7 +146,7 @@ class Run:
             reply = pre_reply
         when = accounting.utc_now()
         tokens = accounting.normalize_usage(prov.name, reply.usage, price.get("reasoning_billed_as_output", True)
-                                            if prov.name == "openai" else self.a.reasoning_in_completion)
+                                            if prov.name in ("openai", "anthropic") else self.a.reasoning_in_completion)
         cost = accounting.cost(price, tokens, batch=reply.batch, when=when)
         self.guard.settle(rid, cost, f"{model}/{'/'.join(map(str, key))}/a{attempt}")
         self.log({"kind": "call", **self.ids(model, key), "attempt": attempt, "utc": when.isoformat(),
@@ -220,10 +220,11 @@ class Run:
                               sleep=(lambda s: None) if not self.a.paid else __import__("time").sleep)
         keys = [k for k in keys if (model,) + k not in self.done]
         firsts = {}
-        if price.get("batch") and isinstance(prov, providers.OpenAIProvider) and not self.a.no_batch and keys:
-            reqs, rids = [], {}
+        if price.get("batch") and hasattr(prov, "submit_batch") and not self.a.no_batch and keys:
+            reqs, rids, key_of = [], {}, {}
             for k in keys:
-                cid = f"{k[0]}.{k[1]}.{k[2]}"
+                cid = f"{k[0]}-{k[1]}-{k[2]}"  # Anthropic custom_id: ^[a-zA-Z0-9_-]{1,64}$
+                key_of[cid] = k
                 msgs = [{"role": "system", "content": system_text(k[1], self.card)},
                         {"role": "user", "content": task_prompt(k[0], k[1])}]
                 prompt = sum(accounting.estimate_tokens(m["content"]) for m in msgs)
@@ -242,8 +243,7 @@ class Run:
             self.log({"kind": "batch_done", "model": model, "batch_id": bid, "status": batch["status"],
                       "request_counts": batch.get("request_counts"), "utc": accounting.utc_now().isoformat()})
             for cid, _ in reqs:
-                k = tuple(cid.split("."))
-                k = (k[0], k[1], int(k[2]))
+                k = key_of[cid]
                 r = got.get(cid, providers.InfraError(f"no batch result for {cid}"))
                 if isinstance(r, Exception):
                     self.guard.settle(rids[cid], 0.0, "batch item failed")
@@ -266,22 +266,37 @@ def projection(prices, models, tier, reps):
     """The plan's cost model at real prices: expected and ceiling dollars."""
     n_tasks = len(tasks.TIERS[tier])
     trials = n_tasks * len(langs.LANGS) * reps
-    card_avg = 407 / len(langs.LANGS)  # the card is on Sley attempts only, and cached
     rows, tot_e, tot_c = [], 0.0, 0.0
     for m in models:
         p = prices["models"][m]
         b = bool(p.get("batch"))
+        f = p.get("tokenizer_factor", 1.0)  # Claude's newer tokenizer: about 1.3x the tokens for the same text
+        card_avg = 407 * f / len(langs.LANGS)  # the card is on Sley attempts only (one language in six)
         when = None
         if "off_peak" in p:
             import datetime
             when = datetime.datetime(2026, 11, 7, 12, tzinfo=datetime.timezone.utc)  # a Saturday: off-peak
-        exp_tok = {"input": 1000 + round(card_avg), "cached": round(card_avg), "cache_write": 0, "output": 1200}
-        first = accounting.cost(p, exp_tok, batch=b, when=when)
-        retry = accounting.cost(p, exp_tok, batch=False, when=when)
+        if p["provider"] == "anthropic":
+            # Batch cache hits are best effort, so first attempts pay the card as a cache write;
+            # retries run seconds later and read it from the cache.
+            first_tok = {"input": round(1000 * f + card_avg), "cached": 0, "cache_write": round(card_avg), "output": round(1200 * f)}
+            retry_tok = {"input": round(1000 * f + card_avg), "cached": round(card_avg), "cache_write": 0, "output": round(1200 * f)}
+        else:
+            first_tok = retry_tok = {"input": 1000 + round(card_avg), "cached": round(card_avg), "cache_write": 0, "output": 1200}
+        first = accounting.cost(p, first_tok, batch=b, when=when)
+        retry = accounting.cost(p, retry_tok, batch=False, when=when)
         expected = trials * (first + 0.3 * retry)
-        cap_tok = {"input": 2000, "cached": 0, "cache_write": 0, "output": 2000}
-        ceiling = trials * (accounting.cost(p, cap_tok, batch=b, when=when) + 2 * accounting.cost(p, cap_tok, when=when))
-        rows.append({"model": m, "trials": trials, "per_attempt_first": first, "expected": expected, "ceiling": ceiling})
+        # Ceiling: 3 attempts, each at the full 2,000-token output cap. Attempt n's prompt is the
+        # 2,000-token first prompt plus, per earlier attempt, that reply (2,000) and its feedback
+        # (4,000 characters, about 1,400 tokens); on Claude every prompt token is priced as a cache write.
+        def cap(n):
+            prompt = round(2000 * f + (n - 1) * (2000 + 1400 * f))
+            return {"input": prompt, "cached": 0, "cache_write": prompt if p["provider"] == "anthropic" else 0,
+                    "output": 2000}
+        ceiling = trials * (accounting.cost(p, cap(1), batch=b, when=when)
+                            + accounting.cost(p, cap(2), when=when) + accounting.cost(p, cap(3), when=when))
+        rows.append({"model": m, "trials": trials, "per_attempt_first": first, "per_attempt_retry": retry,
+                     "expected": expected, "ceiling": ceiling})
         tot_e += expected
         tot_c += ceiling
     return {"tier": tier, "reps": reps, "trials_per_model": trials, "rows": rows, "expected": tot_e, "ceiling": tot_c}

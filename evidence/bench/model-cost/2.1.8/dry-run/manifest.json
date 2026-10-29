@@ -1,12 +1,12 @@
 {
-  "prereg_sha256": "9e2b54748c01d9ecf8a2a042878395423dea89f1306ae9dd53666fbd97ce8aa7",
-  "prices_sha256": "ca7f5c4ad18d6575695995466ae629095d1108ccb10d31a18beb3ab04932b868",
+  "prereg_sha256": "be471ef7672aee338438d0569608a453ec01614d9c560e70b82225e299fae369",
+  "prices_sha256": "c497245625e206ac8ba149fa719e0ffea2239dec7fe82ef43eeaef1f73f3cff5",
   "tasks_sha256": "81a2acf6c197539e7b59c0a39bfa6e0363c81bc7743bd318bfe41b5bd1a64756",
   "mode": "mock",
   "tier": "small",
   "reps": 1,
   "models": [
-    "gpt-6-luna",
+    "claude-haiku-5-5",
     "grok-build-0.1"
   ],
   "langs": [
@@ -35,6 +35,6 @@
     "count_multiples"
   ],
   "guard_usd": 10.0,
-  "started_utc": "2026-10-29T00:57:49.197792+00:00",
+  "started_utc": "2026-10-29T18:03:40.582127+00:00",
   "sley_card_sha256": "44556a4d6b08b031bf83cceb3c7f5c1f9901156405f917fc411741c44f4d6f8c"
 }
