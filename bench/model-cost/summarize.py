@@ -69,7 +69,7 @@ def summarize(run_dir):
         s["calibration"] = c
         md += ["", f"Claude Code overhead: a calibration call whose own text is about {c['sent_chars'] // 4} tokens "
                f"reported {c['billed_tokens']['input']} input tokens ({c['billed_tokens']['cached']} cache reads, "
-               f"{c['billed_tokens']['cache_write']} cache writes), so about {c['overhead_input_tokens_estimate']} "
+               f"{c['billed_tokens']['cache_write'] + c['billed_tokens'].get('cache_write_1h', 0)} cache writes), so about {c['overhead_input_tokens_estimate']} "
                f"input tokens per call come from the CLI itself, not the task."]
         json.dump(s, open(os.path.join(run_dir, "summary.json"), "w"), indent=2)
     open(os.path.join(run_dir, "summary.md"), "w").write("\n".join(md) + "\n")
