@@ -626,9 +626,16 @@ def _driver_extended(task, lang, t, cases, f):
     raise KeyError(lang)
 
 
-def _show_sley(r):
+def _show_sley(r, kind="int"):
+    """A Sley call result as `tasks_v2.show` prints it. A list a Sley function
+    builds is returned as its storage, a map printed as `[index, value]`
+    pairs in the kernel's key order; it reads back as the list by index."""
     if isinstance(r, int) and not isinstance(r, bool):
         return str(r)
+    if kind == "list" and isinstance(r, list) and all(isinstance(p, list) and len(p) == 2 for p in r):
+        pairs = sorted(r)
+        if [k for k, _ in pairs] == list(range(len(pairs))):
+            r = [v for _, v in pairs]
     return json.dumps(r, separators=(",", ":"))
 
 
@@ -659,7 +666,7 @@ def run_cases(task, lang, source, workdir, cases):
             o, code = sh(f"{s} --json call {fn(task, lang)} {argv}", workdir)
             try:
                 r = json.loads(o.strip().splitlines()[-1])["result"]
-                results.append("ERR" if isinstance(r, dict) and "trap" in r else _show_sley(r))
+                results.append("ERR" if isinstance(r, dict) and "trap" in r else _show_sley(r, returns(task)))
             except Exception:
                 results.append("EXC")
         return results, ""

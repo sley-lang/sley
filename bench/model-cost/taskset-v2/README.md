@@ -7,11 +7,13 @@ there are no amendments. The harness (`langs.py`, `run.py --task-set v2`,
 `verify_refs.py --task-set v2`) handles `str` parameters and list and string
 results in all six languages; v1 tests and drivers are byte-for-byte
 unchanged. Reference programs exist in all six languages (`refs/<task>/`) and
-all 126 that can be written agree with the oracle on every visible test and
+all 131 that can be written agree with the oracle on every visible test and
 all 128 hidden cases (`verify_refs.py --task-set v2`). Sley's 2.2 dialect can
-express 6 of the 24 tasks; the other 18 carry a `sley.unsupported` note (11
-read a `str` parameter, 2 build a string, 5 return a list), so Sley v2 trials
-on those fail until the dialect grows. The set is not hashed into
+express 11 of the 24 tasks (6 at first; the 5 list-returning ones since list
+results landed, sley-lang/sley#95); the other 13 carry a `sley.unsupported`
+note (11 read a `str` parameter, 2 build a string), so Sley v2 trials on those
+fail until the dialect grows. Strings need a kernel/spec change (Sley has no
+text operations in the admitted opcode profile), not a dialect one. The set is not hashed into
 `prereg.json`, the held-out tasks are not written, and no model call has used
 v2. Sley's 2.2 list work (#88, #89) landed before these rules were written;
 the audit asked for the reverse order, and this is recorded here so v2 results
@@ -70,9 +72,9 @@ are read with that in mind.
   `str`. Each language's signature, test driver and oracle driver in
   `langs.py` gain those kinds (C: out-pointer plus length; Rust `Vec<i64>` /
   `String`; Go `[]int64` / `string`; TypeScript `number[]` / `string`).
-- Sley: a list return is refused by the 2.2 dialect today (a list local is
-  never a value). v2 measures that honestly: such trials fail unless 2.2
-  ships list returns, and the run reports them.
+- Sley: a list return was refused by the 2.2 dialect when v2 was written; it
+  now lowers to a `Map<u64,T>` keyed by index (sley-lang/sley#95), which the
+  harness reads back as the list by index (`langs._show_sley`).
 - v2 lives in its own module, `tasks_v2.py`, so `tasks.py` (and the
   `tasks_sha256` in v1 manifests) stays byte-for-byte unchanged; `run.py`
   takes `--task-set v1|v2`.
@@ -91,7 +93,7 @@ inside each statement's bounds (`tasks_v2.py`; 30 Oct, no example disagreed).
 Done: harness kinds `str` and list
 returns, and reference programs in six languages (30 Oct; the Python, C,
 Rust, Go and TypeScript ones written by Claude Code from the statements,
-signatures and examples, the 6 Sley ones by hand, all then checked against
+signatures and examples, the 11 Sley ones by hand, all then checked against
 the oracle). Next, in order:
 Magister's review of the statements, the 6
 sealed held-out tasks authored and hashed, the `prereg.json` hash, then the
@@ -107,7 +109,8 @@ examples; `tasks_v2.AMENDMENTS` is empty.
 - Whether a Claude Code session is independent enough as the author, or a
   person should write or review the statements before the hash.
 - Whether v2 adds `str` now or only `list` returns (smaller harness change).
-  (Built 30 Oct with `str`; 18 of 24 tasks are then out of Sley's 2.2 reach.)
-- Whether Sley trials on the 18 tasks its dialect cannot express count as
+  (Built 30 Oct with `str`; 13 of 24 tasks are out of Sley's 2.2 reach after
+  list results, all because of strings.)
+- Whether Sley trials on the 13 tasks its dialect cannot express count as
   failures in the headline numbers or are reported separately (the harness
   runs them either way; the rule must be fixed before the hash).
