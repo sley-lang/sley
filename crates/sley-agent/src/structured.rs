@@ -13,7 +13,8 @@
 //! `["continue"]` (the innermost loop: leave it, or go to its next pass).
 //! List locals: `["list", x, T]` or `["list", x, T, n, fill]`,
 //! `["append", x, e]` and `["store", x, i, e]`, read with `get` and `len`; a
-//! list is a `Map<u64,T>` keyed `0..len` and its name is never a value.
+//! list is a `Map<u64,T>` keyed `0..len`; its name is a value only in
+//! `["return", x]`, which returns the map whole.
 //!
 //! Expressions: a name, an integer, `true`/`false`, a typed literal
 //! `{"type": T, "value": v}`, or `[op, args..]`:
@@ -1491,7 +1492,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             };
             // A list name belongs to its list for the rest of the function:
             // no other statement may bind or rebind it.
-            if !matches!(kind, "list" | "set" | "store" | "append")
+            if !matches!(kind, "list" | "set" | "store" | "append" | "return" | "ok")
                 && let Some(name) = items.get(1).and_then(Value::as_str)
                 && self.lists.contains_key(name)
             {
@@ -1863,7 +1864,34 @@ impl<'c, 'a> Fn<'c, 'a> {
                         );
                     }
                     let want = parts.map_or_else(|| self.returns.clone(), |p| p.0);
+                    // A list local is returned whole: its storage is a
+                    // Map<u64,T> keyed 0..len, the function's result type.
+                    if let Some(name) = items[1].as_str()
+                        && self.lists.contains_key(name)
+                        && let Some(b) = env.get(name)
+                    {
+                        if b.ty != want {
+                            return fail(
+                                &part(1),
+                                format!(
+                                    "`{name}` is a list ({}); the function returns {want}",
+                                    b.ty
+                                ),
+                            );
+                        }
+                        let v = b.operand.clone();
+                        self.end(json!([kind, v]), &here);
+                        continue;
+                    }
                     let (v, t) = self.expr(&items[1], env, &part(1), Some(&want))?;
+                    if t != want && want.starts_with("Map<u64,") && vec_elem(&t).is_some() {
+                        return fail(
+                            &here,
+                            format!(
+                                "the function returns a list local ({want}), not the vector {t}: copy it into a list first (ys = [x for x in xs])"
+                            ),
+                        );
+                    }
                     if t != want {
                         return fail(&here, format!("the function returns {want}, not {t}"));
                     }

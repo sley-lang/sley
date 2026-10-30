@@ -1440,7 +1440,11 @@ def clamp_sum(xs: list[int], lo: int, hi: int) -> int:
 #[allow(clippy::too_many_lines)] // one program per list form, then refusals
 fn python_local_lists_follow_python() {
     let card = sley_agent::help::topic("python-task").unwrap();
-    assert!(card.contains("Local lists: xs = [0] * n, [] or [a, b]; xs.append(v), xs[i] = v"));
+    assert!(
+        card.contains(
+            "Local lists: xs = [0] * n, [], [a, b] or [e for x in xs if c]; xs.append(v)"
+        )
+    );
     let temp = workspace("python-lists");
     let h = accepted(
         &temp.path,
@@ -1537,10 +1541,10 @@ def counts(xs: list[int], k: int) -> int:
             5,
         ),
         (
-            "def f(n: int) -> int:\n    xs = [i for i in range(n)]\n    return 0\n",
-            "list comprehensions",
-            2,
-            10,
+            "def f(n: int) -> int:\n    i = 0\n    xs = [i for i in range(n)]\n    return 0\n",
+            "name the comprehension's variable otherwise",
+            3,
+            17,
         ),
         (
             "def f(n: int) -> int:\n    xs = [0] * n\n    for x in xs:\n        xs.append(x)\n    return 0\n",
@@ -1559,6 +1563,148 @@ def counts(xs: list[int], k: int) -> int:
             "holds i64, not bool",
             3,
             15,
+        ),
+    ] {
+        refused(&temp.path, text, needle, line, column);
+    }
+}
+
+/// List results and comprehensions (2.2): `-> list[T]` returns a list local
+/// whole (a `Map<u64,T>` keyed `0..len`), `[e for x in xs if c]` builds
+/// one, and tests compare a list result with a Python list.
+#[test]
+#[allow(clippy::too_many_lines)] // one program per return form, then refusals
+fn python_list_results_follow_python() {
+    let card = sley_agent::help::topic("python-task").unwrap();
+    assert!(card.contains("A function -> list[int] returns one: return xs or return [..]."));
+    let temp = workspace("python-list-results");
+    let h = accepted(
+        &temp.path,
+        "\
+def chunk_sums(xs: list[int], size: int) -> list[int]:
+    if size < 1:
+        raise ValueError(\"size\")
+    out = []
+    i = 0
+    while i < len(xs):
+        total = 0
+        j = i
+        while j < len(xs) and j < i + size:
+            total += xs[j]
+            j += 1
+        out.append(total)
+        i += size
+    return out
+
+def positives_doubled(xs: list[int]) -> list[int]:
+    return [2 * x for x in xs if x > 0]
+
+def squares(n: int) -> list[int]:
+    if n == 0:
+        return []
+    ys = [i * i for i in range(n)]
+    return ys
+
+def pair(a: int) -> list[int]:
+    return [a, a + 1]
+
+def count_big(xs: list[int]) -> int:
+    big = [x for x in xs if x > 10]
+    return len(big)
+",
+    );
+    let pairs = |values: &[i64]| -> Value {
+        Value::Array(
+            values
+                .iter()
+                .enumerate()
+                .map(|(k, v)| json!([k, v]))
+                .collect(),
+        )
+    };
+    check(
+        &temp.path,
+        &h,
+        "chunk_sums",
+        &[
+            (json!([[1, 2, 3, 4, 5], 2]), pairs(&[3, 7, 5])),
+            (json!([[], 3]), pairs(&[])),
+            (json!([[10, -10], 5]), pairs(&[0])),
+        ],
+    );
+    assert!(traps(&call(
+        &temp.path,
+        &h,
+        "chunk_sums",
+        &[json!([1]), json!(0)]
+    )));
+    check(
+        &temp.path,
+        &h,
+        "positives_doubled",
+        &[
+            (json!([[1, -2, 3, 0]]), pairs(&[2, 6])),
+            (json!([[]]), pairs(&[])),
+        ],
+    );
+    let twelve: Vec<i64> = (0..12).map(|i| i * i).collect();
+    check(
+        &temp.path,
+        &h,
+        "squares",
+        &[(json!([0]), pairs(&[])), (json!([12]), pairs(&twelve))],
+    );
+    check(&temp.path, &h, "pair", &[(json!([4]), pairs(&[4, 5]))]);
+    check(
+        &temp.path,
+        &h,
+        "count_big",
+        &[(json!([[1, 20, 30, 5]]), json!(2))],
+    );
+
+    // A pytest-style test compares a list result with a Python list.
+    let tested = workspace("python-list-results-tests");
+    let (status, report) = inline_tests(
+        &tested.path,
+        "def evens(n: int) -> list[int]:\n    return [i for i in range(n) if i % 2 == 0]\n\ndef test_evens():\n    assert evens(5) == [0, 2, 4]\n    assert evens(0) == []\n    assert evens(3) == [0, 2]\n",
+        None,
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let tests = report["tests"].as_array().unwrap();
+    assert_eq!(tests.len(), 3, "{report:#}");
+    assert!(tests.iter().all(|t| t["pass"] == true), "{report:#}");
+    // A wrong expectation fails rather than passing vacuously.
+    let (_, report) = inline_tests(
+        &tested.path,
+        "def evens(n: int) -> list[int]:\n    return [i for i in range(n) if i % 2 == 0]\n\ndef test_evens():\n    assert evens(5) == [0, 2]\n",
+        None,
+    );
+    assert_eq!(report["tests"][0]["pass"], false, "{report:#}");
+
+    for (text, needle, line, column) in [
+        (
+            "def f(xs: list[int], n: int) -> list[int]:\n    if n > 0:\n        return xs\n    return [n]\n",
+            "copy it into a list first",
+            3,
+            9,
+        ),
+        (
+            "def g(n: int) -> list[int]:\n    return [n]\n\ndef f(n: int) -> int:\n    ys = g(n)\n    return 0\n",
+            "returns a list: a list result is returned or tested",
+            5,
+            10,
+        ),
+        (
+            "def f(n: int) -> list[list[int]]:\n    return []\n",
+            "not a list of lists",
+            1,
+            18,
+        ),
+        (
+            "def f(xs: list[int]) -> list[int]:\n    return [x for x, y in zip(xs, xs)]\n",
+            "binds one name",
+            2,
+            20,
         ),
     ] {
         refused(&temp.path, text, needle, line, column);

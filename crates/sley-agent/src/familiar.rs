@@ -30,7 +30,7 @@
 //! starts with `//`. Every other construct is refused at its line and
 //! column.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value, json};
 
@@ -131,6 +131,9 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             fresh: 0,
             declared: Declared::default(),
             depth: 0,
+            list_return: None,
+            list_locals: Vec::new(),
+            returns_list_local: false,
         };
         let functions = parser.py_program()?;
         (functions, std::mem::take(&mut parser.declared))
@@ -144,10 +147,14 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             fresh: 0,
             declared: Declared::default(),
             depth: 0,
+            list_return: None,
+            list_locals: Vec::new(),
+            returns_list_local: false,
         };
         let functions = parser.program()?;
         (functions, std::mem::take(&mut parser.declared))
     };
+    let list_results = list_results(&functions, is_python(text))?;
     let mut positions = BTreeMap::new();
     let mut fns = Vec::with_capacity(functions.len());
     for (index, f) in functions.into_iter().enumerate() {
@@ -179,8 +186,9 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
     }
     if !declared.tests.is_empty() {
         let mut tests = Vec::with_capacity(declared.tests.len());
-        for (index, (case, pos)) in declared.tests.into_iter().enumerate() {
+        for (index, (mut case, pos)) in declared.tests.into_iter().enumerate() {
             positions.insert(format!("/tests/{index}"), pos);
+            list_expectation(&mut case, &list_results);
             tests.push(case);
         }
         frame["tests"] = Value::Array(tests);
@@ -189,6 +197,66 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
         frame,
         positions: Positions(positions),
     })
+}
+
+/// The Python functions that return a list local (a `Map<u64,T>` keyed
+/// `0..len`). Calling one inside the program is refused: a list result is
+/// returned or tested.
+fn list_results(functions: &[Function], python: bool) -> Result<BTreeSet<String>, FamiliarError> {
+    let found: BTreeSet<String> = functions
+        .iter()
+        .filter(|f| python && f.returns.0.starts_with("Map<u64,"))
+        .map(|f| f.name.clone())
+        .collect();
+    for f in functions {
+        if let Some((at, callee)) = list_result_use(&f.body, &found) {
+            return Err(FamiliarError {
+                at,
+                message: format!(
+                    "`{callee}` returns a list: a list result is returned or tested, not used inside the program (build the list where it is used)"
+                ),
+            });
+        }
+    }
+    Ok(found)
+}
+
+/// A test of a list result expects a `Map<u64,T>`: its `[a, b]` is
+/// `[[0, a], [1, b]]`.
+fn list_expectation(case: &mut Value, list_results: &BTreeSet<String>) {
+    if case["fn"]
+        .as_str()
+        .is_some_and(|f| list_results.contains(f))
+        && let Some(items) = case.get("expect").and_then(Value::as_array).cloned()
+    {
+        case["expect"] = Value::Array(
+            items
+                .into_iter()
+                .enumerate()
+                .map(|(k, v)| json!([k, v]))
+                .collect(),
+        );
+    }
+}
+
+/// The first call (position and callee) in `node` of a function in
+/// `list_results`.
+fn list_result_use(node: &Node, list_results: &BTreeSet<String>) -> Option<(Pos, String)> {
+    let mut pending = vec![node];
+    while let Some(node) = pending.pop() {
+        if let NodeKind::List(items) = &node.kind {
+            if matches!(
+                items.first().and_then(Node::head_word),
+                Some("call" | "tcall")
+            ) && let Some(callee) = items.get(1).and_then(Node::head_word)
+                && list_results.contains(callee)
+            {
+                return Some((node.pos, callee.to_owned()));
+            }
+            pending.extend(items.iter().rev());
+        }
+    }
+    None
 }
 
 /// Parses a headerless statement list for a controller-selected function.
@@ -209,6 +277,9 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         fresh: 0,
         declared: Declared::default(),
         depth: 0,
+        list_return: None,
+        list_locals: Vec::new(),
+        returns_list_local: false,
     };
     let pos = parser.peek().pos;
     let mut statements = Vec::new();
@@ -695,6 +766,14 @@ struct Parser {
     declared: Declared,
     /// Nested parser entries now open (see [`MAX_NESTING`]).
     depth: usize,
+    /// Python dialect: the element type of the list the function being
+    /// parsed returns (`-> list[T]`), if it returns one.
+    list_return: Option<String>,
+    /// Python dialect: the function being parsed — its list locals, and
+    /// whether a `return` hands one back (then its result is the list's
+    /// `Map<u64,T>`; otherwise `-> list[T]` stays `Vec<T>`).
+    list_locals: Vec<String>,
+    returns_list_local: bool,
 }
 
 /// What a Python-dialect file declares besides its functions: record
@@ -3191,10 +3270,39 @@ impl Parser {
             );
         }
         self.bump();
-        let returns = self.py_type()?;
+        let mut returns = self.py_type()?;
+        // `-> list[T]`: the function returns a list local, a `Map<u64,T>`
+        // keyed `0..len` (a list is never a vector the program builds).
+        let list_return = match returns
+            .0
+            .strip_prefix("Vec<")
+            .and_then(|t| t.strip_suffix('>'))
+        {
+            Some(elem) if elem.starts_with("Vec<") => {
+                return refuse(
+                    returns.1,
+                    "a function returns a list of values, not a list of lists",
+                );
+            }
+            Some(elem) => Some(elem.to_owned()),
+            None => None,
+        };
+        let outer_return = std::mem::replace(&mut self.list_return, list_return.clone());
+        let outer_locals = std::mem::take(&mut self.list_locals);
+        let outer_returns = std::mem::replace(&mut self.returns_list_local, false);
         self.scopes = vec![params.iter().map(|(name, _, _)| name.clone()).collect()];
         let assigned = self.py_assigned_params(&params);
-        let mut body = self.py_block()?;
+        let body = self.py_block();
+        let returns_local = self.returns_list_local;
+        self.list_return = outer_return;
+        self.list_locals = outer_locals;
+        self.returns_list_local = outer_returns;
+        let mut body = body?;
+        if let Some(elem) = &list_return
+            && returns_local
+        {
+            returns.0 = format!("Map<u64,{elem}>");
+        }
         if let NodeKind::List(items) = &mut body.kind {
             // A parameter the body assigns becomes a variable holding its value.
             for (offset, (name, name_pos)) in assigned.into_iter().enumerate() {
@@ -3360,7 +3468,8 @@ impl Parser {
         Ok(Node::list(colon.pos, body))
     }
 
-    /// Appends a statement, flattening a chained assignment's `seq`.
+    /// Appends a statement, flattening a `seq` (a chained assignment, a
+    /// list built in steps), nested ones included.
     fn py_push(body: &mut Vec<Node>, statement: Node) {
         if statement.head() == Some("seq") {
             if let NodeKind::List(mut items) = statement.kind
@@ -3369,7 +3478,9 @@ impl Parser {
                     ..
                 }) = items.pop()
             {
-                body.extend(inner);
+                for item in inner {
+                    Self::py_push(body, item);
+                }
             }
             return;
         }
@@ -3427,6 +3538,34 @@ impl Parser {
                 self.bump();
                 if matches!(self.peek().kind, Kind::Newline | Kind::Dedent | Kind::Eof) {
                     return refuse(pos, "return needs a value");
+                }
+                if let Some(elem) = self.list_return.clone()
+                    && self.at_op("[")
+                {
+                    // return [..]: build the list in a list local of its own,
+                    // then return that.
+                    self.returns_list_local = true;
+                    self.fresh += 1;
+                    let name = format!("returned_{}_", self.fresh);
+                    let build = self.py_list_value(&name, Some(elem), pos)?;
+                    let returned = Node::list(
+                        pos,
+                        vec![keyword("return"), Node::atom(pos, Value::String(name))],
+                    );
+                    return Ok(Some(Node::list(
+                        pos,
+                        vec![keyword("seq"), Node::list(pos, vec![build, returned])],
+                    )));
+                }
+                if self.list_return.is_some()
+                    && self.peek().kind == Kind::Name
+                    && self.list_locals.contains(&self.peek().text)
+                    && matches!(
+                        self.peek_at(1).kind,
+                        Kind::Newline | Kind::Dedent | Kind::Eof
+                    )
+                {
+                    self.returns_list_local = true;
                 }
                 let value = self.expr()?;
                 self.py_end_of_statement()?;
@@ -3725,11 +3864,7 @@ impl Parser {
         while !self.at_op("]") {
             let element = self.expr()?;
             if elements.is_empty() && self.at_word("for") {
-                return refuse(
-                    open,
-                    "list comprehensions are not supported as values: start with xs = [] and \
-                     append in a for loop (sum/any/all/len/max/min take a generator)",
-                );
+                return self.py_comprehension(name, elem, element, pos);
             }
             elements.push(element);
             if !self.at_op("]") {
@@ -3748,6 +3883,7 @@ impl Parser {
         }
         self.py_end_of_statement()?;
         self.py_declare(name);
+        self.list_locals.push(name.to_owned());
         let target = Node::atom(pos, Value::String(name.to_owned()));
         let typed = elem.map(|t| Node::atom(pos, Value::String(t)));
         let filled = |count: Node, fill: Node| {
@@ -3787,6 +3923,95 @@ impl Parser {
         Ok(Node::list(
             pos,
             vec![word("seq"), Node::list(pos, statements)],
+        ))
+    }
+
+    /// `[e for x in xs if c]` after its first value (the `=` and `[` are
+    /// consumed): a list local `name` built by a loop that appends `e`
+    /// for each `x` (where `c` holds). `x` is a range's integer or a list's
+    /// element; without a `list[T]` annotation the list holds int.
+    fn py_comprehension(
+        &mut self,
+        name: &str,
+        elem: Option<String>,
+        value: Node,
+        pos: Pos,
+    ) -> P<Node> {
+        let word = |w: &str| Node::atom(pos, Value::String(w.to_owned()));
+        self.expect_word("for")?;
+        let (x, x_pos) = self.ident("a loop variable")?;
+        if self.at_op(",") {
+            return refuse(
+                self.peek().pos,
+                "a list comprehension binds one name: [e for x in xs] or [e for i in range(n)]",
+            );
+        }
+        if self.py_declared(&x) || x == name {
+            return refuse(
+                x_pos,
+                format!(
+                    "`{x}` is already a variable here: name the comprehension's variable otherwise"
+                ),
+            );
+        }
+        self.expect_word("in")?;
+        let iter_pos = self.peek().pos;
+        let mut head = match self.py_iterable()? {
+            PyIter::List(list) => vec![
+                word("for"),
+                Node::atom(x_pos, Value::String(x.clone())),
+                list,
+            ],
+            PyIter::Range(start, end) => vec![
+                word("range"),
+                Node::atom(x_pos, Value::String(x.clone())),
+                start,
+                end,
+            ],
+            _ => {
+                return refuse(
+                    iter_pos,
+                    "a list comprehension visits a list or range(a, b): write the loop out with append",
+                );
+            }
+        };
+        let condition = if self.at_word("if") {
+            self.bump();
+            let c = self.or_()?;
+            Some(self.truth(c))
+        } else {
+            None
+        };
+        self.expect_op("]")?;
+        if self.at_op("*") {
+            return refuse(
+                self.peek().pos,
+                "a list comprehension cannot be repeated with *",
+            );
+        }
+        self.py_end_of_statement()?;
+        self.py_declare(name);
+        self.list_locals.push(name.to_owned());
+        let target = Node::atom(pos, Value::String(name.to_owned()));
+        let append = Node::list(pos, vec![word("append"), target.clone(), value]);
+        let step = match condition {
+            Some(c) => Node::list(pos, vec![word("if"), c, Node::list(pos, vec![append])]),
+            None => append,
+        };
+        head.push(Node::list(pos, vec![step]));
+        let ty = Node::atom(pos, Value::String(elem.unwrap_or_else(|| "i64".into())));
+        Ok(Node::list(
+            pos,
+            vec![
+                word("seq"),
+                Node::list(
+                    pos,
+                    vec![
+                        Node::list(pos, vec![word("list"), target, ty]),
+                        Node::list(pos, head),
+                    ],
+                ),
+            ],
         ))
     }
 
