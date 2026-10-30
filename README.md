@@ -306,6 +306,7 @@ existing programs.
 | 🧠 **[Concepts](docs/CONCEPTS.md)** | The mental model: SSMC1, SCB1, SMP1, identities, and the change lifecycle |
 | 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
 | 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
+| 🤖 **[Agent skills](skills/README.md)** | `SKILL.md` files that teach a coding agent to write, test and embed Sley |
 | 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
 | 📦 **[Release notes](docs/release/SLEY-2.1.7.md)** | The current release, how to verify it, and what isn't claimed. [2.1.0](docs/release/SLEY-2.1.0.md) is the self-hosted release; [2.0.0](docs/release/SLEY-2.0.0.md) lists the known limits that still apply. |
 | 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
