@@ -84,7 +84,7 @@ on PATH.
 
 ```sh
 python verify_refs.py                         # 108 reference programs vs the oracle
-python verify_refs.py --task-set v2           # v2: 126 reference programs vs the oracle (18 Sley n/a)
+python verify_refs.py --task-set v2           # v2: 131 reference programs vs the oracle (13 Sley n/a)
 python -m pytest test_model_cost.py           # no network
 python run.py --out /tmp/dry --tier small     # dry run: in-process mock, no key, no spend
 python summarize.py /tmp/dry

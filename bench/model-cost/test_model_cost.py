@@ -537,6 +537,15 @@ class HarnessV2(unittest.TestCase):
         self.assertFalse(ok)
         self.assertLess(o["passed"], 128)
 
+    def test_sley_list_results_read_back_by_index(self):
+        # a Sley list result is a map printed as [index, value] pairs in key-byte order
+        self.assertEqual(langs._show_sley([[0, 5], [2, 7], [1, -1]], "list"), "[5,-1,7]")
+        self.assertEqual(langs._show_sley([], "list"), "[]")
+        self.assertEqual(langs._show_sley([4, 5], "list"), "[4,5]")
+        self.assertEqual(langs._show_sley([[0, 5], [2, 7]], "list"), "[[0,5],[2,7]]")
+        self.assertEqual(langs._show_sley([[0, 5]], "int"), "[[0,5]]")
+        self.assertEqual(langs._show_sley(-3), "-3")
+
     def test_task_set_flag(self):
         d = tempfile.mkdtemp()
         try:

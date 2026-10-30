@@ -1,2 +1,3 @@
 Sley 2.2 dialect: a str parameter cannot be read as a sequence (len(s) and s[i] are refused: `len` needs a vector).
 Checked 30 Oct 2026 with sley-agent built from main; v2 trials in Sley count as failures until 2.2 can express this.
+Rechecked 30 Oct 2026 after list results (sley-lang/sley#95): still out of reach; Sley strings need a kernel/spec change (no text operations in the admitted opcode profile), not a dialect one.
