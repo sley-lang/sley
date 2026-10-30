@@ -10,6 +10,8 @@ Statements:
   ["range", i, start, end, [body...]]  same integer type, half-open; bounds evaluated once
   ["for-indexed", i, x, xs, [body...]] vector elements with a read-only u64 index
   ["while", c, [body...]]
+  ["list", x, T] or ["list", x, T, n, fill]  growable list (n copies of fill; fill evaluated once)
+  ["append", x, e]; ["store", x, i, e]  add at index len(x); replace element i (u64; i >= len traps)
   ["return", e]; in a Result function ["ok", e] or ["fail", "Case"]; ["trap"] aborts
 Expressions: a name, an integer, true, false, {"type":"text","value":"hi"}, {"type":"u64","value":0}, or [op, args...]:
   add sub mul div rem neg abs   checked fixed-width arithmetic: overflow or division by zero traps.
@@ -21,8 +23,9 @@ Expressions: a name, an integer, true, false, {"type":"text","value":"hi"}, {"ty
   eq ne lt le gt ge             eq compares text exactly
   not and or                    both operands of and/or are always evaluated
   if                            ["if", c, a, b]: only the chosen value is computed
-  len (u64), get [xs, i] (u64 index), field [r, "name"], call ["helper", args...] (call? unwraps a Result)
+  len (u64), get [xs, i] (u64 index; on a list, i >= len traps; get?Case returns Err(Case)), field [r, "name"], call ["helper", args...] (call? unwraps a Result)
 Integer literals take the other operand's type, else i64. Integer types never mix: len and indexes are u64.
+A list is never copied, passed or returned: read it with get and len. Its name is reserved for it in the function.
 Names are block-scoped; a nested block cannot redeclare a name declared outside it.
 A refusal points into the body (/fns/0/body/2/1); `sley-agent view --after cN` shows the blocks Sley built.
 Example:
