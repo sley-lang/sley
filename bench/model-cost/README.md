@@ -71,6 +71,7 @@ it.) The guard stops a run before billed spend could pass $10.
 | `accounting.py` | usage normalization, pricing, the spend guard |
 | `run.py` | the run (`--project` for the projection) |
 | `summarize.py` | `summary.json` and `summary.md` |
+| `intervals.py` | `intervals.json` and `intervals.md`: each language against Python, paired bootstrap over tasks (95% intervals for the $ per trial ratio, the per-trial delta and the thinking delta; share of calls that think; sign test). `summarize.py` runs it. |
 | `test_model_cost.py` | unit tests and mock end-to-end runs |
 
 ## Running
