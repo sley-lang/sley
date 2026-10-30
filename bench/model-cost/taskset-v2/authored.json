@@ -1,0 +1,338 @@
+[
+  {
+    "name": "parse_signed_int",
+    "params": [["s", "str"]],
+    "returns": "int",
+    "errors": true,
+    "statement": "Parse a decimal integer from s. A valid s is an optional single leading '+' or '-' followed by one or more ASCII decimal digits, with no other characters and no whitespace. Leading zeros are allowed. Return the integer value. It is an error if s does not have this form, or if the value is less than -1000000 or greater than 1000000. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["42"], "expect": 42},
+      {"args": ["-007"], "expect": -7},
+      {"args": ["+1000000"], "expect": 1000000},
+      {"args": ["12a"], "expect": "error"},
+      {"args": ["-"], "expect": "error"}
+    ]
+  },
+  {
+    "name": "run_length_encode",
+    "params": [["s", "str"]],
+    "returns": "str",
+    "errors": false,
+    "statement": "Replace each maximal run of identical consecutive characters in s with that character followed by the run length written in decimal, with no leading zeros. Keep the runs in their original order. An empty s gives an empty string. s has at most 200 printable ASCII characters and contains no digit characters.",
+    "examples": [
+      {"args": ["aaabcc"], "expect": "a3b1c2"},
+      {"args": [""], "expect": ""},
+      {"args": ["xyz"], "expect": "x1y1z1"},
+      {"args": ["  !!"], "expect": " 2!2"},
+      {"args": ["aaaaaaaaaaaa"], "expect": "a12"}
+    ]
+  },
+  {
+    "name": "run_length_decode",
+    "params": [["s", "str"]],
+    "returns": "str",
+    "errors": true,
+    "statement": "s is a sequence of zero or more groups. Each group is one non-digit printable ASCII character followed by a count: one or more decimal digits with no leading zero, so the count is at least 1. Return the concatenation, in order, of each group's character repeated count times. An empty s gives an empty string. It is an error if s cannot be split into such groups (for example, a character without a count, s starting with a digit, or a count starting with '0'), or if the decoded string would be longer than 1000 characters. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["a3b1c2"], "expect": "aaabcc"},
+      {"args": ["x10"], "expect": "xxxxxxxxxx"},
+      {"args": [""], "expect": ""},
+      {"args": ["ab2"], "expect": "error"},
+      {"args": ["a05"], "expect": "error"}
+    ]
+  },
+  {
+    "name": "top_k_frequent",
+    "params": [["xs", "list"], ["k", "int"]],
+    "returns": "list",
+    "errors": false,
+    "statement": "Return the k distinct values that occur most often in xs. Order them by descending number of occurrences; when counts tie, the smaller value comes first. If xs has fewer than k distinct values, return all its distinct values in that order. xs has at most 200 integers, each within [-1000000, 1000000], and 0 <= k <= 200.",
+    "examples": [
+      {"args": [[3, 1, 3, 2, 1, 3], 2], "expect": [3, 1]},
+      {"args": [[5, 4, 5, 4, 6], 2], "expect": [4, 5]},
+      {"args": [[], 3], "expect": []},
+      {"args": [[7, 7, 8], 5], "expect": [7, 8]},
+      {"args": [[1, 2, 3], 0], "expect": []}
+    ]
+  },
+  {
+    "name": "second_largest_distinct",
+    "params": [["xs", "list"]],
+    "returns": "int",
+    "errors": true,
+    "statement": "Return the second-largest distinct value in xs: the largest value that is strictly less than the maximum. It is an error if xs contains fewer than two distinct values, including when xs is empty. xs has at most 200 integers, each within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[4, 1, 4, 3]], "expect": 3},
+      {"args": [[-5, -2]], "expect": -5},
+      {"args": [[1000000, -1000000, 0]], "expect": 0},
+      {"args": [[9, 9, 9]], "expect": "error"},
+      {"args": [[]], "expect": "error"}
+    ]
+  },
+  {
+    "name": "format_thousands",
+    "params": [["n", "int"]],
+    "returns": "str",
+    "errors": false,
+    "statement": "Return the decimal representation of n with a comma between each group of three digits, counting from the right. There are no leading zeros, except that zero is \"0\". A negative number has a single leading '-' before its first digit. n is within [-1000000, 1000000].",
+    "examples": [
+      {"args": [1000000], "expect": "1,000,000"},
+      {"args": [-1000], "expect": "-1,000"},
+      {"args": [999], "expect": "999"},
+      {"args": [0], "expect": "0"},
+      {"args": [-12345], "expect": "-12,345"}
+    ]
+  },
+  {
+    "name": "chunk_sums",
+    "params": [["xs", "list"], ["size", "int"]],
+    "returns": "list",
+    "errors": true,
+    "statement": "Split xs, in order, into consecutive chunks of size elements each; the last chunk may be shorter. Return the sum of each chunk, in order. An empty xs gives an empty list. It is an error if size < 1. xs has at most 200 integers, each within [-1000000, 1000000], and size is within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[1, 2, 3, 4, 5], 2], "expect": [3, 7, 5]},
+      {"args": [[10, -10], 5], "expect": [0]},
+      {"args": [[], 3], "expect": []},
+      {"args": [[4, 4, 4], 1], "expect": [4, 4, 4]},
+      {"args": [[1, 2], 0], "expect": "error"}
+    ]
+  },
+  {
+    "name": "validate_username",
+    "params": [["s", "str"]],
+    "returns": "int",
+    "errors": false,
+    "statement": "Return 1 if s is a valid username and 0 otherwise. A valid username meets all of these rules: its length is 3 to 16 characters inclusive; its first character is a lowercase ASCII letter a-z; every character is a lowercase ASCII letter, an ASCII digit or '_'; it never has two '_' characters next to each other; and its last character is not '_'. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["alice_99"], "expect": 1},
+      {"args": ["ab"], "expect": 0},
+      {"args": ["9lives"], "expect": 0},
+      {"args": ["bad__name"], "expect": 0},
+      {"args": ["trail_"], "expect": 0}
+    ]
+  },
+  {
+    "name": "count_by_remainder",
+    "params": [["xs", "list"], ["m", "int"]],
+    "returns": "list",
+    "errors": true,
+    "statement": "Return a list of length m whose entry at index r (0 <= r < m) is the number of elements x of xs whose non-negative remainder modulo m is r. The non-negative remainder is always in [0, m-1]; for example, -1 modulo 3 is 2. It is an error if m < 1 or m > 200. xs has at most 200 integers, each within [-1000000, 1000000], and m is within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[1, 2, 3, 4, 5, 6], 3], "expect": [2, 2, 2]},
+      {"args": [[-1, -3, 4], 3], "expect": [1, 1, 1]},
+      {"args": [[], 2], "expect": [0, 0]},
+      {"args": [[7, 14, 3], 7], "expect": [2, 0, 0, 1, 0, 0, 0]},
+      {"args": [[5], 0], "expect": "error"}
+    ]
+  },
+  {
+    "name": "dense_rank",
+    "params": [["xs", "list"]],
+    "returns": "list",
+    "errors": false,
+    "statement": "Return a list of the same length as xs that gives each element's dense rank. Rank the distinct values of xs in descending order: the largest is rank 1, the next largest distinct value is rank 2, and so on, with no gaps. Equal values share the same rank. xs has at most 200 integers, each within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[50, 80, 80, 70]], "expect": [3, 1, 1, 2]},
+      {"args": [[]], "expect": []},
+      {"args": [[5]], "expect": [1]},
+      {"args": [[-1, -1, -2, 0]], "expect": [2, 2, 3, 1]},
+      {"args": [[3, 2, 1]], "expect": [1, 2, 3]}
+    ]
+  },
+  {
+    "name": "most_common_letter",
+    "params": [["s", "str"]],
+    "returns": "str",
+    "errors": true,
+    "statement": "Count only the ASCII letters in s, ignoring case, so 'A' and 'a' are the same letter. Ignore every other character. Return the letter with the highest count as a one-character lowercase string. If several letters tie, return the alphabetically earliest. It is an error if s contains no ASCII letters. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["Hello World"], "expect": "l"},
+      {"args": ["aAbB"], "expect": "a"},
+      {"args": ["zzY y"], "expect": "y"},
+      {"args": ["123 !!"], "expect": "error"},
+      {"args": [""], "expect": "error"}
+    ]
+  },
+  {
+    "name": "count_distinct_words",
+    "params": [["s", "str"]],
+    "returns": "int",
+    "errors": false,
+    "statement": "A word is a maximal run of consecutive ASCII letters in s. Every other character, including digits and punctuation, separates words. Return the number of distinct words, compared without regard to case. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["The cat and the hat"], "expect": 4},
+      {"args": [""], "expect": 0},
+      {"args": ["Hi, hi! HI?"], "expect": 1},
+      {"args": ["don't stop"], "expect": 3},
+      {"args": ["a1b2c"], "expect": 3}
+    ]
+  },
+  {
+    "name": "moving_average_floor",
+    "params": [["xs", "list"], ["w", "int"]],
+    "returns": "list",
+    "errors": true,
+    "statement": "For each window of w consecutive elements of xs, starting at indices 0, 1, ..., len(xs)-w in order, return the window's sum divided by w, rounded down toward negative infinity. If w > len(xs), return an empty list. It is an error if w < 1. xs has at most 200 integers, each within [-1000000, 1000000], and w is within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[1, 2, 3, 4], 2], "expect": [1, 2, 3]},
+      {"args": [[-1, -2], 2], "expect": [-2]},
+      {"args": [[5, 5, 5], 3], "expect": [5]},
+      {"args": [[1, 2], 3], "expect": []},
+      {"args": [[1], 0], "expect": "error"}
+    ]
+  },
+  {
+    "name": "covered_length",
+    "params": [["xs", "list"]],
+    "returns": "int",
+    "errors": true,
+    "statement": "xs lists half-open intervals [start, end) as a flat sequence of pairs: start0, end0, start1, end1, and so on. Return the total length of the union of all the intervals; overlapping or touching intervals are not double-counted. An empty xs gives 0. It is an error if xs has an odd number of elements or if any pair has start > end. A pair with start == end is allowed and has length 0. xs has at most 200 integers, each within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[1, 5, 3, 8]], "expect": 7},
+      {"args": [[0, 2, 5, 6]], "expect": 3},
+      {"args": [[-3, 0, 0, 3]], "expect": 6},
+      {"args": [[1, 2, 3]], "expect": "error"},
+      {"args": [[5, 3]], "expect": "error"}
+    ]
+  },
+  {
+    "name": "longest_increasing_run",
+    "params": [["xs", "list"]],
+    "returns": "int",
+    "errors": false,
+    "statement": "Return the length of the longest contiguous run in xs where each element is strictly greater than the one before it. A single element is a run of length 1. An empty xs gives 0. xs has at most 200 integers, each within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[1, 2, 2, 3, 4, 1]], "expect": 3},
+      {"args": [[]], "expect": 0},
+      {"args": [[5, 4, 3]], "expect": 1},
+      {"args": [[-2, -1, 0, 1]], "expect": 4},
+      {"args": [[7]], "expect": 1}
+    ]
+  },
+  {
+    "name": "slugify",
+    "params": [["s", "str"]],
+    "returns": "str",
+    "errors": false,
+    "statement": "Build a URL slug from s. Convert ASCII letters to lowercase. Replace each maximal run of characters that are neither ASCII letters nor ASCII digits with a single '-'. Then remove any leading or trailing '-'. The result may be empty. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["Hello, World!"], "expect": "hello-world"},
+      {"args": ["  Multiple   spaces "], "expect": "multiple-spaces"},
+      {"args": ["C++ & Go"], "expect": "c-go"},
+      {"args": ["!!!"], "expect": ""},
+      {"args": ["v2.0 Release"], "expect": "v2-0-release"}
+    ]
+  },
+  {
+    "name": "parse_clock_seconds",
+    "params": [["s", "str"]],
+    "returns": "int",
+    "errors": true,
+    "statement": "s must be a time of day in exactly the form HH:MM:SS. It has exactly 8 characters: two ASCII digits, ':', two digits, ':', two digits. The values must satisfy 0 <= HH <= 23, 0 <= MM <= 59 and 0 <= SS <= 59. Return the number of seconds since midnight, HH*3600 + MM*60 + SS. It is an error if s does not meet these rules. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["00:00:00"], "expect": 0},
+      {"args": ["01:02:03"], "expect": 3723},
+      {"args": ["23:59:59"], "expect": 86399},
+      {"args": ["24:00:00"], "expect": "error"},
+      {"args": ["1:02:03"], "expect": "error"}
+    ]
+  },
+  {
+    "name": "gcd_of_list",
+    "params": [["xs", "list"]],
+    "returns": "int",
+    "errors": false,
+    "statement": "Return the greatest common divisor of the absolute values of all elements of xs. Use gcd(0, x) = |x|. An empty xs, or one that contains only zeros, gives 0. The result is never negative. xs has at most 200 integers, each within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[12, 18, 24]], "expect": 6},
+      {"args": [[-4, 6]], "expect": 2},
+      {"args": [[]], "expect": 0},
+      {"args": [[0, 0]], "expect": 0},
+      {"args": [[0, 7]], "expect": 7}
+    ]
+  },
+  {
+    "name": "to_roman",
+    "params": [["n", "int"]],
+    "returns": "str",
+    "errors": true,
+    "statement": "Return n as an uppercase Roman numeral, using the symbols I=1, V=5, X=10, L=50, C=100, D=500 and M=1000 and the standard subtractive forms IV, IX, XL, XC, CD and CM. Each decimal digit is written from the largest place value down, giving the shortest standard form. It is an error unless 1 <= n <= 3999. n is within [-1000000, 1000000].",
+    "examples": [
+      {"args": [1994], "expect": "MCMXCIV"},
+      {"args": [4], "expect": "IV"},
+      {"args": [3999], "expect": "MMMCMXCIX"},
+      {"args": [0], "expect": "error"},
+      {"args": [4000], "expect": "error"}
+    ]
+  },
+  {
+    "name": "caesar_shift",
+    "params": [["s", "str"], ["k", "int"]],
+    "returns": "str",
+    "errors": false,
+    "statement": "Shift each ASCII letter in s forward by k positions in the 26-letter alphabet, wrapping around from z to a and from Z to A, and keep each letter's case. A negative k shifts backward. Leave all other characters unchanged. s has at most 200 ASCII characters, and k is within [-1000000, 1000000].",
+    "examples": [
+      {"args": ["abc", 1], "expect": "bcd"},
+      {"args": ["xyz", 3], "expect": "abc"},
+      {"args": ["Hello, World!", -1], "expect": "Gdkkn, Vnqkc!"},
+      {"args": ["Az", 52], "expect": "Az"},
+      {"args": ["abc", -27], "expect": "zab"}
+    ]
+  },
+  {
+    "name": "bracket_depth",
+    "params": [["s", "str"]],
+    "returns": "int",
+    "errors": true,
+    "statement": "The characters '(' ')' '[' ']' '{' '}' are brackets; ignore all other characters. If every closing bracket matches the most recent unclosed opening bracket of the same kind and no bracket is left unclosed, return the maximum nesting depth, which is the largest number of brackets open at once. A string with no brackets gives 0. Otherwise it is an error. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["a(b[c]{d})"], "expect": 2},
+      {"args": [""], "expect": 0},
+      {"args": ["(()(()))"], "expect": 3},
+      {"args": ["(]"], "expect": "error"},
+      {"args": ["(("], "expect": "error"}
+    ]
+  },
+  {
+    "name": "count_pairs_with_sum",
+    "params": [["xs", "list"], ["target", "int"]],
+    "returns": "int",
+    "errors": false,
+    "statement": "Return the number of index pairs (i, j) with i < j such that xs[i] + xs[j] == target. Pairs are counted by position, so equal values at different indices count as separate pairs. xs has at most 200 integers, each within [-1000000, 1000000], and target is within [-1000000, 1000000].",
+    "examples": [
+      {"args": [[1, 2, 3, 4, 3], 6], "expect": 2},
+      {"args": [[], 0], "expect": 0},
+      {"args": [[0, 0, 0], 0], "expect": 3},
+      {"args": [[5], 10], "expect": 0},
+      {"args": [[-1, 1, -1, 1], 0], "expect": 4}
+    ]
+  },
+  {
+    "name": "mask_digits",
+    "params": [["s", "str"]],
+    "returns": "str",
+    "errors": false,
+    "statement": "Replace every ASCII digit in s with '*', except the last four digits in the string. Non-digit characters are never changed and keep their positions. If s contains four or fewer digits, return s unchanged. s has at most 200 ASCII characters.",
+    "examples": [
+      {"args": ["1234-5678-9012"], "expect": "****-****-9012"},
+      {"args": ["1234"], "expect": "1234"},
+      {"args": [""], "expect": ""},
+      {"args": ["a1b2c3d4e5"], "expect": "a*b2c3d4e5"},
+      {"args": ["phone: 555 123 4567"], "expect": "phone: *** *** 4567"}
+    ]
+  },
+  {
+    "name": "first_overdraft",
+    "params": [["start", "int"], ["xs", "list"]],
+    "returns": "int",
+    "errors": false,
+    "statement": "An account begins with balance start. Apply the transactions in xs in order by adding each one to the balance. Return the 0-based index of the first transaction after which the balance is below zero, or -1 if that never happens. A negative starting balance does not count by itself; only balances after transactions are checked. start is within [-1000000, 1000000], and xs has at most 200 integers, each within [-1000000, 1000000].",
+    "examples": [
+      {"args": [100, [-50, -30, -40, 10]], "expect": 2},
+      {"args": [0, []], "expect": -1},
+      {"args": [-5, [10]], "expect": -1},
+      {"args": [10, [-10, -1]], "expect": 1},
+      {"args": [0, [-1]], "expect": 0}
+    ]
+  }
+]
