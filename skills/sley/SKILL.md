@@ -18,7 +18,10 @@ structured frame, and from then on drafts, submissions and commits use the
 frame and the graph, never the text. Nothing renders a program back into
 Python. The JSON frame form (AF1) is in `sley-agent help`.
 
-Every example below was run against the released 2.1.7 binaries.
+Every example below was run against the released 2.1.7 binaries. To try the
+dialect before installing, use the [Sley Playground](https://sleylang.org/playground):
+it compiles and calls functions in the browser with the same compiler and VM
+(inline tests need `sley-agent`).
 
 ## Install and verify
 

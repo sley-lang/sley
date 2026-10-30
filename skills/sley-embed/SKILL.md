@@ -17,7 +17,8 @@ and in `wasm32-unknown-unknown`.
 For the dialect itself (types, what is refused, inline tests), see the `sley`
 skill or `sley-agent help python`. The full reference is
 [docs/EMBEDDING.md](../../docs/EMBEDDING.md). Everything here is pinned to
-tag `v2.1.7`.
+tag `v2.1.7`. The [Sley Playground](https://sleylang.org/playground) is this API
+compiled to `wasm32-unknown-unknown` and run in a browser Web Worker.
 
 ## Cargo
 

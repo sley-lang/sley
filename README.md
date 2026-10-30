@@ -243,7 +243,7 @@ roots, the change lifecycle, sessions, and the glossary.
 
 - [2.1.7](docs/release/SLEY-2.1.7.md): Python-dialect list indexing by a loop counter skips the per-access integer conversion, and the VM word tier runs vector length and element reads and fuses more of each burst; resource accounting unchanged.
 - [2.1.6](docs/release/SLEY-2.1.6.md): deeply nested source gets a diagnostic with its line and column, nested built-in calls parse in linear time, and the `sley_agent::embed` API runs Sley inside Rust hosts and WebAssembly ([embedding guide](docs/EMBEDDING.md)).
-- [2.1.5](docs/release/SLEY-2.1.5.md): the VM's word tier runs all-integer programs on plain 64-bit registers; `try` prints only failures; `file:line:col` diagnostics with a caret; `struct` and `enum` in the Python dialect.
+- [2.1.5](docs/release/SLEY-2.1.5.md): the VM's word tier runs all-integer programs on plain 64-bit registers; `try` prints only failures; `file:line:col` diagnostics with a caret; `struct` and `enum` declarations in the Rust-like familiar syntax.
 - [2.1.4](docs/release/SLEY-2.1.4.md): faster loops, plus pytest-style tests and `@dataclass` records in the Python dialect.
 - [2.1.3](docs/release/SLEY-2.1.3.md): recursive and call-heavy programs run in the VM's compact scalar plan.
 - [2.1.2](docs/release/SLEY-2.1.2.md): tuple assignment to parameters and clearer test-limit reporting.
