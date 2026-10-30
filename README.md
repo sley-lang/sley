@@ -243,7 +243,7 @@ roots, the change lifecycle, sessions, and the glossary.
 
 - [2.1.7](docs/release/SLEY-2.1.7.md): Python-dialect list indexing by a loop counter skips the per-access integer conversion, and the VM word tier runs vector length and element reads and fuses more of each burst; resource accounting unchanged.
 - [2.1.6](docs/release/SLEY-2.1.6.md): deeply nested source gets a diagnostic with its line and column, nested built-in calls parse in linear time, and the `sley_agent::embed` API runs Sley inside Rust hosts and WebAssembly ([embedding guide](docs/EMBEDDING.md)).
-- [2.1.5](docs/release/SLEY-2.1.5.md): the VM's word tier runs all-integer programs on plain 64-bit registers; `try` prints only failures; `file:line:col` diagnostics with a caret; `struct` and `enum` in the Python dialect.
+- [2.1.5](docs/release/SLEY-2.1.5.md): the VM's word tier runs all-integer programs on plain 64-bit registers; `try` prints only failures; `file:line:col` diagnostics with a caret; `struct` and `enum` declarations in the Rust-like familiar syntax.
 - [2.1.4](docs/release/SLEY-2.1.4.md): faster loops, plus pytest-style tests and `@dataclass` records in the Python dialect.
 - [2.1.3](docs/release/SLEY-2.1.3.md): recursive and call-heavy programs run in the VM's compact scalar plan.
 - [2.1.2](docs/release/SLEY-2.1.2.md): tuple assignment to parameters and clearer test-limit reporting.
@@ -306,6 +306,7 @@ existing programs.
 | 🧠 **[Concepts](docs/CONCEPTS.md)** | The mental model: SSMC1, SCB1, SMP1, identities, and the change lifecycle |
 | 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
 | 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
+| 🤖 **[Agent skills](skills/README.md)** | `SKILL.md` files that teach a coding agent to write, test and embed Sley |
 | 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
 | 📦 **[Release notes](docs/release/SLEY-2.1.7.md)** | The current release, how to verify it, and what isn't claimed. [2.1.0](docs/release/SLEY-2.1.0.md) is the self-hosted release; [2.0.0](docs/release/SLEY-2.0.0.md) lists the known limits that still apply. |
 | 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
