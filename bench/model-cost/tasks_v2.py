@@ -95,7 +95,7 @@ def _rle_decode(s):
     out, total, i = [], 0, 0
     while i < len(s):
         c = s[i]
-        if c in DIGITS:
+        if c in DIGITS or c not in PRINTABLE:  # "one non-digit printable ASCII character"
             raise Error
         i += 1
         j = i

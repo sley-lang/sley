@@ -6,10 +6,16 @@ are in `../tasks_v2.py`; every authored example agrees with the oracle, so
 there are no amendments. The harness (`langs.py`, `run.py --task-set v2`,
 `verify_refs.py --task-set v2`) handles `str` parameters and list and string
 results in all six languages; v1 tests and drivers are byte-for-byte
-unchanged. The reference programs are next. The set is not hashed into `prereg.json`, the
-held-out tasks are not written, and no model call has used v2. Sley's 2.2 list work (#88, #89) landed before these rules were
-written; the audit asked for the reverse order, and this is recorded here so
-v2 results are read with that in mind.
+unchanged. Reference programs exist in all six languages (`refs/<task>/`) and
+all 126 that can be written agree with the oracle on every visible test and
+all 128 hidden cases (`verify_refs.py --task-set v2`). Sley's 2.2 dialect can
+express 6 of the 24 tasks; the other 18 carry a `sley.unsupported` note (11
+read a `str` parameter, 2 build a string, 5 return a list), so Sley v2 trials
+on those fail until the dialect grows. The set is not hashed into
+`prereg.json`, the held-out tasks are not written, and no model call has used
+v2. Sley's 2.2 list work (#88, #89) landed before these rules were written;
+the audit asked for the reverse order, and this is recorded here so v2 results
+are read with that in mind.
 
 ## Why v1 is not enough (audit by Claude Code, 30 Oct 2026)
 
@@ -83,7 +89,11 @@ v1.
 Done: a Python oracle per task with 128 seeded cases, edge cases first, all
 inside each statement's bounds (`tasks_v2.py`; 30 Oct, no example disagreed).
 Done: harness kinds `str` and list
-returns (30 Oct). Next, in order: reference programs in six languages (`verify_refs.py`), the 6
+returns, and reference programs in six languages (30 Oct; the Python, C,
+Rust, Go and TypeScript ones written by Claude Code from the statements,
+signatures and examples, the 6 Sley ones by hand, all then checked against
+the oracle). Next, in order:
+Magister's review of the statements, the 6
 sealed held-out tasks authored and hashed, the `prereg.json` hash, then the
 Python-only pass.
 
@@ -97,3 +107,7 @@ examples; `tasks_v2.AMENDMENTS` is empty.
 - Whether a Claude Code session is independent enough as the author, or a
   person should write or review the statements before the hash.
 - Whether v2 adds `str` now or only `list` returns (smaller harness change).
+  (Built 30 Oct with `str`; 18 of 24 tasks are then out of Sley's 2.2 reach.)
+- Whether Sley trials on the 18 tasks its dialect cannot express count as
+  failures in the headline numbers or are reported separately (the harness
+  runs them either way; the rule must be fixed before the hash).
