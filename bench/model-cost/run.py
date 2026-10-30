@@ -15,7 +15,7 @@ the plan's assumptions and real prices, and sends nothing.
 """
 import argparse, concurrent.futures, hashlib, json, os, random, re, subprocess, sys, threading
 
-import accounting, langs, providers, tasks
+import accounting, langs, providers, tasks, tasks_v2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PREREG = json.load(open(os.path.join(HERE, "prereg.json")))
@@ -49,14 +49,14 @@ def system_text(lang, sley_card):
 
 
 def task_prompt(task, lang):
-    t = tasks.BY_NAME[task]
+    t = langs.task_def(task)
     lines = [f"Language: {LANG_NAME[lang]}", f"Write: {langs.signature(task, lang)}", "", t["statement"], ""]
     if t.get("edit"):
         starter = open(os.path.join(HERE, "starters", task, langs.SRC[lang])).read()
         lines += ["The existing file:", f"```{langs.FENCE[lang]}", starter.rstrip(), "```", ""]
     lines.append("Examples (the visible tests):")
     for args, want in t["visible"]:
-        lines.append(f"  {langs.call(task, 'python' if lang == 'sley' else lang, args)} -> {want}")
+        lines.append(f"  {langs.call(task, 'python' if lang == 'sley' else lang, args)} -> {langs.want_text(want)}")
     return "\n".join(lines)
 
 
@@ -86,7 +86,7 @@ def mock_answer_factory(seed=218):
     never right; the code it returns is the reference program (or a broken
     version of it)."""
     by_fn = {}
-    for t in tasks.TASKS:
+    for t in tasks.TASKS + tasks_v2.TASKS:
         for l in langs.LANGS:
             by_fn[(langs.fn(t["name"], l), l)] = t["name"]
     lang_of = {v: k for k, v in LANG_NAME.items()}
@@ -97,7 +97,7 @@ def mock_answer_factory(seed=218):
         if not re.search(r"^Language: ", first, re.M):
             return "OK", "stop"  # the claude-code calibration call
         lang = lang_of[re.search(r"^Language: (.*)$", first, re.M).group(1)]
-        fname = re.search(r"^Write: (?:def |pub fn |func |export function |int |long long )(\w+)\(", first, re.M).group(1)
+        fname = re.search(r"^Write: (?:def |pub fn |func |export function |int |long long |void )(\w+)\(", first, re.M).group(1)
         task = by_fn[(fname, lang)]
         attempt = len(user)
         r = random.Random(f"{seed}:{model}:{task}:{lang}").random()
@@ -301,9 +301,12 @@ def sha256(path):
     return hashlib.sha256(open(path, "rb").read()).hexdigest()
 
 
-def projection(prices, models, tier, reps):
+TASK_SETS = {"v1": tasks, "v2": tasks_v2}
+
+
+def projection(prices, models, tier, reps, task_set="v1"):
     """The plan's cost model at real prices: expected and ceiling dollars."""
-    n_tasks = len(tasks.TIERS[tier])
+    n_tasks = len(TASK_SETS[task_set].TIERS[tier])
     trials = n_tasks * len(langs.LANGS) * reps
     rows, tot_e, tot_c = [], 0.0, 0.0
     for m in models:
@@ -348,6 +351,8 @@ def main():
     ap.add_argument("--models", default=",".join(PREREG["models"]["default"]))
     ap.add_argument("--langs", default=",".join(langs.LANGS))
     ap.add_argument("--tasks", default="")
+    ap.add_argument("--task-set", default="v1", choices=sorted(TASK_SETS),
+                    help="v1: tasks.py (pre-registered); v2: tasks_v2.py (not yet pre-registered; tier full only)")
     ap.add_argument("--reps", type=int, default=None)
     ap.add_argument("--guard", type=float, default=PREREG["spend_guard"]["per_run_usd"])
     ap.add_argument("--jobs", type=int, default=4)
@@ -365,18 +370,28 @@ def main():
     reps = a.reps or PREREG["tiers"][a.tier]["repetitions"]
     prices = accounting.load_prices()
     if a.project:
-        print(json.dumps(projection(prices, a.models, a.tier, reps), indent=2))
+        if a.tier not in TASK_SETS[a.task_set].TIERS:
+            ap.error(f"task set {a.task_set} has no tier {a.tier}")
+        print(json.dumps(projection(prices, a.models, a.tier, reps, a.task_set), indent=2))
         return
     if not a.out:
         ap.error("--out is required")
     if a.guard > PREREG["spend_guard"]["per_run_usd"]:
         ap.error(f"--guard above the pre-registered ${PREREG['spend_guard']['per_run_usd']:.0f} needs a new registration")
-    names = [t for t in (a.tasks.split(",") if a.tasks else tasks.TIERS[a.tier])]
+    ts = TASK_SETS[a.task_set]
+    if not a.tasks and a.tier not in ts.TIERS:
+        ap.error(f"task set {a.task_set} has no tier {a.tier}")
+    names = [t for t in (a.tasks.split(",") if a.tasks else ts.TIERS[a.tier])]
+    unknown = [t for t in names if t not in ts.BY_NAME]
+    if unknown:
+        ap.error(f"not in task set {a.task_set}: {', '.join(unknown)}")
     keys = [(t, l, r) for r in range(1, reps + 1) for t in names for l in a.langs]
     run = Run(a, prices)
     manifest = {"prereg_sha256": sha256(os.path.join(HERE, "prereg.json")),
                 "prices_sha256": sha256(os.path.join(HERE, "prices.json")),
-                "tasks_sha256": sha256(os.path.join(HERE, "tasks.py")),
+                "task_set": a.task_set,
+                "tasks_sha256": sha256(os.path.join(HERE, "tasks.py" if a.task_set == "v1" else "tasks_v2.py")),
+                **({"authored_sha256": sha256(tasks_v2.AUTHORED)} if a.task_set == "v2" else {}),
                 "mode": "paid" if a.paid else "mock", "tier": a.tier, "reps": reps, "models": a.models,
                 "langs": a.langs, "tasks": names, "guard_usd": a.guard, "started_utc": accounting.utc_now().isoformat(),
                 "sley_card_topic": CARD_TOPIC,

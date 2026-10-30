@@ -456,6 +456,102 @@ class Oracle(unittest.TestCase):
             shutil.rmtree(d)
 
 
+PY_MASK = """def mask_digits(s: str) -> str:
+    total = sum(c.isdigit() for c in s)
+    out, seen = [], 0
+    for c in s:
+        if c in "0123456789":
+            seen += 1
+            out.append("*" if seen <= total - 4 else c)
+        else:
+            out.append(c)
+    return "".join(out)
+"""
+PY_CHUNKS = """def chunk_sums(xs: list[int], size: int) -> list[int]:
+    if size < 1:
+        raise ValueError("size")
+    return [sum(xs[i:i + size]) for i in range(0, len(xs), size)]
+"""
+C_MASK = """#include <string.h>
+void mask_digits(const char *s, char *out) {
+    size_t total = 0, seen = 0, n = strlen(s);
+    for (size_t i = 0; i < n; i++) total += s[i] >= '0' && s[i] <= '9';
+    for (size_t i = 0; i < n; i++) {
+        int d = s[i] >= '0' && s[i] <= '9';
+        seen += d;
+        out[i] = d && total > 4 && seen <= total - 4 ? '*' : s[i];
+    }
+    out[n] = 0;
+}
+"""
+C_CHUNKS = """#include <stddef.h>
+int chunk_sums(const long long *xs, size_t xs_len, long long size, long long *out, size_t *out_len) {
+    if (size < 1) return 1;
+    *out_len = 0;
+    for (size_t i = 0; i < xs_len; i += (size_t)size) {
+        long long t = 0;
+        for (size_t j = i; j < xs_len && j < i + (size_t)size; j++) t += xs[j];
+        out[(*out_len)++] = t;
+    }
+    return 0;
+}
+"""
+
+
+class HarnessV2(unittest.TestCase):
+    def test_signatures(self):
+        self.assertEqual(langs.signature("mask_digits", "python"), "def mask_digits(s: str) -> str")
+        self.assertTrue(langs.signature("chunk_sums", "c").startswith(
+            "int chunk_sums(const long long *xs, size_t xs_len, long long size, long long *out, size_t *out_len)"))
+        self.assertTrue(langs.signature("mask_digits", "c").startswith("void mask_digits(const char *s, char *out)"))
+        self.assertEqual(langs.signature("run_length_decode", "rust"), "pub fn run_length_decode(s: &str) -> Result<String, String>")
+        self.assertEqual(langs.signature("dense_rank", "go"), "func DenseRank(xs []int64) []int64  (package solution)")
+        self.assertEqual(langs.signature("to_roman", "ts"), "export function toRoman(n: number): string  (throw an Error on error)")
+        self.assertEqual(langs.lit("c", 'a"\\b'), '"a\\"\\\\b"')
+        self.assertEqual(run.task_prompt("to_roman", "python").splitlines()[-1], "  to_roman(4000) -> error")
+
+    def score(self, task, lang, src):
+        d = tempfile.mkdtemp()
+        try:
+            ok, out = langs.check(task, lang, src, os.path.join(d, "v"))
+            return ok, langs.oracle(task, lang, src, os.path.join(d, "o")), out
+        finally:
+            shutil.rmtree(d)
+
+    def test_python_string_and_list_results(self):
+        for task, src in (("mask_digits", PY_MASK), ("chunk_sums", PY_CHUNKS)):
+            ok, o, out = self.score(task, "python", src)
+            self.assertTrue(ok, out)
+            self.assertEqual(o["passed"], 128, o)
+        ok, o, _ = self.score("chunk_sums", "python", PY_CHUNKS.replace("return [", "return tuple(").replace(" size)]", " size))"))
+        self.assertFalse(ok)
+        self.assertEqual(o["first_failure"]["got"][:4], "BAD ")
+
+    @unittest.skipUnless(shutil.which("gcc"), "gcc")
+    def test_c_string_and_list_results(self):
+        for task, src in (("mask_digits", C_MASK), ("chunk_sums", C_CHUNKS)):
+            ok, o, out = self.score(task, "c", src)
+            self.assertTrue(ok, out)
+            self.assertEqual(o["passed"], 128, o)
+        ok, o, _ = self.score("mask_digits", "c", C_MASK.replace("'*'", "'#'"))
+        self.assertFalse(ok)
+        self.assertLess(o["passed"], 128)
+
+    def test_task_set_flag(self):
+        d = tempfile.mkdtemp()
+        try:
+            r = subprocess.run([sys.executable, os.path.join(HERE, "run.py"), "--out", d, "--task-set", "v2",
+                                "--tasks", "fib"], capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("not in task set v2: fib", r.stderr)
+            r = subprocess.run([sys.executable, os.path.join(HERE, "run.py"), "--task-set", "v2", "--tier", "full",
+                                "--project", "--models", "claude-haiku-5-5"], capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(json.loads(r.stdout)["trials_per_model"] % 24, 0)
+        finally:
+            shutil.rmtree(d)
+
+
 @unittest.skipUnless(os.environ.get("SLEY_AGENT") and shutil.which("gcc"), "SLEY_AGENT and gcc")
 class DryRun(unittest.TestCase):
     def run_cli(self, *extra):

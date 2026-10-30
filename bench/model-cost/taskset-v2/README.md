@@ -3,8 +3,10 @@
 Status (30 Oct 2026): rules fixed and the 24 task statements authored
 (`authored.json`, unedited). The oracle and 128 seeded hidden cases per task
 are in `../tasks_v2.py`; every authored example agrees with the oracle, so
-there are no amendments. Harness support for `str` and list values and the
-reference programs are next. The set is not hashed into `prereg.json`, the
+there are no amendments. The harness (`langs.py`, `run.py --task-set v2`,
+`verify_refs.py --task-set v2`) handles `str` parameters and list and string
+results in all six languages; v1 tests and drivers are byte-for-byte
+unchanged. The reference programs are next. The set is not hashed into `prereg.json`, the
 held-out tasks are not written, and no model call has used v2. Sley's 2.2 list work (#88, #89) landed before these rules were
 written; the audit asked for the reverse order, and this is recorded here so
 v2 results are read with that in mind.
@@ -80,8 +82,8 @@ v1.
 
 Done: a Python oracle per task with 128 seeded cases, edge cases first, all
 inside each statement's bounds (`tasks_v2.py`; 30 Oct, no example disagreed).
-Next, in order: harness kinds `str` and list
-returns, reference programs in six languages (`verify_refs.py`), the 6
+Done: harness kinds `str` and list
+returns (30 Oct). Next, in order: reference programs in six languages (`verify_refs.py`), the 6
 sealed held-out tasks authored and hashed, the `prereg.json` hash, then the
 Python-only pass.
 
