@@ -2292,12 +2292,26 @@ index is not visible); `["for-indexed", i, x, xs, [..]]` (read-only `u64` index 
 `["range", i, start, end, [..]]` (read-only integer induction variable); `["while", c, [..]]`; `["return", e]`, or in a function returning `Result`,
 `["ok", e]` and `["fail", "Case"]`; `["trap"]`; `["break"]` and `["continue"]` (2.1.1: the
 innermost loop); `["declare", x, w]` (2.1.1: a `var` of `w`'s static type holding its zero; `w` is
-not evaluated). Variables declared in a branch or loop body go out of
+not evaluated); `["list", x, T]` or `["list", x, T, n, fill]`, `["append", x, e]` and
+`["store", x, i, e]` (2.2: list locals, below). Variables declared in a branch or loop body go out of
 scope at its end. A `let` or `var` in the same statement list as an earlier declaration of the name
 rebinds it; inside a nested branch or loop body, declaring a name that is declared outside that body
 (a variable, a parameter, or a `for` variable) is refused, because hiding and overwriting the outer
 name are both familiar readings. A body must not reach its end without returning, and a statement
 after one that returns is refused.
+
+A list local (2.2) is a growable sequence of `T` held as a `Map<u64,T>` whose keys are exactly
+`0..len`, built from the existing map operations; no opcode or kernel rule changes. `["list", x, T]`
+starts empty; `["list", x, T, n, fill]` evaluates `fill` once, converts `n` to `u64` (a negative
+count fails like `to`), then appends `n` copies. `["append", x, e]` inserts `e` at key `len` and
+adds one to the length; `["store", x, i, e]` evaluates the `u64` index, then `e`, then traps when
+`i >= len`, and replaces element `i`. `["len", x]` reads the length and `["get", x, i]` traps when
+`i >= len` (`get?Case` returns error case `Case` instead, and `get?` returns `None` from an `Option` function). A list name is never a value: it
+cannot be copied, set, passed, returned or rebound, and no other declaration in the function may
+use its name, so no two names alias one list. Each `map_insert` result is charged its full value
+units under EXTENDED_V1, so the cumulative charge of `n` appends grows with `n^2` even though an
+unshared map is updated in place; a large build ends in a `ValueUnits` resource limit (about 3,000
+`i64` appends fit the dev-loop ceiling with room to spare).
 
 A range is half-open: visit `start`, `start + 1`, ... while less than `end`.
 Bounds evaluate exactly once, left to right, before testing emptiness. Equal or

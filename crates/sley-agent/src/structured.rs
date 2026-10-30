@@ -11,6 +11,9 @@
 //! `["range", i, start, end, [..]]`, `["for-indexed", i, x, xs, [..]]`,
 //! `["return", e]`, `["ok", e]`, `["fail", Case]`, `["trap"]`, `["break"]` and
 //! `["continue"]` (the innermost loop: leave it, or go to its next pass).
+//! List locals: `["list", x, T]` or `["list", x, T, n, fill]`,
+//! `["append", x, e]` and `["store", x, i, e]`, read with `get` and `len`; a
+//! list is a `Map<u64,T>` keyed `0..len` and its name is never a value.
 //!
 //! Expressions: a name, an integer, `true`/`false`, a typed literal
 //! `{"type": T, "value": v}`, or `[op, args..]`:
@@ -189,6 +192,13 @@ fn signed(ty: &str) -> bool {
 
 fn vec_elem(ty: &str) -> Option<String> {
     ty.strip_prefix("Vec<")?
+        .strip_suffix('>')
+        .map(str::to_owned)
+}
+
+/// The value type of a `Map<u64,T>` (a list local's storage).
+fn map_value(ty: &str) -> Option<String> {
+    ty.strip_prefix("Map<u64,")?
         .strip_suffix('>')
         .map(str::to_owned)
 }
@@ -382,6 +392,11 @@ struct Fn<'c, 'a> {
     /// Body names whose every binding is a non-negative integer (see
     /// `nonnegative_names`): Python's `//` and `%` on them need no sign fixup.
     nonneg: BTreeSet<String>,
+    /// List locals (`["list", ..]`): the list's name to the name of the
+    /// binding that holds its length. A list is a `Map<u64,T>` whose keys
+    /// are exactly `0..len`, so a read of a missing key is an out-of-range
+    /// index and a store never changes the length.
+    lists: BTreeMap<String, String>,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -444,7 +459,15 @@ impl<'c, 'a> Fn<'c, 'a> {
             shadows: Vec::new(),
             depth: 0,
             nonneg,
+            lists: BTreeMap::new(),
         })
+    }
+
+    /// The length binding of the list local `e` names, if it names one in scope.
+    fn list_len(&self, e: &Value, env: &Env) -> Option<String> {
+        let name = e.as_str()?;
+        env.get(name)?;
+        self.lists.get(name).cloned()
     }
 
     fn fresh(&mut self, base: &str) -> String {
@@ -633,7 +656,14 @@ impl<'c, 'a> Fn<'c, 'a> {
                     | "clamp" | "floordiv" | "floormod" => {
                         args.iter().find_map(|a| self.static_type(a, env, None))
                     }
-                    "get" => vec_elem(&self.static_type(args.first()?, env, None)?),
+                    "get" => {
+                        if let Some(list) = args.first().and_then(Value::as_str)
+                            && self.lists.contains_key(list)
+                        {
+                            return map_value(&env.get(list)?.ty);
+                        }
+                        vec_elem(&self.static_type(args.first()?, env, None)?)
+                    }
                     "field" => {
                         let rec = self.static_type(args.first()?, env, None)?;
                         self.record_fields(&rec)?
@@ -728,6 +758,14 @@ impl<'c, 'a> Fn<'c, 'a> {
                 };
             }
             Value::String(name) => {
+                if self.lists.contains_key(name) && env.get(name).is_some() {
+                    return fail(
+                        at,
+                        format!(
+                            "`{name}` is a list: read it with [\"get\", {name}, i] or [\"len\", {name}] and change it with store or append (it cannot be copied, passed or returned)"
+                        ),
+                    );
+                }
                 if let Some(b) = env.get(name) {
                     return Ok((b.operand.clone(), b.ty.clone()));
                 }
@@ -1026,6 +1064,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                 if args.len() != 1 {
                     return fail(at, "`len` takes 1 operand");
                 }
+                if let Some(len) = self.list_len(&args[0], env) {
+                    return Ok((env.operand(&len), "u64".into()));
+                }
                 let (v, t) = self.expr(&args[0], env, &sub(0), None)?;
                 if vec_elem(&t).is_none() {
                     return fail(at, "`len` needs a vector");
@@ -1035,6 +1076,27 @@ impl<'c, 'a> Fn<'c, 'a> {
             "get" => {
                 if args.len() != 2 {
                     return fail(at, "`get` takes (vector, u64 index)");
+                }
+                if let Some(list) = args[0]
+                    .as_str()
+                    .filter(|_| self.list_len(&args[0], env).is_some())
+                {
+                    let list = list.to_owned();
+                    let (i, ti) = self.expr(&args[1], env, &sub(1), Some("u64"))?;
+                    if ti != "u64" {
+                        return fail(at, format!("a list index is u64, not {ti}"));
+                    }
+                    let binding = env.get(&list).cloned().expect("a list in scope");
+                    let elem = map_value(&binding.ty).expect("a list is a map");
+                    let handler = self.handler(mode, at)?;
+                    return Ok((
+                        self.emit_value(
+                            &format!("map_get?{handler}"),
+                            vec![binding.operand, i],
+                            at,
+                        ),
+                        elem,
+                    ));
                 }
                 let (v, t) = self.expr(&args[0], env, &sub(0), None)?;
                 let Some(elem) = vec_elem(&t) else {
@@ -1424,6 +1486,19 @@ impl<'c, 'a> Fn<'c, 'a> {
                     format!("{here}/{i}")
                 }
             };
+            // A list name belongs to its list for the rest of the function:
+            // no other statement may bind or rebind it.
+            if !matches!(kind, "list" | "set" | "store" | "append")
+                && let Some(name) = items.get(1).and_then(Value::as_str)
+                && self.lists.contains_key(name)
+            {
+                return fail(
+                    &here,
+                    format!(
+                        "`{name}` is a list: read it with get or len and change it with store or append"
+                    ),
+                );
+            }
             match kind {
                 "let" => {
                     if items.len() != 3 {
@@ -1524,6 +1599,12 @@ impl<'c, 'a> Fn<'c, 'a> {
                 }
                 "set" => {
                     let target = items.get(1).and_then(Value::as_str).unwrap_or_default();
+                    if self.lists.contains_key(target) && env.get(target).is_some() {
+                        return fail(
+                            &here,
+                            format!("`{target}` is a list: change it with store or append"),
+                        );
+                    }
                     let Some(binding) = env
                         .get(target)
                         .filter(|b| b.mutable && items.len() == 3)
@@ -1546,6 +1627,176 @@ impl<'c, 'a> Fn<'c, 'a> {
                             mutable: true,
                         },
                     );
+                }
+                "list" => {
+                    // ["list", x, T] or ["list", x, T, n, fill]: a growable
+                    // list local of n copies of fill (fill evaluated once).
+                    if items.len() != 3 && items.len() != 5 {
+                        return fail(
+                            &here,
+                            "[\"list\", name, element type] or [\"list\", name, element type, count, fill]",
+                        );
+                    }
+                    let n = name_ok(1)?;
+                    if env.get(&n).is_some()
+                        || self.lists.contains_key(&n)
+                        || self.params.contains_key(&n)
+                    {
+                        return fail(
+                            &here,
+                            format!("`{n}` is already declared; a list needs a name of its own"),
+                        );
+                    }
+                    let Some(elem) = items[2].as_str().map(normal) else {
+                        return fail(&part(2), "a list's element type is a type name");
+                    };
+                    let fill = if items.len() == 5 {
+                        let (v, t) = self.expr(&items[4], env, &part(4), Some(&elem))?;
+                        if t != elem {
+                            return fail(
+                                &part(4),
+                                format!("`{n}` holds {elem} but the fill is {t}"),
+                            );
+                        }
+                        Some(self.hold(env, v, &t))
+                    } else {
+                        None
+                    };
+                    // An empty map_new cannot fail, but its declared result
+                    // is Result<Map, DuplicateKeyError>: unwrap it.
+                    let storage = self.fresh("t");
+                    let trap = self.trap_block();
+                    self.emit(
+                        json!({
+                            "name": storage,
+                            "op": format!("map?{trap}"),
+                            "args": [],
+                            "type": format!("Result<Map<u64,{elem}>,DuplicateKeyError>")
+                        }),
+                        &here,
+                    );
+                    let len = self.fresh("len");
+                    env.set(
+                        &len,
+                        Binding {
+                            operand: Self::lit(&json!(0), "u64"),
+                            ty: "u64".into(),
+                            mutable: true,
+                        },
+                    );
+                    env.set(
+                        &n,
+                        Binding {
+                            operand: Value::String(storage),
+                            ty: format!("Map<u64,{elem}>"),
+                            mutable: true,
+                        },
+                    );
+                    self.lists.insert(n.clone(), len);
+                    if let Some(fill) = fill {
+                        let mut k = self.counter;
+                        let counter = loop {
+                            k += 1;
+                            let candidate = format!("list_fill_{k}");
+                            if env.get(&candidate).is_none()
+                                && !self.params.contains_key(&candidate)
+                            {
+                                break candidate;
+                            }
+                        };
+                        let count = items[3].clone();
+                        let fill_loop = json!([[
+                            "range",
+                            counter,
+                            {"type": "u64", "value": 0},
+                            ["to", "u64", count],
+                            [["append", n, fill]]
+                        ]]);
+                        self.stmts(fill_loop.as_array().expect("a list"), env, &part(3), true)?;
+                    }
+                }
+                "store" | "append" => {
+                    // ["store", x, i, e] replaces element i (i < len, else a
+                    // trap); ["append", x, e] adds e at index len.
+                    let arity = if kind == "store" { 4 } else { 3 };
+                    let x = items
+                        .get(1)
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned();
+                    let Some(len) = self
+                        .list_len(&items[1], env)
+                        .filter(|_| items.len() == arity)
+                    else {
+                        return fail(
+                            &here,
+                            if kind == "store" {
+                                format!(
+                                    "[\"store\", list, u64 index, value] needs a list in scope (`{x}`)"
+                                )
+                            } else {
+                                format!("[\"append\", list, value] needs a list in scope (`{x}`)")
+                            },
+                        );
+                    };
+                    let elem =
+                        map_value(&env.get(&x).expect("a list").ty).expect("a list is a map");
+                    let index = if kind == "store" {
+                        let (i, ti) = self.expr(&items[2], env, &part(2), Some("u64"))?;
+                        if ti != "u64" {
+                            return fail(&part(2), format!("a list index is u64, not {ti}"));
+                        }
+                        Some(self.hold(env, i, "u64"))
+                    } else {
+                        None
+                    };
+                    let (v, t) =
+                        self.expr(&items[arity - 1], env, &part(arity - 1), Some(&elem))?;
+                    if t != elem {
+                        return fail(&part(arity - 1), format!("`{x}` holds {elem}, not {t}"));
+                    }
+                    let index = match index {
+                        Some(key) => {
+                            let i = Self::release(env, &[key]).remove(0);
+                            // The index must already be in the list.
+                            let trap = self.trap_block();
+                            let storage = env.operand(&x);
+                            self.emit_value(
+                                &format!("map_get?{trap}"),
+                                vec![storage, i.clone()],
+                                &here,
+                            );
+                            i
+                        }
+                        None => env.operand(&len),
+                    };
+                    let storage = env.operand(&x);
+                    let stored =
+                        self.emit_value("map_insert", vec![storage, index.clone(), v], &here);
+                    env.set(
+                        &x,
+                        Binding {
+                            operand: stored,
+                            ty: format!("Map<u64,{elem}>"),
+                            mutable: true,
+                        },
+                    );
+                    if kind == "append" {
+                        let trap = self.trap_block();
+                        let grown = self.emit_value(
+                            &format!("add?{trap}"),
+                            vec![index, Self::lit(&json!(1), "u64")],
+                            &here,
+                        );
+                        env.set(
+                            &len,
+                            Binding {
+                                operand: grown,
+                                ty: "u64".into(),
+                                mutable: true,
+                            },
+                        );
+                    }
                 }
                 "if" => self.if_stmt(items, env, &here, internal)?,
                 "for" | "for-indexed" => self.for_stmt(items, env, &here)?,

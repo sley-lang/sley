@@ -672,3 +672,182 @@ fn the_help_example_runs() {
         json!({"Ok": 1})
     );
 }
+
+#[test]
+#[allow(clippy::too_many_lines)] // one scenario per list operation
+fn list_locals_grow_store_and_read() {
+    let temp = workspace("lists");
+    // A sieve: count the primes below n with a list of n flags.
+    let sieve = function(
+        "primes",
+        json!([["n", "u64"]]),
+        "u64",
+        json!([
+            ["list", "flags", "bool", "n", true],
+            ["var", "count", "u64", 0],
+            [
+                "range",
+                "i",
+                2,
+                "n",
+                [[
+                    "if",
+                    ["get", "flags", "i"],
+                    [
+                        ["set", "count", ["add", "count", 1]],
+                        ["var", "j", "u64", ["mul", "i", "i"]],
+                        [
+                            "while",
+                            ["lt", "j", "n"],
+                            [
+                                ["store", "flags", "j", false],
+                                ["set", "j", ["add", "j", "i"]]
+                            ]
+                        ]
+                    ]
+                ]]
+            ],
+            ["return", "count"]
+        ]),
+    );
+    let handle = valid(&temp.path, &sieve);
+    assert_eq!(call(&temp.path, &handle, "primes", &[json!(0)]), json!(0));
+    assert_eq!(call(&temp.path, &handle, "primes", &[json!(2)]), json!(0));
+    assert_eq!(call(&temp.path, &handle, "primes", &[json!(30)]), json!(10));
+    assert_eq!(
+        call(&temp.path, &handle, "primes", &[json!(1000)]),
+        json!(168)
+    );
+
+    // Append builds a list; len and get read it back in order.
+    let squares = function(
+        "squares",
+        json!([["n", "i64"]]),
+        "i64",
+        json!([
+            ["list", "xs", "i64"],
+            ["range", "i", 0, "n", [["append", "xs", ["mul", "i", "i"]]]],
+            ["var", "s", "i64", 0],
+            [
+                "range",
+                "k",
+                0,
+                ["len", "xs"],
+                [["set", "s", ["add", ["mul", "s", 3], ["get", "xs", "k"]]]]
+            ],
+            ["return", ["add", "s", ["to", "i64", ["len", "xs"]]]]
+        ]),
+    );
+    let handle = valid(&temp.path, &squares);
+    // xs = [0, 1, 4, 9]: s = ((0*3+0)*3+1)*3+4)*3+9 = 30, plus len 4.
+    assert_eq!(call(&temp.path, &handle, "squares", &[json!(4)]), json!(34));
+    assert_eq!(call(&temp.path, &handle, "squares", &[json!(0)]), json!(0));
+
+    // Out-of-range reads and stores trap; get? returns the failure instead.
+    let reads = function(
+        "at",
+        json!([["n", "u64"], ["i", "u64"]]),
+        "i64",
+        json!([
+            ["list", "xs", "i64", "n", 7],
+            ["return", ["get", "xs", "i"]]
+        ]),
+    );
+    let handle = valid(&temp.path, &reads);
+    assert_eq!(
+        call(&temp.path, &handle, "at", &[json!(3), json!(2)]),
+        json!(7)
+    );
+    assert!(
+        call(&temp.path, &handle, "at", &[json!(3), json!(3)])
+            .to_string()
+            .contains("trap")
+    );
+    let stores = function(
+        "put",
+        json!([["n", "u64"], ["i", "u64"]]),
+        "i64",
+        json!([
+            ["list", "xs", "i64", "n", 0],
+            ["store", "xs", "i", 5],
+            ["return", ["get", "xs", "i"]]
+        ]),
+    );
+    let handle = valid(&temp.path, &stores);
+    assert_eq!(
+        call(&temp.path, &handle, "put", &[json!(3), json!(1)]),
+        json!(5)
+    );
+    assert!(
+        call(&temp.path, &handle, "put", &[json!(3), json!(3)])
+            .to_string()
+            .contains("trap")
+    );
+
+    let mut checked = function(
+        "at2",
+        json!([["n", "i64"], ["i", "u64"]]),
+        "Result<i64,E>",
+        json!([
+            ["list", "xs", "i64", "n", 4],
+            ["ok", ["get?Out", "xs", "i"]]
+        ]),
+    );
+    checked["types"] = json!([{"name": "E", "variant": ["Out"]}]);
+    let handle = valid(&temp.path, &checked);
+    let at2 = |n: i64, i: u64| call(&temp.path, &handle, "at2", &[json!(n), json!(i)]);
+    assert_eq!(at2(2, 1), json!({"Ok": 4}));
+    assert_eq!(at2(2, 2), json!({"Err": "Out"}));
+    // A negative count fails its conversion to u64.
+    assert!(at2(-1, 0).to_string().contains("trap"));
+
+    // A list is never copied, reassigned, passed or returned.
+    for body in [
+        json!([["list", "xs", "i64"], ["let", "ys", "xs"], ["return", 0]]),
+        json!([["list", "xs", "i64"], ["set", "xs", "xs"], ["return", 0]]),
+        json!([["list", "xs", "i64"], ["append", "xs", true], ["return", 0]]),
+        json!([["append", "nope", 1], ["return", 0]]),
+        json!([
+            ["list", "xs", "i64"],
+            ["var", "xs", "i64", 0],
+            ["return", 0]
+        ]),
+        json!([
+            ["var", "xs", "i64", 0],
+            ["list", "xs", "i64"],
+            ["return", 0]
+        ]),
+        json!([["list", "xs", "i64"], ["return", "xs"]]),
+    ] {
+        let text = refusal(&temp.path, &function("bad", json!([]), "i64", body));
+        assert!(text.contains("list"), "{text}");
+    }
+}
+
+#[test]
+fn appends_build_thousands_and_stop_cleanly_at_the_value_unit_ceiling() {
+    let temp = workspace("lists-big");
+    let build = function(
+        "build",
+        json!([["n", "i64"]]),
+        "i64",
+        json!([
+            ["list", "xs", "i64"],
+            ["range", "i", 0, "n", [["append", "xs", "i"]]],
+            ["return", ["get", "xs", ["to", "u64", ["sub", "n", 1]]]]
+        ]),
+    );
+    let handle = valid(&temp.path, &build);
+    assert_eq!(
+        call(&temp.path, &handle, "build", &[json!(3000)]),
+        json!(2999)
+    );
+    // Every map_insert result is charged its full value units (EXTENDED_V1
+    // accounting), so the cumulative charge of n appends grows as n^2 even
+    // though the owned path inserts in place: a large build ends in a clean
+    // resource limit, never a fault.
+    assert_eq!(
+        call(&temp.path, &handle, "build", &[json!(100_000)]),
+        json!({"limit": "ValueUnits"})
+    );
+}
