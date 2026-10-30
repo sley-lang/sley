@@ -1,0 +1,189 @@
+{
+  "mode": "paid",
+  "manifest": {
+    "prereg_sha256": "633246287c2c97156bc22e916f32437b6dac124df0efdc7d019c3c2c8fb5e1af",
+    "prices_sha256": "61b915d8f088cae59f3f9c479dbff89db39a65279660c0d3b8ffcb4445e2eed5",
+    "tasks_sha256": "9d7fbcfb7c9bef2fe1a082bc71c964bae65a1d215e09829fbee172829e7617cf",
+    "mode": "paid",
+    "tier": "full",
+    "reps": 3,
+    "models": [
+      "claude-haiku-5-5"
+    ],
+    "langs": [
+      "python",
+      "sley",
+      "c",
+      "rust",
+      "go",
+      "ts"
+    ],
+    "tasks": [
+      "fib",
+      "collatz",
+      "primes",
+      "digitsum",
+      "isqrt",
+      "inversions",
+      "transform",
+      "parse_int",
+      "longest_run",
+      "second_largest",
+      "pair_count",
+      "max_depth",
+      "mode_value",
+      "max_subarray",
+      "count_leq",
+      "root_sum",
+      "clamp_sum",
+      "count_multiples"
+    ],
+    "guard_usd": 10.0,
+    "started_utc": "2026-10-30T21:36:06.311535+00:00",
+    "sley_card_topic": "python-task",
+    "sley_card_sha256": "e26c1bfcf0c74afec448b70eba6ead3ed6790784a5401ad26703e5b048333566",
+    "labels": {}
+  },
+  "cells": [
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "c",
+      "trials": 54,
+      "infra_excluded": 0,
+      "success": 54,
+      "success_rate": 1.0,
+      "first_try": 54,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.0,
+      "spend_usd": 0.0139534,
+      "usd_per_trial": 0.0002583962962962963,
+      "usd_per_correct": 0.0002583962962962963,
+      "tokens_per_trial": {
+        "input": 274.6111111111111,
+        "cached": 0.0,
+        "output": 461.8703703703704,
+        "reasoning": 0.0
+      },
+      "calls": 54,
+      "batch_calls": 0,
+      "truncated_calls": 0
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "go",
+      "trials": 54,
+      "infra_excluded": 0,
+      "success": 54,
+      "success_rate": 1.0,
+      "first_try": 54,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.0,
+      "spend_usd": 0.0099916,
+      "usd_per_trial": 0.00018502962962962962,
+      "usd_per_correct": 0.00018502962962962962,
+      "tokens_per_trial": {
+        "input": 250.38888888888889,
+        "cached": 0.0,
+        "output": 319.98148148148147,
+        "reasoning": 0.0
+      },
+      "calls": 54,
+      "batch_calls": 0,
+      "truncated_calls": 0
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "python",
+      "trials": 54,
+      "infra_excluded": 0,
+      "success": 54,
+      "success_rate": 1.0,
+      "first_try": 54,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.0,
+      "spend_usd": 0.0050862,
+      "usd_per_trial": 9.418888888888889e-05,
+      "usd_per_correct": 9.418888888888889e-05,
+      "tokens_per_trial": {
+        "input": 233.55555555555554,
+        "cached": 0.0,
+        "output": 141.66666666666666,
+        "reasoning": 0.0
+      },
+      "calls": 54,
+      "batch_calls": 0,
+      "truncated_calls": 0
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "rust",
+      "trials": 54,
+      "infra_excluded": 0,
+      "success": 54,
+      "success_rate": 1.0,
+      "first_try": 54,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.0,
+      "spend_usd": 0.0087373,
+      "usd_per_trial": 0.00016180185185185185,
+      "usd_per_correct": 0.00016180185185185185,
+      "tokens_per_trial": {
+        "input": 250.61111111111111,
+        "cached": 0.0,
+        "output": 273.48148148148147,
+        "reasoning": 0.0
+      },
+      "calls": 54,
+      "batch_calls": 0,
+      "truncated_calls": 0
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "sley",
+      "trials": 54,
+      "infra_excluded": 0,
+      "success": 54,
+      "success_rate": 1.0,
+      "first_try": 51,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.0555555555555556,
+      "spend_usd": 0.0064573,
+      "usd_per_trial": 0.00011957962962962963,
+      "usd_per_correct": 0.00011957962962962963,
+      "tokens_per_trial": {
+        "input": 853.0,
+        "cached": 665.0,
+        "output": 188.25925925925927,
+        "reasoning": 0.0
+      },
+      "calls": 57,
+      "batch_calls": 0,
+      "truncated_calls": 0
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "lang": "ts",
+      "trials": 54,
+      "infra_excluded": 0,
+      "success": 54,
+      "success_rate": 1.0,
+      "first_try": 54,
+      "visible_pass_hidden_fail": 0,
+      "attempts_per_trial": 1.0,
+      "spend_usd": 0.0074611,
+      "usd_per_trial": 0.00013816851851851852,
+      "usd_per_correct": 0.00013816851851851852,
+      "tokens_per_trial": {
+        "input": 246.22222222222223,
+        "cached": 0.0,
+        "output": 227.09259259259258,
+        "reasoning": 0.0
+      },
+      "calls": 54,
+      "batch_calls": 0,
+      "truncated_calls": 0
+    }
+  ],
+  "spend_usd": 0.0516869,
+  "infra_failures": []
+}

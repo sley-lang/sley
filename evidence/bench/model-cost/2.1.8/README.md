@@ -11,3 +11,10 @@ say nothing about any model.
 The paid runs (small, then full) will be added here with `results.jsonl`,
 `summary.json`, `summary.md` and `manifest.json`, after the API keys are
 confirmed. Design: `bench/model-cost/prereg.json`.
+
+`api-full-card/`: the full tier on the raw Anthropic Messages API (30 Oct
+2026; `claude-haiku-5-5`, effort low, Message Batches off, $0.05169 billed),
+with the same `python-task` card as `claude-code-full-card/`.
+`route-comparison.md` sets it against the Claude Code route: the CLI route
+thinks 1.5 to 3.2 times more per call and dilutes every ratio, so the two
+routes are reported separately and never pooled.
