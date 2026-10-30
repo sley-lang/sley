@@ -1,0 +1,10 @@
+{
+  "author": "Claude Code CLI (claude -p), model claude-opus-5-5, one turn, tools off, run in an empty directory with no access to the sley repository or the Sley card",
+  "date_utc": "2026-10-30T21:48Z",
+  "session_persistence": false,
+  "cost": "Claude subscription (CLI reported $1.70 at API list price; not billed per token)",
+  "prompt": "prompt.md",
+  "output": "authored.json is the JSON array from the reply, byte for byte; nothing edited",
+  "duration_ms": 117775,
+  "is_error": false
+}
