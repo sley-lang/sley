@@ -25,7 +25,7 @@ Expressions: a name, an integer, true, false, {"type":"text","value":"hi"}, {"ty
   if                            ["if", c, a, b]: only the chosen value is computed
   len (u64), get [xs, i] (u64 index; on a list, i >= len traps; get?Case returns Err(Case)), field [r, "name"], call ["helper", args...] (call? unwraps a Result)
 Integer literals take the other operand's type, else i64. Integer types never mix: len and indexes are u64.
-A list is never copied, passed or returned: read it with get, len, for and folds (a loop over a list cannot change it). Its name is reserved for it in the function.
+A list is never copied or passed: read it with get, len, for and folds (a loop over a list cannot change it). ["return", xs] returns it whole from a function whose result type is its Map<u64,T>. Its name is reserved for it in the function.
 Names are block-scoped; a nested block cannot redeclare a name declared outside it.
 A refusal points into the body (/fns/0/body/2/1); `sley-agent view --after cN` shows the blocks Sley built.
 Example:

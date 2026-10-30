@@ -2541,10 +2541,22 @@ else is refused at its line and column.
   section 5.4; `xs.append(v)`, `xs[i] = v` and `xs[i] op= v` (`+= -= *= //= %=`) map to `append` and
   `store`; `xs[i]`, `xs[-k]`, `len(xs)`, `for x in xs`, `enumerate(xs)` and folds read it. An index
   outside the list traps where Python raises `IndexError`. A list is built once, where it is first
-  assigned, and is never copied, passed, returned or rebound; a loop over a list cannot change it.
+  assigned, and is never copied, passed or rebound; a loop over a list cannot change it.
+- List comprehensions (2.2): `xs = [e for x in ys if c]` (or over `range(a, b)`, one loop variable
+  that is not already a variable) is a list local built by a loop that appends `e`; without a
+  `list[T]` annotation its elements are int.
+- List results (2.2): `def f(..) -> list[T]` returns a list local whole (`return xs`, `return []`,
+  `return [a, b]` or `return [e for ..]`). Its result type is the list's storage, `Map<u64,T>` keyed
+  `0..len`, so a call prints its `[index, value]` entries in the kernel's map order (by the keys'
+  canonical bytes, so `[256, v]` can come before `[129, w]`: sort by index to read it as a list),
+  and a test's expected `[a, b]` is read as the map `[[0, a], [1, b]]`. A list result is returned or
+  tested; using one inside the program (`ys = f(xs)`) is refused. A function whose `return`s hand
+  back only a `list[T]` parameter keeps the `Vec<T>` result; one that returns both a parameter and a
+  list local is asked to copy the parameter into a list.
 
-Not supported, and refused: list values other than local lists (a list passed, returned, copied
-or used inline such as `len([1, 2])`, comprehensions as values, a slice stored or returned), dicts,
+Not supported, and refused: list values other than local lists (a list passed, copied, used
+inline such as `len([1, 2])` or used as a call's result inside the program, a slice stored or
+returned), dicts,
 sets other than `len(set(xs))`, tuple values, `None`, methods other than `xs.append(v)`, `lambda`, `try`, `with`, string
 iteration and float types or literals. `help python` is the short reference; its first line is the one-line note for an
 author's system prompt.
