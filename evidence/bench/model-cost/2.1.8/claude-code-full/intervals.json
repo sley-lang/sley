@@ -1,0 +1,164 @@
+{
+  "method": "paired bootstrap over tasks, percentile 95% intervals",
+  "draws": 10000,
+  "seed": 218,
+  "baseline": "python",
+  "models": {
+    "claude-code-haiku-5-5": {
+      "c": {
+        "trials": 54,
+        "calls": 55,
+        "usd_per_trial": 0.0004819816666666667,
+        "thinking_per_call": 266.54545454545456,
+        "share_of_calls_thinking": 0.8,
+        "thinking_per_thinking_call": 333.1818181818182,
+        "vs_baseline": {
+          "tasks": 18,
+          "usd_per_trial_ratio": 1.6532170930398742,
+          "usd_per_trial_ratio_ci95": [
+            1.2917265094915846,
+            2.150583884265409
+          ],
+          "usd_per_trial_delta": 0.00019044,
+          "usd_per_trial_delta_ci95": [
+            8.4079662037037e-05,
+            0.00033814091666666663
+          ],
+          "thinking_per_call_delta": 184.84175084175087,
+          "thinking_per_call_delta_ci95": [
+            87.64459595959597,
+            292.48829004328996
+          ],
+          "tasks_thinking_more": 17,
+          "tasks_thinking_less": 0,
+          "thinking_sign_test_p": 1.52587890625e-05
+        }
+      },
+      "go": {
+        "trials": 54,
+        "calls": 55,
+        "usd_per_trial": 0.0004304785185185185,
+        "thinking_per_call": 225.38181818181818,
+        "share_of_calls_thinking": 0.6909090909090909,
+        "thinking_per_thinking_call": 326.2105263157895,
+        "vs_baseline": {
+          "tasks": 18,
+          "usd_per_trial_ratio": 1.4765591602750385,
+          "usd_per_trial_ratio_ci95": [
+            1.233387289694437,
+            1.736010585065442
+          ],
+          "usd_per_trial_delta": 0.00013893685185185185,
+          "usd_per_trial_delta_ci95": [
+            6.187141666666667e-05,
+            0.00024297674537037035
+          ],
+          "thinking_per_call_delta": 143.67811447811448,
+          "thinking_per_call_delta_ci95": [
+            42.370370370370374,
+            264.325003544214
+          ],
+          "tasks_thinking_more": 14,
+          "tasks_thinking_less": 2,
+          "thinking_sign_test_p": 0.004180908203125
+        }
+      },
+      "python": {
+        "trials": 54,
+        "calls": 54,
+        "usd_per_trial": 0.0002915416666666667,
+        "thinking_per_call": 81.70370370370371,
+        "share_of_calls_thinking": 0.5,
+        "thinking_per_thinking_call": 163.40740740740742,
+        "vs_baseline": null
+      },
+      "rust": {
+        "trials": 54,
+        "calls": 54,
+        "usd_per_trial": 0.0003356916666666667,
+        "thinking_per_call": 113.46296296296296,
+        "share_of_calls_thinking": 0.5370370370370371,
+        "thinking_per_thinking_call": 211.27586206896552,
+        "vs_baseline": {
+          "tasks": 18,
+          "usd_per_trial_ratio": 1.1514363298556525,
+          "usd_per_trial_ratio_ci95": [
+            0.9986281665929609,
+            1.3218088385420004
+          ],
+          "usd_per_trial_delta": 4.4150000000000016e-05,
+          "usd_per_trial_delta_ci95": [
+            -4.598518518518687e-07,
+            9.016340740740738e-05
+          ],
+          "thinking_per_call_delta": 31.759259259259252,
+          "thinking_per_call_delta_ci95": [
+            -47.148148148148145,
+            116.89212962962958
+          ],
+          "tasks_thinking_more": 10,
+          "tasks_thinking_less": 4,
+          "thinking_sign_test_p": 0.1795654296875
+        }
+      },
+      "sley": {
+        "trials": 54,
+        "calls": 56,
+        "usd_per_trial": 0.00035125277777777776,
+        "thinking_per_call": 186.28571428571428,
+        "share_of_calls_thinking": 0.8571428571428571,
+        "thinking_per_thinking_call": 217.33333333333334,
+        "vs_baseline": {
+          "tasks": 18,
+          "usd_per_trial_ratio": 1.2048115859177742,
+          "usd_per_trial_ratio_ci95": [
+            1.0434620837039594,
+            1.4060101560444653
+          ],
+          "usd_per_trial_delta": 5.971111111111109e-05,
+          "usd_per_trial_delta_ci95": [
+            1.4267944444444404e-05,
+            0.00010862892592592598
+          ],
+          "thinking_per_call_delta": 104.58201058201057,
+          "thinking_per_call_delta_ci95": [
+            49.00459595959596,
+            150.64732142857142
+          ],
+          "tasks_thinking_more": 16,
+          "tasks_thinking_less": 2,
+          "thinking_sign_test_p": 0.001312255859375
+        }
+      },
+      "ts": {
+        "trials": 54,
+        "calls": 54,
+        "usd_per_trial": 0.0003193046296296296,
+        "thinking_per_call": 97.33333333333333,
+        "share_of_calls_thinking": 0.4444444444444444,
+        "thinking_per_thinking_call": 219.0,
+        "vs_baseline": {
+          "tasks": 18,
+          "usd_per_trial_ratio": 1.0952281136360025,
+          "usd_per_trial_ratio_ci95": [
+            1.0221682044526346,
+            1.1660327200324534
+          ],
+          "usd_per_trial_delta": 2.776296296296292e-05,
+          "usd_per_trial_delta_ci95": [
+            6.217398148148123e-06,
+            5.4000939814814856e-05
+          ],
+          "thinking_per_call_delta": 15.629629629629619,
+          "thinking_per_call_delta_ci95": [
+            -18.77824074074075,
+            59.03888888888886
+          ],
+          "tasks_thinking_more": 9,
+          "tasks_thinking_less": 5,
+          "thinking_sign_test_p": 0.4239501953125
+        }
+      }
+    }
+  }
+}

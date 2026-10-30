@@ -7,7 +7,7 @@ import datetime, json, os, shutil, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import accounting, langs, providers, run, tasks  # noqa: E402
+import accounting, intervals, langs, providers, run, tasks  # noqa: E402
 
 PRICES = accounting.load_prices()
 LUNA, GROK, DS, HAIKU = (PRICES["models"][m] for m in ("gpt-6-luna", "grok-build-0.1", "deepseek-flash",
@@ -335,6 +335,57 @@ class Prompts(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("gcc"), "gcc")
+class Intervals(unittest.TestCase):
+    @staticmethod
+    def cell(spend, think):
+        """task -> counters, from per-task (spend per trial, thinking per call) with 3 trials and 3 calls each."""
+        return {t: {"spend": 3 * s, "trials": 3, "success": 3, "think": 3 * k, "calls": 3, "thinking_calls": 3 if k else 0}
+                for t, (s, k) in enumerate(zip(spend, think))}
+
+    def test_sign_test(self):
+        self.assertAlmostEqual(intervals.sign_test(18, 0), 2 / 2 ** 18)
+        self.assertEqual(intervals.sign_test(0, 0), 1.0)
+        self.assertEqual(intervals.sign_test(3, 3), 1.0)
+
+    def test_paired_bootstrap_point_values_and_coverage(self):
+        py = self.cell([1.0, 2.0, 3.0, 4.0], [0, 100, 0, 100])
+        sl = self.cell([1.5, 2.5, 3.5, 4.5], [200, 300, 200, 300])
+        c = intervals.compare(sl, py, draws=2000)
+        self.assertAlmostEqual(c["usd_per_trial_ratio"], 12 / 10)
+        self.assertAlmostEqual(c["usd_per_trial_delta"], 0.5)
+        # a constant per-task delta has no spread under paired resampling
+        self.assertAlmostEqual(c["usd_per_trial_delta_ci95"][0], 0.5)
+        self.assertAlmostEqual(c["usd_per_trial_delta_ci95"][1], 0.5)
+        self.assertAlmostEqual(c["thinking_per_call_delta"], 200)
+        self.assertEqual((c["tasks_thinking_more"], c["tasks_thinking_less"]), (4, 0))
+        lo, hi = c["usd_per_trial_ratio_ci95"]
+        self.assertTrue(lo <= c["usd_per_trial_ratio"] <= hi)
+
+    def test_seeded_and_reproducible(self):
+        py = self.cell([1, 2, 3, 4, 5], [0, 50, 0, 80, 10])
+        sl = self.cell([2, 1, 4, 4, 7], [90, 0, 300, 10, 40])
+        self.assertEqual(intervals.compare(sl, py, draws=500), intervals.compare(sl, py, draws=500))
+
+    def test_run_dir_end_to_end(self):
+        d = tempfile.mkdtemp()
+        rows = []
+        for task in ("a", "b"):
+            for lang, cost, think in (("python", 1e-4, 0), ("sley", 2e-4, 100)):
+                rows.append({"kind": "call", "model": "m", "task": task, "lang": lang, "billed_tokens": {},
+                             "usage": str({"output_tokens_details": {"thinking_tokens": think}})})
+                rows.append({"kind": "trial", "model": "m", "task": task, "lang": lang, "rep": 1, "infra": False,
+                             "success": True, "cost_usd": cost})
+        with open(os.path.join(d, "results.jsonl"), "w") as f:
+            f.write("\n".join(json.dumps(r) for r in rows))
+        out = intervals.intervals(d, draws=100)
+        s = out["models"]["m"]["sley"]
+        self.assertAlmostEqual(s["vs_baseline"]["usd_per_trial_ratio"], 2.0)
+        self.assertEqual(s["share_of_calls_thinking"], 1.0)
+        self.assertEqual(out["models"]["m"]["python"]["share_of_calls_thinking"], 0.0)
+        self.assertIn("| sley | 2.00x", open(os.path.join(d, "intervals.md")).read())
+        shutil.rmtree(d)
+
+
 class Oracle(unittest.TestCase):
     def test_overfit_program_passes_visible_but_not_hidden(self):
         cheat = ("long long fib(long long n) {\n    if (n == 0) return 0;\n    if (n == 1) return 1;\n"

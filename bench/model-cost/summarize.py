@@ -9,6 +9,8 @@ listed and left out of the denominators, as pre-registered.
 """
 import collections, json, os, sys
 
+import intervals as _intervals
+
 
 def summarize(run_dir):
     rows = [json.loads(l) for l in open(os.path.join(run_dir, "results.jsonl"))]
@@ -72,6 +74,9 @@ def summarize(run_dir):
                f"{c['billed_tokens']['cache_write'] + c['billed_tokens'].get('cache_write_1h', 0)} cache writes), so about {c['overhead_input_tokens_estimate']} "
                f"input tokens per call come from the CLI itself, not the task."]
         json.dump(s, open(os.path.join(run_dir, "summary.json"), "w"), indent=2)
+    if any(c["lang"] == "python" for c in out):
+        _intervals.intervals(run_dir)
+        md += ["", "Each language against Python with 95% intervals (paired bootstrap over tasks): `intervals.md`."]
     open(os.path.join(run_dir, "summary.md"), "w").write("\n".join(md) + "\n")
     return s
 
