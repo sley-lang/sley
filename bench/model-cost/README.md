@@ -64,6 +64,7 @@ it.) The guard stops a run before billed spend could pass $10.
 | File | |
 |---|---|
 | `tasks.py` | the 18 tasks, the reference oracle and the seeded hidden cases |
+| `tasks_v2.py` | task set v2: loads `taskset-v2/authored.json`, adds the reference oracle and 128 seeded hidden cases per task (not yet pre-registered) |
 | `refs/<task>/` | a reference program per language (checked by `verify_refs.py`) |
 | `starters/<task>/` | the existing file for the two edit tasks |
 | `langs.py` | signatures, visible tests, toolchain runs and oracle drivers per language |

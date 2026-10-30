@@ -7,7 +7,7 @@ import datetime, json, os, shutil, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import accounting, intervals, langs, providers, run, tasks  # noqa: E402
+import accounting, intervals, langs, providers, run, tasks, tasks_v2  # noqa: E402
 
 PRICES = accounting.load_prices()
 LUNA, GROK, DS, HAIKU = (PRICES["models"][m] for m in ("gpt-6-luna", "grok-build-0.1", "deepseek-flash",
@@ -46,6 +46,52 @@ class TaskSet(unittest.TestCase):
             for l in langs.LANGS:
                 self.assertTrue(os.path.exists(os.path.join(HERE, "refs", t["name"], langs.SRC[l])))
                 self.assertIn(langs.fn(t["name"], l), langs.signature(t["name"], l))
+
+
+class TaskSetV2(unittest.TestCase):
+    def test_authored_tasks_load_unedited(self):
+        authored = json.load(open(tasks_v2.AUTHORED))
+        self.assertEqual(len(tasks_v2.TASKS), 24)
+        self.assertEqual([t["name"] for t in authored], [t["name"] for t in tasks_v2.TASKS])
+        self.assertEqual(tasks_v2.AMENDMENTS, {})
+        self.assertFalse(set(tasks_v2.BY_NAME) & set(tasks.BY_NAME), "v2 names must not shadow v1")
+
+    def test_authored_examples_agree_with_the_oracle(self):
+        self.assertEqual(tasks_v2.check_visible(), [])
+
+    def test_hidden_cases_are_seeded_in_bounds_and_mixed(self):
+        for t in tasks_v2.TASKS:
+            cs = tasks_v2.cases(t["name"])
+            self.assertEqual(len(cs), 128)
+            self.assertEqual(cs, tasks_v2.cases(t["name"]))
+            self.assertNotEqual(cs, tasks_v2.cases(t["name"], seed=219))
+            for args, want in cs:
+                self.assertTrue(tasks_v2.in_bounds(t["name"], args), (t["name"], args))
+            outs = {tasks_v2.show(w) for _, w in cs}
+            self.assertGreater(len(outs), 1, t["name"])
+            if t["errors"]:
+                errs = sum(1 for _, w in cs if w == "error")
+                self.assertTrue(8 <= errs <= 100, (t["name"], errs))
+            else:
+                self.assertNotIn("ERR", outs, t["name"])
+
+    def test_show_is_one_compact_line(self):
+        self.assertEqual(tasks_v2.show(-3), "-3")
+        self.assertEqual(tasks_v2.show([1, -2]), "[1,-2]")
+        self.assertEqual(tasks_v2.show([]), "[]")
+        self.assertEqual(tasks_v2.show('a"b\\c'), '"a\\"b\\\\c"')
+        self.assertEqual(tasks_v2.show("error"), "ERR")
+
+    def test_oracle_spot_checks(self):
+        r = tasks_v2.reference
+        self.assertEqual(r("covered_length", [[0, 5, 5, 7, 1, 2]]), 7)
+        self.assertEqual(r("count_by_remainder", [[-1, 2, 3], 3]), [1, 0, 2])
+        self.assertEqual(r("moving_average_floor", [[-1, 0], 2]), [-1])
+        self.assertEqual(r("mask_digits", ["a12345"]), "a*2345")
+        self.assertEqual(r("caesar_shift", ["Zz", -1000000]), "Ll")
+        self.assertEqual(r("to_roman", [3999]), "MMMCMXCIX")
+        with self.assertRaises(tasks_v2.Error):
+            r("run_length_decode", ["a1000b1"])
 
 
 class Accounting(unittest.TestCase):

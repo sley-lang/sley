@@ -1,9 +1,11 @@
 # Task set v2 (2.2 measurement, item 0): design, to be pre-registered
 
 Status (30 Oct 2026): rules fixed and the 24 task statements authored
-(`authored.json`, unedited). No oracle, hidden cases or reference programs
-exist yet, the set is not hashed into `prereg.json`, and no model call has
-used v2. Sley's 2.2 list work (#88, #89) landed before these rules were
+(`authored.json`, unedited). The oracle and 128 seeded hidden cases per task
+are in `../tasks_v2.py`; every authored example agrees with the oracle, so
+there are no amendments. Harness support for `str` and list values and the
+reference programs are next. The set is not hashed into `prereg.json`, the
+held-out tasks are not written, and no model call has used v2. Sley's 2.2 list work (#88, #89) landed before these rules were
 written; the audit asked for the reverse order, and this is recorded here so
 v2 results are read with that in mind.
 
@@ -63,8 +65,9 @@ v2 results are read with that in mind.
 - Sley: a list return is refused by the 2.2 dialect today (a list local is
   never a value). v2 measures that honestly: such trials fail unless 2.2
   ships list returns, and the run reports them.
-- `tasks.py` keeps v1 unchanged (`TASKS_V1`), adds `TASKS_V2`, and `run.py`
-  takes `--task-set v1|v2` so the v1 evidence stays reproducible.
+- v2 lives in its own module, `tasks_v2.py`, so `tasks.py` (and the
+  `tasks_sha256` in v1 manifests) stays byte-for-byte unchanged; `run.py`
+  takes `--task-set v1|v2`.
 
 ## The authored set
 
@@ -75,15 +78,17 @@ Three tasks resemble v1 tasks (`second_largest_distinct`,
 `count_pairs_with_sum`, `bracket_depth`); they stay, since the author never saw
 v1.
 
-Next, in order: a Python oracle per task with 128 seeded cases (any example
-that disagrees with the oracle is an amendment), harness kinds `str` and list
+Done: a Python oracle per task with 128 seeded cases, edge cases first, all
+inside each statement's bounds (`tasks_v2.py`; 30 Oct, no example disagreed).
+Next, in order: harness kinds `str` and list
 returns, reference programs in six languages (`verify_refs.py`), the 6
 sealed held-out tasks authored and hashed, the `prereg.json` hash, then the
 Python-only pass.
 
 ## Amendments
 
-None yet.
+None yet. The oracle (`tasks_v2.py`, 30 Oct) agrees with all 120 authored
+examples; `tasks_v2.AMENDMENTS` is empty.
 
 ## Open decisions for Magister
 
