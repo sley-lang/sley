@@ -65,7 +65,7 @@ it.) The guard stops a run before billed spend could pass $10.
 |---|---|
 | `tasks.py` | the 18 tasks, the reference oracle and the seeded hidden cases |
 | `tasks_v2.py` | task set v2: loads `taskset-v2/authored.json`, adds the reference oracle and 128 seeded hidden cases per task (not yet pre-registered) |
-| `refs/<task>/` | a reference program per language (checked by `verify_refs.py`) |
+| `refs/<task>/` | a reference program per language (checked by `verify_refs.py`); v2 tasks Sley cannot express carry `sley.unsupported` |
 | `starters/<task>/` | the existing file for the two edit tasks |
 | `langs.py` | signatures, visible tests, toolchain runs and oracle drivers per language |
 | `providers.py` | Anthropic (Messages + Message Batches, prompt caching), Claude Code CLI, OpenAI (Responses + Batch), xAI and DeepSeek clients; `MockTransport` |
@@ -84,6 +84,7 @@ on PATH.
 
 ```sh
 python verify_refs.py                         # 108 reference programs vs the oracle
+python verify_refs.py --task-set v2           # v2: 126 reference programs vs the oracle (18 Sley n/a)
 python -m pytest test_model_cost.py           # no network
 python run.py --out /tmp/dry --tier small     # dry run: in-process mock, no key, no spend
 python summarize.py /tmp/dry
