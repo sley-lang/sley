@@ -1777,9 +1777,9 @@ impl Parser {
             Kind::Op if tok.text == "[" && self.python => {
                 return refuse(
                     tok.pos,
-                    "list values are not supported (lists cannot be built or grown): keep a \
-                     count, sum or best value in a loop, or use sum/any/all/len/max/min over a \
-                     generator",
+                    "a list value is built only as a local: xs = [], xs = [v] * n or xs = [a, b], \
+                     then xs.append(v) and xs[i] = v (or use sum/any/all/len/max/min over a \
+                     generator)",
                 );
             }
             Kind::Name => {}
@@ -2173,7 +2173,10 @@ impl Parser {
             return Ok(Some(node));
         }
         if bracket {
-            return refuse(pos, "list values are not supported");
+            return refuse(
+                pos,
+                "a list value is built only as a local: write xs = [a, b] on its own line, then use xs",
+            );
         }
         self.expect_op(")")?;
         if name == "len" {
@@ -2300,10 +2303,10 @@ const DICT_HINT: &str = "dicts and sets are not supported: count matches with \
 /// What to write instead of a Python list or dict method the dialect lacks.
 fn py_method_hint(method: &str) -> Option<&'static str> {
     Some(match method {
-        "append" | "extend" | "insert" | "pop" | "remove" | "clear" | "sort" | "reverse"
-        | "copy" => {
-            "lists cannot change: keep a count, sum or best value in a loop, or use \
-             sum/any/all/len/max/min over a generator"
+        "append" => "xs.append(v) is a statement of its own, on a list built in this function",
+        "extend" | "insert" | "pop" | "remove" | "clear" | "sort" | "reverse" | "copy" => {
+            "a list built in the function (xs = [] or [v] * n) changes only by xs.append(v) and \
+             xs[i] = v; otherwise keep a count, sum or best value in a loop"
         }
         "get" | "items" | "keys" | "values" | "setdefault" | "update" | "add" => DICT_HINT,
         "count" => "count matches with sum(1 for y in xs if y == x)",
@@ -3523,6 +3526,9 @@ impl Parser {
                     "=" => {
                         self.bump();
                         self.bump();
+                        if self.at_op("[") {
+                            return self.py_list_value(&name, None, pos).map(Some);
+                        }
                         let value = self.expr()?;
                         self.py_end_of_statement()?;
                         let target = Node::atom(pos, Value::String(name.clone()));
@@ -3538,6 +3544,18 @@ impl Parser {
                         self.bump();
                         let (ty, ty_pos) = self.py_type()?;
                         self.expect_op("=")?;
+                        if self.at_op("[") {
+                            let Some(elem) =
+                                ty.strip_prefix("Vec<").and_then(|t| t.strip_suffix('>'))
+                            else {
+                                return refuse(
+                                    ty_pos,
+                                    format!("a list value needs a list type, not {ty}"),
+                                );
+                            };
+                            let elem = elem.to_owned();
+                            return self.py_list_value(&name, Some(elem), pos).map(Some);
+                        }
                         let value = self.expr()?;
                         self.py_end_of_statement()?;
                         let target = Node::atom(pos, Value::String(name.clone()));
@@ -3604,6 +3622,7 @@ impl Parser {
                         )
                     }
                     "/=" => return refuse(self.peek_at(1).pos, "/ is float division: write //="),
+                    "[" => return self.py_element_assignment().map(Some),
                     "," => return self.py_tuple_assignment().map(Some),
                     _ => return self.py_expression_statement(),
                 }
@@ -3686,8 +3705,172 @@ impl Parser {
         ))
     }
 
+    /// `xs = []`, `xs = [v] * n` or `xs = [a, b, ..]` (the `=` is consumed):
+    /// a list local, `["list", ..]` then `["append", ..]` for further
+    /// elements. Without a `list[T]` annotation an empty list holds int and
+    /// a filled one takes its first element's type.
+    fn py_list_value(&mut self, name: &str, elem: Option<String>, pos: Pos) -> P<Node> {
+        let word = |w: &str| Node::atom(pos, Value::String(w.to_owned()));
+        let open = self.expect_op("[")?.pos;
+        if self.py_declared(name) {
+            return refuse(
+                pos,
+                format!(
+                    "`{name}` already has a value: a list is built once, where it is first assigned \
+                     (change it with {name}[i] = v or {name}.append(v))"
+                ),
+            );
+        }
+        let mut elements = Vec::new();
+        while !self.at_op("]") {
+            let element = self.expr()?;
+            if elements.is_empty() && self.at_word("for") {
+                return refuse(
+                    open,
+                    "list comprehensions are not supported as values: start with xs = [] and \
+                     append in a for loop (sum/any/all/len/max/min take a generator)",
+                );
+            }
+            elements.push(element);
+            if !self.at_op("]") {
+                self.expect_op(",")?;
+            }
+        }
+        self.expect_op("]")?;
+        let mut count: Option<Node> = None;
+        while self.at_op("*") {
+            let star = self.bump().pos;
+            let factor = self.unary()?;
+            count = Some(match count {
+                None => factor,
+                Some(c) => Node::op(star, "mul", vec![c, factor]),
+            });
+        }
+        self.py_end_of_statement()?;
+        self.py_declare(name);
+        let target = Node::atom(pos, Value::String(name.to_owned()));
+        let typed = elem.map(|t| Node::atom(pos, Value::String(t)));
+        let filled = |count: Node, fill: Node| {
+            let mut items = vec![word("list"), target.clone()];
+            items.extend(typed.clone());
+            items.extend([count, fill]);
+            Node::list(pos, items)
+        };
+        let mut elements = elements.into_iter();
+        let Some(first) = elements.next() else {
+            if count.is_some() {
+                return refuse(open, "[] * n is empty: write []");
+            }
+            let ty = typed.unwrap_or_else(|| word("i64"));
+            return Ok(Node::list(pos, vec![word("list"), target, ty]));
+        };
+        if let Some(count) = count {
+            if elements.len() > 0 {
+                return refuse(
+                    open,
+                    "[a, b] * n is not supported: write [v] * n, or append in a loop",
+                );
+            }
+            return Ok(filled(count, first));
+        }
+        // [a, b, c]: one copy of a, then append the rest in order.
+        let mut statements = vec![filled(Node::atom(pos, Value::from(1)), first)];
+        for element in elements {
+            statements.push(Node::list(
+                pos,
+                vec![word("append"), target.clone(), element],
+            ));
+        }
+        if statements.len() == 1 {
+            return Ok(statements.remove(0));
+        }
+        Ok(Node::list(
+            pos,
+            vec![word("seq"), Node::list(pos, statements)],
+        ))
+    }
+
+    /// `xs[i] = v` and `xs[i] += v` (also `-= *= //= %=`) on a list local.
+    fn py_element_assignment(&mut self) -> P<Node> {
+        let pos = self.peek().pos;
+        let target = self.postfix()?;
+        let tok = self.peek().clone();
+        let word = match tok.text.as_str() {
+            "=" => None,
+            "+=" => Some("add"),
+            "-=" => Some("sub"),
+            "*=" => Some("mul"),
+            "//=" => Some("floordiv"),
+            "%=" => Some("floormod"),
+            _ if tok.kind == Kind::Op && tok.text.ends_with('=') && tok.text != "==" => {
+                return refuse(
+                    tok.pos,
+                    format!("`{}` on a list element is not supported", tok.text),
+                );
+            }
+            _ => {
+                return refuse(
+                    pos,
+                    "an expression on its own line has no effect: assign it or return it",
+                );
+            }
+        };
+        let (list, index) = match &target.kind {
+            NodeKind::List(items)
+                if target.head() == Some("get")
+                    && items.len() == 3
+                    && items[1].is_name().is_some() =>
+            {
+                (items[1].clone(), items[2].clone())
+            }
+            _ => {
+                return refuse(
+                    pos,
+                    "only an element of a list local is assigned: xs[i] = v (nested lists are not supported)",
+                );
+            }
+        };
+        self.bump();
+        let mut value = self.expr()?;
+        self.py_end_of_statement()?;
+        if let Some(word) = word {
+            value = Node::op(tok.pos, word, vec![target, value]).within()?;
+        }
+        Ok(Node::list(
+            pos,
+            vec![
+                Node::atom(pos, Value::String("store".into())),
+                list,
+                index,
+                value,
+            ],
+        ))
+    }
+
     fn py_expression_statement(&mut self) -> P<Option<Node>> {
         let tok = self.peek().clone();
+        // xs.append(v) on a list local.
+        if tok.kind == Kind::Name
+            && self.peek_at(1).text == "."
+            && self.peek_at(2).text == "append"
+            && self.peek_at(3).text == "("
+        {
+            self.bump();
+            self.bump();
+            let method = self.bump();
+            self.bump();
+            let value = self.expr()?;
+            self.expect_op(")")?;
+            self.py_end_of_statement()?;
+            return Ok(Some(Node::list(
+                tok.pos,
+                vec![
+                    Node::atom(method.pos, Value::String("append".into())),
+                    Node::atom(tok.pos, Value::String(tok.text.clone())),
+                    value,
+                ],
+            )));
+        }
         // `out.append(x)` and `print(x)`: name what to write instead.
         if tok.kind == Kind::Name
             && self.peek_at(1).text == "."

@@ -6,5 +6,6 @@ return, = += -= *= //= %= <<= >>=, a, b = b, a % b, divmod, assert, raise (traps
 chained comparisons, and/or (short-circuit), truthiness, x if c else y, len min max abs,
 ** pow(b, e, m) math.gcd, << >> and & 2**k-1 masks, sum any all max min over generators and
 comprehensions, len(set(xs)), helper defs (no captured variables).
+Local lists: xs = [0] * n, [] or [a, b]; xs.append(v), xs[i] = v, xs[i] += v, xs[i], len(xs), for x in xs.
 Instead of Counter or dicts: c = sum(1 for y in xs if y == x); bisect: lo, hi = 0, len(xs)
-and while lo < hi; a [v] * n sieve: while d * d <= k for each k; clamping: min(max(v, lo), hi).
+and while lo < hi; clamping: min(max(v, lo), hi).

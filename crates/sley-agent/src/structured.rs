@@ -397,6 +397,8 @@ struct Fn<'c, 'a> {
     /// are exactly `0..len`, so a read of a missing key is an out-of-range
     /// index and a store never changes the length.
     lists: BTreeMap<String, String>,
+    /// Lists a `for` is visiting: the body may not change them.
+    iterating: Vec<String>,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -460,6 +462,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             depth: 0,
             nonneg,
             lists: BTreeMap::new(),
+            iterating: Vec::new(),
         })
     }
 
@@ -1629,14 +1632,17 @@ impl<'c, 'a> Fn<'c, 'a> {
                     );
                 }
                 "list" => {
-                    // ["list", x, T] or ["list", x, T, n, fill]: a growable
-                    // list local of n copies of fill (fill evaluated once).
-                    if items.len() != 3 && items.len() != 5 {
+                    // ["list", x, T] or ["list", x, T?, n, fill]: a growable
+                    // list local of n copies of fill (fill evaluated once;
+                    // without T the fill's type is the element type).
+                    if !(3..=5).contains(&items.len()) {
                         return fail(
                             &here,
-                            "[\"list\", name, element type] or [\"list\", name, element type, count, fill]",
+                            "[\"list\", name, element type] or [\"list\", name, element type?, count, fill]",
                         );
                     }
+                    let typed = items.len() != 4;
+                    let (count_at, fill_at) = if typed { (3, 4) } else { (2, 3) };
                     let n = name_ok(1)?;
                     if env.get(&n).is_some()
                         || self.lists.contains_key(&n)
@@ -1647,20 +1653,32 @@ impl<'c, 'a> Fn<'c, 'a> {
                             format!("`{n}` is already declared; a list needs a name of its own"),
                         );
                     }
-                    let Some(elem) = items[2].as_str().map(normal) else {
-                        return fail(&part(2), "a list's element type is a type name");
+                    let declared = if typed {
+                        let Some(elem) = items[2].as_str().map(normal) else {
+                            return fail(&part(2), "a list's element type is a type name");
+                        };
+                        Some(elem)
+                    } else {
+                        None
                     };
-                    let fill = if items.len() == 5 {
-                        let (v, t) = self.expr(&items[4], env, &part(4), Some(&elem))?;
-                        if t != elem {
+                    let (elem, fill) = if items.len() > 3 {
+                        let (v, t) =
+                            self.expr(&items[fill_at], env, &part(fill_at), declared.as_deref())?;
+                        if let Some(elem) = declared.as_ref()
+                            && &t != elem
+                        {
                             return fail(
-                                &part(4),
+                                &part(fill_at),
                                 format!("`{n}` holds {elem} but the fill is {t}"),
                             );
                         }
-                        Some(self.hold(env, v, &t))
+                        if t.starts_with("Map<") {
+                            return fail(&part(fill_at), "a list cannot hold lists");
+                        }
+                        let held = self.hold(env, v, &t);
+                        (t, Some(held))
                     } else {
-                        None
+                        (declared.unwrap_or_default(), None)
                     };
                     // An empty map_new cannot fail, but its declared result
                     // is Result<Map, DuplicateKeyError>: unwrap it.
@@ -1704,7 +1722,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                                 break candidate;
                             }
                         };
-                        let count = items[3].clone();
+                        let count = items[count_at].clone();
                         let fill_loop = json!([[
                             "range",
                             counter,
@@ -1712,7 +1730,12 @@ impl<'c, 'a> Fn<'c, 'a> {
                             ["to", "u64", count],
                             [["append", n, fill]]
                         ]]);
-                        self.stmts(fill_loop.as_array().expect("a list"), env, &part(3), true)?;
+                        self.stmts(
+                            fill_loop.as_array().expect("a list"),
+                            env,
+                            &part(count_at),
+                            true,
+                        )?;
                     }
                 }
                 "store" | "append" => {
@@ -1724,6 +1747,21 @@ impl<'c, 'a> Fn<'c, 'a> {
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_owned();
+                    if items.len() == arity
+                        && !self.lists.contains_key(&x)
+                        && env
+                            .get(&x)
+                            .map(|b| b.ty.clone())
+                            .or_else(|| self.params.get(&x).cloned())
+                            .is_some_and(|ty| vec_elem(&ty).is_some())
+                    {
+                        return fail(
+                            &here,
+                            format!(
+                                "`{x}` is a vector, which cannot change: build a local list (ys = [] then ys.append(v)) and change that"
+                            ),
+                        );
+                    }
                     let Some(len) = self
                         .list_len(&items[1], env)
                         .filter(|_| items.len() == arity)
@@ -1739,6 +1777,14 @@ impl<'c, 'a> Fn<'c, 'a> {
                             },
                         );
                     };
+                    if self.iterating.contains(&x) {
+                        return fail(
+                            &here,
+                            format!(
+                                "`{x}` changes inside a loop over it: loop over range(len({x})) instead"
+                            ),
+                        );
+                    }
                     let elem =
                         map_value(&env.get(&x).expect("a list").ty).expect("a list is a map");
                     let index = if kind == "store" {
@@ -2005,6 +2051,11 @@ impl<'c, 'a> Fn<'c, 'a> {
                 .filter(|a| !a.is_number())
                 .find_map(|a| self.static_type(a, env, None))
                 .or_else(|| Some("i64".into()));
+        }
+        if let Some(name) = list.as_str()
+            && self.lists.contains_key(name)
+        {
+            return map_value(&env.get(name)?.ty);
         }
         vec_elem(&self.static_type(list, env, None)?)
     }
@@ -2290,8 +2341,24 @@ impl<'c, 'a> Fn<'c, 'a> {
         let Some(body) = items[3 + offset].as_array() else {
             return fail(at, grammar);
         };
-        let (vec, vty) = self.expr(list, env, &format!("{at}/{}", 2 + offset), None)?;
-        let Some(elem) = vec_elem(&vty) else {
+        // A list local is visited by its length binding, held at loop entry;
+        // the body may not change it.
+        let listed = list
+            .as_str()
+            .and_then(|name| Some((name.to_owned(), self.list_len(list, env)?)));
+        let (vec, vty, held_len) = if let Some((name, len)) = &listed {
+            let binding = env.get(name).cloned().expect("a list in scope");
+            let held = self.hold(env, env.operand(len), "u64");
+            (binding.operand, binding.ty, Some(held))
+        } else {
+            let (vec, vty) = self.expr(list, env, &format!("{at}/{}", 2 + offset), None)?;
+            (vec, vty, None)
+        };
+        let Some(elem) = (if listed.is_some() {
+            map_value(&vty)
+        } else {
+            vec_elem(&vty)
+        }) else {
             return fail(
                 &format!("{at}/{}", 2 + offset),
                 format!("`for` iterates a vector, not {vty}"),
@@ -2329,14 +2396,23 @@ impl<'c, 'a> Fn<'c, 'a> {
         }
         let before = env.clone();
         let (local, header) = self.enter_loop(env, at);
-        let current = local.operand(&vector);
-        let length = self.emit_value("vec_len", vec![current], at);
+        let length = if let Some(held) = &held_len {
+            local.operand(held)
+        } else {
+            let current = local.operand(&vector);
+            self.emit_value("vec_len", vec![current], at)
+        };
         let position = local.operand(&index);
         let more = self.emit_value("lt", vec![position, length], at);
         let (mut inner, exit_env) = self.test_loop(&more, &local, at);
         let trap = self.trap_block();
         let (current, position) = (inner.operand(&vector), inner.operand(&index));
-        let item = self.emit_value(&format!("vec_get?{trap}"), vec![current, position], at);
+        let get = if held_len.is_some() {
+            "map_get"
+        } else {
+            "vec_get"
+        };
+        let item = self.emit_value(&format!("{get}?{trap}"), vec![current, position], at);
         if let Some(name) = visible_index {
             inner.set(
                 name,
@@ -2364,7 +2440,14 @@ impl<'c, 'a> Fn<'c, 'a> {
             step: steps.clone(),
         });
         self.depth += 1;
-        let falls = self.stmts(body, &mut inner, &format!("{at}/{}", 3 + offset), false)?;
+        if let Some((name, _)) = &listed {
+            self.iterating.push(name.clone());
+        }
+        let falls = self.stmts(body, &mut inner, &format!("{at}/{}", 3 + offset), false);
+        if listed.is_some() {
+            self.iterating.pop();
+        }
+        let falls = falls?;
         self.depth -= 1;
         self.loops.pop();
         self.pending_exit = pending;
@@ -2383,6 +2466,9 @@ impl<'c, 'a> Fn<'c, 'a> {
         );
         env.remove(&index);
         env.remove(&vector);
+        if let Some(held) = held_len {
+            Self::release(env, &[held]);
+        }
         if steps.len() > 1 {
             self.shadows.pop();
             Self::release(env, &steps[1..]);

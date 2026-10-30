@@ -2302,11 +2302,12 @@ after one that returns is refused.
 
 A list local (2.2) is a growable sequence of `T` held as a `Map<u64,T>` whose keys are exactly
 `0..len`, built from the existing map operations; no opcode or kernel rule changes. `["list", x, T]`
-starts empty; `["list", x, T, n, fill]` evaluates `fill` once, converts `n` to `u64` (a negative
+starts empty; `["list", x, T, n, fill]` (or `["list", x, n, fill]`, taking `T` from `fill`) evaluates `fill` once, converts `n` to `u64` (a negative
 count fails like `to`), then appends `n` copies. `["append", x, e]` inserts `e` at key `len` and
 adds one to the length; `["store", x, i, e]` evaluates the `u64` index, then `e`, then traps when
 `i >= len`, and replaces element `i`. `["len", x]` reads the length and `["get", x, i]` traps when
-`i >= len` (`get?Case` returns error case `Case` instead, and `get?` returns `None` from an `Option` function). A list name is never a value: it
+`i >= len` (`for`, `for-indexed` and folds visit a list in index order, reading its length once;
+their body may not `store` or `append` to that list) (`get?Case` returns error case `Case` instead, and `get?` returns `None` from an `Option` function). A list name is never a value: it
 cannot be copied, set, passed, returned or rebound, and no other declaration in the function may
 use its name, so no two names alias one list. Each `map_insert` result is charged its full value
 units under EXTENDED_V1, so the cumulative charge of `n` appends grows with `n^2` even though an
@@ -2535,9 +2536,16 @@ else is refused at its line and column.
   number of `for ... in ... if ...` clauses (`len(...)` of a comprehension is a `count`;
   `max(.., default=v)` gives `d`). Slices (`xs[a:b]`, either bound optional, the end clamped to the
   length) and `zip` are read-only views iterated by index; a slice is never a value.
+- Local lists (2.2): `xs = []` (int elements, or `xs: list[T] = []`), `xs = [v] * n` (`n` copies of
+  `v`, evaluated once; the element type is `v`'s) and `xs = [a, b, ..]` map to the list locals of
+  section 5.4; `xs.append(v)`, `xs[i] = v` and `xs[i] op= v` (`+= -= *= //= %=`) map to `append` and
+  `store`; `xs[i]`, `xs[-k]`, `len(xs)`, `for x in xs`, `enumerate(xs)` and folds read it. An index
+  outside the list traps where Python raises `IndexError`. A list is built once, where it is first
+  assigned, and is never copied, passed, returned or rebound; a loop over a list cannot change it.
 
-Not supported, and refused: list values (literals, `append`, a slice stored or returned), dicts,
-sets other than `len(set(xs))`, tuple values, `None`, methods, `lambda`, `try`, `with`, string
+Not supported, and refused: list values other than local lists (a list passed, returned, copied
+or used inline such as `len([1, 2])`, comprehensions as values, a slice stored or returned), dicts,
+sets other than `len(set(xs))`, tuple values, `None`, methods other than `xs.append(v)`, `lambda`, `try`, `with`, string
 iteration and float types or literals. `help python` is the short reference; its first line is the one-line note for an
 author's system prompt.
 

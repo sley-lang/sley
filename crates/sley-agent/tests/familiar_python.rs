@@ -1240,9 +1240,9 @@ fn python_refusals_name_the_fix() {
     refused(
         &temp.path,
         "def f(xs: list[int]) -> int:\n    xs.append(1)\n    return 0\n",
-        "lists cannot change",
+        "is a vector, which cannot change",
         2,
-        8,
+        5,
     );
     refused(
         &temp.path,
@@ -1274,10 +1274,10 @@ fn python_refusals_name_the_fix() {
     );
     refused(
         &temp.path,
-        "def f(xs: list[int]) -> int:\n    out = []\n    return len(out)\n",
-        "keep a count, sum or best value",
+        "def f(xs: list[int]) -> int:\n    return len([1, 2])\n",
+        "built only as a local",
         2,
-        11,
+        12,
     );
     refused(
         &temp.path,
@@ -1340,7 +1340,7 @@ def run_sum(xs: list[int], lo: int) -> int:
     );
 }
 
-/// The card's "instead of" lines (Counter, bisect, a sieve, clamping) compile
+/// The card's "instead of" lines (Counter, bisect, clamping) compile
 /// as written and give Python's answers. The shapes are the ones Claude Haiku
 /// 5.5 wrote in passing Sley programs in the 2.1.8 model cost run.
 #[test]
@@ -1349,7 +1349,6 @@ fn python_card_workarounds_compile_as_written() {
     for needle in [
         "c = sum(1 for y in xs if y == x)",
         "lo, hi = 0, len(xs)\nand while lo < hi",
-        "while d * d <= k for each k",
         "min(max(v, lo), hi)",
     ] {
         assert!(card.contains(needle), "{needle}");
@@ -1432,4 +1431,136 @@ def clamp_sum(xs: list[int], lo: int, hi: int) -> int:
             (json!([[], 0, 1]), json!(0)),
         ],
     );
+}
+
+/// Local lists (2.2): `[v] * n`, `[]`, `[a, b]`, `.append`, element
+/// assignment, reads, `len`, loops and folds give Python's answers, and the
+/// card's list line compiles as written.
+#[test]
+#[allow(clippy::too_many_lines)] // one program per list form, then refusals
+fn python_local_lists_follow_python() {
+    let card = sley_agent::help::topic("python-task").unwrap();
+    assert!(card.contains("Local lists: xs = [0] * n, [] or [a, b]; xs.append(v), xs[i] = v"));
+    let temp = workspace("python-lists");
+    let h = accepted(
+        &temp.path,
+        "\
+def primes(n: int) -> int:
+    flags = [True] * n
+    count = 0
+    for i in range(2, n):
+        if flags[i]:
+            count += 1
+            j = i * i
+            while j < n:
+                flags[j] = False
+                j += i
+    return count
+
+def squares(n: int) -> int:
+    xs = []
+    for i in range(n):
+        xs.append(i * i)
+    xs[0] += 7
+    return sum(xs) + len(xs) + xs[-1] + max(xs)
+
+def digits(a: int) -> int:
+    ys = [a, a + 1, 5]
+    t = 0
+    for y in ys:
+        t = t * 10 + y
+    return t
+
+def weighted(n: int) -> int:
+    zs: list[int] = []
+    for i in range(n):
+        zs.append(i)
+    c = 0
+    for i, z in enumerate(zs):
+        c += i * z
+    return c
+
+def at(n: int, i: int) -> int:
+    xs = [0] * n
+    xs[i] = 5
+    return xs[i] + len(xs)
+
+def counts(xs: list[int], k: int) -> int:
+    seen = [0] * k
+    for x in xs:
+        seen[x % k] += 1
+    return max(seen) * 100 + seen[0]
+",
+    );
+    check(
+        &temp.path,
+        &h,
+        "primes",
+        &[
+            (json!([0]), json!(0)),
+            (json!([2]), json!(0)),
+            (json!([30]), json!(10)),
+            (json!([2000]), json!(303)),
+        ],
+    );
+    // [7, 1, 4, 9]: 21 + 4 + 9 + 9; [7]: 7 + 1 + 7 + 7.
+    check(
+        &temp.path,
+        &h,
+        "squares",
+        &[(json!([4]), json!(43)), (json!([1]), json!(22))],
+    );
+    assert!(traps(&call(&temp.path, &h, "squares", &[json!(0)])));
+    check(&temp.path, &h, "digits", &[(json!([1]), json!(125))]);
+    check(
+        &temp.path,
+        &h,
+        "weighted",
+        &[(json!([4]), json!(14)), (json!([0]), json!(0))],
+    );
+    check(&temp.path, &h, "at", &[(json!([3, 2]), json!(8))]);
+    // Python raises IndexError for both; Sley traps.
+    assert!(traps(&call(&temp.path, &h, "at", &[json!(3), json!(3)])));
+    assert!(traps(&call(&temp.path, &h, "at", &[json!(3), json!(-1)])));
+    check(
+        &temp.path,
+        &h,
+        "counts",
+        &[(json!([[1, 2, 3, 4, 5, 6], 3]), json!(202))],
+    );
+
+    for (text, needle, line, column) in [
+        (
+            "def f(n: int) -> int:\n    xs = [0] * n\n    xs = [1] * n\n    return 0\n",
+            "a list is built once",
+            3,
+            5,
+        ),
+        (
+            "def f(n: int) -> int:\n    xs = [i for i in range(n)]\n    return 0\n",
+            "list comprehensions",
+            2,
+            10,
+        ),
+        (
+            "def f(n: int) -> int:\n    xs = [0] * n\n    for x in xs:\n        xs.append(x)\n    return 0\n",
+            "changes inside a loop over it",
+            4,
+            9,
+        ),
+        (
+            "def f(n: int) -> int:\n    xs = [0] * n\n    ys = xs\n    return 0\n",
+            "is a list",
+            3,
+            10,
+        ),
+        (
+            "def f(n: int) -> int:\n    xs = [0] * n\n    xs.append(True)\n    return 0\n",
+            "holds i64, not bool",
+            3,
+            15,
+        ),
+    ] {
+        refused(&temp.path, text, needle, line, column);
+    }
 }
