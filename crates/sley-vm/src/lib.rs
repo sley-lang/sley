@@ -21,6 +21,7 @@ pub mod host_admission;
 mod lower;
 pub mod native_execution;
 pub mod raw_hash;
+pub mod text;
 
 pub use admission_authority::{
     AuthorityError, SleyAdmissionEvidence, V2Closure, admit_v2_package,

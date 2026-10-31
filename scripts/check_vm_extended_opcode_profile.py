@@ -26,7 +26,7 @@ DRAFT_STATUS = "S20_260_270_EXTENDED_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_260_270_EXTENDED_SLICES_IN_PROGRESS"
 IMPLEMENTED_STATUS = "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING"
 COMPLETE_STATUS = "S20_260_270_EXTENDED_COMPLETE"
-SLICES = ("E1", "E2", "E3", "E4", "E5", "E6", "E7a", "E8")
+SLICES = ("E1", "E2", "E3", "E4", "E5", "E6", "E7a", "E8", "E9")
 SLICE_STATUSES = ("PENDING", "IN_PROGRESS", "IMPLEMENTED")
 SLICE_OPCODES = {
     "E1": [1, 16, 17, 32, 33, 34, 35, 96, 97, 98, 99, 100, 101, 128, 129, 130, 131],
@@ -37,6 +37,7 @@ SLICE_OPCODES = {
     "E6": [112],
     "E7a": [144],
     "E8": [161],
+    "E9": [161],
 }
 SPEC_MARKERS = (
     "# VM Extended Opcode Profile v1",
@@ -54,6 +55,8 @@ SPEC_MARKERS = (
     "### E7a contract assertions (144)",
     "### E7 tests, effects, adapters, capabilities (145, 160 to 162)",
     "### E8 host bridge imports (161)",
+    "### E9 native text entries (161)",
+    "TEXT_MAX_BYTES",
     "SLY1/BRIDGE/",
     "BRIDGE_MAX_ITEMS",
     "BRIDGE_ELEMENT_FUEL",

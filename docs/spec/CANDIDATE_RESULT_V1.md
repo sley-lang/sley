@@ -527,8 +527,12 @@ lands, its opcode becomes analyzable by removing it from
 `EXCLUDED_OPERATION_OPCODES` and revising the addendum, without revising
 this contract. Opcode 144 is owned since profile revision 9 slice E7a, which
 lowers and executes `contract_assert`; it stays excluded from phase 7
-because its static typing belongs to the S20-240 checker at phase 10. The
-validator still exercises all fourteen phases, all sixteen terminal
+because its static typing belongs to the S20-240 checker at phase 10.
+Opcode 161 is analyzable, without leaving `EXCLUDED_OPERATION_OPCODES`, when
+its immediate names a carried native text row (`VM_EXTENDED_OPCODE_PROFILE_V1.md`
+revision 18 section E9): phase 7 judges it through the VM and phase 8
+through the S20-230 pure binding, and every other 161 keeps the phase 12
+refusal. The validator still exercises all fourteen phases, all sixteen terminal
 decision encodings, complete all-18-kind reference extraction, native
 type/CFG/effect/contract owners, capability and policy checks, mandatory test
 planning, in-memory root reconstruction, and byte-identical result

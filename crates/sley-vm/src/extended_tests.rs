@@ -5974,3 +5974,353 @@ fn scalar_plan_runs_direct_calls_with_reference_charges() {
     let (image, ..) = loaded_fixture(&calling_entry(41).with_callee(second_of_two()));
     assert!(!image.has_scalar_plan());
 }
+
+/// Slice E9 native text entries (contract section E9, revision 18).
+///
+/// Seven pure `Text` operations over the frozen `adapter_invoke` opcode,
+/// resolved by their frozen adapter identity on a row whose entity identity
+/// is free. Counts, indexes, and lengths are in Unicode scalars.
+mod e9_text {
+    use super::*;
+    use crate::text::{TextKind, text_import};
+
+    const ROW_BASE: u8 = 200;
+
+    fn row_id(kind: TextKind) -> EntityId {
+        let index = crate::text::TEXT_ENTRIES
+            .iter()
+            .position(|(entry, _)| *entry == kind)
+            .unwrap();
+        id(ROW_BASE + u8::try_from(index).unwrap())
+    }
+
+    fn rows() -> Vec<AdapterImport> {
+        crate::text::TEXT_ENTRIES
+            .iter()
+            .map(|(kind, _)| text_import(*kind, row_id(*kind)))
+            .collect()
+    }
+
+    fn fixture_with(kind: TextKind, adapters: Vec<AdapterImport>) -> Fixture {
+        let (scope, request, response) = crate::text::text_row_types(kind);
+        Fixture::new(
+            &[scope, request],
+            &[step(
+                Opcode::AdapterInvoke,
+                vec![Arg::P(0), Arg::P(1)],
+                Immediate::Entity(row_id(kind)),
+                bridge_result(response),
+            )],
+            Vec::new(),
+        )
+        .with_adapters(adapters)
+    }
+
+    fn fixture(kind: TextKind) -> Fixture {
+        fixture_with(kind, rows())
+    }
+
+    fn run(kind: TextKind, scope: ConstValue, request: ConstValue) -> ConstValue {
+        success(&fixture(kind), vec![scope, request])
+    }
+
+    fn out_of_range(ok: TypeExpr) -> ConstValue {
+        ConstValue {
+            value_type: bridge_result(ok),
+            data: ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+                value_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+                data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                    kind: BuiltinFailureKind::Index,
+                    code: 1,
+                }),
+            }))),
+        }
+    }
+
+    fn u32_value(value: u128) -> ConstValue {
+        ConstValue {
+            value_type: TypeExpr::UInt(IntegerWidth::from_bits(32)),
+            data: ConstData::UInt(value),
+        }
+    }
+
+    fn i64_value(value: i128) -> ConstValue {
+        ConstValue {
+            value_type: TypeExpr::SInt(IntegerWidth::from_bits(64)),
+            data: ConstData::SInt(value),
+        }
+    }
+
+    fn range(start: u128, length: u128) -> ConstValue {
+        ConstValue {
+            value_type: TypeExpr::Tuple(vec![u64_type(), u64_type()]),
+            data: ConstData::Sequence(vec![uint(start), uint(length)]),
+        }
+    }
+
+    fn texts(items: &[&str]) -> ConstValue {
+        vector_of(
+            items.iter().map(|item| text(item)).collect(),
+            TypeExpr::Text,
+        )
+    }
+
+    fn ok_text(value: &str) -> ConstValue {
+        bridge_ok(TypeExpr::Text, ConstData::Text(value.to_owned()))
+    }
+
+    #[test]
+    fn e9_text_entries_compute_over_scalars() {
+        let u32t = TypeExpr::UInt(IntegerWidth::from_bits(32));
+        for (value, count) in [("", 0), ("abc", 3), ("h\u{e9}llo", 5), ("a\u{1f600}b", 3)] {
+            assert_eq!(
+                run(TextKind::Length, unit(), text(value)),
+                bridge_ok(u64_type(), ConstData::UInt(count)),
+                "{value:?}"
+            );
+        }
+        let word = "h\u{e9}llo";
+        for (start, length, want) in [
+            (1, 3, Some("\u{e9}ll")),
+            (0, 5, Some(word)),
+            (5, 0, Some("")),
+            (0, 0, Some("")),
+            (4, 1, Some("o")),
+            (4, 2, None),
+            (6, 0, None),
+            (u128::from(u64::MAX), 1, None),
+            (1, u128::from(u64::MAX), None),
+        ] {
+            let got = run(TextKind::Slice, text(word), range(start, length));
+            match want {
+                Some(want) => assert_eq!(got, ok_text(want), "{start}+{length}"),
+                None => assert_eq!(got, out_of_range(TypeExpr::Text), "{start}+{length}"),
+            }
+        }
+        assert_eq!(
+            run(
+                TextKind::Concat,
+                unit(),
+                texts(&["a", "\u{e9}", "", "\u{1f600}"])
+            ),
+            ok_text("a\u{e9}\u{1f600}")
+        );
+        assert_eq!(run(TextKind::Concat, unit(), texts(&[])), ok_text(""));
+        assert_eq!(
+            run(TextKind::Scalars, unit(), text("a\u{e9}\u{1f600}")),
+            bridge_ok(
+                TypeExpr::Vector(Box::new(TypeExpr::Text)),
+                ConstData::Sequence(vec![text("a"), text("\u{e9}"), text("\u{1f600}")]),
+            )
+        );
+        assert_eq!(
+            run(TextKind::Scalars, unit(), text("")),
+            bridge_ok(
+                TypeExpr::Vector(Box::new(TypeExpr::Text)),
+                ConstData::Sequence(Vec::new())
+            )
+        );
+        assert_eq!(
+            run(TextKind::Ord, unit(), text("\u{e9}")),
+            bridge_ok(u32t.clone(), ConstData::UInt(233))
+        );
+        assert_eq!(
+            run(TextKind::Ord, unit(), text("\u{1f600}")),
+            bridge_ok(u32t.clone(), ConstData::UInt(0x1f600))
+        );
+        for bad in ["", "ab", "e\u{301}"] {
+            assert_eq!(
+                run(TextKind::Ord, unit(), text(bad)),
+                out_of_range(u32t.clone()),
+                "{bad:?}"
+            );
+        }
+        assert_eq!(run(TextKind::Chr, unit(), u32_value(97)), ok_text("a"));
+        assert_eq!(
+            run(TextKind::Chr, unit(), u32_value(0x1f600)),
+            ok_text("\u{1f600}")
+        );
+        for bad in [0xd800, 0xdfff, 0x11_0000, u128::from(u32::MAX)] {
+            assert_eq!(
+                run(TextKind::Chr, unit(), u32_value(bad)),
+                out_of_range(TypeExpr::Text),
+                "{bad:#x}"
+            );
+        }
+        for (value, want) in [
+            (0, "0"),
+            (7, "7"),
+            (-1234, "-1234"),
+            (i128::from(i64::MAX), "9223372036854775807"),
+            (i128::from(i64::MIN), "-9223372036854775808"),
+        ] {
+            assert_eq!(
+                run(TextKind::FromInt, unit(), i64_value(value)),
+                ok_text(want)
+            );
+        }
+    }
+
+    #[test]
+    fn e9_text_rows_resolve_by_adapter_identity_and_exact_row() {
+        for (kind, _) in crate::text::TEXT_ENTRIES {
+            judge_function_operations(fixture(kind).input(CacheProfile::EXTENDED_V1))
+                .expect("judgment accepts every text entry");
+        }
+        // The row is pinned field by field: each deviation is unsupported.
+        let base = text_import(TextKind::Length, row_id(TextKind::Length));
+        let mut abi = base.clone();
+        abi.abi_version = 2;
+        let mut effectful = base.clone();
+        effectful.effects.push(id(9));
+        let mut failure = base.clone();
+        failure.failure_type = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        let mut request = base.clone();
+        request.request_type = TypeExpr::Bytes;
+        let mut response = base.clone();
+        response.response_type = TypeExpr::UInt(IntegerWidth::from_bits(32));
+        let mut foreign = base.clone();
+        foreign.adapter_id = [77; 32];
+        let mut unlanded = base.clone();
+        unlanded.adapter_id[12..16].copy_from_slice(b"TXX1");
+        for row in [
+            abi, effectful, failure, request, response, foreign, unlanded,
+        ] {
+            assert_eq!(
+                lowering_code(&fixture_with(TextKind::Length, vec![row.clone()])),
+                LowerErrorCode::OpcodeUnsupported,
+                "{row:?}"
+            );
+        }
+        // A frozen identity alone, with no carried row, is unsupported.
+        assert_eq!(
+            lowering_code(&fixture_with(TextKind::Length, Vec::new())),
+            LowerErrorCode::OpcodeUnsupported
+        );
+        // A carried row whose operands or declared result differ from the
+        // entry is a signature mismatch.
+        let mistyped = |parameters: &[TypeExpr], result: TypeExpr| {
+            Fixture::new(
+                parameters,
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(row_id(TextKind::Length)),
+                    result,
+                )],
+                Vec::new(),
+            )
+            .with_adapters(rows())
+        };
+        for case in [
+            mistyped(&[TypeExpr::Text, TypeExpr::Text], bridge_result(u64_type())),
+            mistyped(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                bridge_result(u64_type()),
+            ),
+            mistyped(
+                &[TypeExpr::Unit, TypeExpr::Text],
+                bridge_result(TypeExpr::UInt(IntegerWidth::from_bits(32))),
+            ),
+            mistyped(&[TypeExpr::Unit, TypeExpr::Text], u64_type()),
+        ] {
+            assert_eq!(lowering_code(&case), LowerErrorCode::SignatureMismatch);
+        }
+        // Entity identity is free for a text row, even a frozen E8 one: the
+        // E8 resolution refuses the row (its adapter identity differs from
+        // its entity identity), so it is judged and run as the text entry
+        // its adapter identity names, never as `BLN1` over `Bytes`.
+        let mut borrowed = base;
+        borrowed.entity_id = bridge_id(*b"BLN1");
+        let shadow = Fixture::new(
+            &[TypeExpr::Unit, TypeExpr::Text],
+            &[step(
+                Opcode::AdapterInvoke,
+                vec![Arg::P(0), Arg::P(1)],
+                Immediate::Entity(bridge_id(*b"BLN1")),
+                bridge_result(u64_type()),
+            )],
+            Vec::new(),
+        )
+        .with_adapters(vec![borrowed]);
+        assert_eq!(
+            success(&shadow, vec![unit(), text("h\u{e9}")]),
+            bridge_ok(u64_type(), ConstData::UInt(2))
+        );
+    }
+
+    fn fuel_of(
+        kind: TextKind,
+        scope: ConstValue,
+        request: ConstValue,
+        max_fuel: u64,
+    ) -> (u64, ExecutionTermination) {
+        let fixture = fixture(kind);
+        let outcome = execute_function(
+            fixture.input(CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs: vec![scope, request],
+                limits: ExecutionLimits {
+                    max_fuel,
+                    ..limits()
+                },
+            },
+        )
+        .expect("executes");
+        (outcome.fuel_used, outcome.termination)
+    }
+
+    #[test]
+    fn e9_text_fuel_is_charged_up_front_in_proportion_to_bytes() {
+        let small = "a".repeat(10);
+        let large = "a".repeat(4096);
+        let (base, _) = fuel_of(TextKind::Length, unit(), text(""), 10_000);
+        let (ten, _) = fuel_of(TextKind::Length, unit(), text(&small), 10_000);
+        let (four_k, _) = fuel_of(TextKind::Length, unit(), text(&large), 10_000);
+        // 1 + ceil(bytes / 1024): 1, 2, and 5.
+        assert_eq!(ten - base, 1);
+        assert_eq!(four_k - base, 4);
+        let (slice, _) = fuel_of(TextKind::Slice, text(&large), range(0, 1), 10_000);
+        assert_eq!(slice - base, 4);
+        let (concat, _) = fuel_of(
+            TextKind::Concat,
+            unit(),
+            texts(&[&large, &large, ""]),
+            10_000,
+        );
+        // three items plus 1 + ceil(8192 / 1024).
+        assert_eq!(concat - base, 3 + 8);
+        let (scalars, _) = fuel_of(TextKind::Scalars, unit(), text(&small), 10_000);
+        assert_eq!(scalars - base, 10);
+        let (ord, _) = fuel_of(TextKind::Ord, unit(), text("a"), 10_000);
+        assert_eq!(ord - base, 0);
+        // A starved budget stops before the entry builds anything.
+        let (_, starved) = fuel_of(TextKind::Scalars, unit(), text(&large), 100);
+        assert_eq!(
+            starved,
+            ExecutionTermination::ResourceLimit(ResourceKind::Fuel)
+        );
+    }
+
+    #[test]
+    fn e9_text_concat_refuses_past_the_text_ceiling() {
+        let half = "a".repeat(crate::text::TEXT_MAX_BYTES / 2 + 1);
+        let fixture = fixture(TextKind::Concat);
+        let outcome = execute_function(
+            fixture.input(CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs: vec![unit(), texts(&[&half, &half])],
+                limits: ExecutionLimits {
+                    max_fuel: 1_000_000,
+                    max_value_units: 1_000_000_000,
+                    ..limits()
+                },
+            },
+        )
+        .expect("executes");
+        assert_eq!(
+            outcome.termination,
+            ExecutionTermination::Success(bridge_capacity_err(TypeExpr::Text))
+        );
+    }
+}

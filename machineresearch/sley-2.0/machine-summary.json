@@ -581,7 +581,7 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_COMPLETE",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 17,
+    "contract_revision": 18,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -708,6 +708,16 @@
         "fixture": "conformance/vm-extended/v1/accepted.json",
         "vectors": 3,
         "tests": 8
+      },
+      "E9": {
+        "status": "IMPLEMENTED",
+        "opcodes": [
+          161
+        ],
+        "fixture": "crates/sley-vm/src/extended_tests.rs (e9_text lanes; conformance vectors deferred to the next release-evidence refresh)",
+        "vectors": 0,
+        "tests": 4,
+        "review": "SELF_REVIEW_ONLY_INDEPENDENT_REVIEW_PENDING"
       }
     },
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
