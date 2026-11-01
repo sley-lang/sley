@@ -1908,10 +1908,106 @@ impl Parser {
             _ => {}
         }
         self.bump();
+        if !self.python
+            && self.at_op("{")
+            && self.peek_at(1).kind == Kind::Name
+            && self.peek_at(2).text == ":"
+        {
+            return self.record_literal(&tok);
+        }
         if !self.at_op("(") {
             return Ok(Node::atom(tok.pos, Value::String(tok.text)));
         }
         self.call(&tok)
+    }
+
+    /// `Name(a, field=e, ...)` in a function body: a record of type `Name`
+    /// built by field name. Positional arguments, which come first, take the
+    /// fields of a record class declared above in order.
+    fn py_record_value(
+        &self,
+        pos: Pos,
+        name: &str,
+        args: Vec<Node>,
+        keywords: Vec<(String, Pos, Node)>,
+    ) -> P<Node> {
+        let declared = self
+            .declared
+            .records
+            .iter()
+            .find(|(record, ..)| record == name)
+            .map(|(_, fields, ..)| fields.clone());
+        let mut fields: Vec<(String, Pos, Node)> = Vec::new();
+        if !args.is_empty() {
+            let Some(order) = &declared else {
+                return refuse(
+                    pos,
+                    format!(
+                        "`{name}` is not a record class declared above: give every field by name"
+                    ),
+                );
+            };
+            if args.len() > order.len() {
+                return refuse(pos, format!("`{name}` has {} fields", order.len()));
+            }
+            for (field, value) in order.iter().zip(args) {
+                fields.push((field.clone(), value.pos, value));
+            }
+        }
+        for (field, field_pos, value) in keywords {
+            if let Some(order) = &declared
+                && !order.contains(&field)
+            {
+                return refuse(field_pos, format!("`{name}` has no field `{field}`"));
+            }
+            if fields.iter().any(|(given, ..)| *given == field) {
+                return refuse(
+                    field_pos,
+                    format!("`{name}` gives field `{field}` more than once"),
+                );
+            }
+            fields.push((field, field_pos, value));
+        }
+        let mut items = vec![Node::atom(pos, Value::String(name.to_owned()))];
+        for (field, field_pos, value) in fields {
+            items.push(Node::list(
+                field_pos,
+                vec![Node::atom(field_pos, Value::String(field)), value],
+            ));
+        }
+        Ok(Node::op(pos, "record", items))
+    }
+
+    /// `Name { field: e, ... }` after `Name`: a record of type `Name`, each
+    /// field given once.
+    fn record_literal(&mut self, name: &Tok) -> P<Node> {
+        let open = self.expect_op("{")?;
+        let mut items = vec![Node::atom(name.pos, Value::String(name.text.clone()))];
+        let mut seen: Vec<String> = Vec::new();
+        while !self.at_op("}") {
+            if self.peek().kind == Kind::Eof {
+                return refuse(open.pos, "this `{` is never closed");
+            }
+            let (field, pos) = self.ident("a field name")?;
+            if seen.contains(&field) {
+                return refuse(
+                    pos,
+                    format!("`{}` gives field `{field}` more than once", name.text),
+                );
+            }
+            self.expect_op(":")?;
+            let value = self.expr()?;
+            items.push(Node::list(
+                pos,
+                vec![Node::atom(pos, Value::String(field.clone())), value],
+            ));
+            seen.push(field);
+            if !self.at_op("}") {
+                self.expect_op(",")?;
+            }
+        }
+        self.bump();
+        Ok(Node::op(name.pos, "record", items))
     }
 
     /// The rest of `kind(e for x in xs if c)` after `e`.
@@ -2312,7 +2408,25 @@ impl Parser {
             return Ok(node);
         }
         let mut args = Vec::new();
+        let mut keywords: Vec<(String, Pos, Node)> = Vec::new();
         while !self.at_op(")") {
+            if self.python && self.peek().kind == Kind::Name && self.peek_at(1).text == "=" {
+                // `Point(1, y=2)`: a record built with fields by name.
+                let (field, field_pos) = self.ident("a field name")?;
+                self.bump();
+                let value = self.expr()?;
+                keywords.push((field, field_pos, value));
+                if !self.at_op(")") {
+                    self.expect_op(",")?;
+                }
+                continue;
+            }
+            if !keywords.is_empty() {
+                return refuse(
+                    self.peek().pos,
+                    "record positional arguments must precede keyword arguments",
+                );
+            }
             args.push(self.expr()?);
             if args.len() == 1 && self.at_word("for") {
                 if !FOLDS.contains(&name) {
@@ -2328,6 +2442,9 @@ impl Parser {
             }
         }
         self.expect_op(")")?;
+        if !keywords.is_empty() {
+            return self.py_record_value(pos, name, args, keywords);
+        }
         let builtin = match name {
             "min" | "max" => Some(2),
             "abs" | "len" => Some(1),
@@ -2364,7 +2481,7 @@ impl Parser {
 /// Whether the text is the Python dialect: its first significant line starts
 /// with `def`, `import`, `from`, `class` or a decorator (comments and blank
 /// lines skipped).
-fn is_python(text: &str) -> bool {
+pub(crate) fn is_python(text: &str) -> bool {
     text.lines()
         .map(str::trim_start)
         .find(|line| !line.is_empty() && !line.starts_with('#') && !line.starts_with("//"))
@@ -5019,6 +5136,61 @@ mod tests {
                 "{call}"
             );
         }
+    }
+
+    #[test]
+    fn records_are_built_in_function_bodies() {
+        let head = "class P:\n    x: int\n    y: int\n\n";
+        let built = json!(["record", "P", ["x", 1], ["y", 2]]);
+        for call in ["P(1, 2)", "P(1, y=2)", "P(y=2, x=1)", "P(x=1, y=2,)"] {
+            let frame = parse(&format!("{head}def f() -> P:\n    return {call}\n"))
+                .unwrap()
+                .frame;
+            let returned = &frame["fns"][0]["body"][0][1];
+            if call == "P(1, 2)" {
+                // Positional only: the structured lowering orders it.
+                assert_eq!(returned, &json!(["call", "P", 1, 2]), "{call}");
+            } else if call.starts_with("P(y=") {
+                assert_eq!(
+                    returned,
+                    &json!(["record", "P", ["y", 2], ["x", 1]]),
+                    "{call}"
+                );
+            } else {
+                assert_eq!(returned, &built, "{call}");
+            }
+        }
+        for (call, offending, message) in [
+            ("P(x=1, x=2)", "x=2", "gives field `x` more than once"),
+            ("P(1, x=3)", "x=3", "gives field `x` more than once"),
+            ("P(x=1, 2)", "2)", "positional arguments must precede"),
+            ("P(z=1)", "z=1", "has no field `z`"),
+            ("Q(1, y=2)", "Q(", "not a record class declared above"),
+        ] {
+            let line = format!("    return {call}");
+            let error = refused(&format!("{head}def f() -> P:\n{line}\n"));
+            assert!(error.message.contains(message), "{call}: {}", error.message);
+            assert_eq!(error.at.line, head.lines().count() + 2, "{call}");
+            assert_eq!(error.at.column, line.find(offending).unwrap() + 1, "{call}");
+        }
+        let rust = "struct P { x: i64, y: i64 }\nfn f(a: i64) -> P {\n  if a > 0 { return P { y: a, x: 1 } }\n  P { x: a, y: a }\n}";
+        let frame = parse(rust).unwrap().frame;
+        let text = frame["fns"][0]["body"].to_string();
+        assert!(
+            text.contains(r#"["record","P",["y","a"],["x",1]]"#),
+            "{text}"
+        );
+        assert!(
+            text.contains(r#"["record","P",["x","a"],["y","a"]]"#),
+            "{text}"
+        );
+        let twice = refused("struct P { x: i64 }\nfn f() -> P {\n  P { x: 1, x: 2 }\n}");
+        assert!(
+            twice.message.contains("more than once"),
+            "{}",
+            twice.message
+        );
+        assert_eq!((twice.at.line, twice.at.column), (3, 13));
     }
 
     #[test]

@@ -24,6 +24,8 @@ Expressions: a name, an integer, true, false, {"type":"text","value":"hi"}, {"ty
   not and or                    both operands of and/or are always evaluated
   if                            ["if", c, a, b]: only the chosen value is computed
   len (u64), get [xs, i] (u64 index; on a list, i >= len traps; get?Case returns Err(Case)), field [r, "name"], call ["helper", args...] (call? unwraps a Result)
+  record                        ["record", "Point", ["x", e], ["y", e]] builds a record, each field once by name;
+                                ["call", "Point", a, b] gives the fields in declaration order
 Integer literals take the other operand's type, else i64. Integer types never mix: len and indexes are u64.
 A list is never copied or passed: read it with get, len, for and folds (a loop over a list cannot change it). ["return", xs] returns it whole from a function whose result type is its Map<u64,T>. Its name is reserved for it in the function.
 Names are block-scoped; a nested block cannot redeclare a name declared outside it.

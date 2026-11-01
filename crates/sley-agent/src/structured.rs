@@ -46,6 +46,10 @@
 //! - `len` (u64), `get` (`[xs, u64]`; out of range traps or `get?Case`),
 //!   `field` (`[record, "name"]`), `call` (`["f", args..]`; `call?` unwraps a
 //!   Result).
+//! - `record`: `["record", T, [field, e]..]` builds a record of type `T`,
+//!   each field given once by name; `["call", T, args..]` builds one from
+//!   one argument per field in declaration order. Fields are evaluated in
+//!   declaration order.
 //!
 //! Integer literals take the type of the other operand, the declared
 //! variable or the return type, else `i64`. Evaluation is left to right;
@@ -257,7 +261,7 @@ fn frame_signatures(frame: &Map<String, Value>) -> BTreeMap<String, (Vec<String>
     out
 }
 
-fn frame_records(frame: &Map<String, Value>) -> BTreeMap<String, BTreeMap<String, String>> {
+fn frame_records(frame: &Map<String, Value>) -> BTreeMap<String, Vec<(String, String)>> {
     let mut out = BTreeMap::new();
     for t in frame
         .get("types")
@@ -371,7 +375,7 @@ struct Block {
 struct Fn<'c, 'a> {
     cx: &'c Context<'a>,
     frame_signatures: &'c BTreeMap<String, (Vec<String>, String)>,
-    frame_records: &'c BTreeMap<String, BTreeMap<String, String>>,
+    frame_records: &'c BTreeMap<String, Vec<(String, String)>>,
     decl: &'c Value,
     at: String,
     params: BTreeMap<String, String>,
@@ -406,7 +410,7 @@ impl<'c, 'a> Fn<'c, 'a> {
     fn new(
         cx: &'c Context<'a>,
         frame_signatures: &'c BTreeMap<String, (Vec<String>, String)>,
-        frame_records: &'c BTreeMap<String, BTreeMap<String, String>>,
+        frame_records: &'c BTreeMap<String, Vec<(String, String)>>,
         decl: &'c Value,
         at: &str,
     ) -> R<Self> {
@@ -486,7 +490,8 @@ impl<'c, 'a> Fn<'c, 'a> {
         self.trap.clone().unwrap_or_default()
     }
 
-    fn record_fields(&self, ty: &str) -> Option<BTreeMap<String, String>> {
+    /// A record type's fields and their types, in declaration order.
+    fn record_fields(&self, ty: &str) -> Option<Vec<(String, String)>> {
         if let Some(fields) = self.frame_records.get(ty) {
             return Some(fields.clone());
         }
@@ -513,6 +518,32 @@ impl<'c, 'a> Fn<'c, 'a> {
             .map(|t| t.as_ref().map(|t| normal(&self.cx.render(t))))
             .collect::<Option<Vec<_>>>()?;
         Some((params, normal(&self.cx.render(&result?))))
+    }
+
+    /// A `record_new` of `ty` from one value per field, in declaration
+    /// order, each with the pointer it came from.
+    fn record_new(
+        &mut self,
+        ty: &str,
+        fields: &[(String, String)],
+        values: Vec<(&Value, String)>,
+        env: &mut Env,
+        at: &str,
+    ) -> R<(Value, String)> {
+        let mut keys = Vec::with_capacity(values.len());
+        for ((field, field_ty), (value, value_at)) in fields.iter().zip(values) {
+            let (v, t) = self.expr(value, env, &value_at, Some(field_ty))?;
+            if &t != field_ty {
+                return fail(
+                    &value_at,
+                    format!("field `{field}` of `{ty}` is {field_ty}, not {t}"),
+                );
+            }
+            keys.push(self.hold(env, v, &t));
+        }
+        let mut operands = vec![json!(ty)];
+        operands.extend(Self::release(env, &keys));
+        Ok((self.emit_value("record", operands, at), ty.to_owned()))
     }
 
     fn lit(value: &Value, ty: &str) -> Value {
@@ -670,12 +701,20 @@ impl<'c, 'a> Fn<'c, 'a> {
                     }
                     "field" => {
                         let rec = self.static_type(args.first()?, env, None)?;
+                        let field = args.get(1)?.as_str()?;
                         self.record_fields(&rec)?
-                            .get(args.get(1)?.as_str()?)
-                            .cloned()
+                            .into_iter()
+                            .find(|(name, _)| name == field)
+                            .map(|(_, ty)| ty)
                     }
+                    "record" => args.first()?.as_str().map(normal),
                     "call" | "tcall" => {
-                        let (_, returns) = self.signature(args.first()?.as_str()?)?;
+                        let callee = args.first()?.as_str()?;
+                        if self.signature(callee).is_none() && self.record_fields(callee).is_some()
+                        {
+                            return Some(callee.to_owned());
+                        }
+                        let (_, returns) = self.signature(callee)?;
                         if mode.is_some() && (base == "call" || result_parts(&returns).is_some()) {
                             result_parts(&returns).map(|p| p.0)
                         } else {
@@ -1130,7 +1169,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                 let Some(fields) = self.record_fields(&t) else {
                     return fail(at, format!("`{t}` is not a known record type"));
                 };
-                let Some(ft) = fields.get(field).cloned() else {
+                let Some((_, ft)) = fields.into_iter().find(|(name, _)| name == field) else {
                     return fail(at, format!("record `{t}` has no field `{field}`"));
                 };
                 Ok((
@@ -1138,10 +1177,66 @@ impl<'c, 'a> Fn<'c, 'a> {
                     ft,
                 ))
             }
+            "record" => {
+                let Some(ty) = args.first().and_then(Value::as_str).map(normal) else {
+                    return fail(at, "`record` takes (\"Type\", [field, value]...)");
+                };
+                let Some(fields) = self.record_fields(&ty) else {
+                    return fail(at, format!("`{ty}` is not a known record type"));
+                };
+                let mut given = BTreeMap::new();
+                for (k, pair) in args[1..].iter().enumerate() {
+                    let Some([name, value]) = pair.as_array().map(Vec::as_slice) else {
+                        return fail(&sub(k + 1), "a record field is [field, value]");
+                    };
+                    let Some(name) = name.as_str() else {
+                        return fail(&sub(k + 1), "a record field is [field, value]");
+                    };
+                    if !fields.iter().any(|(field, _)| field == name) {
+                        return fail(&sub(k + 1), format!("record `{ty}` has no field `{name}`"));
+                    }
+                    if given.insert(name, (value, sub(k + 1))).is_some() {
+                        return fail(
+                            &sub(k + 1),
+                            format!("`{ty}` gives field `{name}` more than once"),
+                        );
+                    }
+                }
+                let mut values = Vec::with_capacity(fields.len());
+                for (field, _) in &fields {
+                    let Some(value) = given.remove(field.as_str()) else {
+                        return fail(at, format!("record `{ty}` needs field `{field}`"));
+                    };
+                    values.push(value);
+                }
+                self.record_new(&ty, &fields, values, env, at)
+            }
             "call" | "tcall" => {
                 let Some(callee) = args.first().and_then(Value::as_str) else {
                     return fail(at, "`call` takes (\"function\", args...)");
                 };
+                if self.signature(callee).is_none()
+                    && let Some(fields) = self.record_fields(callee)
+                {
+                    if mode.is_some() || base == "tcall" {
+                        return fail(
+                            at,
+                            format!("`{callee}` is a record type: build it with call"),
+                        );
+                    }
+                    if fields.len() != args.len() - 1 {
+                        return fail(
+                            at,
+                            format!("record `{callee}` has {} field(s)", fields.len()),
+                        );
+                    }
+                    let values = args[1..]
+                        .iter()
+                        .enumerate()
+                        .map(|(k, value)| (value, sub(k + 1)))
+                        .collect();
+                    return self.record_new(callee, &fields, values, env, at);
+                }
                 let Some((params, returns)) = self.signature(callee) else {
                     return fail(
                         at,

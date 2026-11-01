@@ -2340,6 +2340,9 @@ Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "
 - `if`: `["if", c, a, b]` evaluates only the chosen value;
 - `len` (`u64`), `get` (`[xs, i]`, `u64` index; out of range traps or `get?Case`), `field`
   (`[r, "name"]`), `call` (`["f", args...]`; `call?` unwraps a Result);
+- `record` (2.2): `["record", T, [field, e]...]` is a `record_new` of the record type `T`, each field
+  given once by name; `["call", T, args...]`, where `T` is a record type and not a function, gives
+  one argument per field in declaration order. The fields are evaluated in declaration order;
 - `fold` (2.1.1): `["fold", kind, x, xs, e, c?, d?]` visits every element `x` of the vector `xs`, or
   every integer of `["range", start, end]` (half-open), where the bool `c` holds when given. `sum`
   adds `e` with checked addition from 0; `count` counts the elements where the bool `e` holds (an
@@ -2441,7 +2444,8 @@ Ranges occur only in a `for` header; inclusive ranges, steps and iterable range
 values are refused. Expressions, loosest first: `a if c else b` (`["if", c, a, b]`, only when `if`
 is on the line of `a`), `or`, `and`, `not`, `== != < <= > >=` (`eq` ... `ge`, no chaining), `+ -`,
 `* / %` (`add sub mul div rem`), unary `-` (`neg`; a minus before a literal makes a negative
-literal), then `f(args)` (`call`), `x.field`, `xs[i]` (`get`). `min max abs clamp len` are the
+literal), then `f(args)` (`call`), `T { field: e, .. }` (`record`, 2.2: `T` then `{`, a name and `:`;
+each field once), `x.field`, `xs[i]` (`get`). `min max abs clamp len` are the
 built-ins of the same names, `to(T, x)` is `["to", T, x]`, and `try(e)` / `try(e, Case)` give every
 failing operation in `e` without its own mode the `?` / `?Case` mode (helper calls become `tcall?`,
 which unwraps a returned Result). Literals: decimal integers (the 64-bit range; `-9223372036854775808`
@@ -2532,6 +2536,9 @@ else is refused at its line and column.
   `x not in xs` are `any` folds; `and` and `or` short-circuit (they lower to the conditional value);
   every condition, and `not`, take Python truthiness (`truthy`); `True` and `False` are booleans;
   `x if c else y`, `len min max abs`, `math.gcd` / `gcd`, `bool(x)`, `int(x)` (the integer itself).
+- Record values (2.2): `P(a, b)` and `P(a, y=b)` in a function body build a record of type `P`
+  (`record`): positional arguments come first and take the fields of a record class declared above
+  in order, and keyword arguments name the rest, each field once.
 - Folds: `sum any all max min` over a list, a slice, a generator or a list comprehension, with any
   number of `for ... in ... if ...` clauses (`len(...)` of a comprehension is a `count`;
   `max(.., default=v)` gives `d`). Slices (`xs[a:b]`, either bound optional, the end clamped to the
