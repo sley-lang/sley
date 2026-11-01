@@ -77,6 +77,8 @@ pub mod tables;
 pub mod types;
 pub mod values;
 pub mod view;
+#[cfg(feature = "familiar")]
+pub mod vmfuzz;
 pub mod workspace;
 pub mod xview;
 

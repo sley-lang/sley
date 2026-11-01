@@ -1,4 +1,4 @@
-.PHONY: public-entrypoints-check public-entrypoints-live-check remote-consistency evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke fixtures-check accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: public-entrypoints-check public-entrypoints-live-check remote-consistency evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke vm-fuzz legacy-runner-smoke sley2-runner-smoke fixtures-check accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -220,6 +220,15 @@ fuzz-smoke:
 	cargo test -p sley-store randomized_invalid_records_never_promote --locked
 	cargo test -p sley-repo bounded_pack_import_fuzz_smoke --locked
 	python3 scripts/check_m1_gate.py fuzz-smoke
+
+# Seeded random-program differential fuzzing of the VM tiers (issue #86):
+# reference interpreter against the derived tiers at random limit cuts.
+# `cargo test` checks a fixed seed range; this runs any range, in release.
+# A finding prints its seed and a shrunk program; SLEY_VMFUZZ_SAVE=1 keeps it
+# under crates/sley-agent/tests/fixtures/vm_differential/.
+SEEDS ?= 1000..11000
+vm-fuzz:
+	SLEY_VMFUZZ_SEEDS=$(SEEDS) cargo test --release -p sley-agent --test vm_differential --locked -- --ignored long_run --nocapture
 
 sley2-runner-smoke:
 	cargo build -p sley-cli --locked
