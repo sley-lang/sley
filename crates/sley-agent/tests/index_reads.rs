@@ -25,7 +25,7 @@ impl TempDir {
                 .as_nanos()
         ));
         fs::create_dir_all(&path).unwrap();
-        genesis::init(&path, Some([7; 32]), genesis::INIT_CEILINGS).unwrap();
+        genesis::init(&path, None, genesis::INIT_CEILINGS).unwrap();
         Self { path }
     }
 }
