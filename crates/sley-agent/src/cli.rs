@@ -4,6 +4,7 @@
 //! `--json`. Exit status: 0 success, 1 a negative outcome (refused
 //! candidate, failing test), 2 a workbench refusal (`AGENT_*`).
 
+mod bindgen;
 mod body;
 mod index_reads;
 mod residual;
@@ -40,7 +41,7 @@ use crate::xview;
 /// Every command `dispatch` accepts (help examples are checked against it).
 pub const COMMANDS: &[&str] = &[
     "view", "find", "try", "fill", "import", "draft", "submit", "status", "call", "test",
-    "explain", "search", "residual", "init", "commit", "export", "help", "version",
+    "explain", "search", "residual", "init", "commit", "export", "bindgen", "help", "version",
 ];
 
 /// The commands that use a workspace, and so append an events-ledger line
@@ -238,6 +239,7 @@ fn dispatch(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32
         "init" => init_command(global, rest, out),
         "commit" => commit_command(global, rest, out),
         "export" => export_command(global, rest, out),
+        "bindgen" => bindgen::command(global, rest, out),
         "help" | "--help" | "-h" => help_command(rest, out),
         "version" | "--version" => {
             write_text(out, &format!("sley-agent {}\n", env!("CARGO_PKG_VERSION")))?;

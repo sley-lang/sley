@@ -1,0 +1,15 @@
+struct Program { x: i64 }
+struct Program_ { y: i64 }
+enum Kind { None, None_ }
+fn new(args: i64, fuel_limit: i64, fuel_limit_: i64) -> i64 {
+    return args + fuel_limit + fuel_limit_
+}
+fn new_(x: Program, k: Kind) -> i64 {
+    return x.x
+}
+fn callJson(reply: i64, JSON: i64) -> Program_ {
+    return Program_ { y: reply + JSON }
+}
+fn module(args: i64) -> i64 {
+    return args
+}

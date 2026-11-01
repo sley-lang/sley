@@ -89,6 +89,7 @@ sley-agent residual show <dN@rK | rN@1> [--expanded | --decisions | --provenance
 sley-agent init [<dir>] [--seed <64-hex>]
 sley-agent commit [<ref>]
 sley-agent export <file.pack>
+sley-agent bindgen <file | -> --rust | --typescript
 sley-agent help [guide|af1|afx|afx-quick|afx-reference|drafts|types|tests|opcodes|search|residual|residual-quick|residual-reference|refusals]
 ```
 
@@ -171,6 +172,17 @@ functions and TestCases in AV1 and runs its selected tests.
 `commit` passes the candidate to the transaction engine
 (`TransactionRepository::commit`), which validates it again. Candidates that
 select TestCases are refused there until native test evidence (N5) exists.
+
+`bindgen` (2.2) compiles familiar text as `embed::compile_python` does, over
+an in-memory genesis with the default `EmbedOptions`, and prints typed
+bindings for its interface: Rust (`--rust`) or TypeScript over
+`Module::call_json` (`--typescript`), exactly the text of
+`embed::bindgen::rust` or `embed::bindgen::typescript`
+([EMBEDDING.md](../EMBEDDING.md#generated-bindings)). It uses no workspace
+and records nothing. `--json` prints `{"language", "text"}`. Text the
+frontend refuses is `AGENT_FRAME_INVALID` at `file:line:column`; a candidate
+the kernel refuses is `AGENT_CANDIDATE_INVALID`. A build without the
+`familiar` feature refuses the command with `AGENT_USAGE_INVALID`.
 
 `init` writes one trusted genesis into an empty directory: a workspace
 identity derived from a genesis nonce (random, or `--seed`), the principal

@@ -1,0 +1,18 @@
+struct Account { owner: text, balance: i64, kind: u8 }
+enum WithdrawError { NotPositive, Insufficient }
+fn withdraw(a: Account, amount: i64) -> Result<Account,WithdrawError> {
+    if amount <= 0 { return err(NotPositive) }
+    if amount > a.balance { return err(Insufficient) }
+    return ok(Account { owner: a.owner, balance: a.balance - amount, kind: a.kind })
+}
+fn total(xs: Vec<Account>) -> i64 {
+    return sum(x.balance for x in xs)
+}
+fn product(xs: Vec<i64>) -> Result<i64,ArithmeticError> {
+    var p: i64 = 1
+    for x in xs { p = try(p * x) }
+    return ok(p)
+}
+fn owns(a: Account, name: text) -> bool {
+    return a.owner == name
+}

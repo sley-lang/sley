@@ -47,8 +47,11 @@ impl EmbedValue {
     pub fn case(case: impl Into<String>) -> EmbedValue;
     pub fn field(&self, name: &str) -> Option<&EmbedValue>;
 }
-pub enum CallResult { Value(EmbedValue), Trap { symbol: String }, OutOfFuel, LimitExceeded { what: String } }
-pub struct CallOutcome { pub result: CallResult, pub fuel_used: u64, pub instructions: u64 }
+pub enum CallResult<T = EmbedValue> { Value(T), Trap { symbol: String }, OutOfFuel, LimitExceeded { what: String } }
+pub struct CallOutcome<T = EmbedValue> { pub result: CallResult<T>, pub fuel_used: u64, pub instructions: u64 }
+impl CallOutcome { pub fn typed<T: FromEmbed>(self) -> Result<CallOutcome<T>, EmbedError>; }
+pub trait ToEmbed { fn to_embed(&self) -> Result<EmbedValue, EmbedError>; }
+pub trait FromEmbed: Sized { fn from_embed(value: &EmbedValue) -> Option<Self>; }
 
 pub fn compile_python(source: &str, options: &EmbedOptions) -> Result<Module, EmbedError>;
 pub fn compile_python_with(source: &str, options: &EmbedOptions, ceilings: PolicyResourceCeilings)
@@ -61,7 +64,11 @@ impl Module {
     pub fn program_digest(&self) -> [u8; 32];
     pub fn signature(&self, function: &str) -> Option<&Signature>;
     pub fn types(&self) -> &[TypeDeclaration];
+    pub fn check_interface(&self, signatures: &[&str], types: &[&str]) -> Result<(), EmbedError>;
+    pub fn call_json(&mut self, function: &str, args: &str, fuel_limit: u64)
+        -> Result<String, EmbedError>;
 }
+pub mod bindgen { pub fn rust(module: &Module) -> String; pub fn typescript(module: &Module) -> String; }
 
 pub struct Signature { pub name: String, pub parameters: Vec<(String, EmbedType)>, pub result: EmbedType }
 pub struct TypeDeclaration { pub name: String, pub shape: TypeShape }
@@ -187,9 +194,71 @@ arm, so later forms do not break it.
 
 `signature(function)` gives a function's parameter names and types and its result type.
 `types()` gives every record and variant type those signatures use, directly or through other
-types, in name order: each record's fields and each variant's cases in declaration order. A host
-can generate typed wrappers from them. A type with no `EmbedValue` form is `Unsupported`, with its
-Sley spelling.
+types, in name order: each record's fields and each variant's cases in declaration order. A type
+with no `EmbedValue` form is `Unsupported`, with its Sley spelling.
+
+Each prints as Sley spells it: a `Signature` as `withdraw(a: Account, amount: i64) ->
+Result<Account, WithdrawError>`, a `TypeDeclaration` as `record Account { owner: str, balance: i64 }`
+or `variant WithdrawError { NotPositive, Insufficient }`. `check_interface` compares those
+spellings: every listed signature and type must be in the module, which may have more.
+
+### Generated bindings
+
+`bindgen::rust` and `bindgen::typescript` turn a module's interface into typed code. The CLI prints
+the same text without any Rust: `sley-agent bindgen <file | -> --rust` (or `--typescript`) compiles
+the file as `compile_python` does.
+
+**Rust.** Each record a bound function uses becomes a struct, each variant type an enum, with
+`ToEmbed` and `FromEmbed`. A `Program` wraps the module, with one method per function:
+
+```rust
+mod bank {
+    include!("bank_bindings.rs"); // sley-agent bindgen bank.txt --rust > bank_bindings.rs
+}
+use bank::{Account, Program, WithdrawError};
+
+let mut bank = Program::new(compile_python(BANK, &EmbedOptions::default())?)?;
+let ada = Account { owner: "ada".into(), balance: 10 };
+let outcome = bank.withdraw(&ada, 40, 1_000_000)?;
+assert_eq!(outcome.result, CallResult::Value(Err(WithdrawError::Insufficient)));
+```
+
+- Integers take their declared Rust width (`u8`, `i64`, ...), `str` is `String` (`&str` as a
+  parameter), `list[T]` is `Vec<T>` (`&[T]`), a record or enum parameter is taken by reference, and
+  `Map<K, V>` is a `BTreeMap`. An integer outside `i64` is refused before the call.
+- A method returns `CallOutcome<T>`: the same traps, limits and exact `fuel_used` and
+  `instructions` as `call`, with the value converted (`CallOutcome::typed`).
+- `Program::new` refuses (`AGENT_INPUT_INVALID`) a module whose interface differs from the one
+  the bindings were generated from, naming the first difference. A different `seed` changes the
+  program digest but not the bindings.
+- A name Rust reserves becomes a raw identifier (`r#type`), or gets a trailing `_` when it cannot
+  be one (`self_`) or would clash with the generated code (`Program_`, a function `new` becomes the
+  method `new_`). More `_` follow until the name is unique among its types, cases, fields, methods
+  or parameters (`new_` then `new__`). Values keep the Sley names.
+- A function with a type that has no `EmbedValue` form, or a tuple of more than eight items, is
+  listed in a comment and not bound.
+
+**TypeScript.** A `wasm32-unknown-unknown` host exports `Module::call_json` to JavaScript, which
+takes the arguments as a JSON array and returns
+`{"result": {"value": v} | {"trap": name} | {"limit": what}, "fuel_used": n, "instructions": n}`.
+Values use the JSON form `sley-agent call` prints: a record as an object, a case as `"Case"` or
+`{"Case": payload}`, a built-in failure as `{"ArithmeticError": "Overflow"}`, `"None"` or
+`{"Some": v}`, `{"Ok": v}` or `{"Err": e}`, and a map as an array of `[key, value]`. Arguments may
+also take the other forms `call` reads: an integer as a decimal string (within `i64`), unit as
+`[]` or `{}`, an option as `null` or a bare value, a case as `"Type.Case"`, and a built-in failure
+as its bare case. `bindgen::typescript` declares those forms for the program's types, and a
+`Program` class over the host's `call_json`. Names follow the same rule as in Rust, with
+TypeScript's reserved words:
+
+```ts
+import { Program } from "./bank_bindings"; // sley-agent bindgen bank.txt --typescript
+const bank = new Program((name, args, fuel) => wasm.call_json(name, args, fuel));
+const outcome = bank.withdraw({ owner: "ada", balance: 10 }, 40, 1_000_000);
+// outcome.result: { value: { Err: "Insufficient" } }
+```
+
+Integers are JSON numbers, which JavaScript holds exactly up to 2^53 - 1. The generated text
+type-checks under `tsc --strict`.
 
 ## Determinism
 

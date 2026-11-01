@@ -43,6 +43,11 @@ use crate::names::{NameMap, Names};
 use crate::values::{failure_case, failure_cases, failure_code, substitute};
 use crate::workspace::Program;
 
+pub mod bindgen;
+mod convert;
+
+pub use convert::{FromEmbed, ToEmbed};
+
 /// Every input of nondeterminism in a compilation. The same source and the
 /// same options give the same [`Module::program_digest`].
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -259,11 +264,12 @@ pub struct TypeDeclaration {
     pub shape: TypeShape,
 }
 
-/// How a call ended.
+/// How a call ended. `T` is the returned value's form: an [`EmbedValue`],
+/// or a Rust type of generated bindings ([`CallOutcome::typed`]).
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum CallResult {
+pub enum CallResult<T = EmbedValue> {
     /// The function returned.
-    Value(EmbedValue),
+    Value(T),
     /// The program trapped: `unreachable`, `resource_exhausted`,
     /// `adapter_contract_violation`, `internal_invariant`, or `trap_<tag>`.
     Trap {
@@ -282,13 +288,42 @@ pub enum CallResult {
 
 /// One call's result and exact resource use.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CallOutcome {
+pub struct CallOutcome<T = EmbedValue> {
     /// How the call ended.
-    pub result: CallResult,
+    pub result: CallResult<T>,
     /// Fuel charged (at most the limit).
     pub fuel_used: u64,
     /// Instructions executed.
     pub instructions: u64,
+}
+
+impl CallOutcome {
+    /// The outcome with its returned value converted to `T`, as generated
+    /// bindings ([`bindgen`]) return it. Traps and limits carry over.
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_EXECUTION_REFUSED` when the value has no `T` form.
+    pub fn typed<T: FromEmbed>(self) -> Result<CallOutcome<T>, EmbedError> {
+        let result = match self.result {
+            CallResult::Value(value) => {
+                CallResult::Value(T::from_embed(&value).ok_or_else(|| {
+                    EmbedError::new(
+                        AgentErrorCode::ExecutionRefused,
+                        format!("the result {value:?} does not have the bindings' type"),
+                    )
+                })?)
+            }
+            CallResult::Trap { symbol } => CallResult::Trap { symbol },
+            CallResult::OutOfFuel => CallResult::OutOfFuel,
+            CallResult::LimitExceeded { what } => CallResult::LimitExceeded { what },
+        };
+        Ok(CallOutcome {
+            result,
+            fuel_used: self.fuel_used,
+            instructions: self.instructions,
+        })
+    }
 }
 
 struct Function {
@@ -618,6 +653,118 @@ impl Module {
             fuel_used: outcome.fuel,
             instructions: outcome.instructions,
         })
+    }
+}
+
+impl Module {
+    /// Checks that the program has the interface generated bindings were
+    /// made for: each of `signatures` is a function's [`Signature`] as it
+    /// prints, and each of `types` a [`TypeDeclaration`] of
+    /// [`Self::types`]. The program may have more functions and types.
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_INPUT_INVALID`, naming the first signature or type that the
+    /// program does not have.
+    pub fn check_interface(&self, signatures: &[&str], types: &[&str]) -> Result<(), EmbedError> {
+        for expected in signatures {
+            let name = expected.split('(').next().unwrap_or_default();
+            let found = self.signature(name).map(ToString::to_string);
+            if found.as_deref() != Some(*expected) {
+                let found = found.unwrap_or_else(|| "no such function".to_owned());
+                return Err(EmbedError::new(
+                    AgentErrorCode::InputInvalid,
+                    format!("the bindings expect `{expected}`; the program has {found}"),
+                ));
+            }
+        }
+        for expected in types {
+            if !self
+                .declarations
+                .iter()
+                .any(|declaration| declaration.to_string() == *expected)
+            {
+                return Err(EmbedError::new(
+                    AgentErrorCode::InputInvalid,
+                    format!("the bindings expect `{expected}`, which the program does not declare"),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// [`Self::call`] with JSON in and out, for a host that has no Rust
+    /// types, such as a `wasm32-unknown-unknown` build called from
+    /// JavaScript. `args` is a JSON array, one value per parameter, in the
+    /// form `sley-agent call` takes: a record as an object, `"Case"` or
+    /// `{"Case": payload}`, `"None"` or `{"Some": v}`, `{"Ok": v}` or
+    /// `{"Err": e}`, a map as an array of `[key, value]`. The reply is
+    /// `{"result": R, "fuel_used": n, "instructions": n}`, where `R` is
+    /// `{"value": v}`, `{"trap": "unreachable"}` or `{"limit": "Fuel"}`
+    /// (or another limit's name). [`bindgen::typescript`] types both sides.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::call`], and `AGENT_INPUT_INVALID` when `args` is not a
+    /// JSON array of values of the parameters' types.
+    pub fn call_json(
+        &mut self,
+        function: &str,
+        args: &str,
+        fuel_limit: u64,
+    ) -> Result<String, EmbedError> {
+        let invalid = |detail: String| EmbedError::new(AgentErrorCode::InputInvalid, detail);
+        let (parameters, result_type) = self
+            .functions
+            .get(function)
+            .map(|entry| {
+                (
+                    entry.signature.parameters.clone(),
+                    entry.signature.result.clone(),
+                )
+            })
+            .ok_or_else(|| {
+                EmbedError::new(
+                    AgentErrorCode::NameUnknown,
+                    format!("no function named `{function}`"),
+                )
+            })?;
+        let args: serde_json::Value = serde_json::from_str(args)
+            .map_err(|error| invalid(format!("the arguments are not JSON: {error}")))?;
+        let args = args
+            .as_array()
+            .ok_or_else(|| invalid("the arguments are a JSON array".to_owned()))?;
+        if args.len() != parameters.len() {
+            return Err(invalid(format!(
+                "{function} takes {} argument(s), got {}",
+                parameters.len(),
+                args.len()
+            )));
+        }
+        let values = args
+            .iter()
+            .zip(&parameters)
+            .enumerate()
+            .map(|(index, (arg, (_, ty)))| {
+                convert::from_json(arg, ty, &self.declarations, 0)
+                    .map_err(|detail| invalid(format!("arg {index}: {detail}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let outcome = self.call(function, &values, fuel_limit)?;
+        let result = match &outcome.result {
+            CallResult::Value(value) => {
+                serde_json::json!({"value": convert::to_json(value, &result_type, &self.declarations)})
+            }
+            CallResult::Trap { symbol } => serde_json::json!({"trap": symbol}),
+            CallResult::OutOfFuel => serde_json::json!({"limit": "Fuel"}),
+            CallResult::LimitExceeded { what } => serde_json::json!({"limit": what}),
+        };
+        Ok(serde_json::json!({
+            "result": result,
+            "fuel_used": outcome.fuel_used,
+            "instructions": outcome.instructions,
+        })
+        .to_string())
     }
 }
 
