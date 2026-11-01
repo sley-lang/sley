@@ -86,7 +86,7 @@ impl EmbedError {
         }
     }
 
-    fn of(error: &AgentError) -> Self {
+    pub(crate) fn of(error: &AgentError) -> Self {
         Self::new(error.code(), error.detail())
     }
 
@@ -348,6 +348,8 @@ struct Types(BTreeMap<EntityId, TypeDef>);
 /// A compiled, Valid program with every function lowered and loaded.
 pub struct Module {
     executor: Executor,
+    /// The compiled program, for executors in other modes ([`crate::vmfuzz`]).
+    program: Program,
     functions: BTreeMap<String, Function>,
     types: Types,
     declarations: Vec<TypeDeclaration>,
@@ -514,10 +516,12 @@ pub fn compile_python_with(
     let declarations = types.declarations(&used);
     Ok(Module {
         executor,
+        // Before `program` moves in: fields are evaluated as written.
+        digest: *program.root().as_bytes(),
+        program,
         functions,
         types,
         declarations,
-        digest: *program.root().as_bytes(),
     })
 }
 
@@ -573,20 +577,18 @@ impl Module {
         self.digest
     }
 
-    /// Calls `function` with `args` under `fuel_limit` fuel.
-    ///
-    /// # Errors
-    ///
-    /// `AGENT_NAME_UNKNOWN` for a function the program does not have,
-    /// `AGENT_INPUT_INVALID` for arguments that do not fit its parameters,
-    /// `AGENT_EXECUTION_REFUSED` when the VM refuses the call or the result
-    /// has no [`EmbedValue`] form. Traps and limits are outcomes.
-    pub fn call(
-        &mut self,
+    /// The compiled program.
+    pub(crate) const fn program(&self) -> &Program {
+        &self.program
+    }
+
+    /// `function`'s identity and `args` as its typed inputs, as
+    /// [`Self::call`] converts them.
+    pub(crate) fn inputs(
+        &self,
         function: &str,
         args: &[EmbedValue],
-        fuel_limit: u64,
-    ) -> Result<CallOutcome, EmbedError> {
+    ) -> Result<(EntityId, Vec<ConstValue>), EmbedError> {
         let entry = self.functions.get(function).ok_or_else(|| {
             EmbedError::new(
                 AgentErrorCode::NameUnknown,
@@ -616,11 +618,29 @@ impl Module {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        Ok((entry.id, inputs))
+    }
+
+    /// Calls `function` with `args` under `fuel_limit` fuel.
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_NAME_UNKNOWN` for a function the program does not have,
+    /// `AGENT_INPUT_INVALID` for arguments that do not fit its parameters,
+    /// `AGENT_EXECUTION_REFUSED` when the VM refuses the call or the result
+    /// has no [`EmbedValue`] form. Traps and limits are outcomes.
+    pub fn call(
+        &mut self,
+        function: &str,
+        args: &[EmbedValue],
+        fuel_limit: u64,
+    ) -> Result<CallOutcome, EmbedError> {
+        let (id, inputs) = self.inputs(function, args)?;
+        let list_result = self.functions[function].list_result;
         let limits = ExecutionLimits {
             max_fuel: fuel_limit,
             ..exec::call_limits()
         };
-        let (id, list_result) = (entry.id, entry.list_result);
         let outcome = self
             .executor
             .run(&id, inputs, limits)

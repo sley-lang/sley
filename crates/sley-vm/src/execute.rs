@@ -802,6 +802,16 @@ impl VerifiedImage {
         self.scalar.is_some()
     }
 
+    /// Whether this image holds a derived plan (the scalar plan, and the
+    /// word tier within it) that [`ExecutionMode::Auto`] runs instead of the
+    /// reference interpreter. Diagnostic only: a differential check uses it
+    /// to know that it compared two tiers. Execution, accounting and
+    /// admission do not read it.
+    #[must_use]
+    pub const fn has_derived_plan(&self) -> bool {
+        self.scalar.is_some()
+    }
+
     /// Structurally loads `bytes` and verifies them against the approved
     /// digest: the first two checks of [`execute_loaded_image`].
     ///

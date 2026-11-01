@@ -331,6 +331,39 @@ impl Executor {
         Ok(Outcome::from_execution(outcome, started))
     }
 
+    /// Whether `id` runs on a derived plan rather than the reference
+    /// interpreter in this executor's mode ([`crate::vmfuzz`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`], when the function does not lower or load.
+    pub fn has_derived_plan(&mut self, id: &EntityId) -> Result<bool> {
+        self.lower(id)?;
+        Ok(self.lowered[id].image.has_derived_plan())
+    }
+
+    /// Executes like [`Self::run`] and returns the VM's whole outcome, with
+    /// its peak value units and observation digest: what a differential
+    /// check between execution modes compares ([`crate::vmfuzz`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`].
+    pub fn run_exact(
+        &mut self,
+        id: &EntityId,
+        inputs: Vec<ConstValue>,
+        limits: ExecutionLimits,
+    ) -> Result<sley_vm::ExecutionOutcome> {
+        self.lower(id)?;
+        let lowered = &self.lowered[id];
+        let input = self.loaded_input();
+        lowered
+            .image
+            .execute(input, ExecutionRequest { inputs, limits })
+            .map_err(|error| refused(format!("execution refused: {error}")))
+    }
+
     /// Runs one `TestCase` under its declared fuel and compares with the
     /// kernel's rule.
     pub fn run_test(&mut self, test: &TestCaseDefinition, names: &Names) -> TestOutcome {
