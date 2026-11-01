@@ -103,6 +103,32 @@ pub(crate) fn lower(
     cx: &Context<'_>,
     frame: &Map<String, Value>,
 ) -> Result<Lowered, Vec<Obligation>> {
+    lower_with(cx, frame, None)
+}
+
+/// Lowers like [`lower`], except that every list or vector read that traps
+/// on a missing index first checks the index: out of range, the function
+/// traps with the payload `(site, index, length)`, where `site` indexes the
+/// returned authored pointers. Only `try` diagnostics run the result: it
+/// is never staged as a candidate, and its fuel is never reported.
+///
+/// # Errors
+///
+/// As [`lower`].
+pub(crate) fn lower_probing(
+    cx: &Context<'_>,
+    frame: &Map<String, Value>,
+) -> Result<(Lowered, Vec<String>), Vec<Obligation>> {
+    let mut sites = Vec::new();
+    let lowered = lower_with(cx, frame, Some(&mut sites))?;
+    Ok((lowered, sites))
+}
+
+fn lower_with(
+    cx: &Context<'_>,
+    frame: &Map<String, Value>,
+    mut probe: Option<&mut Vec<String>>,
+) -> Result<Lowered, Vec<Obligation>> {
     let prepared = truth_tests::lower(cx, frame)?;
     let frame = &prepared.frame;
     let mut out = frame.clone();
@@ -132,11 +158,16 @@ pub(crate) fn lower(
                 lowered.push(decl.clone());
                 continue;
             }
+            let base = probe.as_ref().map(|sites| sites.len());
             match Fn::new(cx, &signatures, &records, decl, &at).and_then(|mut f| {
+                f.probe = base.map(|base| (base, Vec::new()));
                 let blocks = f.lower()?;
-                Ok((blocks, f.origins))
+                Ok((blocks, f.origins, f.probe))
             }) {
-                Ok((blocks, fn_origins)) => {
+                Ok((blocks, fn_origins, fn_sites)) => {
+                    if let (Some(sites), Some((_, found))) = (probe.as_mut(), fn_sites) {
+                        sites.extend(found.iter().map(|site| authored(&prepared.origins, site)));
+                    }
                     let mut object = decl.as_object().cloned().unwrap_or_default();
                     object.remove("body");
                     object.insert("blocks".to_owned(), Value::Array(blocks));
@@ -405,6 +436,9 @@ struct Fn<'c, 'a> {
     lists: BTreeMap<String, String>,
     /// Lists a `for` is visiting: the body may not change them.
     iterating: Vec<String>,
+    /// In a probing lowering ([`lower_probing`]): the frame-wide number of
+    /// this function's first read site, and each site's pointer.
+    probe: Option<(usize, Vec<String>)>,
 }
 
 impl<'c, 'a> Fn<'c, 'a> {
@@ -469,7 +503,113 @@ impl<'c, 'a> Fn<'c, 'a> {
             nonneg,
             lists: BTreeMap::new(),
             iterating: Vec::new(),
+            probe: None,
         })
+    }
+
+    /// In a probing lowering, a read site at `at` emits
+    /// `["if", condition, [trap]]` before the read, where the trap's payload
+    /// is `(site, index, length)` (`length` a held name). Otherwise nothing
+    /// is emitted. The caller reads its held names back from `env`
+    /// afterwards.
+    fn probe(
+        &mut self,
+        env: &mut Env,
+        condition: &Value,
+        index: &Value,
+        length: &str,
+        at: &str,
+    ) -> R<()> {
+        let Some((base, sites)) = self.probe.as_mut() else {
+            return Ok(());
+        };
+        let known = sites.iter().position(|site| site == at);
+        let site = *base
+            + known.unwrap_or_else(|| {
+                sites.push(at.to_owned());
+                sites.len() - 1
+            });
+        let site = json!({"type": "u64", "value": site});
+        self.stmts(
+            &[json!(["if", condition, [["-probe", site, index, length]]])],
+            env,
+            at,
+            true,
+        )?;
+        Ok(())
+    }
+
+    /// The `u64` index of a trapping read of `target`, probed when the
+    /// lowering probes. Two Python dialect forms are checked before they
+    /// can fail on their own: a converted signed index (`["to", "u64", e]`,
+    /// `xs[i]`) for its sign, and `xs[-k]` (`["sub", ["len", xs], k]`) for
+    /// `k` past the length. Every index is then checked against the length,
+    /// unless `range` is false: a store checks its range where it reads,
+    /// after its value. `length` computes the read's length from `env`; it
+    /// is called only when probing.
+    #[allow(clippy::too_many_arguments)]
+    fn read_index(
+        &mut self,
+        target: &Value,
+        index: &Value,
+        env: &mut Env,
+        at_index: &str,
+        at: &str,
+        length: &mut dyn FnMut(&mut Self, &Env) -> Value,
+        range: bool,
+    ) -> R<(Value, String)> {
+        if self.probe.is_none() {
+            return self.expr(index, env, at_index, Some("u64"));
+        }
+        let form = index.as_array().map(Vec::as_slice);
+        let (i, ti) = match form {
+            Some([to, ty, inner]) if to == "to" && ty == "u64" => {
+                let (raw, ty) = self.expr(inner, env, &format!("{at_index}/2"), None)?;
+                let k = self.hold(env, raw, &ty);
+                if is_int(&ty) && signed(&ty) {
+                    let n = length(self, env);
+                    let kn = self.hold(env, n, "u64");
+                    self.probe(env, &json!(["lt", k, 0]), &json!(k), &kn, at)?;
+                    Self::release(env, &[kn]);
+                }
+                let converted = self.expr(&json!(["to", "u64", k]), env, at_index, None);
+                Self::release(env, &[k]);
+                converted?
+            }
+            Some([sub, len, back])
+                if sub == "sub"
+                    && *len == json!(["len", target])
+                    && back.get("type") == Some(&json!("u64")) =>
+            {
+                let back_index = back
+                    .get("value")
+                    .and_then(Value::as_u64)
+                    .and_then(|k| i64::try_from(k).ok());
+                if let Some(k) = back_index {
+                    let n = length(self, env);
+                    let kn = self.hold(env, n, "u64");
+                    self.probe(
+                        env,
+                        &json!(["gt", back, kn]),
+                        &json!({"type": "i64", "value": -k}),
+                        &kn,
+                        at,
+                    )?;
+                    Self::release(env, &[kn]);
+                }
+                self.expr(index, env, at_index, Some("u64"))?
+            }
+            _ => self.expr(index, env, at_index, Some("u64"))?,
+        };
+        if ti != "u64" || !range {
+            return Ok((i, ti));
+        }
+        let k = self.hold(env, i, "u64");
+        let n = length(self, env);
+        let kn = self.hold(env, n, "u64");
+        self.probe(env, &json!(["ge", k, kn]), &json!(k), &kn, at)?;
+        let i = Self::release(env, &[k, kn]).remove(0);
+        Ok((i, ti))
     }
 
     /// The length binding of the list local `e` names, if it names one in scope.
@@ -1130,7 +1270,13 @@ impl<'c, 'a> Fn<'c, 'a> {
                     .filter(|_| self.list_len(&args[0], env).is_some())
                 {
                     let list = list.to_owned();
-                    let (i, ti) = self.expr(&args[1], env, &sub(1), Some("u64"))?;
+                    let len = self.list_len(&args[0], env).unwrap_or_default();
+                    let (i, ti) = if mode.is_none() {
+                        let mut length = |_: &mut Self, env: &Env| env.operand(&len);
+                        self.read_index(&args[0], &args[1], env, &sub(1), at, &mut length, true)?
+                    } else {
+                        self.expr(&args[1], env, &sub(1), Some("u64"))?
+                    };
                     if ti != "u64" {
                         return fail(at, format!("a list index is u64, not {ti}"));
                     }
@@ -1151,7 +1297,14 @@ impl<'c, 'a> Fn<'c, 'a> {
                     return fail(at, "`get` needs a vector");
                 };
                 let kv = self.hold(env, v, &t);
-                let (i, ti) = self.expr(&args[1], env, &sub(1), Some("u64"))?;
+                let (i, ti) = if mode.is_none() {
+                    let mut length = |f: &mut Self, env: &Env| {
+                        f.emit_value("vec_len", vec![env.operand(&kv)], at)
+                    };
+                    self.read_index(&args[0], &args[1], env, &sub(1), at, &mut length, true)?
+                } else {
+                    self.expr(&args[1], env, &sub(1), Some("u64"))?
+                };
                 let v = Self::release(env, &[kv]).remove(0);
                 if ti != "u64" {
                     return fail(at, format!("a vector index is u64, not {ti}"));
@@ -1905,7 +2058,16 @@ impl<'c, 'a> Fn<'c, 'a> {
                     let elem =
                         map_value(&env.get(&x).expect("a list").ty).expect("a list is a map");
                     let index = if kind == "store" {
-                        let (i, ti) = self.expr(&items[2], env, &part(2), Some("u64"))?;
+                        let mut length = |_: &mut Self, env: &Env| env.operand(&len);
+                        let (i, ti) = self.read_index(
+                            &items[1],
+                            &items[2],
+                            env,
+                            &part(2),
+                            &here,
+                            &mut length,
+                            false,
+                        )?;
                         if ti != "u64" {
                             return fail(&part(2), format!("a list index is u64, not {ti}"));
                         }
@@ -1913,13 +2075,23 @@ impl<'c, 'a> Fn<'c, 'a> {
                     } else {
                         None
                     };
-                    let (v, t) =
+                    let (mut v, t) =
                         self.expr(&items[arity - 1], env, &part(arity - 1), Some(&elem))?;
                     if t != elem {
                         return fail(&part(arity - 1), format!("`{x}` holds {elem}, not {t}"));
                     }
                     let index = match index {
                         Some(key) => {
+                            if self.probe.is_some() {
+                                // The probe's branch renames every value in
+                                // scope: the stored value is held across it.
+                                let kv = self.hold(env, v, &elem);
+                                let length = env.operand(&len);
+                                let kn = self.hold(env, length, "u64");
+                                self.probe(env, &json!(["ge", key, kn]), &json!(key), &kn, &here)?;
+                                Self::release(env, &[kn]);
+                                v = Self::release(env, &[kv]).remove(0);
+                            }
                             let i = Self::release(env, &[key]).remove(0);
                             // The index must already be in the list.
                             let trap = self.trap_block();
@@ -2020,6 +2192,15 @@ impl<'c, 'a> Fn<'c, 'a> {
                     self.end(json!(["fail", items[1]]), &here);
                 }
                 "trap" => self.end(json!(["trap"]), &here),
+                // A probing lowering's out-of-range read (see `probe`).
+                "-probe" if internal && self.probe.is_some() => {
+                    let mut parts = Vec::with_capacity(items.len() - 1);
+                    for item in &items[1..] {
+                        parts.push(self.expr(item, env, &here, None)?.0);
+                    }
+                    let payload = self.emit_value("tuple", parts, &here);
+                    self.end(json!(["trap", "unreachable", payload]), &here);
+                }
                 "break" | "continue" => {
                     let Some(cx) = self.loops.last().cloned() else {
                         return fail(&here, format!("`{kind}` is outside every loop"));

@@ -5,6 +5,7 @@
 //! candidate, failing test), 2 a workbench refusal (`AGENT_*`).
 
 mod body;
+mod index_reads;
 mod residual;
 mod scope;
 
@@ -754,6 +755,14 @@ fn familiar_test_lines(
     }
 }
 
+/// Current input's functions, when it is familiar text.
+fn familiar_fns(frame: Option<&Value>, positions: Option<&FamiliarPositions>) -> Vec<Value> {
+    match (frame, positions) {
+        (Some(frame), Some(_)) => frame["fns"].as_array().cloned().unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
 /// Adds the familiar text position of each obligation's pointer (`text`:
 /// line and column, diagnostic only) and returns one line per located
 /// obligation.
@@ -924,6 +933,9 @@ struct Proposal {
     /// Current input's test names and lines, captured before layering can
     /// replace or reorder tests from an earlier frame.
     familiar_test_lines: BTreeMap<String, usize>,
+    /// Current input's functions, in text order: a pointer into a function
+    /// of the tried frame locates in the text through the same function.
+    familiar_fns: Vec<Value>,
     scope: Option<scope::Guard>,
     body: Option<body::Target>,
 }
@@ -954,6 +966,7 @@ impl Proposal {
             artifacts: Vec::new(),
             familiar: None,
             familiar_test_lines: BTreeMap::new(),
+            familiar_fns: Vec::new(),
             scope: None,
             body: None,
         }
@@ -1130,6 +1143,7 @@ fn trial_input(
     Ok((input, parsed, positions))
 }
 
+#[allow(clippy::too_many_lines)]
 fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
     let mut switches = TRIAL_SWITCHES.to_vec();
     switches.push("--familiar");
@@ -1156,6 +1170,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     let body = body::Target::select(&words, &workspace, &head)?;
     let (input, parsed, positions) = trial_input(global, frame_argument, familiar, body.as_ref())?;
     let familiar_test_lines = familiar_test_lines(parsed.as_ref().ok(), positions.as_ref());
+    let familiar_fns = familiar_fns(parsed.as_ref().ok(), positions.as_ref());
     if let (Some(guard), Ok(frame)) = (&guard, &parsed) {
         guard.check_frame(frame)?;
     }
@@ -1233,6 +1248,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     let mut proposal = proposal;
     proposal.familiar = positions;
     proposal.familiar_test_lines = familiar_test_lines;
+    proposal.familiar_fns = familiar_fns;
     proposal.scope = guard;
     if body.is_some() {
         proposal.origin = Origin::Draft;
@@ -2954,6 +2970,33 @@ fn run_trial(
         return Ok(EXIT_REFUSED);
     }
     let (tests, public) = ran?;
+    // Advisory: where a failing test's trap read out of range.
+    let index_reads = index_reads::find(
+        head,
+        &authority,
+        &names,
+        &map,
+        &compile_frame,
+        &tests,
+        &after_names,
+    );
+    // The read's pointer indexes the tried frame; layering can place the
+    // current text's functions elsewhere in it, and only those locate in
+    // the text.
+    let read_at = |read: &index_reads::IndexRead| {
+        let (index, rest) = read.pointer.strip_prefix("/fns/")?.split_once('/')?;
+        let tried = frame_value["fns"].get(index.parse::<usize>().ok()?)?;
+        let own = proposal.familiar_fns.iter().position(|f| f == tried)?;
+        familiar_locate(proposal.familiar.as_ref()?, &format!("/fns/{own}/{rest}"))
+    };
+    let read_suffix = |name: &str| {
+        index_reads
+            .get(name)
+            .map_or_else(String::new, |read| match read_at(read) {
+                Some((line, _)) => format!("; {} (line {line})", read.text()),
+                None => format!("; {} at {}", read.text(), read.pointer),
+            })
+    };
     let (public, public_refusal) = match public {
         Ok(public) => (public, None),
         Err(error) => {
@@ -3035,6 +3078,16 @@ fn run_trial(
             "obligations": obligations,
             "provenance": provenance,
         });
+        if let Some(entries) = value["tests"].as_array_mut() {
+            for entry in entries {
+                let read = entry["test"]
+                    .as_str()
+                    .and_then(|name| index_reads.get(name));
+                if let Some(read) = read {
+                    entry["index_read"] = read.json(read_at(read));
+                }
+            }
+        }
         if let Some(raw) = &raw {
             value["stored_hex"] = json!(raw);
         }
@@ -3090,16 +3143,17 @@ fn run_trial(
         let mut text = String::new();
         for line in test_lines(&tests, &after_names, false).lines() {
             let line = line.trim_start();
-            let at = line
+            let name = line
                 .strip_prefix("FAIL ")
                 .and_then(|rest| rest.split(' ').next())
-                .and_then(|name| proposal.familiar_test_lines.get(name));
-            match at {
+                .unwrap_or_default();
+            let read = read_suffix(name);
+            match proposal.familiar_test_lines.get(name) {
                 Some(at) => {
-                    let _ = writeln!(text, "{line} (line {at})");
+                    let _ = writeln!(text, "{line} (line {at}){read}");
                 }
                 None => {
-                    let _ = writeln!(text, "{line}");
+                    let _ = writeln!(text, "{line}{read}");
                 }
             }
         }
@@ -3142,16 +3196,17 @@ fn run_trial(
         let passed = tests.iter().filter(|t| t.passed()).count();
         let _ = writeln!(text, "tests: {passed}/{} passed{provenance}", tests.len());
         for line in test_lines(&tests, &after_names, options.verbose).lines() {
-            let at = line
+            let name = line
                 .strip_prefix("  FAIL ")
                 .and_then(|rest| rest.split(' ').next())
-                .and_then(|name| proposal.familiar_test_lines.get(name));
-            match at {
+                .unwrap_or_default();
+            let read = read_suffix(name);
+            match proposal.familiar_test_lines.get(name) {
                 Some(at) => {
-                    let _ = writeln!(text, "{line} (line {at})");
+                    let _ = writeln!(text, "{line} (line {at}){read}");
                 }
                 None => {
-                    let _ = writeln!(text, "{line}");
+                    let _ = writeln!(text, "{line}{read}");
                 }
             }
         }
