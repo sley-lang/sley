@@ -671,7 +671,7 @@ impl Module {
             let name = expected.split('(').next().unwrap_or_default();
             let found = self.signature(name).map(ToString::to_string);
             if found.as_deref() != Some(*expected) {
-                let found = found.map_or_else(|| "no such function".to_owned(), |f| f);
+                let found = found.unwrap_or_else(|| "no such function".to_owned());
                 return Err(EmbedError::new(
                     AgentErrorCode::InputInvalid,
                     format!("the bindings expect `{expected}`; the program has {found}"),

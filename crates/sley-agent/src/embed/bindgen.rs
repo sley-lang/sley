@@ -226,7 +226,7 @@ impl<'m> Interface<'m> {
                     if let Some(declaration) = declarations.iter().find(|d| d.name == *name) {
                         match &declaration.shape {
                             TypeShape::Record(fields) => {
-                                pending.extend(fields.iter().map(|(_, ty)| ty))
+                                pending.extend(fields.iter().map(|(_, ty)| ty));
                             }
                             TypeShape::Variant(cases) => {
                                 pending.extend(cases.iter().filter_map(|(_, ty)| ty.as_ref()));
@@ -409,6 +409,7 @@ fn rust_strings(out: &mut String, name: &str, items: &[String]) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn rust_declaration(out: &mut String, declaration: &TypeDeclaration) {
     let name = rust_type_name(&declaration.name);
     let _ = writeln!(out, "/// `{declaration}`");
@@ -588,7 +589,7 @@ fn rust_method(out: &mut String, signature: &Signature) {
     if flat.len() <= 100 {
         out.push_str(&flat);
     } else {
-        let _ = write!(out, "    pub fn {method}(\n");
+        let _ = writeln!(out, "    pub fn {method}(");
         for item in &items {
             let _ = writeln!(out, "        {item},");
         }

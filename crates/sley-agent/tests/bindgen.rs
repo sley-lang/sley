@@ -169,7 +169,7 @@ fn call_json_refuses_what_does_not_fit() {
         ("{}", "JSON array"),
         ("[[1]]", "takes 2 argument"),
         (r#"[["x"]]"#, "arg 0"),
-        (r#"[[1.5]]"#, "integer"),
+        ("[[1.5]]", "integer"),
     ] {
         let function = if args == "[[1]]" {
             "withdraw"

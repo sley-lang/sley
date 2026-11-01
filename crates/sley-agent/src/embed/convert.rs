@@ -293,6 +293,7 @@ pub(super) fn to_json(value: &EmbedValue) -> Value {
 
 /// A value of type `ty` from its JSON form ([`to_json`]); an integer may
 /// also be a decimal string, and an empty option `null`.
+#[allow(clippy::too_many_lines)]
 pub(super) fn from_json(
     value: &Value,
     ty: &EmbedType,
