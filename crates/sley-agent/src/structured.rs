@@ -46,10 +46,11 @@
 //! - `len` (u64), `get` (`[xs, u64]`; out of range traps or `get?Case`),
 //!   `field` (`[record, "name"]`), `call` (`["f", args..]`; `call?` unwraps a
 //!   Result).
-//! - `record`: `["record", T, [field, e]..]` builds a record of type `T`,
-//!   each field given once by name; `["call", T, args..]` builds one from
-//!   one argument per field in declaration order. Fields are evaluated in
-//!   declaration order.
+//! - `record`: `["record", T, [{"field": f}, e]..]` builds a record of type
+//!   `T`, each field given once by name (the name is an object, so no pass
+//!   reads it as an operation or a variable); `["call", T, args..]` builds
+//!   one from one argument per field in declaration order. The values are
+//!   evaluated in the order written.
 //!
 //! Integer literals take the type of the other operand, the declared
 //! variable or the return type, else `i64`. Evaluation is left to right;
@@ -522,16 +523,20 @@ impl<'c, 'a> Fn<'c, 'a> {
 
     /// A `record_new` of `ty` from one value per field, in declaration
     /// order, each with the pointer it came from.
+    /// `values` holds every field once, in the order written: the field's
+    /// index, its value and the value's pointer. They are evaluated in that
+    /// order and passed in declaration order.
     fn record_new(
         &mut self,
         ty: &str,
         fields: &[(String, String)],
-        values: Vec<(&Value, String)>,
+        values: Vec<(usize, &Value, String)>,
         env: &mut Env,
         at: &str,
     ) -> R<(Value, String)> {
-        let mut keys = Vec::with_capacity(values.len());
-        for ((field, field_ty), (value, value_at)) in fields.iter().zip(values) {
+        let mut keys = vec![String::new(); fields.len()];
+        for (index, value, value_at) in values {
+            let (field, field_ty) = &fields[index];
             let (v, t) = self.expr(value, env, &value_at, Some(field_ty))?;
             if &t != field_ty {
                 return fail(
@@ -539,7 +544,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                     format!("field `{field}` of `{ty}` is {field_ty}, not {t}"),
                 );
             }
-            keys.push(self.hold(env, v, &t));
+            keys[index] = self.hold(env, v, &t);
         }
         let mut operands = vec![json!(ty)];
         operands.extend(Self::release(env, &keys));
@@ -1178,36 +1183,52 @@ impl<'c, 'a> Fn<'c, 'a> {
                 ))
             }
             "record" => {
+                const FORM: &str = "a record field is [{\"field\": name}, value]";
                 let Some(ty) = args.first().and_then(Value::as_str).map(normal) else {
-                    return fail(at, "`record` takes (\"Type\", [field, value]...)");
+                    return fail(
+                        at,
+                        "`record` takes (\"Type\", [{\"field\": name}, value]...)",
+                    );
                 };
                 let Some(fields) = self.record_fields(&ty) else {
-                    return fail(at, format!("`{ty}` is not a known record type"));
+                    let what = if self.signature(&ty).is_some() {
+                        "a function: fields by name build a record"
+                    } else {
+                        "not a known record type"
+                    };
+                    return fail(at, format!("`{ty}` is {what}"));
                 };
-                let mut given = BTreeMap::new();
+                let mut values: Vec<(usize, &Value, String)> = Vec::with_capacity(fields.len());
                 for (k, pair) in args[1..].iter().enumerate() {
                     let Some([name, value]) = pair.as_array().map(Vec::as_slice) else {
-                        return fail(&sub(k + 1), "a record field is [field, value]");
+                        return fail(&sub(k + 1), FORM);
                     };
-                    let Some(name) = name.as_str() else {
-                        return fail(&sub(k + 1), "a record field is [field, value]");
+                    let Some(name) = name
+                        .as_object()
+                        .filter(|name| name.len() == 1)
+                        .and_then(|name| name.get("field"))
+                        .and_then(Value::as_str)
+                    else {
+                        return fail(&sub(k + 1), FORM);
                     };
-                    if !fields.iter().any(|(field, _)| field == name) {
+                    let Some(index) = fields.iter().position(|(field, _)| field == name) else {
                         return fail(&sub(k + 1), format!("record `{ty}` has no field `{name}`"));
-                    }
-                    if given.insert(name, (value, sub(k + 1))).is_some() {
+                    };
+                    if values.iter().any(|(given, ..)| *given == index) {
                         return fail(
                             &sub(k + 1),
                             format!("`{ty}` gives field `{name}` more than once"),
                         );
                     }
+                    values.push((index, value, format!("{}/1", sub(k + 1))));
                 }
-                let mut values = Vec::with_capacity(fields.len());
-                for (field, _) in &fields {
-                    let Some(value) = given.remove(field.as_str()) else {
-                        return fail(at, format!("record `{ty}` needs field `{field}`"));
-                    };
-                    values.push(value);
+                if let Some((field, _)) = fields
+                    .iter()
+                    .enumerate()
+                    .find(|(index, _)| !values.iter().any(|(given, ..)| given == index))
+                    .map(|(_, field)| field)
+                {
+                    return fail(at, format!("record `{ty}` needs field `{field}`"));
                 }
                 self.record_new(&ty, &fields, values, env, at)
             }
@@ -1233,7 +1254,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                     let values = args[1..]
                         .iter()
                         .enumerate()
-                        .map(|(k, value)| (value, sub(k + 1)))
+                        .map(|(k, value)| (k, value, sub(k + 1)))
                         .collect();
                     return self.record_new(callee, &fields, values, env, at);
                 }

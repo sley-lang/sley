@@ -144,7 +144,7 @@ forms:
 |---|---|
 | `int` and other integer types | `Int` (an argument must fit the declared width; a result must fit `i64`) |
 | `bool`, `str` | `Bool`, `Str` |
-| unit (`-> None`) | `Unit` |
+| unit | `Unit` |
 | `list[int]` | `IntList`, the cheap form for large inputs |
 | other lists, tuples | `List` |
 | a record (a Python record class, a familiar `struct`) | `Record`: fields by name. An argument gives every field once, in any order; a result lists them in declaration order |

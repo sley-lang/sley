@@ -2340,9 +2340,10 @@ Expressions: a name, an integer, `true`, `false`, a typed literal `{"type": T, "
 - `if`: `["if", c, a, b]` evaluates only the chosen value;
 - `len` (`u64`), `get` (`[xs, i]`, `u64` index; out of range traps or `get?Case`), `field`
   (`[r, "name"]`), `call` (`["f", args...]`; `call?` unwraps a Result);
-- `record` (2.2): `["record", T, [field, e]...]` is a `record_new` of the record type `T`, each field
-  given once by name; `["call", T, args...]`, where `T` is a record type and not a function, gives
-  one argument per field in declaration order. The fields are evaluated in declaration order;
+- `record` (2.2): `["record", T, [{"field": f}, e]...]` is a `record_new` of the record type `T`,
+  each field given once by name (the name is an object, so it is never read as an operation or a
+  variable); `["call", T, args...]`, where `T` is a record type and not a function, gives one argument
+  per field in declaration order. The values are evaluated in the order written;
 - `fold` (2.1.1): `["fold", kind, x, xs, e, c?, d?]` visits every element `x` of the vector `xs`, or
   every integer of `["range", start, end]` (half-open), where the bool `c` holds when given. `sum`
   adds `e` with checked addition from 0; `count` counts the elements where the bool `e` holds (an

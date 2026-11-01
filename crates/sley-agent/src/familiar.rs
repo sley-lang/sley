@@ -717,6 +717,12 @@ fn resolve_tails(block: &mut Node, tail: bool) -> Result<(), FamiliarError> {
 /// Inside `try(..)`: checked operations without their own failure mode
 /// return the failure instead of trapping, and helper calls unwrap a
 /// returned Result the same way (`tcall`, [`crate::structured`]).
+/// `[{"field": name}, value]`, one field of a `record`. The name is an
+/// object, so no pass over the tree reads it as an operation or a variable.
+fn field_value(pos: Pos, field: &str, value: Node) -> Node {
+    Node::list(pos, vec![Node::atom(pos, json!({ "field": field })), value])
+}
+
 fn mark_failure(node: &mut Node, suffix: &str) {
     let rename = node.head().and_then(|head| {
         if head.contains('?') {
@@ -1912,6 +1918,12 @@ impl Parser {
             && self.at_op("{")
             && self.peek_at(1).kind == Kind::Name
             && self.peek_at(2).text == ":"
+            && (tok.text.starts_with(|c: char| c.is_ascii_uppercase())
+                || self
+                    .declared
+                    .records
+                    .iter()
+                    .any(|(name, ..)| *name == tok.text))
         {
             return self.record_literal(&tok);
         }
@@ -1943,7 +1955,7 @@ impl Parser {
                 return refuse(
                     pos,
                     format!(
-                        "`{name}` is not a record class declared above: give every field by name"
+                        "keyword arguments build records, and `{name}` is not a record class declared above (give a record of another file every field by name)"
                     ),
                 );
             };
@@ -1970,15 +1982,13 @@ impl Parser {
         }
         let mut items = vec![Node::atom(pos, Value::String(name.to_owned()))];
         for (field, field_pos, value) in fields {
-            items.push(Node::list(
-                field_pos,
-                vec![Node::atom(field_pos, Value::String(field)), value],
-            ));
+            items.push(field_value(field_pos, &field, value));
         }
         Ok(Node::op(pos, "record", items))
     }
 
-    /// `Name { field: e, ... }` after `Name`: a record of type `Name`, each
+    /// `Name { field: e, ... }` after `Name` (a name that starts with a
+    /// capital, or a struct declared above): a record of type `Name`, each
     /// field given once.
     fn record_literal(&mut self, name: &Tok) -> P<Node> {
         let open = self.expect_op("{")?;
@@ -1997,10 +2007,7 @@ impl Parser {
             }
             self.expect_op(":")?;
             let value = self.expr()?;
-            items.push(Node::list(
-                pos,
-                vec![Node::atom(pos, Value::String(field.clone())), value],
-            ));
+            items.push(field_value(pos, &field, value));
             seen.push(field);
             if !self.at_op("}") {
                 self.expect_op(",")?;
@@ -5141,7 +5148,7 @@ mod tests {
     #[test]
     fn records_are_built_in_function_bodies() {
         let head = "class P:\n    x: int\n    y: int\n\n";
-        let built = json!(["record", "P", ["x", 1], ["y", 2]]);
+        let built = json!(["record", "P", [{"field": "x"}, 1], [{"field": "y"}, 2]]);
         for call in ["P(1, 2)", "P(1, y=2)", "P(y=2, x=1)", "P(x=1, y=2,)"] {
             let frame = parse(&format!("{head}def f() -> P:\n    return {call}\n"))
                 .unwrap()
@@ -5153,7 +5160,7 @@ mod tests {
             } else if call.starts_with("P(y=") {
                 assert_eq!(
                     returned,
-                    &json!(["record", "P", ["y", 2], ["x", 1]]),
+                    &json!(["record", "P", [{"field": "y"}, 2], [{"field": "x"}, 1]]),
                     "{call}"
                 );
             } else {
@@ -5177,13 +5184,16 @@ mod tests {
         let frame = parse(rust).unwrap().frame;
         let text = frame["fns"][0]["body"].to_string();
         assert!(
-            text.contains(r#"["record","P",["y","a"],["x",1]]"#),
+            text.contains(r#"["record","P",[{"field":"y"},"a"],[{"field":"x"},1]]"#),
             "{text}"
         );
         assert!(
-            text.contains(r#"["record","P",["x","a"],["y","a"]]"#),
+            text.contains(r#"["record","P",[{"field":"x"},"a"],[{"field":"y"},"a"]]"#),
             "{text}"
         );
+        // A lowercase name before `{ x:` is still a block.
+        let block = refused("fn f(a: bool) -> i64 {\n  if a { x: i64 = 1 }\n  0\n}");
+        assert!(!block.message.contains("expected `,`"), "{}", block.message);
         let twice = refused("struct P { x: i64 }\nfn f() -> P {\n  P { x: 1, x: 2 }\n}");
         assert!(
             twice.message.contains("more than once"),

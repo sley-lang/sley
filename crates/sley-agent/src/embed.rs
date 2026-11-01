@@ -118,7 +118,7 @@ impl std::error::Error for EmbedError {}
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum EmbedValue {
-    /// Unit (the result of a Python function that returns `None`).
+    /// Unit.
     Unit,
     /// An integer of any declared width it fits (`int` is `i64`).
     Int(i64),
@@ -670,7 +670,7 @@ fn to_const(
     types: &Types,
     depth: usize,
 ) -> Result<ConstValue, String> {
-    if depth > MAX_DEPTH {
+    if depth >= MAX_DEPTH {
         return Err(format!("the value nests more than {MAX_DEPTH} levels deep"));
     }
     let inner = |value: &EmbedValue, ty: &TypeExpr| to_const(value, ty, types, depth + 1);
@@ -937,7 +937,7 @@ impl Types {
 
     /// Converts a result.
     fn result_value(&self, value: &ConstValue, depth: usize) -> Result<EmbedValue, String> {
-        if depth > MAX_DEPTH {
+        if depth >= MAX_DEPTH {
             return Err(format!(
                 "the result nests more than {MAX_DEPTH} levels deep"
             ));
@@ -1519,6 +1519,94 @@ def corners(n: int) -> list[Point]:
             assert!(error.message.contains(message), "{body}: {error}");
             assert_eq!(error.line, Some(6), "{error}");
         }
+    }
+
+    #[test]
+    fn field_names_are_never_operations_or_variables() {
+        // Fields named after operations (`to`, `get`, `add`) and after the
+        // generator's own variable, inside a generator and under `try`.
+        let mut module = compile_python(
+            "\
+class Edge:
+    frm: int
+    to: int
+
+class P:
+    x: int
+    get: int
+
+def w(e: Edge) -> int:
+    return e.to - e.frm
+
+def g(p: P) -> int:
+    return p.x * p.get
+
+def total(xs: list[int]) -> int:
+    return sum(w(Edge(frm=i, to=x)) for i, x in enumerate(xs))
+
+def named(xs: list[int]) -> int:
+    return sum(g(P(x=x, get=2)) for x in xs)
+",
+            &OPTIONS,
+        )
+        .unwrap();
+        let xs = EmbedValue::IntList(vec![5, 7, 9]);
+        assert_eq!(
+            value(&mut module, "total", std::slice::from_ref(&xs)),
+            EmbedValue::Int(18)
+        );
+        assert_eq!(value(&mut module, "named", &[xs]), EmbedValue::Int(42));
+        let mut module = compile_python(
+            "\
+struct Span { to: i64, add: i64 }
+
+struct Q { x: i64, y: i64 }
+
+fn span(a: i64) -> Result<Span,ArithmeticError> {
+    ok(try(Span { to: a + 1, add: a }))
+}
+
+fn q(a: i64, b: i64) -> Result<Q,ArithmeticError> {
+    ok(try(Q { y: a / b, x: a + a }))
+}
+",
+            &OPTIONS,
+        )
+        .unwrap();
+        assert_eq!(
+            value(&mut module, "span", &[EmbedValue::Int(1)]),
+            EmbedValue::Result(Ok(Box::new(EmbedValue::record([
+                ("to", EmbedValue::Int(2)),
+                ("add", EmbedValue::Int(1)),
+            ]))))
+        );
+        assert_eq!(
+            value(&mut module, "span", &[EmbedValue::Int(i64::MAX)]),
+            EmbedValue::Result(Err(Box::new(EmbedValue::case("Overflow"))))
+        );
+        // Values are evaluated in the order written: `y` (a division by
+        // zero) fails before `x` (an overflow) is reached.
+        assert_eq!(
+            value(
+                &mut module,
+                "q",
+                &[EmbedValue::Int(i64::MAX), EmbedValue::Int(0)]
+            ),
+            EmbedValue::Result(Err(Box::new(EmbedValue::case("DivideByZero"))))
+        );
+    }
+
+    #[test]
+    fn errors_inside_named_fields_point_at_their_operand() {
+        let source =
+            "struct P { y: i64 }\nfn f(a: i64, b: u8, c: i64) -> P {\n    P { y: a * b + c }\n}\n";
+        let error = compile_python(source, &OPTIONS).unwrap_err();
+        assert_eq!(error.line, Some(3), "{error}");
+        assert_eq!(
+            error.column,
+            Some(u32::try_from(source.lines().nth(2).unwrap().find('b').unwrap() + 1).unwrap()),
+            "{error}"
+        );
     }
 
     const ACCOUNT: &str = "\
