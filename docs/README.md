@@ -23,6 +23,7 @@ before a release and after the website deployment.
 | 🧠 [Concepts](CONCEPTS.md) | Understand graphs, identities, the change lifecycle, and the glossary |
 | [Guarantee matrix](GUARANTEES.md) | Distinguish static validity, admission, tested behavior, resource evidence, state identity and application correctness |
 | [Embedding guide](EMBEDDING.md) | Compile and call Python-dialect programs inside a Rust host or a WebAssembly build |
+| [Native-code design notes](NATIVE_CODE_NOTES.md) | See what a future native-code campaign would have to keep: exact accounting, the reference interpreter as the semantics, exits at block boundaries |
 | [Agent skills](../skills/README.md) | Give a coding agent the `sley` (authoring) and `sley-embed` (embedding) skills |
 | 🧭 [Architecture walkthrough](https://sleylang.org/tutorial) *(sleylang.org)* | Follow state → proposal → validation → transaction → new state, step by step |
 | 🏗️ [Architecture](../ARCHITECTURE.md) | Learn crate authority, the dependency law, and commit durability order |
