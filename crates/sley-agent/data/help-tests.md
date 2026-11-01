@@ -33,7 +33,10 @@ and its call. This is authoring shorthand, not a new TestCase comparison mode.
 
 `try` runs the tests its candidate touches and prints failures in full,
 with the familiar text line of each failing test authored in the current input.
-Tests inherited through `--on` are not assigned lines from the new input. When every test passes
+Tests inherited through `--on` are not assigned lines from the new input.
+A failing test that trapped on a list or vector read out of range also gets
+the read: `; index 3 is out of range for length 3 (line 2)` (advisory; JSON
+`index_read`). When every test passes
 it prints one `cN: Valid; tests: n/n passed (advisory)` line and the next
 step (`--verbose` and `--json` give the full report and list passing tests). `sley-agent test c1` runs every
 TestCase in the candidate's state, and `--public cases.json` also runs

@@ -2760,6 +2760,39 @@ Issue #21 item 7 is the work package for this reporting change. The policy
 renderer and regression coverage are new; execution and comparison reuse the
 existing executor without changing kernel, admission or VM behavior.
 
+### 10.2 Out-of-range reads in failing tests (2.2)
+
+When a test of a frame with structured bodies (the Python dialect, the
+familiar syntax or AF1-X `body`) fails with `trap(1)`, `try` says whether a
+list or vector read trapped, and where. It lowers the tried frame again with
+every read that would trap on a missing index checked first: an index past
+the length, a negative Python index before it converts to `u64`, and
+`xs[-k]` before its `len - k` underflows. Each check traps with the payload
+`(site, index, length)`. `try` stages that frame in memory and runs the
+failing tests on it. The probed program traps at the same read as the
+candidate, because the checks change no other value or evaluation order.
+
+Text appends the read to the failing test's line:
+
+```text
+FAIL test_pick_1 (pick): expected 7, got trap(1) (line 6); index 3 is out of range for length 3 (line 2)
+```
+
+The second line number is the read's line in the current text. A read with
+no line in the current text (an AF1-X frame, or a function from the draft a
+`try --on` layers on) gives its authored pointer instead: `at
+/fns/0/body/0/1`. JSON adds `index_read` to that test's entry: `{"at",
+"index", "length", "text"?: {"line", "column"}}`, with the index and length
+as decimal strings.
+
+The note is advisory only. The test's verdict, `actual` text, fuel and trap
+code are the candidate's own; the probed program is never recorded,
+submitted or committed, and its fuel is never reported. Admission, the
+kernel, VM trap codes and accounting are unchanged. No note is given for a
+trap that is not an out-of-range read (overflow, `assert`, an explicit
+trap), for a `get?Case` read (it fails as a value), or when the probed frame
+does not stage.
+
 ## 11. Evidence
 
 `crates/sley-agent/tests/workbench.rs` executes every acceptance item this
