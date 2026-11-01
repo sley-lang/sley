@@ -12,7 +12,7 @@ export interface Account {
 }
 
 /** `variant ArithmeticError { Overflow, DivideByZero, InvalidShift }` */
-export type ArithmeticError = "Overflow" | "DivideByZero" | "InvalidShift";
+export type ArithmeticError = { ArithmeticError: "Overflow" | "DivideByZero" | "InvalidShift" };
 
 /** `variant WithdrawError { NotPositive, Insufficient }` */
 export type WithdrawError = "NotPositive" | "Insufficient";
@@ -41,33 +41,33 @@ export const SIGNATURES: readonly string[] = [
 
 /** The program's functions with TypeScript types, over the host's call_json. */
 export class Program {
-  private readonly callJson: CallJson;
+  readonly #call: CallJson;
 
-  constructor(callJson: CallJson) {
-    this.callJson = callJson;
+  constructor(call: CallJson) {
+    this.#call = call;
   }
 
   /** `owns(a: Account, name: str) -> bool` */
   owns(a: Account, name: string, fuelLimit: number): CallOutcome<boolean> {
-    const reply = this.callJson("owns", JSON.stringify([a, name]), fuelLimit);
+    const reply = this.#call("owns", JSON.stringify([a, name]), fuelLimit);
     return JSON.parse(reply) as CallOutcome<boolean>;
   }
 
   /** `product(xs: list[i64]) -> Result<i64, ArithmeticError>` */
   product(xs: Array<number>, fuelLimit: number): CallOutcome<{ Ok: number } | { Err: ArithmeticError }> {
-    const reply = this.callJson("product", JSON.stringify([xs]), fuelLimit);
+    const reply = this.#call("product", JSON.stringify([xs]), fuelLimit);
     return JSON.parse(reply) as CallOutcome<{ Ok: number } | { Err: ArithmeticError }>;
   }
 
   /** `total(xs: list[Account]) -> i64` */
   total(xs: Array<Account>, fuelLimit: number): CallOutcome<number> {
-    const reply = this.callJson("total", JSON.stringify([xs]), fuelLimit);
+    const reply = this.#call("total", JSON.stringify([xs]), fuelLimit);
     return JSON.parse(reply) as CallOutcome<number>;
   }
 
   /** `withdraw(a: Account, amount: i64) -> Result<Account, WithdrawError>` */
   withdraw(a: Account, amount: number, fuelLimit: number): CallOutcome<{ Ok: Account } | { Err: WithdrawError }> {
-    const reply = this.callJson("withdraw", JSON.stringify([a, amount]), fuelLimit);
+    const reply = this.#call("withdraw", JSON.stringify([a, amount]), fuelLimit);
     return JSON.parse(reply) as CallOutcome<{ Ok: Account } | { Err: WithdrawError }>;
   }
 }

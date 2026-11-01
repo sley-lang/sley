@@ -253,46 +253,133 @@ fn single(value: &Value) -> Option<(&String, &Value)> {
     }
 }
 
-/// The JSON form of a value, as `sley-agent call` prints it: unit `null`,
-/// integers as numbers, lists and tuples as arrays, a record as an object,
-/// a case as `"Case"` or `{"Case": payload}`, `"None"` or `{"Some": v}`,
+fn object(key: &str, value: Value) -> Value {
+    let mut object = Map::new();
+    object.insert(key.to_owned(), value);
+    Value::Object(object)
+}
+
+/// The JSON form of a value of type `ty`, as `sley-agent call` prints it:
+/// unit `null`, integers as numbers, lists and tuples as arrays, a record
+/// as an object, a case as `"Case"` or `{"Case": payload}`, a built-in
+/// failure as `{"ArithmeticError": "Overflow"}`, `"None"` or `{"Some": v}`,
 /// `{"Ok": v}` or `{"Err": e}`, and a map as an array of `[key, value]`.
-pub(super) fn to_json(value: &EmbedValue) -> Value {
-    let single = |key: &str, value: Value| {
-        let mut object = Map::new();
-        object.insert(key.to_owned(), value);
-        Value::Object(object)
-    };
-    match value {
-        EmbedValue::Unit => Value::Null,
-        EmbedValue::Int(number) => Value::from(*number),
-        EmbedValue::Bool(flag) => Value::Bool(*flag),
-        EmbedValue::Str(text) => Value::from(text.as_str()),
-        EmbedValue::IntList(items) => items.iter().map(|number| Value::from(*number)).collect(),
-        EmbedValue::List(items) => items.iter().map(to_json).collect(),
-        EmbedValue::Record(fields) => Value::Object(
-            fields
-                .iter()
-                .map(|(name, value)| (name.clone(), to_json(value)))
-                .collect(),
-        ),
-        EmbedValue::Variant { case, payload } => match payload {
-            None => Value::from(case.as_str()),
-            Some(payload) => single(case, to_json(payload)),
-        },
-        EmbedValue::Option(None) => Value::from("None"),
-        EmbedValue::Option(Some(value)) => single("Some", to_json(value)),
-        EmbedValue::Result(Ok(value)) => single("Ok", to_json(value)),
-        EmbedValue::Result(Err(error)) => single("Err", to_json(error)),
-        EmbedValue::Map(entries) => entries
+#[allow(clippy::too_many_lines)]
+pub(super) fn to_json(
+    value: &EmbedValue,
+    ty: &EmbedType,
+    declarations: &[TypeDeclaration],
+) -> Value {
+    let inner = |value: &EmbedValue, ty: &EmbedType| to_json(value, ty, declarations);
+    let shape = |name: &str| {
+        declarations
             .iter()
-            .map(|(key, value)| Value::Array(vec![to_json(key), to_json(value)]))
+            .find(|declaration| declaration.name == name)
+            .map(|declaration| &declaration.shape)
+    };
+    match (value, ty) {
+        (EmbedValue::Unit, _) => Value::Null,
+        (EmbedValue::Int(number), _) => Value::from(*number),
+        (EmbedValue::Bool(flag), _) => Value::Bool(*flag),
+        (EmbedValue::Str(text), _) => Value::from(text.as_str()),
+        (EmbedValue::IntList(items), _) => {
+            items.iter().map(|number| Value::from(*number)).collect()
+        }
+        (EmbedValue::List(items), EmbedType::Tuple(types)) if items.len() == types.len() => items
+            .iter()
+            .zip(types)
+            .map(|(value, ty)| inner(value, ty))
             .collect(),
+        (EmbedValue::List(items), _) => {
+            let item = match ty {
+                EmbedType::List(item) => item.as_ref(),
+                _ => &EmbedType::Unit,
+            };
+            items.iter().map(|value| inner(value, item)).collect()
+        }
+        (EmbedValue::Record(fields), _) => {
+            let types = match ty {
+                EmbedType::Named(name) => match shape(name) {
+                    Some(TypeShape::Record(types)) => types.as_slice(),
+                    _ => &[],
+                },
+                _ => &[],
+            };
+            Value::Object(
+                fields
+                    .iter()
+                    .map(|(field, value)| {
+                        let ty = types
+                            .iter()
+                            .find(|(name, _)| name == field)
+                            .map_or(&EmbedType::Unit, |(_, ty)| ty);
+                        (field.clone(), inner(value, ty))
+                    })
+                    .collect(),
+            )
+        }
+        (EmbedValue::Variant { case, payload }, _) => {
+            let name = match ty {
+                EmbedType::Named(name) => name.as_str(),
+                _ => "",
+            };
+            if crate::types::failure_kind(name).is_some() {
+                return object(name, Value::from(case.as_str()));
+            }
+            match payload {
+                None => Value::from(case.as_str()),
+                Some(payload) => {
+                    let payload_type = match shape(name) {
+                        Some(TypeShape::Variant(cases)) => cases
+                            .iter()
+                            .find(|(name, _)| name == case)
+                            .and_then(|(_, ty)| ty.as_ref()),
+                        _ => None,
+                    };
+                    object(
+                        case,
+                        inner(payload, payload_type.unwrap_or(&EmbedType::Unit)),
+                    )
+                }
+            }
+        }
+        (EmbedValue::Option(None), _) => Value::from("None"),
+        (EmbedValue::Option(Some(value)), _) => {
+            let item = match ty {
+                EmbedType::Option(item) => item.as_ref(),
+                _ => &EmbedType::Unit,
+            };
+            object("Some", inner(value, item))
+        }
+        (EmbedValue::Result(result), _) => {
+            let (ok, err) = match ty {
+                EmbedType::Result { ok, err } => (ok.as_ref(), err.as_ref()),
+                _ => (&EmbedType::Unit, &EmbedType::Unit),
+            };
+            match result {
+                Ok(value) => object("Ok", inner(value, ok)),
+                Err(error) => object("Err", inner(error, err)),
+            }
+        }
+        (EmbedValue::Map(entries), _) => {
+            let (key_type, value_type) = match ty {
+                EmbedType::Map { key, value } => (key.as_ref(), value.as_ref()),
+                _ => (&EmbedType::Unit, &EmbedType::Unit),
+            };
+            entries
+                .iter()
+                .map(|(key, value)| {
+                    Value::Array(vec![inner(key, key_type), inner(value, value_type)])
+                })
+                .collect()
+        }
     }
 }
 
-/// A value of type `ty` from its JSON form ([`to_json`]); an integer may
-/// also be a decimal string, and an empty option `null`.
+/// A value of type `ty` from its JSON form ([`to_json`]), reading every
+/// form `sley-agent call` reads: an integer may also be a decimal string,
+/// unit also `[]` or `{}`, an option also `null` or a bare value, a case
+/// also `"Type.Case"`, and a built-in failure also its bare case name.
 #[allow(clippy::too_many_lines)]
 pub(super) fn from_json(
     value: &Value,
@@ -306,7 +393,13 @@ pub(super) fn from_json(
     let inner = |value: &Value, ty: &EmbedType| from_json(value, ty, declarations, depth + 1);
     let boxed = |value: &Value, ty: &EmbedType| inner(value, ty).map(Box::new);
     Ok(match ty {
-        EmbedType::Unit if value.is_null() => EmbedValue::Unit,
+        EmbedType::Unit
+            if value.is_null()
+                || value.as_array().is_some_and(Vec::is_empty)
+                || value.as_object().is_some_and(Map::is_empty) =>
+        {
+            EmbedValue::Unit
+        }
         EmbedType::Bool => EmbedValue::Bool(value.as_bool().ok_or("expected a boolean")?),
         EmbedType::Int { .. } => EmbedValue::Int(
             match value {
@@ -345,7 +438,7 @@ pub(super) fn from_json(
             (_, Some((key, value))) if key == "Some" => {
                 EmbedValue::Option(Some(boxed(value, item)?))
             }
-            _ => return Err("expected \"None\" or {\"Some\": value}".to_owned()),
+            _ => EmbedValue::Option(Some(boxed(value, item)?)),
         },
         EmbedType::Result { ok, err } => match single(value) {
             Some((key, value)) if key == "Ok" => EmbedValue::Result(Ok(boxed(value, ok)?)),
@@ -389,11 +482,25 @@ pub(super) fn from_json(
                     EmbedValue::Record(out)
                 }
                 TypeShape::Variant(cases) => {
+                    // A built-in failure may be named by its kind:
+                    // {"ArithmeticError": "Overflow"}.
+                    let value = match single(value) {
+                        Some((key, inner))
+                            if key == name
+                                && inner.is_string()
+                                && crate::types::failure_kind(name).is_some() =>
+                        {
+                            inner
+                        }
+                        _ => value,
+                    };
                     let (case, payload) = match (value, single(value)) {
                         (Value::String(case), _) => (case, None),
                         (_, Some((case, payload))) => (case, Some(payload)),
                         _ => return Err("expected \"Case\" or {\"Case\": payload}".to_owned()),
                     };
+                    // `"Type.Case"` names the case of its type.
+                    let case = case.rsplit('.').next().unwrap_or(case);
                     let payload_type = cases
                         .iter()
                         .find(|(name, _)| name == case)
@@ -406,7 +513,7 @@ pub(super) fn from_json(
                         (Some(_), None) => return Err(format!("case `{case}` has no payload")),
                     };
                     EmbedValue::Variant {
-                        case: case.clone(),
+                        case: case.to_owned(),
                         payload,
                     }
                 }
@@ -551,7 +658,11 @@ mod tests {
             ),
         ];
         for (ty, value, json) in cases {
-            assert_eq!(to_json(&value).to_string(), json, "{ty}");
+            assert_eq!(
+                to_json(&value, &ty, &declarations).to_string(),
+                json,
+                "{ty}"
+            );
             let parsed: Value = serde_json::from_str(json).unwrap();
             assert_eq!(from_json(&parsed, &ty, &declarations, 0), Ok(value), "{ty}");
         }
@@ -559,9 +670,61 @@ mod tests {
         let none = from_json(&Value::Null, &EmbedType::Option(Box::new(int())), &[], 0);
         assert_eq!(none, Ok(EmbedValue::Option(None)));
         assert_eq!(
-            to_json(&EmbedValue::IntList(vec![1, 2])).to_string(),
+            to_json(
+                &EmbedValue::IntList(vec![1, 2]),
+                &EmbedType::List(Box::new(int())),
+                &[]
+            )
+            .to_string(),
             "[1,2]"
         );
+    }
+
+    #[test]
+    fn json_reads_every_form_sley_agent_call_reads() {
+        let failure = TypeDeclaration {
+            name: "ArithmeticError".into(),
+            shape: TypeShape::Variant(vec![("Overflow".into(), None)]),
+        };
+        let mut declarations = shape();
+        declarations.push(failure);
+        let read = |json: &str, ty: &EmbedType| {
+            let value: Value = serde_json::from_str(json).unwrap();
+            from_json(&value, ty, &declarations, 0)
+        };
+        let arithmetic = EmbedType::Named("ArithmeticError".into());
+        // A built-in failure is written with its kind, and read either way.
+        let overflow = EmbedValue::case("Overflow");
+        assert_eq!(
+            to_json(&overflow, &arithmetic, &declarations).to_string(),
+            r#"{"ArithmeticError":"Overflow"}"#
+        );
+        assert_eq!(
+            read(r#"{"ArithmeticError":"Overflow"}"#, &arithmetic),
+            Ok(overflow.clone())
+        );
+        assert_eq!(read(r#""Overflow""#, &arithmetic), Ok(overflow));
+        let shape = EmbedType::Named("Shape".into());
+        assert_eq!(read(r#""Shape.Dot""#, &shape), Ok(EmbedValue::case("Dot")));
+        for unit in ["null", "[]", "{}"] {
+            assert_eq!(read(unit, &EmbedType::Unit), Ok(EmbedValue::Unit), "{unit}");
+        }
+        let option = EmbedType::Option(Box::new(int()));
+        assert_eq!(
+            read("4", &option),
+            Ok(EmbedValue::Option(Some(Box::new(EmbedValue::Int(4)))))
+        );
+        // Nested: a result of a built-in failure inside a list.
+        let nested = EmbedType::List(Box::new(EmbedType::Result {
+            ok: Box::new(int()),
+            err: Box::new(arithmetic),
+        }));
+        let value = EmbedValue::List(vec![EmbedValue::Result(Err(Box::new(EmbedValue::case(
+            "Overflow",
+        ))))]);
+        let json = to_json(&value, &nested, &declarations).to_string();
+        assert_eq!(json, r#"[{"Err":{"ArithmeticError":"Overflow"}}]"#);
+        assert_eq!(read(&json, &nested), Ok(value));
     }
 
     #[test]

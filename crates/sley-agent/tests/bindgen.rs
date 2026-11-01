@@ -11,6 +11,9 @@ use sley_agent::embed::{EmbedOptions, Module, bindgen, compile_python};
 
 const ACCOUNTS: &str = include_str!("fixtures/bindgen/accounts.txt");
 const POINTS: &str = include_str!("fixtures/bindgen/points.py");
+/// Names that clash with the generated code, with reserved words, and with
+/// each other once suffixed.
+const NAMES: &str = include_str!("fixtures/bindgen/names.txt");
 
 fn module(source: &str) -> Module {
     compile_python(source, &EmbedOptions::default()).unwrap_or_else(|error| panic!("{error}"))
@@ -45,6 +48,9 @@ fn generated_bindings_are_committed() {
     golden("accounts.ts", &bindgen::typescript(&accounts));
     golden("points.rs", &bindgen::rust(&points));
     golden("points.ts", &bindgen::typescript(&points));
+    let names = module(NAMES);
+    golden("names.rs", &bindgen::rust(&names));
+    golden("names.ts", &bindgen::typescript(&names));
 }
 
 #[test]
@@ -143,7 +149,10 @@ fn call_json_takes_and_gives_the_call_form() {
         "product",
         &json!([["9223372036854775807", 2]]),
     );
-    assert_eq!(overflow["result"], json!({"value": {"Err": "Overflow"}}));
+    assert_eq!(
+        overflow["result"],
+        json!({"value": {"Err": {"ArithmeticError": "Overflow"}}})
+    );
     let fuel = accounts
         .call_json("total", &json!([[ada, ada]]).to_string(), 3)
         .unwrap();
@@ -237,4 +246,48 @@ fn the_bindgen_command_refuses_usage_and_text_errors() {
     assert_eq!(status, 2, "{out}");
     assert!(out.contains("AGENT_FRAME_INVALID"), "{out}");
     assert!(out.contains(&format!("{path}:2:15:")), "{out}");
+}
+
+#[cfg(feature = "native")]
+#[test]
+fn call_json_prints_what_sley_agent_call_prints() {
+    let dir = std::env::temp_dir().join(format!("sley-bindgen-call-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    sley_agent::genesis::init(&dir, None, sley_agent::genesis::INIT_CEILINGS).unwrap();
+    let workspace = dir.display().to_string();
+    let accounts = fixture("accounts.txt").display().to_string();
+    let (status, out) = cli(&["--workspace", &workspace, "try", "--familiar", &accounts]);
+    assert_eq!(status, 0, "{out}");
+    let mut module = module(ACCOUNTS);
+    for (function, args) in [
+        ("product", json!([["9223372036854775807", 2]])),
+        ("product", json!([[2, 3]])),
+        (
+            "withdraw",
+            json!([{"owner": "ada", "balance": 10, "kind": 1}, 40]),
+        ),
+        (
+            "withdraw",
+            json!([{"owner": "ada", "balance": 10, "kind": 1}, 4]),
+        ),
+    ] {
+        let mut words = vec![
+            "--workspace".to_owned(),
+            workspace.clone(),
+            "--json".into(),
+            "call".into(),
+            function.into(),
+        ];
+        words.extend(args.as_array().unwrap().iter().map(Value::to_string));
+        words.extend(["--on".to_owned(), "c1".to_owned()]);
+        let mut out = Vec::new();
+        assert_eq!(sley_agent::cli::run(&words, &mut out), 0);
+        let called: Value = serde_json::from_slice(&out).unwrap();
+        let replied = reply(&mut module, function, &args);
+        assert_eq!(
+            replied["result"]["value"], called["result"],
+            "{function} {args}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

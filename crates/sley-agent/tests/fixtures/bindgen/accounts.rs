@@ -6,7 +6,7 @@
 use sley_agent::embed::{CallOutcome, EmbedError, EmbedValue, FromEmbed, Module, ToEmbed};
 
 /// `record Account { owner: str, balance: i64, kind: u8 }`
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, non_snake_case)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Account {
     pub owner: String,
@@ -38,7 +38,7 @@ impl FromEmbed for Account {
 }
 
 /// `variant ArithmeticError { Overflow, DivideByZero, InvalidShift }`
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, non_snake_case)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ArithmeticError {
     Overflow,
@@ -71,7 +71,7 @@ impl FromEmbed for ArithmeticError {
 }
 
 /// `variant WithdrawError { NotPositive, Insufficient }`
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, non_snake_case)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WithdrawError {
     NotPositive,
@@ -106,6 +106,7 @@ pub struct Program {
     module: Module,
 }
 
+#[allow(non_snake_case)]
 impl Program {
     /// The signatures these bindings were generated from.
     pub const SIGNATURES: &'static [&'static str] = &[

@@ -15,6 +15,13 @@ mod points {
     include!("fixtures/bindgen/points.rs");
 }
 
+// Names that clash with the generated code and with each other: the
+// bindings compile and call the right functions.
+#[allow(dead_code)]
+mod names {
+    include!("fixtures/bindgen/names.rs");
+}
+
 const FUEL: u64 = 1_000_000;
 
 fn bound<T>(source: &str, bind: impl FnOnce(sley_agent::embed::Module) -> T) -> T {
@@ -133,4 +140,30 @@ fn the_bound_module_stays_reachable() {
     assert!(program.module().signature("owns").is_some());
     let module = program.into_module();
     assert!(Program::new(module).is_ok());
+}
+
+#[test]
+fn clashing_names_bind_the_right_functions() {
+    use names::{Kind, Program, Program_};
+    let mut program = bound(include_str!("fixtures/bindgen/names.txt"), |module| {
+        Program::new(module).unwrap()
+    });
+    assert_eq!(
+        program.new_(1, 2, 3, FUEL).unwrap().result,
+        CallResult::Value(6)
+    );
+    let x = Program_ { x: 7 };
+    assert_eq!(
+        program.new__(&x, &Kind::None__, FUEL).unwrap().result,
+        CallResult::Value(7)
+    );
+    assert_eq!(
+        program.module_(5, FUEL).unwrap().result,
+        CallResult::Value(5)
+    );
+    let made = program.callJson(2, 3, FUEL).unwrap().result;
+    assert!(
+        matches!(made, CallResult::Value(names::Program__ { y: 5 })),
+        "{made:?}"
+    );
 }

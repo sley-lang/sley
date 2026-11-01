@@ -714,10 +714,15 @@ impl Module {
         fuel_limit: u64,
     ) -> Result<String, EmbedError> {
         let invalid = |detail: String| EmbedError::new(AgentErrorCode::InputInvalid, detail);
-        let parameters = self
+        let (parameters, result_type) = self
             .functions
             .get(function)
-            .map(|entry| entry.signature.parameters.clone())
+            .map(|entry| {
+                (
+                    entry.signature.parameters.clone(),
+                    entry.signature.result.clone(),
+                )
+            })
             .ok_or_else(|| {
                 EmbedError::new(
                     AgentErrorCode::NameUnknown,
@@ -747,7 +752,9 @@ impl Module {
             .collect::<Result<Vec<_>, _>>()?;
         let outcome = self.call(function, &values, fuel_limit)?;
         let result = match &outcome.result {
-            CallResult::Value(value) => serde_json::json!({"value": convert::to_json(value)}),
+            CallResult::Value(value) => {
+                serde_json::json!({"value": convert::to_json(value, &result_type, &self.declarations)})
+            }
             CallResult::Trap { symbol } => serde_json::json!({"trap": symbol}),
             CallResult::OutOfFuel => serde_json::json!({"limit": "Fuel"}),
             CallResult::LimitExceeded { what } => serde_json::json!({"limit": what}),

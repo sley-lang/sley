@@ -32,21 +32,21 @@ export const SIGNATURES: readonly string[] = [
 
 /** The program's functions with TypeScript types, over the host's call_json. */
 export class Program {
-  private readonly callJson: CallJson;
+  readonly #call: CallJson;
 
-  constructor(callJson: CallJson) {
-    this.callJson = callJson;
+  constructor(call: CallJson) {
+    this.#call = call;
   }
 
   /** `norm1(p: Point) -> i64` */
   norm1(p: Point, fuelLimit: number): CallOutcome<number> {
-    const reply = this.callJson("norm1", JSON.stringify([p]), fuelLimit);
+    const reply = this.#call("norm1", JSON.stringify([p]), fuelLimit);
     return JSON.parse(reply) as CallOutcome<number>;
   }
 
   /** `shift(ps: list[Point], dx: i64) -> list[Point]` */
   shift(ps: Array<Point>, dx: number, fuelLimit: number): CallOutcome<Array<Point>> {
-    const reply = this.callJson("shift", JSON.stringify([ps, dx]), fuelLimit);
+    const reply = this.#call("shift", JSON.stringify([ps, dx]), fuelLimit);
     return JSON.parse(reply) as CallOutcome<Array<Point>>;
   }
 }

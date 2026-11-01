@@ -232,8 +232,9 @@ assert_eq!(outcome.result, CallResult::Value(Err(WithdrawError::Insufficient)));
   the bindings were generated from, naming the first difference. A different `seed` changes the
   program digest but not the bindings.
 - A name Rust reserves becomes a raw identifier (`r#type`), or gets a trailing `_` when it cannot
-  be one (`self_`) or would clash with the generated code (`Option_`, `Program_`). Values keep the
-  Sley names.
+  be one (`self_`) or would clash with the generated code (`Program_`, a function `new` becomes the
+  method `new_`). More `_` follow until the name is unique among its types, cases, fields, methods
+  or parameters (`new_` then `new__`). Values keep the Sley names.
 - A function with a type that has no `EmbedValue` form, or a tuple of more than eight items, is
   listed in a comment and not bound.
 
@@ -241,9 +242,13 @@ assert_eq!(outcome.result, CallResult::Value(Err(WithdrawError::Insufficient)));
 takes the arguments as a JSON array and returns
 `{"result": {"value": v} | {"trap": name} | {"limit": what}, "fuel_used": n, "instructions": n}`.
 Values use the JSON form `sley-agent call` prints: a record as an object, a case as `"Case"` or
-`{"Case": payload}`, `"None"` or `{"Some": v}`, `{"Ok": v}` or `{"Err": e}`, and a map as an array of
-`[key, value]`. An integer may also be given as a decimal string. `bindgen::typescript` declares
-those forms for the program's types, and a `Program` class over the host's `call_json`:
+`{"Case": payload}`, a built-in failure as `{"ArithmeticError": "Overflow"}`, `"None"` or
+`{"Some": v}`, `{"Ok": v}` or `{"Err": e}`, and a map as an array of `[key, value]`. Arguments may
+also take the other forms `call` reads: an integer as a decimal string (within `i64`), unit as
+`[]` or `{}`, an option as `null` or a bare value, a case as `"Type.Case"`, and a built-in failure
+as its bare case. `bindgen::typescript` declares those forms for the program's types, and a
+`Program` class over the host's `call_json`. Names follow the same rule as in Rust, with
+TypeScript's reserved words:
 
 ```ts
 import { Program } from "./bank_bindings"; // sley-agent bindgen bank.txt --typescript

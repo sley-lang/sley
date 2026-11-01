@@ -92,7 +92,7 @@ pub const fn failure_name(kind: BuiltinFailureKind) -> &'static str {
     }
 }
 
-fn failure_kind(name: &str) -> Option<BuiltinFailureKind> {
+pub(crate) fn failure_kind(name: &str) -> Option<BuiltinFailureKind> {
     Some(match name {
         "ArithmeticError" => BuiltinFailureKind::Arithmetic,
         "IndexError" => BuiltinFailureKind::Index,

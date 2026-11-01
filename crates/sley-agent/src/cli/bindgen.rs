@@ -27,6 +27,11 @@ pub(super) fn command(global: &Global, args: &[String], out: &mut dyn Write) -> 
             "give one of --rust and --typescript: {USAGE}"
         )));
     }
+    if file != "-" && !std::path::Path::new(file).is_file() {
+        return Err(usage(format!(
+            "bindgen reads a file or - (standard input); {file} is neither"
+        )));
+    }
     let bytes = read_familiar(file)?;
     let text = generate(file, &bytes, rust)?;
     if global.json {
