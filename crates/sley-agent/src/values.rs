@@ -509,7 +509,7 @@ fn bytes(value: &Value) -> Option<Vec<u8>> {
     }
 }
 
-const fn failure_cases(kind: BuiltinFailureKind) -> &'static [&'static str] {
+pub(crate) const fn failure_cases(kind: BuiltinFailureKind) -> &'static [&'static str] {
     match kind {
         BuiltinFailureKind::Arithmetic => &["Overflow", "DivideByZero", "InvalidShift"],
         BuiltinFailureKind::Index => &["OutOfBounds"],
@@ -519,14 +519,14 @@ const fn failure_cases(kind: BuiltinFailureKind) -> &'static [&'static str] {
     }
 }
 
-fn failure_code(kind: BuiltinFailureKind, name: &str) -> Option<u16> {
+pub(crate) fn failure_code(kind: BuiltinFailureKind, name: &str) -> Option<u16> {
     failure_cases(kind)
         .iter()
         .position(|case| *case == name)
         .and_then(|index| u16::try_from(index + 1).ok())
 }
 
-fn failure_case(kind: BuiltinFailureKind, code: u16) -> String {
+pub(crate) fn failure_case(kind: BuiltinFailureKind, code: u16) -> String {
     failure_cases(kind)
         .get(usize::from(code).wrapping_sub(1))
         .map_or_else(|| format!("code{code}"), |name| (*name).to_owned())

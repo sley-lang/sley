@@ -34,7 +34,19 @@ A build of the CLI without the familiar frontend is now `--no-default-features -
 ```rust
 pub struct EmbedOptions { pub seed: u64, pub now_unix_millis: u64 }
 pub struct EmbedError { pub code: String, pub message: String, pub line: Option<u32>, pub column: Option<u32> }
-pub enum EmbedValue { Int(i64), Bool(bool), Str(String), IntList(Vec<i64>), List(Vec<EmbedValue>) }
+pub enum EmbedValue {
+    Unit, Int(i64), Bool(bool), Str(String), IntList(Vec<i64>), List(Vec<EmbedValue>),
+    Record(Vec<(String, EmbedValue)>),
+    Variant { case: String, payload: Option<Box<EmbedValue>> },
+    Option(Option<Box<EmbedValue>>),
+    Result(Result<Box<EmbedValue>, Box<EmbedValue>>),
+    Map(Vec<(EmbedValue, EmbedValue)>),
+}
+impl EmbedValue {
+    pub fn record<N: Into<String>>(fields: impl IntoIterator<Item = (N, EmbedValue)>) -> EmbedValue;
+    pub fn case(case: impl Into<String>) -> EmbedValue;
+    pub fn field(&self, name: &str) -> Option<&EmbedValue>;
+}
 pub enum CallResult { Value(EmbedValue), Trap { symbol: String }, OutOfFuel, LimitExceeded { what: String } }
 pub struct CallOutcome { pub result: CallResult, pub fuel_used: u64, pub instructions: u64 }
 
@@ -47,6 +59,17 @@ impl Module {
     pub fn call(&mut self, function: &str, args: &[EmbedValue], fuel_limit: u64)
         -> Result<CallOutcome, EmbedError>;
     pub fn program_digest(&self) -> [u8; 32];
+    pub fn signature(&self, function: &str) -> Option<&Signature>;
+    pub fn types(&self) -> &[TypeDeclaration];
+}
+
+pub struct Signature { pub name: String, pub parameters: Vec<(String, EmbedType)>, pub result: EmbedType }
+pub struct TypeDeclaration { pub name: String, pub shape: TypeShape }
+pub enum TypeShape { Record(Vec<(String, EmbedType)>), Variant(Vec<(String, Option<EmbedType>)>) }
+pub enum EmbedType {
+    Unit, Bool, Int { signed: bool, bits: u16 }, Str, List(Box<EmbedType>), Tuple(Vec<EmbedType>),
+    Option(Box<EmbedType>), Result { ok: Box<EmbedType>, err: Box<EmbedType> },
+    Map { key: Box<EmbedType>, value: Box<EmbedType> }, Named(String), Unsupported(String),
 }
 ```
 
@@ -96,7 +119,7 @@ Refusals carry a stable `AGENT_*` symbol. No new symbol was added:
 | `AGENT_CANDIDATE_INVALID` | The kernel refuses the candidate. The message has the verdict headline, the locator and the hint, plus the authored line and column when the refusal locates one. |
 | `AGENT_NAME_UNKNOWN` | `call` names a function the program does not have. |
 | `AGENT_INPUT_INVALID` | The arguments do not fit the function's parameters. |
-| `AGENT_EXECUTION_REFUSED` | The VM refuses the call, or the result has no `EmbedValue` form (a record, for example). |
+| `AGENT_EXECUTION_REFUSED` | The VM refuses the call, or the result has no `EmbedValue` form (a float, for example). |
 
 ### Calling
 
@@ -114,8 +137,59 @@ outcome maps as follows:
 - Any other limit is `LimitExceeded { what }`, where `what` is `Instruction`, `ValueUnits`,
   `OutputUnits`, `CallDepth` or `Cancelled`.
 
-Arguments are converted against the declared parameter types. `int` is `i64`. `IntList` is the
-cheap form for `list[int]`.
+Arguments are converted against the declared parameter types, and results come back in the same
+forms:
+
+| Sley type | `EmbedValue` |
+|---|---|
+| `int` and other integer types | `Int` (an argument must fit the declared width; a result must fit `i64`) |
+| `bool`, `str` | `Bool`, `Str` |
+| unit | `Unit` |
+| `list[int]` | `IntList`, the cheap form for large inputs |
+| other lists, tuples | `List` |
+| a record (a Python record class, a familiar `struct`) | `Record`: fields by name. An argument gives every field once, in any order; a result lists them in declaration order |
+| a variant type (a familiar `enum`), a built-in failure such as `ArithmeticError` | `Variant`: the case's name, with a payload exactly when the case has one |
+| `Option<T>` | `Option` |
+| `Result<T, E>` | `Result` |
+| `Map<K, V>` | `Map`: an argument's entries in any order, each key once; a result's in the kernel's key order |
+
+A Python function `-> list[T]` that returns a list it built returns a `Map<u64,T>` keyed `0..len` in
+Sley. `call` hands it back as a list (`IntList` or `List`) in index order. Values nested more than
+64 levels deep are refused. Floats, bytes and function references have no `EmbedValue` form.
+
+The Python dialect builds a record in a function body with `Point(1, 2)` or `Point(1, y=2)`. The
+Rust-like familiar syntax uses `Point { x: 1, y: 2 }` and declares variant types with
+`enum Error { Empty, TooBig }`:
+
+```rust
+let mut module = compile_python(
+    "struct Account { owner: text, balance: i64 }\n\
+     enum WithdrawError { NotPositive, Insufficient }\n\
+     fn withdraw(a: Account, amount: i64) -> Result<Account,WithdrawError> {\n\
+       if amount <= 0 { return err(NotPositive) }\n\
+       if amount > a.balance { return err(Insufficient) }\n\
+       ok(Account { owner: a.owner, balance: a.balance - amount })\n\
+     }\n",
+    &EmbedOptions::default(),
+)?;
+let account = EmbedValue::record([
+    ("owner", EmbedValue::Str("ada".into())),
+    ("balance", EmbedValue::Int(10)),
+]);
+let outcome = module.call("withdraw", &[account, EmbedValue::Int(40)], 1_000_000)?;
+// CallResult::Value(EmbedValue::Result(Err(Box::new(EmbedValue::case("Insufficient")))))
+```
+
+`EmbedValue` and `EmbedType` are `#[non_exhaustive]`: a host's `match` on one needs a wildcard
+arm, so later forms do not break it.
+
+### Signatures and types
+
+`signature(function)` gives a function's parameter names and types and its result type.
+`types()` gives every record and variant type those signatures use, directly or through other
+types, in name order: each record's fields and each variant's cases in declaration order. A host
+can generate typed wrappers from them. A type with no `EmbedValue` form is `Unsupported`, with its
+Sley spelling.
 
 ## Determinism
 
