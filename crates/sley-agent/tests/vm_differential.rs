@@ -20,22 +20,36 @@ use std::path::PathBuf;
 
 use sley_agent::embed::EmbedValue;
 use sley_agent::vmfuzz::{self, Verdict};
+use sley_vm::ExecutionLimits;
 
 /// The seeds every `cargo test` checks.
-const CI_SEEDS: Range<u64> = 0..48;
+const CI_SEEDS: Range<u64> = 0..24;
 
 fn fixtures() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vm_differential")
 }
 
+/// What a sweep compared: pairs of runs, and programs whose entry ran on a
+/// derived tier (the others compare the reference interpreter with itself).
+struct Swept {
+    runs: usize,
+    derived: usize,
+}
+
 /// Checks `seeds`; returns the first finding, shrunk, as a report.
-fn sweep(seeds: Range<u64>) -> Result<usize, String> {
-    let mut runs = 0;
+fn sweep(seeds: Range<u64>) -> Result<Swept, String> {
+    let mut swept = Swept {
+        runs: 0,
+        derived: 0,
+    };
     for seed in seeds {
         let program = vmfuzz::program(seed);
         let text = program.text();
         match vmfuzz::check(&text, &program.args(), seed) {
-            Ok(Verdict::Agree(count)) => runs += count,
+            Ok(Verdict::Agree { runs, derived }) => {
+                swept.runs += runs;
+                swept.derived += usize::from(derived);
+            }
             Ok(Verdict::Disagree(finding)) => {
                 let small = vmfuzz::shrink_finding(&program, &finding, 2_000);
                 let mut report = format!(
@@ -45,7 +59,11 @@ fn sweep(seeds: Range<u64>) -> Result<usize, String> {
                 if std::env::var_os("SLEY_VMFUZZ_SAVE").is_some() {
                     let path = fixtures().join(format!("seed-{seed}.py"));
                     let args = args_json(&finding.args);
-                    let saved = format!("# seed {seed}\n# args: {args}\n{}", small.text());
+                    let limits = limits_line(&finding.limits);
+                    let saved = format!(
+                        "# seed {seed}\n# args: {args}\n# limits: {limits}\n{}",
+                        small.text()
+                    );
                     std::fs::write(&path, saved).unwrap();
                     let _ = write!(report, "\nsaved {}", path.display());
                 }
@@ -58,7 +76,36 @@ fn sweep(seeds: Range<u64>) -> Result<usize, String> {
             }
         }
     }
-    Ok(runs)
+    Ok(swept)
+}
+
+/// `fuel instructions value-units output-units cancel` (`-` for no cancel).
+fn limits_line(limits: &ExecutionLimits) -> String {
+    format!(
+        "{} {} {} {} {}",
+        limits.max_fuel,
+        limits.max_instructions,
+        limits.max_value_units,
+        limits.max_output_units,
+        limits
+            .cancel_at_fuel
+            .map_or_else(|| "-".to_owned(), |cut| cut.to_string())
+    )
+}
+
+fn parse_limits(line: &str) -> ExecutionLimits {
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    let [fuel, instructions, units, output, cancel] = parts.as_slice() else {
+        panic!("limits are `fuel instructions value-units output-units cancel`: {line}");
+    };
+    let number = |text: &str| text.parse::<u64>().expect("a limit");
+    ExecutionLimits {
+        max_fuel: number(fuel),
+        max_instructions: number(instructions),
+        max_value_units: number(units),
+        max_output_units: number(output),
+        cancel_at_fuel: (*cancel != "-").then(|| number(cancel)),
+    }
 }
 
 fn args_json(args: &[EmbedValue]) -> String {
@@ -116,7 +163,21 @@ fn range_from_env(name: &str, default: Range<u64>) -> Range<u64> {
 #[test]
 fn a_fixed_seed_range_agrees() {
     match sweep(CI_SEEDS) {
-        Ok(runs) => assert!(runs > CI_SEEDS.count() * 20, "only {runs} runs"),
+        Ok(swept) => {
+            assert!(
+                swept.runs > CI_SEEDS.count() * 20,
+                "only {} runs",
+                swept.runs
+            );
+            // Most programs must compare two tiers, not the reference with
+            // itself.
+            assert!(
+                swept.derived * 2 > CI_SEEDS.count(),
+                "only {} of {} programs ran on a derived tier",
+                swept.derived,
+                CI_SEEDS.count()
+            );
+        }
         Err(report) => panic!("{report}"),
     }
 }
@@ -135,10 +196,18 @@ fn fixtures_agree() {
         let args = text
             .lines()
             .find_map(|line| line.strip_prefix("# args: "))
-            .map(parse_args)
-            .unwrap_or_else(|| panic!("{}: no `# args:` line", path.display()));
-        match vmfuzz::check(&text, &[args], 0) {
-            Ok(Verdict::Agree(_)) => {}
+            .map_or_else(
+                || panic!("{}: no `# args:` line", path.display()),
+                parse_args,
+            );
+        // The finding's own limits, as well as fresh cuts.
+        let limits: Vec<ExecutionLimits> = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("# limits: "))
+            .map(parse_limits)
+            .collect();
+        match vmfuzz::check_with(&text, &[args], 0, &limits) {
+            Ok(Verdict::Agree { .. }) => {}
             Ok(Verdict::Disagree(finding)) => panic!("{}: {finding}", path.display()),
             Err(error) => panic!("{}: {error}", path.display()),
         }
@@ -147,8 +216,11 @@ fn fixtures_agree() {
 
 #[test]
 fn generated_programs_reach_every_construct() {
+    // Generating is cheap: scan more seeds than the checked range, since
+    // records and list locals (which keep a program off the derived tiers)
+    // are deliberately rare.
     let mut text = String::new();
-    for seed in CI_SEEDS {
+    for seed in 0..200 {
         text.push_str(&vmfuzz::program(seed).text());
     }
     for construct in [
@@ -166,7 +238,10 @@ fn long_run() {
     let seeds = range_from_env("SLEY_VMFUZZ_SEEDS", 1_000..11_000);
     let count = seeds.end.saturating_sub(seeds.start);
     match sweep(seeds) {
-        Ok(runs) => eprintln!("{count} programs, {runs} pairs of runs agreed"),
+        Ok(swept) => eprintln!(
+            "{count} programs ({} on a derived tier), {} pairs of runs agreed",
+            swept.derived, swept.runs
+        ),
         Err(report) => panic!("{report}"),
     }
 }
@@ -193,6 +268,12 @@ fn fixture_args_round_trip() {
         EmbedValue::IntList(vec![1, -2, 3]),
     ];
     assert_eq!(parse_args(&args_json(&args)), args);
+    let limits = ExecutionLimits {
+        cancel_at_fuel: Some(17),
+        ..vmfuzz::LIMITS
+    };
+    assert_eq!(parse_limits(&limits_line(&limits)), limits);
+    assert_eq!(parse_limits(&limits_line(&vmfuzz::LIMITS)), vmfuzz::LIMITS);
     assert_eq!(
         parse_args("[0, 1, []]"),
         vec![

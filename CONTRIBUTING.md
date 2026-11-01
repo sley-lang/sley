@@ -44,6 +44,14 @@ to record lint evidence; it rewrites `evidence/build/lint-report.json`, unlike
 the maintainers ask for it. The
 [Quickstart](docs/QUICKSTART.md#6-run-the-test-gates) has the details.
 
+A change to the VM's execution tiers should also pass the seeded program
+fuzzer for longer than the 24 seeds `cargo test` checks:
+`make vm-fuzz SEEDS=0..5000` compares the reference interpreter with the
+derived tiers on generated programs, results and every count, at random
+limit cuts. A disagreement prints its seed and a shrunk program;
+`SLEY_VMFUZZ_SAVE=1` keeps it under
+`crates/sley-agent/tests/fixtures/vm_differential/` as a regression case.
+
 `make quick` and `make check-changed` are the maintainers' gates. They don't
 pass on a fresh clone: some checkers read the outputs of a local release
 build under `evidence/runtime/`, which isn't tracked, and two read the Sley

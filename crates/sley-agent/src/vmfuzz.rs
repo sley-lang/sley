@@ -489,9 +489,13 @@ impl Scope<'_> {
 
 /// The program for `seed`.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn program(seed: u64) -> Program {
     let mut rng = Rng::new(seed, 1);
-    let record = rng.chance(40);
+    // A record or a list local keeps a program off the derived tiers (the
+    // scalar plan has no record construction and no maps), so most programs
+    // have neither.
+    let record = rng.chance(15);
     let mut helpers: Vec<(String, usize)> = Vec::new();
     let mut functions = Vec::new();
     for index in 0..rng.below(4) {
@@ -551,7 +555,8 @@ pub fn program(seed: u64) -> Program {
         helpers.push((name, 2));
     }
     let locals: Vec<String> = (0..rng.range(1, 3)).map(|k| format!("v{k}")).collect();
-    let lists: Vec<(String, i64)> = (0..rng.below(3))
+    let list_count = if rng.chance(20) { 1 + rng.below(2) } else { 0 };
+    let lists: Vec<(String, i64)> = (0..list_count)
         .map(|k| (format!("ys{k}"), rng.range(0, 5)))
         .collect();
     let records: Vec<String> = if record { vec!["p".into()] } else { Vec::new() };
@@ -855,8 +860,15 @@ impl fmt::Display for Disagreement {
 /// What checking one program found.
 #[derive(Clone, Debug)]
 pub enum Verdict {
-    /// Every run agreed: how many pairs of runs there were.
-    Agree(usize),
+    /// Every run agreed.
+    Agree {
+        /// How many pairs of runs there were.
+        runs: usize,
+        /// Whether the entry ran on a derived tier. Without one, Auto runs
+        /// the reference interpreter too, and the pairs compare it with
+        /// itself.
+        derived: bool,
+    },
     /// A pair of runs disagreed.
     Disagree(Box<Disagreement>),
 }
@@ -913,6 +925,21 @@ fn cuts(baseline: &ExecutionOutcome, rng: &mut Rng) -> Vec<ExecutionLimits> {
 /// The compile refusal when `text` is not a Valid program, and the
 /// execution refusal when a case's arguments do not fit.
 pub fn check(text: &str, args: &[Vec<EmbedValue>], seed: u64) -> Result<Verdict, EmbedError> {
+    check_with(text, args, seed, &[])
+}
+
+/// [`check`], also running every case under each of `extra` (a finding's
+/// own limits, so a fixture or a shrink step checks the cut that found it).
+///
+/// # Errors
+///
+/// As [`check`].
+pub fn check_with(
+    text: &str,
+    args: &[Vec<EmbedValue>],
+    seed: u64,
+    extra: &[ExecutionLimits],
+) -> Result<Verdict, EmbedError> {
     let module = compile_python_with(text, &EmbedOptions::default(), LARGE_CEILINGS)?;
     let refused = |error: crate::error::AgentError| EmbedError::of(&error);
     let mut reference = Executor::with_execution_mode(module.program(), ExecutionMode::Reference)
@@ -930,6 +957,7 @@ pub fn check(text: &str, args: &[Vec<EmbedValue>], seed: u64) -> Result<Verdict,
         };
         let baseline = run(&mut reference, LIMITS)?;
         let mut all = vec![LIMITS];
+        all.extend_from_slice(extra);
         all.extend(cuts(&baseline, &mut rng));
         for limits in all {
             let expected = run(&mut reference, limits)?;
@@ -945,7 +973,9 @@ pub fn check(text: &str, args: &[Vec<EmbedValue>], seed: u64) -> Result<Verdict,
             }
         }
     }
-    Ok(Verdict::Agree(runs))
+    let (id, _) = module.inputs(ENTRY, args.first().map_or(&[][..], Vec::as_slice))?;
+    let derived = derived.has_derived_plan(&id).map_err(refused)?;
+    Ok(Verdict::Agree { runs, derived })
 }
 
 /// Generates, compiles and checks the program for `seed`.
@@ -1016,14 +1046,10 @@ fn neighbors(program: &Program) -> Vec<Program> {
             if let Some((block, index)) = block_at(&mut next.functions[f].body, path) {
                 let removed = block.remove(index);
                 out.push(next.clone());
-                // Replace a compound statement by its body.
+                // Replace an `if` by one of its branches. (A loop body lifted
+                // out of its loop would lose its variable and its breaks.)
                 let inner = match removed {
                     Stmt::If(_, a, b) => vec![a, b],
-                    Stmt::Range(_, _, _, inner)
-                    | Stmt::For(_, _, inner)
-                    | Stmt::While(_, _, inner) => {
-                        vec![inner]
-                    }
                     _ => Vec::new(),
                 };
                 for body in inner {
@@ -1061,7 +1087,7 @@ fn neighbors(program: &Program) -> Vec<Program> {
                 }
             }
         }
-        if function.result != Expr::Lit(0) {
+        if function.recursive.is_none() && function.result != Expr::Lit(0) {
             let mut next = program.clone();
             next.functions[f].result = Expr::Lit(0);
             out.push(next);
@@ -1102,10 +1128,12 @@ pub fn shrink(
 }
 
 /// Shrinks a disagreeing program to a smaller one that disagrees on the
-/// same case, within `budget` checks.
+/// same case, under the finding's own limits among others, within `budget`
+/// checks.
 #[must_use]
 pub fn shrink_finding(program: &Program, finding: &Disagreement, budget: usize) -> Program {
     let args = vec![finding.args.clone()];
+    let limits = [finding.limits];
     let mut only = program.clone();
     only.cases.retain(|(a, b, xs)| {
         vec![
@@ -1116,7 +1144,7 @@ pub fn shrink_finding(program: &Program, finding: &Disagreement, budget: usize) 
     });
     shrink(&only, budget, |candidate| {
         matches!(
-            check(&candidate.text(), &args, candidate.seed),
+            check_with(&candidate.text(), &args, candidate.seed, &limits),
             Ok(Verdict::Disagree(_))
         )
     })

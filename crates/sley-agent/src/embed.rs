@@ -514,14 +514,14 @@ pub fn compile_python_with(
         );
     }
     let declarations = types.declarations(&used);
-    let digest = *program.root().as_bytes();
     Ok(Module {
         executor,
+        // Before `program` moves in: fields are evaluated as written.
+        digest: *program.root().as_bytes(),
         program,
         functions,
         types,
         declarations,
-        digest,
     })
 }
 

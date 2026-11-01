@@ -331,6 +331,17 @@ impl Executor {
         Ok(Outcome::from_execution(outcome, started))
     }
 
+    /// Whether `id` runs on a derived plan rather than the reference
+    /// interpreter in this executor's mode ([`crate::vmfuzz`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`], when the function does not lower or load.
+    pub fn has_derived_plan(&mut self, id: &EntityId) -> Result<bool> {
+        self.lower(id)?;
+        Ok(self.lowered[id].image.has_derived_plan())
+    }
+
     /// Executes like [`Self::run`] and returns the VM's whole outcome, with
     /// its peak value units and observation digest: what a differential
     /// check between execution modes compares ([`crate::vmfuzz`]).
