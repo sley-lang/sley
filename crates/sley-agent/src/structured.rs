@@ -2075,17 +2075,24 @@ impl<'c, 'a> Fn<'c, 'a> {
                     } else {
                         None
                     };
-                    let (v, t) =
+                    let (mut v, t) =
                         self.expr(&items[arity - 1], env, &part(arity - 1), Some(&elem))?;
                     if t != elem {
                         return fail(&part(arity - 1), format!("`{x}` holds {elem}, not {t}"));
                     }
                     let index = match index {
                         Some(key) => {
-                            let length = env.operand(&len);
-                            let kn = self.hold(env, length, "u64");
-                            self.probe(env, &json!(["ge", key, kn]), &json!(key), &kn, &here)?;
-                            let i = Self::release(env, &[key, kn]).remove(0);
+                            if self.probe.is_some() {
+                                // The probe's branch renames every value in
+                                // scope: the stored value is held across it.
+                                let kv = self.hold(env, v, &elem);
+                                let length = env.operand(&len);
+                                let kn = self.hold(env, length, "u64");
+                                self.probe(env, &json!(["ge", key, kn]), &json!(key), &kn, &here)?;
+                                Self::release(env, &[kn]);
+                                v = Self::release(env, &[kv]).remove(0);
+                            }
+                            let i = Self::release(env, &[key]).remove(0);
                             // The index must already be in the list.
                             let trap = self.trap_block();
                             let storage = env.operand(&x);

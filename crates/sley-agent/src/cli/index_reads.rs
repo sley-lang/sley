@@ -33,12 +33,18 @@ pub(super) struct IndexRead {
 }
 
 impl IndexRead {
-    /// `index 3 is out of range for length 3`.
+    /// `index 3 is out of range for length 3`. A negative index Python
+    /// would count from the end says that Sley does not.
     pub(super) fn text(&self) -> String {
-        format!(
+        let text = format!(
             "index {} is out of range for length {}",
             self.index, self.length
-        )
+        );
+        if self.index < 0 && self.index.unsigned_abs() <= self.length {
+            format!("{text} (a computed negative index does not count from the end)")
+        } else {
+            text
+        }
     }
 
     /// The JSON form, with the text position when one is known.

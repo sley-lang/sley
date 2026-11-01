@@ -237,3 +237,69 @@ def test_first():
         "/fns/0/body/0/1"
     );
 }
+
+#[test]
+fn stores_of_computed_values_keep_every_note() {
+    let temp = TempDir::new("stores");
+    let tests = tests_of(
+        &temp.path,
+        "stores.py",
+        "\
+def rev(xs: list[int]) -> list[int]:
+    out = [0] * len(xs)
+    for i, x in enumerate(xs):
+        out[len(xs) - i] = x + 1
+    return out
+
+def bump(n: int, i: int) -> list[int]:
+    ys = [0] * n
+    ys[i] += 5
+    return ys
+
+def at(xs: list[int], i: int) -> int:
+    return xs[i]
+
+def test_stores():
+    assert rev([1, 2, 3]) == [4, 3, 2]
+    assert bump(2, 2) == [0, 0]
+    assert at([1, 2, 3], 3) == 0
+    assert bump(2, 1) == [0, 5]
+",
+        None,
+    );
+    let s = |text: &str| text.to_owned();
+    assert_eq!(read(&tests, "test_stores_0"), (s("3"), s("3"), Some(4)));
+    // `ys[i] += 5` reads `ys[i]` first: the read's note.
+    assert_eq!(read(&tests, "test_stores_1"), (s("2"), s("2"), Some(9)));
+    assert_eq!(read(&tests, "test_stores_2"), (s("3"), s("3"), Some(13)));
+    assert_eq!(named(&tests, "test_stores_3")["pass"], true);
+}
+
+#[test]
+fn a_computed_negative_index_says_it_does_not_count_from_the_end() {
+    let temp = TempDir::new("negative");
+    let path = write(
+        &temp.path,
+        "neg.py",
+        "\
+def at(xs: list[int], i: int) -> int:
+    return xs[i]
+
+def test_neg():
+    assert at([1, 2], -1) == 2
+    assert at([1, 2], -3) == 0
+",
+    );
+    let (_, out) = run(&temp.path, &["try", "--familiar", path.as_str()]);
+    assert!(
+        out.contains(
+            "index -1 is out of range for length 2 (a computed negative index does not count from the end) (line 2)"
+        ),
+        "{out}"
+    );
+    // Past the start in Python too: no aside.
+    assert!(
+        out.contains("index -3 is out of range for length 2 (line 2)"),
+        "{out}"
+    );
+}

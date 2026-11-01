@@ -2778,7 +2778,9 @@ Text appends the read to the failing test's line:
 FAIL test_pick_1 (pick): expected 7, got trap(1) (line 6); index 3 is out of range for length 3 (line 2)
 ```
 
-The second line number is the read's line in the current text. A read with
+The second line number is the read's line in the current text. A negative
+index that Python would count from the end adds `(a computed negative index
+does not count from the end)`: only a literal `xs[-k]` does. A read with
 no line in the current text (an AF1-X frame, or a function from the draft a
 `try --on` layers on) gives its authored pointer instead: `at
 /fns/0/body/0/1`. JSON adds `index_read` to that test's entry: `{"at",
