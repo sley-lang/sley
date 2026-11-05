@@ -21,15 +21,12 @@ fn run(path: &std::path::Path, args: &[&str]) -> (i32, Value) {
     words.extend(args.iter().map(|a| (*a).to_owned()));
     let mut output = Vec::new();
     let code = sley_agent::cli::run(&words, &mut output);
-    (
-        code,
-        serde_json::from_slice(&output).unwrap_or(Value::Null),
-    )
+    (code, serde_json::from_slice(&output).unwrap_or(Value::Null))
 }
 
-fn init(path: &std::path::Path, seed: u8) {
+fn init(path: &std::path::Path) {
     fs::create_dir_all(path).unwrap();
-    sley_agent::genesis::init(path, Some([seed; 32]), sley_agent::genesis::INIT_CEILINGS).unwrap();
+    sley_agent::genesis::init(path, None, sley_agent::genesis::INIT_CEILINGS).unwrap();
 }
 
 /// A call of `keep` is unchanged without `--fuel` and at the full ceiling.
@@ -43,7 +40,7 @@ fn fuel_default_matches_full_ceiling() {
             .unwrap()
             .as_nanos()
     ));
-    init(&path, 51);
+    init(&path);
     let temp = Temp(path);
     let frame = json!({"af1":1,"afx":1,"fns":[{"fn":"keep","params":[["x","i64"]],
         "returns":"i64","body":[["return","x"]]}]})
@@ -52,7 +49,10 @@ fn fuel_default_matches_full_ceiling() {
     assert_eq!(code, 0, "{proposal}");
     let handle = proposal["handle"].as_str().unwrap();
     let (_, default) = run(&temp.0, &["call", "keep", "5", "--on", handle]);
-    let (other, full) = run(&temp.0, &["call", "keep", "5", "--on", handle, "--fuel", "100000000"]);
+    let (other, full) = run(
+        &temp.0,
+        &["call", "keep", "5", "--on", handle, "--fuel", "100000000"],
+    );
     assert_eq!(other, 0, "{full}");
     for run in [&default, &full] {
         assert_eq!(run["result"], 5, "{run}");
@@ -78,18 +78,24 @@ fn low_fuel_exhausts_and_a_higher_ceiling_answers() {
             .unwrap()
             .as_nanos()
     ));
-    init(&path, 52);
+    init(&path);
     let temp = Temp(path);
     let source = temp.0.join("fib.py");
     fs::write(&source, "def fib(n: int) -> int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n").unwrap();
     let (code, proposal) = run(&temp.0, &["try", "--familiar", source.to_str().unwrap()]);
     assert_eq!(code, 0, "{proposal}");
     let handle = proposal["handle"].as_str().unwrap();
-    let (code, starved) = run(&temp.0, &["call", "fib", "12", "--on", handle, "--fuel", "300"]);
+    let (code, starved) = run(
+        &temp.0,
+        &["call", "fib", "12", "--on", handle, "--fuel", "300"],
+    );
     assert_eq!(code, 0, "{starved}");
     assert_eq!(starved["result"], json!({"limit": "Fuel"}), "{starved}");
     assert_eq!(starved["fuel"], 300, "{starved}");
-    let (code, fed) = run(&temp.0, &["call", "fib", "12", "--on", handle, "--fuel", "7000"]);
+    let (code, fed) = run(
+        &temp.0,
+        &["call", "fib", "12", "--on", handle, "--fuel", "7000"],
+    );
     assert_eq!(code, 0, "{fed}");
     assert_eq!(fed["result"], 144, "{fed}");
     assert!(
@@ -111,7 +117,7 @@ fn fuel_bounds_and_above_ceiling_are_refused() {
             .unwrap()
             .as_nanos()
     ));
-    init(&path, 53);
+    init(&path);
     let temp = Temp(path);
     let frame = json!({"af1":1,"afx":1,"fns":[{"fn":"keep","params":[["x","i64"]],
         "returns":"i64","body":[["return","x"]]}]})
@@ -120,14 +126,30 @@ fn fuel_bounds_and_above_ceiling_are_refused() {
     assert_eq!(code, 0, "{proposal}");
     let handle = proposal["handle"].as_str().unwrap().to_owned();
     for value in ["0", "100000001", "18446744073709551615", "abc", "-3", "1.5"] {
-        let (code, refused) = run(&temp.0, &["call", "keep", "5", "--on", &handle, "--fuel", value]);
+        let (code, refused) = run(
+            &temp.0,
+            &["call", "keep", "5", "--on", &handle, "--fuel", value],
+        );
         assert_eq!(code, 2, "{value}: {refused}");
-        assert_eq!(refused["error"], "AGENT_USAGE_INVALID", "{value}: {refused}");
+        assert_eq!(
+            refused["error"], "AGENT_USAGE_INVALID",
+            "{value}: {refused}"
+        );
     }
     // A `--fuel` without a value and a repeated flag are the same refusal.
     let mut output = Vec::new();
     let code = sley_agent::cli::run(
-        &["--workspace".into(), temp.0.display().to_string(), "--json".into(), "call".into(), "keep".into(), "5".into(), "--on".into(), handle.clone(), "--fuel".into()],
+        &[
+            "--workspace".into(),
+            temp.0.display().to_string(),
+            "--json".into(),
+            "call".into(),
+            "keep".into(),
+            "5".into(),
+            "--on".into(),
+            handle.clone(),
+            "--fuel".into(),
+        ],
         &mut output,
     );
     assert_eq!(code, 2, "{}", String::from_utf8_lossy(&output));
@@ -135,11 +157,16 @@ fn fuel_bounds_and_above_ceiling_are_refused() {
     assert_eq!(refused["error"], "AGENT_USAGE_INVALID", "{refused}");
     let (code, _) = run(
         &temp.0,
-        &["call", "keep", "5", "--on", &handle, "--fuel", "5", "--fuel", "8"],
+        &[
+            "call", "keep", "5", "--on", &handle, "--fuel", "5", "--fuel", "8",
+        ],
     );
     assert_eq!(code, 2);
     // The bounds themselves hold: 1 is the lowest accepted ceiling.
-    let (code, one) = run(&temp.0, &["call", "keep", "5", "--on", &handle, "--fuel", "1"]);
+    let (code, one) = run(
+        &temp.0,
+        &["call", "keep", "5", "--on", &handle, "--fuel", "1"],
+    );
     assert_eq!(code, 0, "{one}");
     assert_eq!(one["result"], 5, "{one}");
 }
@@ -156,7 +183,7 @@ fn batch_runs_under_the_fuel_ceiling() {
             .unwrap()
             .as_nanos()
     ));
-    init(&path, 54);
+    init(&path);
     let temp = Temp(path);
     let source = temp.0.join("fib.py");
     fs::write(&source, "def fib(n: int) -> int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n").unwrap();
@@ -192,7 +219,11 @@ fn batch_runs_under_the_fuel_ceiling() {
     let (code, starved) = batched("300");
     assert_eq!(code, 0);
     // The fib(12) rows exhaust at 300 fuel; fib(2) still answers.
-    assert_eq!(starved, vec![json!({"limit": "Fuel"}), json!({"limit": "Fuel"}), json!(1)], "{starved:?}");
+    assert_eq!(
+        starved,
+        vec![json!({"limit": "Fuel"}), json!({"limit": "Fuel"}), json!(1)],
+        "{starved:?}"
+    );
     let (code, fed) = batched("7000");
     assert_eq!(code, 0);
     assert_eq!(fed, vec![json!(144), json!(144), json!(1)], "{fed:?}");
