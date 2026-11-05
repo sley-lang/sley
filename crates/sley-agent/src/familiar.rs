@@ -122,8 +122,9 @@ pub struct Parsed {
 /// The first unsupported, ambiguous or malformed construct, at its position.
 pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
     let (functions, declared) = if is_python(text) {
+        let (toks, helpers) = py_bisect(&py_tokenize(text)?)?;
         let mut parser = Parser {
-            toks: py_tokenize(text)?,
+            toks,
             k: 0,
             python: true,
             scopes: Vec::new(),
@@ -135,7 +136,10 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             list_locals: Vec::new(),
             returns_list_local: false,
         };
-        let functions = parser.py_program()?;
+        let mut functions = parser.py_program()?;
+        for name in helpers {
+            functions.append(&mut py_bisect_helper(name)?);
+        }
         (functions, std::mem::take(&mut parser.declared))
     } else {
         let mut parser = Parser {
@@ -2857,6 +2861,146 @@ fn py_tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
         pos: end,
     });
     Ok(tokens)
+}
+
+/// The Python dialect's `bisect` module: `bisect.bisect_left` and
+/// `bisect.bisect_right` are rewritten into the bare name (keeping the first
+/// token's position; the import lines are skipped by [`Parser::py_program`]),
+/// a call keeps the form `(xs, x)` (a `lo` argument is refused at the call),
+/// and the names that need the dialect's helper functions are reported
+/// ([`py_bisect_source`], parsed after the program's own defs: a `def` of
+/// the same name shadows the built-in).
+fn py_bisect(toks: &[Tok]) -> P<(Vec<Tok>, Vec<&'static str>)> {
+    // `bisect.bisect_left` is the bare name.
+    let mut rewritten: Vec<Tok> = Vec::with_capacity(toks.len());
+    let mut i = 0;
+    while i < toks.len() {
+        let attribute = i + 2 < toks.len()
+            && toks[i].kind == Kind::Name
+            && toks[i].text == "bisect"
+            && toks[i + 1].kind == Kind::Op
+            && toks[i + 1].text == "."
+            && toks[i + 2].kind == Kind::Name
+            && matches!(toks[i + 2].text.as_str(), "bisect_left" | "bisect_right");
+        if attribute {
+            rewritten.push(Tok {
+                kind: Kind::Name,
+                text: toks[i + 2].text.clone(),
+                pos: toks[i].pos,
+            });
+            i += 3;
+        } else {
+            rewritten.push(toks[i].clone());
+            i += 1;
+        }
+    }
+    // The bisect names the program writes `def` for.
+    let mut defined: Vec<String> = Vec::new();
+    for pair in rewritten.windows(2) {
+        if pair[0].kind == Kind::Name && pair[0].text == "def" && pair[1].kind == Kind::Name {
+            defined.push(pair[1].text.clone());
+        }
+    }
+    let mut needed: Vec<&'static str> = Vec::new();
+    for (i, tok) in rewritten.iter().enumerate() {
+        if tok.kind != Kind::Name {
+            continue;
+        }
+        let name = match tok.text.as_str() {
+            "bisect_left" => "bisect_left",
+            "bisect_right" => "bisect_right",
+            _ => continue,
+        };
+        if !rewritten
+            .get(i + 1)
+            .is_some_and(|t| t.kind == Kind::Op && t.text == "(")
+        {
+            continue;
+        }
+        // The top-level commas of the call's arguments: two mean the call
+        // passes a `lo`, which the built-in form does not take.
+        let mut commas = 0;
+        let mut depth: usize = 1;
+        for tok in &rewritten[i + 2..] {
+            match tok.kind {
+                Kind::Op if tok.text == "(" || tok.text == "[" => depth += 1,
+                Kind::Op if tok.text == ")" || tok.text == "]" => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Kind::Op if tok.text == "," && depth == 1 => commas += 1,
+                Kind::Eof => break,
+                _ => {}
+            }
+        }
+        let shadowed = defined.iter().any(|d| d == name);
+        if commas > 1 && !shadowed {
+            return refuse(
+                tok.pos,
+                format!("{name} takes (xs, x) here; lo and hi are not supported"),
+            );
+        }
+        if !shadowed && !needed.contains(&name) {
+            needed.push(name);
+        }
+    }
+    Ok((rewritten, needed))
+}
+
+/// The source of the dialect's helper for a bisect name, written in Python
+/// and compiled by the dialect's own parser after the program's defs.
+fn py_bisect_source(name: &str) -> &'static str {
+    match name {
+        "bisect_right" => {
+            "\
+def bisect_right(xs: list[int], x: int) -> int:
+    lo = 0
+    hi = len(xs)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if x < xs[mid]:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+"
+        }
+        _ => {
+            "\
+def bisect_left(xs: list[int], x: int) -> int:
+    lo = 0
+    hi = len(xs)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if xs[mid] < x:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+"
+        }
+    }
+}
+
+/// Parses a bisect helper exactly like a program of the dialect (the helper
+/// declares nothing else, so its `Declared` is dropped).
+fn py_bisect_helper(name: &str) -> P<Vec<Function>> {
+    let mut parser = Parser {
+        toks: py_tokenize(py_bisect_source(name))?,
+        k: 0,
+        python: true,
+        scopes: Vec::new(),
+        hoisted: Vec::new(),
+        fresh: 0,
+        declared: Declared::default(),
+        depth: 0,
+        list_return: None,
+        list_locals: Vec::new(),
+        returns_list_local: false,
+    };
+    parser.py_program()
 }
 
 impl Parser {
