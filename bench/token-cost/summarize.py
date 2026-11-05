@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Token tables: static program sizes, guide sizes, read-back views, agent-loop totals.
+Agent-loop totals come in both forms: the raw no-card totals (the one-time help
+card excluded) and with-card totals (plus one card per task session, from the
+`card` fields run_loop.py recorded; cards.py holds the assumption).
 Usage: summarize.py <sley-agent> <results-dir>  (results-dir holds loop.json from run_loop.py)"""
 import json, pathlib, subprocess, sys, tempfile, statistics
-import tiktoken, spec, langs
+import tiktoken, spec, langs, cards
 SLEY, RES = sys.argv[1], pathlib.Path(sys.argv[2])
 T = pathlib.Path(__file__).resolve().parent / "tasks"
 ENCS = ["o200k_base", "cl100k_base"]
@@ -96,7 +99,7 @@ for task in spec.CASES:
 rows = json.loads((RES / "loop.json").read_text())
 FORMS = [f for f in ["python", "sley_py", "sley_py_inline", "sley_fam", "sley_fam_decl", "sley_af1", "c", "rust", "go", "ts"] if any(r["form"] == f for r in rows)]
 for enc in ENCS:
-    p(f"\n## Agent loop totals ({enc}): write program+tests, run, read, fix, run, read")
+    p(f"\n## Agent loop totals (no card, {enc}): write program+tests, run, read, fix, run, read")
     p("| scenario | form | tokens written | tokens read | total | vs Python | tool calls |"); p("|---|---|---|---|---|---|---|")
     for kind in ("clean", "logic", "typo"):
         base = None
@@ -105,10 +108,27 @@ for enc in ENCS:
             w = sum(r["write"] for r in sel); rd = sum(r["read"] for r in sel); calls = sum(r["tool_calls"] for r in sel)
             if f == "python": base = w + rd
             p(f"| {kind} | {f} | {w} | {rd} | {w+rd} | {(w+rd)/base:.2f}x | {calls} |")
-    p(f"\n### Per task, logic-bug loop ({enc}, total tokens)")
+    p(f"\n### Per task, logic-bug loop (no card, {enc}, total tokens)")
     p("| task | " + " | ".join(FORMS) + " |"); p("|---|" + "---|" * len(FORMS))
     for task in spec.CASES:
         vals = {f: next(r["total"] for r in rows if r["enc"] == enc and r["kind"] == "logic" and r["form"] == f and r["task"] == task) for f in FORMS}
         p(f"| {task} | " + " | ".join(f"{vals[f]}" + ("" if f == "python" else f" ({vals[f]/vals['python']:.2f}x)") for f in FORMS) + " |")
+    # With-card totals (T6): the no-card totals plus one help card per task
+    # session, from the `card` fields run_loop.py recorded (never per retry).
+    p(f"\n## Agent loop totals (with card, {enc}): the no-card totals plus one help card read per task session")
+    p("Assumption, applied once and never silently: the agent reads the form's card once at the start of each task session -- one (task, kind, form) run above -- and never re-reads it on a retry (fix → run → read), so a card is added once per task, not per retry or per tool call. The card values are the `card` fields run_loop.py recorded in loop.json, measured with the binary that ran the loop; they are not re-measured here. `n/a` marks a Sley form whose records predate card accounting (no `card` field): its with-card total is unavailable, not zero. Python and the other languages read no card, so their with-card rows equal their no-card rows, and `vs Python` keeps the same Python base as the no-card table.")
+    p("| scenario | form | tokens written | card | tokens read | total | vs Python | tool calls |"); p("|---|---|---|---|---|---|---|---|")
+    for kind in ("clean", "logic", "typo"):
+        base = None
+        for f in FORMS:
+            sel = [r for r in rows if r["enc"] == enc and r["kind"] == kind and r["form"] == f]
+            tot = cards.with_card_totals(sel, enc, f)
+            if tot and f == "python": base = tot[2]
+            if tot is None:
+                p(f"| {kind} | {f} | n/a | n/a | n/a | n/a | n/a | n/a |")
+            else:
+                w, rd, total, calls, card = tot
+                ratio = f"{total/base:.2f}x" if base else "-"
+                p(f"| {kind} | {f} | {w} | {card} | {rd} | {total} | {ratio} | {calls} |")
 (RES / "SUMMARY.md").write_text("\n".join(out) + "\n")
 print("\n".join(out))
