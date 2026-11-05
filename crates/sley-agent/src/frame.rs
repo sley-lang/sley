@@ -1657,6 +1657,7 @@ impl Compiler<'_> {
         let mut variant_payload: Option<Option<TypeExpr>> = None;
         let mut callee_result: Option<TypeExpr> = None;
         let mut field_type: Option<TypeExpr> = None;
+        let mut text_kind = None;
         match row.immediate {
             ImmediateKind::None => {}
             ImmediateKind::Entity => {
@@ -1670,6 +1671,12 @@ impl Compiler<'_> {
                     let (constant, value) = self.constant_arg(arg, hint.as_ref(), pointer)?;
                     immediate_type = Some(value.value_type);
                     immediate = Immediate::Entity(constant);
+                } else if row.tag == 161
+                    && let Some((id, text)) = self.text_entry(string(arg, pointer)?, pointer)?
+                {
+                    callee_result = Some(crate::text_ops::result_type(text));
+                    text_kind = Some(text);
+                    immediate = Immediate::Entity(id);
                 } else {
                     let name = string(arg, pointer)?;
                     let kind = match row.tag {
@@ -1823,6 +1830,20 @@ impl Compiler<'_> {
         if operand_types.iter().all(Option::is_some) {
             let typed: Vec<TypeExpr> = operand_types.iter().flatten().cloned().collect();
             self.check_operands(row, &operand_names, &typed, pointer)?;
+            if let Some(text) = text_kind {
+                let want = crate::text_ops::operand_types(text);
+                if typed.as_slice() != want.as_slice() {
+                    return Err(frame(
+                        pointer,
+                        format!(
+                            "`{}` takes ({}, {})",
+                            crate::text_ops::name_of(text),
+                            types::render(&want[0], self.names),
+                            types::render(&want[1], self.names)
+                        ),
+                    ));
+                }
+            }
         }
         let known: Vec<TypeExpr> = operand_types.into_iter().flatten().collect();
         // `tuple_get` reads its element type from the tuple operand.
@@ -1951,6 +1972,50 @@ impl Compiler<'_> {
             )
         })?;
         Ok((definition, member))
+    }
+
+    /// An `adapter` argument that names a text entry (VM slice E9): a live
+    /// import row of a text entry by its name, or a text operation name,
+    /// which reuses a frame-created or live row of that entry and otherwise
+    /// creates one. `None` for every other name.
+    fn text_entry(
+        &mut self,
+        name: &str,
+        _pointer: &str,
+    ) -> Result<Option<(EntityId, sley_vm::text::TextKind)>> {
+        if let Some(id) = self
+            .names
+            .resolve(name)
+            .filter(|id| !self.deletes.contains(id))
+            && let Some(body) = self.program.body(&id)
+            && body.kind_tag() == 15
+        {
+            return Ok(crate::text_ops::of_body(body).map(|kind| (id, kind)));
+        }
+        let Some(kind) = crate::text_ops::by_name(name) else {
+            return Ok(None);
+        };
+        let wanted = crate::text_ops::body(kind);
+        if let Some(id) = self
+            .bodies
+            .iter()
+            .find(|(_, body)| **body == wanted)
+            .map(|(id, _)| *id)
+        {
+            return Ok(Some((id, kind)));
+        }
+        for object in self.program.objects() {
+            let id = object.record().entity_id;
+            if object.record().body == wanted && !self.deletes.contains(&id) {
+                return Ok(Some((id, kind)));
+            }
+        }
+        let leaf = self.fresh_name(name, false);
+        let id = self.allocate(15, &leaf, Scope::Top)?;
+        self.created_top.push((id, 15));
+        self.top.insert(leaf, TopEntry { id, kind: 15 });
+        self.put(id, wanted);
+        Ok(Some((id, kind)))
     }
 
     /// Resolves a `const` argument: a constant name, or a literal that
@@ -2820,6 +2885,7 @@ pub(crate) fn infer(
         39 | 40 | 80..=85 => first?.clone(),
         64..=71 => arithmetic(first?),
         112 => callee_result?.clone(),
+        161 => callee_result.or(hint)?.clone(),
         128 => TypeExpr::Option(Box::new(first?.clone())),
         130 => match hint {
             Some(TypeExpr::Result { ok, error }) if **ok == *first? => TypeExpr::Result {

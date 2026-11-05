@@ -1772,6 +1772,13 @@ impl Parser {
             if self.at_op(".") {
                 let pos = self.bump().pos;
                 let (field, field_pos) = self.ident("a field name")?;
+                if self.python && field == "join" && self.at_op("(") {
+                    self.bump();
+                    let arg = self.expr()?;
+                    self.expect_op(")")?;
+                    value = Node::op(pos, "join", vec![value, arg]).within()?;
+                    continue;
+                }
                 if self.at_op("(") {
                     if self.python
                         && let Some(hint) = py_method_hint(&field)
@@ -1816,25 +1823,42 @@ impl Parser {
                     .within()?;
                     continue;
                 }
-                if self.python && (self.at_op(":") || self.peek_at(1).text == ":") {
-                    return refuse(
-                        pos,
-                        "slices are not supported as values: loop over one directly \
-                         (`for x in xs[1:]`) or index with range(a, b)",
-                    );
+                let mut start;
+                if self.python && self.at_op(":") {
+                    // A slice with an omitted start: xs[:b].
+                    self.bump();
+                    start = Node::atom(pos, Value::Null);
+                } else {
+                    start = self.expr()?;
+                    if self.python && self.at_op(":") {
+                        // A slice; the parsed expression is its start, so it
+                        // must not be parsed again below.
+                        self.bump();
+                    } else {
+                        self.expect_op("]")?;
+                        if self.python {
+                            // Python ints are i64; an index converts explicitly (a
+                            // negative computed index fails like a checked operation).
+                            start = Node::op(
+                                pos,
+                                "to",
+                                vec![Node::atom(pos, Value::String("u64".into())), start],
+                            );
+                        }
+                        value = Node::op(pos, "get", vec![value, start]).within()?;
+                        continue;
+                    }
                 }
-                let mut index = self.expr()?;
+                let end = if self.at_op("]") {
+                    Node::atom(pos, Value::Null)
+                } else {
+                    self.expr()?
+                };
+                if self.at_op(":") {
+                    return refuse(pos, "slice steps are not supported");
+                }
                 self.expect_op("]")?;
-                if self.python {
-                    // Python ints are i64; an index converts explicitly (a
-                    // negative computed index fails like a checked operation).
-                    index = Node::op(
-                        pos,
-                        "to",
-                        vec![Node::atom(pos, Value::String("u64".into())), index],
-                    );
-                }
-                value = Node::op(pos, "get", vec![value, index]).within()?;
+                value = Node::op(pos, "slice", vec![value, start, end]).within()?;
             } else {
                 return Ok(value);
             }
@@ -2222,6 +2246,45 @@ impl Parser {
                 let value = self.expr()?;
                 self.expect_op(")")?;
                 return Ok(Some(value));
+            }
+            "ord" => {
+                let value = self.expr()?;
+                if self.at_op(",") {
+                    return refuse(pos, "ord takes one argument");
+                }
+                self.expect_op(")")?;
+                return Ok(Some(Node::op(
+                    pos,
+                    "to",
+                    vec![
+                        Node::atom(pos, Value::String("i64".into())),
+                        Node::op(pos, "ord", vec![value]),
+                    ],
+                )));
+            }
+            "chr" => {
+                let value = self.expr()?;
+                if self.at_op(",") {
+                    return refuse(pos, "chr takes one argument");
+                }
+                self.expect_op(")")?;
+                return Ok(Some(Node::op(
+                    pos,
+                    "chr",
+                    vec![Node::op(
+                        pos,
+                        "to",
+                        vec![Node::atom(pos, Value::String("u32".into())), value],
+                    )],
+                )));
+            }
+            "str" => {
+                let value = self.expr()?;
+                if self.at_op(",") {
+                    return refuse(pos, "str takes one argument");
+                }
+                self.expect_op(")")?;
+                return Ok(Some(Node::op(pos, "str", vec![value])));
             }
             "range" | "enumerate" => {
                 return refuse(

@@ -74,6 +74,7 @@ pub mod ripple;
 pub mod search;
 pub(crate) mod structured;
 pub mod tables;
+pub(crate) mod text_ops;
 pub mod types;
 pub mod values;
 pub mod view;
