@@ -15,6 +15,13 @@
 //! `["append", x, e]` and `["store", x, i, e]`, read with `get` and `len`; a
 //! list is a `Map<u64,T>` keyed `0..len`; its name is a value only in
 //! `["return", x]`, which returns the map whole.
+//! Dict locals: `["dict", x, K, V]` declares an empty dict local of type
+//! `Map<K,V>` (K and V integer types) whose entry count starts at 0;
+//! `["dput", x, k, e]` inserts or replaces `e` at `k`, and the count gains 1
+//! when `k` is new (checked; overflow traps, like append). `dget` (`[x, k]`;
+//! a missing key traps, or `dget?Case` returns the error case), `dhas` (a
+//! bool) and `len` (the count) read it. A dict cannot be iterated or passed:
+//! read it with dget, dhas and len.
 //!
 //! Expressions: a name, an integer, `true`/`false`, a typed literal
 //! `{"type": T, "value": v}`, or `[op, args..]`:
@@ -240,6 +247,13 @@ fn map_value(ty: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// The key and value types of a `Map<K,V>` (a dict local's storage).
+fn map_parts(ty: &str) -> Option<(String, String)> {
+    let inner = ty.strip_prefix("Map<")?.strip_suffix('>')?;
+    let (key, value) = inner.split_once(',')?;
+    Some((normal(key), normal(value)))
+}
+
 fn result_parts(ty: &str) -> Option<(String, String)> {
     let inner = ty.strip_prefix("Result<")?.strip_suffix('>')?;
     let (ok, err) = inner.rsplit_once(',')?;
@@ -434,6 +448,11 @@ struct Fn<'c, 'a> {
     /// are exactly `0..len`, so a read of a missing key is an out-of-range
     /// index and a store never changes the length.
     lists: BTreeMap<String, String>,
+    /// Dict locals (`["dict", ..]`): the dict's name to the name of the
+    /// binding that holds its entry count. A dict is a `Map<K,V>` whose
+    /// count is exact (a new key gains one), so `len` reads it and
+    /// `dput` maintains it; the name itself is never a value.
+    dicts: BTreeMap<String, String>,
     /// Lists a `for` is visiting: the body may not change them.
     iterating: Vec<String>,
     /// In a probing lowering ([`lower_probing`]): the frame-wide number of
@@ -502,6 +521,7 @@ impl<'c, 'a> Fn<'c, 'a> {
             depth: 0,
             nonneg,
             lists: BTreeMap::new(),
+            dicts: BTreeMap::new(),
             iterating: Vec::new(),
             probe: None,
         })
@@ -617,6 +637,34 @@ impl<'c, 'a> Fn<'c, 'a> {
         let name = e.as_str()?;
         env.get(name)?;
         self.lists.get(name).cloned()
+    }
+
+    /// The length binding, key type and value type of the dict local `e`
+    /// names, if it names one in scope.
+    fn dict_parts(&self, e: &Value, env: &Env) -> Option<(String, String, String)> {
+        let name = e.as_str()?;
+        let binding = env.get(name)?;
+        let (key, value) = map_parts(&binding.ty)?;
+        Some((self.dicts.get(name)?.clone(), key, value))
+    }
+
+    /// The refusal for any use of the dict local `e` names as a value.
+    fn dict_refusal(&self, e: &Value, env: &Env) -> Option<String> {
+        let name = e.as_str()?;
+        env.get(name)?;
+        self.dicts.contains_key(name).then(|| {
+            format!(
+                "`{name}` is a dict: dicts cannot be iterated or passed: \
+                 read them with dget, dhas and len"
+            )
+        })
+    }
+
+    /// The name of the dict local `e` names, if it names one in scope.
+    fn dict_name<'s>(&self, e: &'s Value, env: &Env) -> Option<&'s str> {
+        let name = e.as_str()?;
+        env.get(name)?;
+        self.dicts.contains_key(name).then_some(name)
     }
 
     fn fresh(&mut self, base: &str) -> String {
@@ -767,6 +815,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                         at,
                         "`slice` takes (text, i64 start or null, i64 end or null)",
                     );
+                }
+                if let Some(message) = self.dict_refusal(&args[0], env) {
+                    return fail(at, message);
                 }
                 if self
                     .static_type(&args[0], env, None)
@@ -1121,7 +1172,7 @@ impl<'c, 'a> Fn<'c, 'a> {
                         Some("bool".into())
                     }
                     "len" => Some("u64".into()),
-                    "truthy" | "contains" => Some("bool".into()),
+                    "truthy" | "contains" | "dhas" => Some("bool".into()),
                     "substr" | "slice" | "concat" | "chr" | "str" | "join" => Some("text".into()),
                     "ord" => Some("u32".into()),
                     "chars" => Some("Vec<text>".into()),
@@ -1145,6 +1196,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                         }
                         vec_elem(&ty)
                     }
+                    "dget" => args
+                        .first()
+                        .and_then(|a| self.dict_parts(a, env))
+                        .map(|(_, _, value)| value),
                     "field" => {
                         let rec = self.static_type(args.first()?, env, None)?;
                         let field = args.get(1)?.as_str()?;
@@ -1254,6 +1309,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                             "`{name}` is a list: read it with [\"get\", {name}, i] or [\"len\", {name}] and change it with store or append (it cannot be copied, passed or returned)"
                         ),
                     );
+                }
+                if let Some(message) = self.dict_refusal(e, env) {
+                    return fail(at, message);
                 }
                 if let Some(b) = env.get(name) {
                     return Ok((b.operand.clone(), b.ty.clone()));
@@ -1564,6 +1622,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                 if let Some(len) = self.list_len(&args[0], env) {
                     return Ok((env.operand(&len), "u64".into()));
                 }
+                if let Some((len, _, _)) = self.dict_parts(&args[0], env) {
+                    return Ok((env.operand(&len), "u64".into()));
+                }
                 let (v, t) = self.expr(&args[0], env, &sub(0), None)?;
                 if t == "text" {
                     return Ok((
@@ -1643,6 +1704,43 @@ impl<'c, 'a> Fn<'c, 'a> {
                 Ok((
                     self.emit_value(&format!("vec_get?{handler}"), vec![v, i], at),
                     elem,
+                ))
+            }
+            "dget" | "dhas" => {
+                // [d, k]: the value stored at k (a missing key fails like
+                // get), or a bool for membership.
+                if args.len() != 2 {
+                    return fail(at, format!("`{base}` takes (dict, key)"));
+                }
+                let Some(name) = self.dict_name(&args[0], env) else {
+                    return fail(
+                        &sub(0),
+                        format!(
+                            "`{base}` needs a declared dict by name: \
+                             [\"dict\", name, K, V] declares one"
+                        ),
+                    );
+                };
+                let (key, value) = map_parts(&env.get(name).expect("a dict in scope").ty)
+                    .expect("a dict is a map");
+                let (kv, kt) = self.expr(&args[1], env, &sub(1), Some(&key))?;
+                if kt != key {
+                    return fail(&sub(1), format!("the key of `{name}` is {key}, not {kt}"));
+                }
+                let storage = env.operand(name);
+                if base == "dhas" {
+                    if mode.is_some() {
+                        return fail(at, "`dhas` cannot fail and takes no mode");
+                    }
+                    return Ok((
+                        self.emit_value("map_has", vec![storage, kv], at),
+                        "bool".into(),
+                    ));
+                }
+                let handler = self.handler(mode, at)?;
+                Ok((
+                    self.emit_value(&format!("map_get?{handler}"), vec![storage, kv], at),
+                    value,
                 ))
             }
             "substr" | "slice" | "concat" | "chars" | "ord" | "chr" | "str" | "join"
@@ -2210,6 +2308,9 @@ impl<'c, 'a> Fn<'c, 'a> {
                             format!("`{target}` is a list: change it with store or append"),
                         );
                     }
+                    if let Some(message) = self.dict_refusal(&items[1], env) {
+                        return fail(&here, format!("{message}; change it with dput"));
+                    }
                     let Some(binding) = env
                         .get(target)
                         .filter(|b| b.mutable && items.len() == 3)
@@ -2464,6 +2565,120 @@ impl<'c, 'a> Fn<'c, 'a> {
                             },
                         );
                     }
+                }
+                "dict" => {
+                    // ["dict", x, K, V]: an empty dict local of Map<K,V>,
+                    // its entry count a hidden u64 var starting at 0.
+                    if items.len() != 4 {
+                        return fail(&here, "[\"dict\", name, key type, value type]");
+                    }
+                    let n = name_ok(1)?;
+                    if env.get(&n).is_some()
+                        || self.params.contains_key(&n)
+                        || self.lists.contains_key(&n)
+                        || self.dicts.contains_key(&n)
+                    {
+                        return fail(
+                            &here,
+                            format!("`{n}` is already declared; a dict needs a name of its own"),
+                        );
+                    }
+                    let Some(key) = items[2].as_str().map(normal).filter(|k| is_int(k)) else {
+                        return fail(&part(2), "a dict's key type is an integer type");
+                    };
+                    let Some(value) = items[3].as_str().map(normal).filter(|v| is_int(v)) else {
+                        return fail(&part(3), "a dict's value type is an integer type");
+                    };
+                    // An empty map cannot fail, but its declared result is
+                    // Result<Map, DuplicateKeyError>: unwrap it, like the list arm.
+                    let storage = self.fresh("t");
+                    let trap = self.trap_block();
+                    self.emit(
+                        json!({
+                            "name": storage,
+                            "op": format!("map?{trap}"),
+                            "args": [],
+                            "type": format!("Result<Map<{key},{value}>,DuplicateKeyError>")
+                        }),
+                        &here,
+                    );
+                    let len = self.fresh("len");
+                    env.set(
+                        &len,
+                        Binding {
+                            operand: Self::lit(&json!(0), "u64"),
+                            ty: "u64".into(),
+                            mutable: true,
+                        },
+                    );
+                    env.set(
+                        &n,
+                        Binding {
+                            operand: Value::String(storage),
+                            ty: format!("Map<{key},{value}>"),
+                            mutable: true,
+                        },
+                    );
+                    self.dicts.insert(n, len);
+                }
+                "dput" => {
+                    // ["dput", x, k, e]: e replaces e at k; a key not yet
+                    // present gains one entry (checked; overflow traps,
+                    // like append) before the insert.
+                    if items.len() != 4 {
+                        return fail(&here, "[\"dput\", dict, key, value]");
+                    }
+                    let x = items
+                        .get(1)
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned();
+                    let Some(len) = self
+                        .dicts
+                        .get(&x)
+                        .cloned()
+                        .filter(|_| env.get(&x).is_some())
+                    else {
+                        return fail(
+                            &here,
+                            format!("[\"dput\", dict, key, value] needs a dict in scope (`{x}`)"),
+                        );
+                    };
+                    let (key, value) = map_parts(&env.get(&x).expect("a dict in scope").ty)
+                        .expect("a dict is a map");
+                    let (k, kt) = self.expr(&items[2], env, &part(2), Some(&key))?;
+                    if kt != key {
+                        return fail(&part(2), format!("the key of `{x}` is {key}, not {kt}"));
+                    }
+                    let (v, vt) = self.expr(&items[3], env, &part(3), Some(&value))?;
+                    if vt != value {
+                        return fail(&part(3), format!("the value of `{x}` is {value}, not {vt}"));
+                    }
+                    let has = self.emit_value("map_has", vec![env.operand(&x), k.clone()], &here);
+                    let kk = self.hold(env, k, &kt);
+                    let kv = self.hold(env, v, &vt);
+                    let kh = self.hold(env, has, "bool");
+                    // The count gains 1 only for a key the dict does not
+                    // hold: the checked add runs in the chosen arm only.
+                    let grow = json!([[
+                        "if",
+                        ["not", kh],
+                        [["set", &len, ["add", &len, {"type": "u64", "value": 1}]]]
+                    ]]);
+                    self.stmts(grow.as_array().expect("a statement list"), env, &here, true)?;
+                    let storage = env.operand(&x);
+                    let k = env.operand(&kk);
+                    let v = env.operand(&kv);
+                    let stored = self.emit_value("map_insert", vec![storage, k, v], &here);
+                    env.set(
+                        &x,
+                        Binding {
+                            operand: stored,
+                            ty: format!("Map<{key},{value}>"),
+                            mutable: true,
+                        },
+                    );
+                    Self::release(env, &[kk, kv, kh]);
                 }
                 "if" => self.if_stmt(items, env, &here, internal)?,
                 "for" | "for-indexed" => self.for_stmt(items, env, &here)?,
@@ -2772,6 +2987,9 @@ impl<'c, 'a> Fn<'c, 'a> {
         // max/min: the value when no element is visited (else a trap).
         let fallback = args.get(5).filter(|d| !d.is_null());
         let Some(elem) = self.fold_element(list, env) else {
+            if let Some(message) = self.dict_refusal(list, env) {
+                return fail(&format!("{at}/3"), message);
+            }
             return fail(&format!("{at}/3"), "a fold visits a vector or a range");
         };
         let mut inner = env.clone();

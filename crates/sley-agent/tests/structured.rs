@@ -851,3 +851,226 @@ fn appends_build_thousands_and_stop_cleanly_at_the_value_unit_ceiling() {
         json!({"limit": "ValueUnits"})
     );
 }
+
+#[test]
+#[allow(clippy::too_many_lines)] // one scenario per dict operation
+fn dict_locals_dput_dget_dhas_and_len() {
+    let temp = workspace("dicts");
+    // Count occurrences into a dict, then find the most frequent value
+    // (ties -> smallest) by reading the counts back.
+    let mode = function(
+        "mode",
+        json!([["xs", "Vec<i64>"]]),
+        "i64",
+        json!([
+            ["dict", "counts", "i64", "i64"],
+            [
+                "for",
+                "x",
+                "xs",
+                [[
+                    "if",
+                    ["dhas", "counts", "x"],
+                    [["dput", "counts", "x", ["add", ["dget", "counts", "x"], 1]]],
+                    [["dput", "counts", "x", 1]]
+                ]]
+            ],
+            ["var", "best", "i64", 0],
+            ["var", "bestn", "i64", 0],
+            [
+                "for",
+                "x",
+                "xs",
+                [
+                    ["let", "n", ["dget", "counts", "x"]],
+                    [
+                        "if",
+                        [
+                            "or",
+                            ["gt", "n", "bestn"],
+                            ["and", ["eq", "n", "bestn"], ["lt", "x", "best"]]
+                        ],
+                        [["set", "best", "x"], ["set", "bestn", "n"]]
+                    ]
+                ]
+            ],
+            ["return", "best"]
+        ]),
+    );
+    let handle = valid(&temp.path, &mode);
+    assert_eq!(
+        call(&temp.path, &handle, "mode", &[json!([3, 1, 3, 2, 1, 3])]),
+        json!(3)
+    );
+    assert_eq!(call(&temp.path, &handle, "mode", &[json!([5])]), json!(5));
+    assert_eq!(
+        call(&temp.path, &handle, "mode", &[json!([2, 1, 2, 1])]),
+        json!(1)
+    );
+
+    // A put on a held key replaces the value and keeps the count; len
+    // counts held keys only.
+    let distinct = function(
+        "distinct",
+        json!([["xs", "Vec<i64>"]]),
+        "u64",
+        json!([
+            ["dict", "seen", "i64", "i64"],
+            [
+                "for",
+                "x",
+                "xs",
+                [[
+                    "if",
+                    ["not", ["dhas", "seen", "x"]],
+                    [["dput", "seen", "x", 1]]
+                ]]
+            ],
+            ["return", ["len", "seen"]]
+        ]),
+    );
+    let handle = valid(&temp.path, &distinct);
+    assert_eq!(
+        call(&temp.path, &handle, "distinct", &[json!([1, 1, 2])]),
+        json!(2)
+    );
+    assert_eq!(
+        call(&temp.path, &handle, "distinct", &[json!([])]),
+        json!(0)
+    );
+
+    // dput replaces a held value; dget?Case returns the error case on a
+    // missing key; dhas gates the read.
+    let mut checked = function(
+        "get2",
+        json!([["k", "i64"]]),
+        "Result<i64,E>",
+        json!([
+            ["dict", "d", "i64", "i64"],
+            ["dput", "d", 7, 70],
+            ["dput", "d", 7, 71],
+            ["ok", ["dget?Out", "d", "k"]]
+        ]),
+    );
+    checked["types"] = json!([{"name": "E", "variant": ["Out"]}]);
+    let handle = valid(&temp.path, &checked);
+    let get2 = |k: i64| call(&temp.path, &handle, "get2", &[json!(k)]);
+    assert_eq!(get2(7), json!({"Ok": 71}));
+    assert_eq!(get2(1), json!({"Err": "Out"}));
+
+    // A u64-keyed dict works the same way; dhas gates the read.
+    let keyed = function(
+        "at",
+        json!([["k", "u64"]]),
+        "i64",
+        json!([
+            ["dict", "d", "u64", "i64"],
+            ["dput", "d", 1, 100],
+            ["if", ["dhas", "d", "k"], [["return", ["dget", "d", "k"]]]],
+            ["return", -1]
+        ]),
+    );
+    let handle = valid(&temp.path, &keyed);
+    assert_eq!(call(&temp.path, &handle, "at", &[json!(1)]), json!(100));
+    assert_eq!(call(&temp.path, &handle, "at", &[json!(2)]), json!(-1));
+
+    // A read of a missing key is a trap.
+    let missing = function(
+        "missing",
+        json!([]),
+        "i64",
+        json!([["dict", "d", "i64", "i64"], ["return", ["dget", "d", 42]]]),
+    );
+    let handle = valid(&temp.path, &missing);
+    assert!(
+        call(&temp.path, &handle, "missing", &[])
+            .to_string()
+            .contains("trap")
+    );
+}
+
+#[test]
+fn dict_uses_outside_dput_dget_dhas_and_len_are_refused() {
+    let temp = workspace("dict-refusals");
+    for (body, at, words) in [
+        (
+            json!([
+                ["dict", "d", "i64", "i64"],
+                ["for", "x", "d", [["return", 0]]]
+            ]),
+            "/fns/0/body/1/2",
+            "dicts cannot be iterated or passed",
+        ),
+        (
+            json!([
+                ["dict", "d", "i64", "i64"],
+                ["let", "y", "d"],
+                ["return", 0]
+            ]),
+            "/fns/0/body/1/2",
+            "dget, dhas and len",
+        ),
+        (
+            json!([["dict", "d", "i64", "i64"], ["return", "d"]]),
+            "/fns/0/body/1/1",
+            "dicts cannot be iterated or passed",
+        ),
+        (
+            json!([["dict", "d", "i64", "i64"], ["set", "d", 3], ["return", 0]]),
+            "/fns/0/body/1",
+            "change it with dput",
+        ),
+        (
+            json!([
+                ["dict", "d", "i64", "i64"],
+                ["dput", "d", "d", 1],
+                ["return", 0]
+            ]),
+            "/fns/0/body/1/2",
+            "dget, dhas and len",
+        ),
+        (
+            json!([
+                ["dict", "d", "i64", "i64"],
+                ["dput", "d", true, 1],
+                ["return", 0]
+            ]),
+            "/fns/0/body/1/2",
+            "the key of `d` is i64, not bool",
+        ),
+        (
+            json!([
+                ["dict", "d", "i64", "i64"],
+                ["dput", "d", 1, true],
+                ["return", 0]
+            ]),
+            "/fns/0/body/1/3",
+            "the value of `d` is i64, not bool",
+        ),
+        (
+            json!([["dput", "e", 1, 1], ["return", 0]]),
+            "/fns/0/body/0",
+            "needs a dict in scope (`e`)",
+        ),
+        (
+            json!([["return", ["dget", 3, 1]]]),
+            "/fns/0/body/0/1/1",
+            "needs a declared dict",
+        ),
+        (
+            json!([
+                ["dict", "d", "i64", "i64"],
+                ["return", ["fold", "sum", "x", "d", "x"]]
+            ]),
+            "/fns/0/body/1/1/3",
+            "is a dict",
+        ),
+    ] {
+        let frame = function("bad", json!([]), "i64", body);
+        let text = refusal(&temp.path, &frame);
+        assert!(
+            text.contains(&format!("{at}: ")) && text.contains(words),
+            "{text}"
+        );
+    }
+}
