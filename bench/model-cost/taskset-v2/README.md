@@ -7,13 +7,13 @@ there are no amendments. The harness (`langs.py`, `run.py --task-set v2`,
 `verify_refs.py --task-set v2`) handles `str` parameters and list and string
 results in all six languages; v1 tests and drivers are byte-for-byte
 unchanged. Reference programs exist in all six languages (`refs/<task>/`) and
-all 131 that can be written agree with the oracle on every visible test and
+all 144 agree with the oracle on every visible test and
 all 128 hidden cases (`verify_refs.py --task-set v2`). Sley's 2.2 dialect can
-express 11 of the 24 tasks (6 at first; the 5 list-returning ones since list
-results landed, sley-lang/sley#95); the other 13 carry a `sley.unsupported`
-note (11 read a `str` parameter, 2 build a string), so Sley v2 trials on those
-fail until the dialect grows. Strings need a kernel/spec change (Sley has no
-text operations in the admitted opcode profile), not a dialect one. The set is not hashed into
+express all 24 tasks: 6 at first, the 5 list-returning ones since list
+results landed (sley-lang/sley#95), and the 13 string tasks since native Text
+operations (sley-lang/sley#102) and Python `str` lowering (sley-lang/sley#103).
+The 13 string refs were drafted by OpenCode (glm-5.3-flash-free) and
+re-verified 128/128 with a release `sley-agent` built from the #103 tree. The set is not hashed into
 `prereg.json`, the held-out tasks are not written, and no model call has used
 v2. Sley's 2.2 list work (#88, #89) landed before these rules were written;
 the audit asked for the reverse order, and this is recorded here so v2 results
@@ -109,8 +109,7 @@ examples; `tasks_v2.AMENDMENTS` is empty.
 - Whether a Claude Code session is independent enough as the author, or a
   person should write or review the statements before the hash.
 - Whether v2 adds `str` now or only `list` returns (smaller harness change).
-  (Built 30 Oct with `str`; 13 of 24 tasks are out of Sley's 2.2 reach after
-  list results, all because of strings.)
+  (Built 30 Oct with `str`; since #102/#103 all 24 are in Sley's 2.2 reach.)
 - Whether Sley trials on the 13 tasks its dialect cannot express count as
   failures in the headline numbers or are reported separately (the harness
   runs them either way; the rule must be fixed before the hash).
