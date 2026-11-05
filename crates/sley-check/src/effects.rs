@@ -585,6 +585,12 @@ fn pure_row_shape_ok(adapter: &AdapterImport) -> bool {
     if adapter.failure_type != pure_index_error() {
         return false;
     }
+    // Slice E9: a row naming a native text identity must be exactly that
+    // entry's row; it never borrows another frozen shape.
+    if let Some(kind) = crate::text_rows::text_kind(&adapter.adapter_id) {
+        let (_, request, response) = crate::text_rows::text_row_types(kind);
+        return adapter.request_type == request && adapter.response_type == response;
+    }
     let octet_vector = TypeExpr::Vector(Box::new(octet_type()));
     let conversions = (adapter.request_type == TypeExpr::Bytes
         && adapter.response_type == octet_vector)
@@ -614,6 +620,23 @@ fn validate_pure_invoke_shape(
     // row, the second stops a conforming row from serving a foreign shape.
     if adapter.request_type != *request_type {
         return effect_fail(EffectErrorCode::AdapterInvokeType);
+    }
+    // Slice E9: a text row binds exactly its entry's scope, request, and
+    // response; no other frozen shape serves it.
+    if let Some(kind) = crate::text_rows::text_kind(&adapter.adapter_id) {
+        let (scope, request, response) = crate::text_rows::text_row_types(kind);
+        let expected_result = TypeExpr::Result {
+            ok: Box::new(response.clone()),
+            error: Box::new(pure_index_error()),
+        };
+        if *scope_type != scope
+            || *request_type != request
+            || adapter.response_type != response
+            || *result_type != expected_result
+        {
+            return effect_fail(EffectErrorCode::AdapterInvokeType);
+        }
+        return Ok(());
     }
     let octet_vector = TypeExpr::Vector(Box::new(octet_type()));
     let conversions = *scope_type == TypeExpr::Unit
@@ -1844,6 +1867,59 @@ mod tests {
             push_bool.validate().unwrap().functions[0]
                 .effects
                 .is_empty()
+        );
+    }
+
+    fn text_fixture(kind: crate::text_rows::TextKind, scope: TypeExpr) -> Fixture {
+        let (_, request, response) = crate::text_rows::text_row_types(kind);
+        let mut fixture = pure_fixture(scope, request, response);
+        fixture.adapters[0].adapter_id = crate::text_rows::text_adapter_id(kind);
+        fixture
+    }
+
+    #[test]
+    fn text_rows_validate_exactly_their_entry() {
+        // Slice E9: every text row with its own scope validates as a pure
+        // invocation without closure contribution.
+        for (kind, _) in crate::text_rows::TEXT_ENTRIES {
+            let (scope, _, _) = crate::text_rows::text_row_types(kind);
+            let fixture = text_fixture(kind, scope);
+            assert!(fixture.validate().unwrap().functions[0].effects.is_empty());
+        }
+        // A text identity never borrows another frozen shape: the B2V1
+        // conversion shape under the TLN1 identity fails at declaration.
+        let mut borrowed = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, octet_vector());
+        borrowed.adapters[0].adapter_id =
+            crate::text_rows::text_adapter_id(crate::text_rows::TextKind::Length);
+        assert_eq!(
+            effect_code(borrowed.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // The right row with the wrong scope operand fails at invocation:
+        // TLN1 over a Text scope, and TCS1 (whose row has the push shape)
+        // over a push-style vector scope.
+        let length = text_fixture(crate::text_rows::TextKind::Length, TypeExpr::Text);
+        assert_eq!(
+            effect_code(length.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        let scalars = text_fixture(
+            crate::text_rows::TextKind::Scalars,
+            TypeExpr::Vector(Box::new(TypeExpr::Text)),
+        );
+        assert_eq!(
+            effect_code(scalars.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // A declared result that is not `Result<response, Index>` fails.
+        let mut result = text_fixture(crate::text_rows::TextKind::Ord, TypeExpr::Unit);
+        result.functions[0].operations[0].result_types[0] = TypeExpr::Result {
+            ok: Box::new(TypeExpr::UInt(IntegerWidth::from_bits(64))),
+            error: Box::new(index_error()),
+        };
+        assert_eq!(
+            effect_code(result.validate()),
+            EffectErrorCode::AdapterInvokeType
         );
     }
 

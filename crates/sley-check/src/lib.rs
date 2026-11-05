@@ -17,6 +17,7 @@ pub mod cfg;
 pub mod contracts;
 /// Deterministic static effect closure and scope validation.
 pub mod effects;
+pub mod text_rows;
 
 const MAX_DEFINITIONS: usize = 1_000_000;
 const MAX_TYPE_WALK_VISITS: usize = 1_048_576;

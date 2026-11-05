@@ -1,6 +1,14 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 17 (2026-09-17).
+Status: S20-260/S20-270 full-profile contract draft, revision 18 (2026-10-30).
+Revision 18 lands slice E9, seven native `Text` entries over the frozen
+`adapter_invoke` opcode (section E9 below), approved by the project owner as
+a kernel/spec and VM accounting change for Sley 2.2. Like E8 it adds no
+opcode, no failure kind, no `SLEYBC02` layout change, and no schema epoch:
+`lowerer_version` stays `[2, 0, 0]`, and every landed slice keeps its bytes,
+vectors, and cache keys. Revision 17 text follows.
+
+Revision 17 (2026-09-17).
 This revision implements the E7 result-escape guard specified by revision 16:
 an extended-profile Function result containing an `AdapterHandle` or
 `CapabilityToken`, at any structural depth, fails lowering with
@@ -527,6 +535,96 @@ bridge identity/version) is enforced at lowering from the supplied import
 inventory: unregistered zero-effect imports fail closed here even where
 their static form is valid.
 
+### E9 native text entries (161)
+
+Revision 18 (2026-10-30). Slice E9 gives `Text` its own operations, the
+minimum a program needs to read and build text: length, slice, concat,
+scalars (iteration), ord, chr, and decimal formatting. It follows the E8
+route exactly — seven versioned pure entries over the already-frozen
+`adapter_invoke` opcode in its frozen invocation shape (two operands,
+`scope` and `request`, and an `Entity` immediate naming a carried
+`AdapterImport`) — so it needs no new opcode, no new failure kind, no
+`SLEYBC02` layout change, and no schema epoch (`EPOCH_MIGRATION_POLICY_V1.md`
+section 1: profile separation first; the opcode is in the frozen epoch-1
+table and this profile carries its own `lowering_profile` identity).
+`lowerer_version` stays `[2, 0, 0]`; `adapter_abi_entries` stays 0.
+
+`Text` is an exact Unicode scalar sequence that is never normalized
+(SSMC1 section 3), so every count, index, and length below is in scalars,
+not bytes, and every result is a scalar sequence by construction. Text
+order and equality need no entry: E1 already orders `Text` by its UTF-8
+bytes then length, which is scalar order.
+
+| Entry | Code | Scope | Request | Response | Refusals |
+|---|---|---|---|---|---|
+| `text-length` | `TLN1` | `Unit` | `Text` | `UInt(64)`, the scalar count | none |
+| `text-slice` | `TSL1` | `Text` | `Tuple(UInt(64) start, UInt(64) length)` | `Text`, scalars `start..start+length` | `Err(Index, 1)` when `start + length` exceeds the count or overflows |
+| `text-concat` | `TCT1` | `Unit` | `Vector<Text>` | `Text`, the items in order | `Err(Index, 2)` past `TEXT_MAX_BYTES` |
+| `text-scalars` | `TCS1` | `Unit` | `Text` | `Vector<Text>`, one one-scalar text per scalar | `Err(Index, 2)` past `BRIDGE_MAX_ITEMS` scalars |
+| `text-ord` | `TOR1` | `Unit` | `Text` | `UInt(32)`, the scalar value | `Err(Index, 1)` unless exactly one scalar |
+| `text-chr` | `TCH1` | `Unit` | `UInt(32)` | `Text`, one scalar | `Err(Index, 1)` for a surrogate or a value past `0x10FFFF` |
+| `text-from-int` | `TFI1` | `Unit` | `SInt(64)` | `Text`, shortest decimal, `-` for negatives | none |
+
+Every row's failure type is `BuiltinFailure(Index)`; `TEXT_MAX_BYTES` is
+16,777,216, the epoch-1 `Text` payload ceiling (`TYPE_SYSTEM_V1.md`).
+`TCH1` refuses surrogates because `Text` holds scalars only (a named
+deviation from languages whose strings may hold lone surrogates).
+
+Identity and resolution. An entry's identity is its *adapter identity*:
+`SLY1/BRIDGE/`, the four-byte code, zero padding to 32 bytes (the E8
+form). Unlike E8, the row's entity identity is free (except an E8 push
+identity, which always takes the E8 push resolution): candidate validation
+derives every created entity id from the workspace nonce, so a program
+carries a text row it created itself. Resolution is genuine: the immediate
+must name a carried `AdapterImport` whose adapter identity is an E9 code
+and whose ABI version (1), request and response types (the table row),
+failure type, and empty effect list all equal the frozen row; anything
+else is not an E9 entry. A row the E8 resolution accepts is E8 and never
+E9 (E8 requires adapter identity equal to entity identity and an E8 code;
+E9 requires an E9 code, so no row is both). Judgment requires the two
+operand types to equal the row's scope and request exactly and the single
+declared result to equal `Result<response, BuiltinFailure(Index)>`, else
+`VM_LOWER_SIGNATURE_MISMATCH`; an unresolved immediate stays
+`VM_LOWER_OPCODE_UNSUPPORTED`. Execution re-resolves from the same
+inventory and rechecks the carried row, the operand value types, and the
+result type; a mismatch is an internal fault, never a mistyped value. The
+bootstrap gates resolve E8 rows only and never admit an E9 row. One table
+(`sley_check::text_rows`) serves the S20-230 checker and the VM, so the row
+shapes cannot drift between them.
+
+Fuel (VM accounting). Bridge fuel is charged up front, before the entry
+does any work (the E8 precedent), in proportion to the bytes the entry can
+touch, on top of the per-instruction charge: `1 + ceil(bytes/1024)` over
+the text read by `TLN1` and `TSL1` (`TSL1` charges the whole scope, the
+most it can scan); the item count plus `1 + ceil(total/1024)` over the
+joined bytes for `TCT1` (the `BCT1` schedule); `1 + bytes` for `TCS1`,
+which builds one value per scalar (the per-element `B2V1` precedent); and
+1 for the bounded `TOR1`, `TCH1`, and `TFI1`. Value units are the ordinary
+call-site charge on the result (`1 + bytes` for a text), so building a
+text costs its length once. No entry is quadratic in its input: the one
+quadratic pattern is a program that rebuilds a growing text by repeated
+two-item `TCT1` — each call pays for the text it copies — and the dialect
+builds a text from a list of pieces with one `TCT1` instead.
+
+Candidate validation. S20-360 phase 12 treats a 161 whose immediate names
+a carried E9 row as analyzable (`CandidateProgram::operation_analysis_supported`):
+phase 7 judges it through this judgment and phase 8 through the S20-230 pure
+binding (`EFFECT_SYSTEM_V1.md` amendment A2). Every other 161 keeps the
+phase 12 refusal. The SMP1 `execute` path carries no adapter inventory,
+so E9 entries are unreachable there, as E8 entries are, until an owner
+wires one; the agent's execution and test paths carry the program's rows.
+
+Evidence: the `e9_text` lanes in `extended_tests.rs` (values over ASCII and
+non-ASCII scalars and every boundary in the table, the row-pinning
+rejection matrix, up-front fuel per entry and starvation, and the capacity
+refusal), the `text_rows_validate_exactly_their_entry` S20-230 test, and the
+`text_rows_are_analyzable_and_other_pure_rows_keep_the_phase_twelve_guard`
+S20-360 test. E9 adds no `conformance/vm-extended/v1` vectors in this
+revision: that corpus's digest is pinned by the independent conformance
+report and the release provenance, so the vectors land with the next
+release-evidence refresh rather than silently moving those pins. E9 has had
+self-review only; an independent review is owed.
+
 ### 3.1 Judgment without lowering
 
 `judge_function_operations(input)` judges every operation of one Function
@@ -640,7 +738,8 @@ container/cache identities and record shape, not execution semantics.
 
 ## 6. Explicit exclusions
 
-This contract does not claim: E7 execution beyond slices E7a and E8; the E7
+This contract does not claim: E7 execution beyond slices E7a, E8, and the E9
+text entries; the E7
 handle-model subsection authorizes no execution, and revision 17 implements
 only its result-escape guard; generic specialization or type
 arguments; an optimizer; effects, adapters, capabilities, replay, or live

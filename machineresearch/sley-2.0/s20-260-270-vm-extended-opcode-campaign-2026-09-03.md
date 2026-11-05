@@ -1,7 +1,9 @@
 # S20-260/S20-270 VM Extended Opcode Campaign (2026-09-03)
 
-Status: contract draft revision 17 (2026-09-17), with slices E1–E6, E7a
-and E8 implemented. Revision 17 lands the recursive E7 handle result-escape
+Status: contract draft revision 18 (2026-10-30), with slices E1–E6, E7a,
+E8 and E9 implemented. Revision 18 lands slice E9, seven native `Text`
+entries over 161 (self-reviewed; independent review owed; no new vectors,
+see the contract's E9 evidence note). Revision 17 (2026-09-17) Revision 17 lands the recursive E7 handle result-escape
 guard; opcodes 160/162 remain refused. Historical Nabu residual corrections passed independent
 item-level review (`evidence/review/vm-nabu-correction-review-2026-09-15.md`);
 prior verdicts and dated validation below remain preserved.

@@ -130,6 +130,19 @@ The closed pure shapes (frozen; the only G-10-admitted value mechanics):
   type. The response is always exactly `Vector` of the request type; no
   other request/response relationship is pure.
 
+Owner amendment A2 (2026-10-30, Sley 2.2, `VM_EXTENDED_OPCODE_PROFILE_V1.md`
+revision 18 section E9): a zero-effect row whose adapter identity is one of
+the seven native text identities (`SLY1/BRIDGE/` plus `TLN1`, `TSL1`,
+`TCT1`, `TCS1`, `TOR1`, `TCH1`, or `TFI1`) is a text row. At declaration
+its request/response pair must equal exactly that entry's row
+(`sley_check::text_rows`); it never borrows a `P-*` shape, so for instance
+the `P-BYTES-FROM` triple under a text identity fails with
+`ADAPTER_INVOKE_TYPE`. At invocation its scope and request operands must
+equal the entry's scope and request exactly and the result must be
+`Result<response, BuiltinFailure(Index)>`. A text invocation contributes no
+local effect. Positive registration is the VM's E9 resolution, as for the
+other pure rows.
+
 `UInt(8)` is `UInt` with 8-bit width. In every pure shape the failure type
 is exactly `BuiltinFailure(Index)` (capacity refusal lives in the
 collection-bounds family; kinds are epoch-closed). The invocation scope
@@ -237,6 +250,9 @@ declared triple already satisfies one frozen row shape:
   response type, response exactly `Vector` of the request type);
 - the result type is exactly
   `Result<adapter.response_type,adapter.failure_type>`.
+
+A text row (amendment A2) replaces the shape rule above with its own exact
+scope, request, and response.
 
 A pure invocation contributes no local effect to the enclosing function.
 Every other empty-effect invocation fails with `ADAPTER_INVOKE_TYPE`.

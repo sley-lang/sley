@@ -298,11 +298,25 @@ impl CandidateProgram {
     /// exact `CONTRACT_ASSERT_TYPE` diagnosis. Phase 7 therefore keeps its
     /// hands off the opcode rather than preempting the owner with a lowering
     /// code; the VM judges it again when it lowers, after validation passes.
+    ///
+    /// Slice E9 (profile revision 18): an `adapter_invoke` (161) whose
+    /// immediate names a carried native text row is analyzable. Phase 7
+    /// has already judged it through the VM's lowering judgment and phase 8
+    /// through the S20-230 pure-row binding; it is a pure, effect-free value
+    /// operation whose work the VM meters as fuel. Every other 161 stays
+    /// excluded.
     pub(crate) fn operation_analysis_supported(&self) -> bool {
-        !self
-            .operations
-            .iter()
-            .any(|operation| Self::EXCLUDED_OPERATION_OPCODES.contains(&operation.opcode.tag()))
+        self.first_unanalyzable_operation().is_none()
+    }
+
+    fn operation_excluded(&self, operation: &Operation) -> bool {
+        let tag = operation.opcode.tag();
+        if tag == 161
+            && sley_vm::text::resolve_text_entry(&self.adapters, &operation.immediate).is_some()
+        {
+            return false;
+        }
+        Self::EXCLUDED_OPERATION_OPCODES.contains(&tag)
     }
 
     /// The E7 opcodes excluded from phase 7 analysis: 145 has no owner and
@@ -316,7 +330,7 @@ impl CandidateProgram {
     pub(crate) fn first_unanalyzable_operation(&self) -> Option<EntityId> {
         self.operations
             .iter()
-            .find(|operation| Self::EXCLUDED_OPERATION_OPCODES.contains(&operation.opcode.tag()))
+            .find(|operation| self.operation_excluded(operation))
             .map(|operation| operation.entity_id)
     }
 

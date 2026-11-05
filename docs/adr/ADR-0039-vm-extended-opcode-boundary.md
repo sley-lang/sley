@@ -1,7 +1,9 @@
 # ADR-0039: the extended opcode profile as a second, explicit VM profile
 
-Status: accepted architecture; current contract revision 17 (2026-09-17).
-Slices E1–E6, E7a and E8 are implemented. Revision 16 specified the E7
+Status: accepted architecture; current contract revision 18 (2026-10-30).
+Slices E1–E6, E7a, E8 and E9 are implemented. Revision 18 adds slice E9,
+seven native `Text` entries over the frozen `adapter_invoke` opcode, by the
+same no-epoch route as E8. Revision 16 specified the E7
 capability-handle host-binding boundary. Revision 17 implements its recursive
 result-escape guard for `AdapterHandle` and `CapabilityToken`; 160/162
 execution remains deferred to WP-280/WP-380 owners.

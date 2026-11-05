@@ -565,7 +565,12 @@ pub(crate) fn bridge_fuel_surcharge_borrowed(
         return resolve_push_use(adapters, entry, &scope.value_type, &request.value_type)
             .map(|_| 1);
     }
-    match resolve_bridge_entry(adapters, entry)?.0 {
+    let Some((kind, _)) = resolve_bridge_entry(adapters, entry) else {
+        // Slice E9: a native text entry, or nothing.
+        let (kind, _) = crate::text::resolve_text_entry(adapters, immediate)?;
+        return crate::text::text_fuel(kind, operands);
+    };
+    match kind {
         BridgeKind::BytesToVector => match operands {
             [_, request] => match &request.data {
                 ConstData::Bytes(bytes) => u64::try_from(bytes.len()).ok(),
@@ -1656,6 +1661,20 @@ pub fn judge_extended_operation(
                     ok: Box::new(carried.response_type.clone()),
                     error: Box::new(bridge_index_error()),
                 }
+            } else if let Some((kind, _)) = resolve_bridge_entry(context.adapters, entry)
+                .is_none()
+                .then(|| crate::text::resolve_text_entry(context.adapters, immediate))
+                .flatten()
+            {
+                // Slice E9 (contract section E9): a native text entry,
+                // resolved by its frozen adapter identity and exact row.
+                let [scope, request] = operands else {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                };
+                let Some(result) = crate::text::judge_text_use(kind, scope, request) else {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                };
+                result
             } else {
                 let Some((entry, carried)) = resolve_bridge_entry(context.adapters, entry) else {
                     return fail(LowerErrorCode::OpcodeUnsupported);
@@ -2525,6 +2544,13 @@ pub(crate) fn execute_extended_instruction_borrowed(
             let Immediate::Entity(entry) = immediate else {
                 return Err(ExtendedFault);
             };
+            if !is_push_identity(entry)
+                && resolve_bridge_entry(context.adapters, entry).is_none()
+                && let Some((kind, carried)) =
+                    crate::text::resolve_text_entry(context.adapters, immediate)
+            {
+                return crate::text::text_execute(kind, carried, operands, result_type);
+            }
             let (entry, carried) = if is_push_identity(entry)
                 && let [scope, request] = operands
             {
