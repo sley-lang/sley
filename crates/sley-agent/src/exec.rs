@@ -49,6 +49,34 @@ pub const fn call_limits() -> ExecutionLimits {
     }
 }
 
+/// The limits `call` runs under a lowered fuel ceiling. `--fuel` can only
+/// lower the dev-loop ceiling, never raise it, so [`call_limits`]' other
+/// ceilings and kernel-validated admission are unchanged.
+#[must_use]
+pub const fn call_limits_with_fuel(max_fuel: u64) -> ExecutionLimits {
+    ExecutionLimits {
+        max_fuel,
+        ..call_limits()
+    }
+}
+
+/// Reads the value of `call --fuel`: unchanged at [`CALL_FUEL`] when the flag
+/// is absent, and otherwise a fuel ceiling of 1 to [`CALL_FUEL`]. A value
+/// outside that range is refused, so the flag can never raise the ceiling.
+///
+/// # Errors
+///
+/// `AGENT_USAGE_INVALID` when the value is not a number in range.
+pub fn fuel_ceiling(raw: Option<&str>) -> Result<u64> {
+    let Some(text) = raw else {
+        return Ok(CALL_FUEL);
+    };
+    text.parse::<u64>()
+        .ok()
+        .filter(|fuel| (1..=CALL_FUEL).contains(fuel))
+        .ok_or_else(|| crate::error::usage(format!("--fuel takes 1 to {CALL_FUEL} fuel")))
+}
+
 struct Lowered {
     image: VerifiedImage,
 }

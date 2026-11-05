@@ -78,7 +78,7 @@ sley-agent import <cases.json> [--on <draft>[@r<N>]] [--only <name,...>] [--reba
 sley-agent draft [<draft>[@r<N>]] [--obligations | --expanded | --input | --frame]
 sley-agent submit <draft>[@r<N>] [--untested]
 sley-agent status [--raw]
-sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats] [--reference]
+sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats] [--fuel <n>] [--reference]
 sley-agent test [<ref>] [--public <cases.json>]
 sley-agent explain [<ref>]
 sley-agent search <fn> --public <cases.json> [--from <handle|draft>[@r<N>]] [--max-neighbors <n>] [--max-millis <ms>]
@@ -105,6 +105,17 @@ admission, checked semantics, resource accounting and accepted-state authority
 remain unchanged. Deterministic result/fuel/instruction fields match; measured
 `vm_micros` may differ. This switch is for differential validation and profiling,
 not a different language or a way to bypass checks.
+
+`call --fuel <n>` lowers the call's fuel ceiling to `n` fuel, for either one
+call or a batch (the default keeps the ceiling of
+`sley_agent::exec::call_limits`). `n` is accepted only when it is a positive
+integer of at most that ceiling, so the flag can never raise the ceiling,
+increase a declared capability grant, or weaken kernel validation: input
+admission, checked semantics, candidate validity and resource accounting are
+unchanged, and the flag only carries `--fuel` values whose range keeps them
+on the admitted side of every kernel check it touches. Execution that
+outlives the lowered ceiling still terminates in a `Fuel` resource limit, an
+outcome rather than a refusal.
 
 A `<ref>` is a handle (`c3`), `latest`, a file holding stored candidate
 hex, raw stored candidate hex, or a bare candidate record (which is framed
@@ -2735,7 +2746,8 @@ function once (`lower_function`, extended profile), load and digest-verify
 its image once (`VerifiedImage::load`) and execute every input with
 `VerifiedImage::execute`, which answers exactly what `execute_loaded_image`
 answers for the same request. `call` runs under generous fixed ceilings
-(`sley_agent::exec::call_limits`). A TestCase runs under its declared fuel.
+(`sley_agent::exec::call_limits`), which `call --fuel <n>` may lower (section
+2); it can never raise them. A TestCase runs under its declared fuel.
 Expected and observed results are compared by the kernel's rule: value hashes
 (`hash_validated_value`) or trap codes through
 `sley_tests::compare_expected_evidence`. Functions that declare type

@@ -4084,12 +4084,18 @@ fn status_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
 }
 
 fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let words = words(args, &["--on", "--batch"], &["--stats", "--reference"])?;
+    let words = words(
+        args,
+        &["--on", "--batch", "--fuel"],
+        &["--stats", "--reference"],
+    )?;
     let Some((function_name, raw_args)) = words.positional.split_first() else {
         return Err(usage(
-            "call <fn> <arg-json>... [--on <handle|file>] [--batch file] [--reference]",
+            "call <fn> <arg-json>... [--on <handle|file>] [--batch file] [--fuel <n>] [--reference]",
         ));
     };
+    let fuel = exec::fuel_ceiling(words.value("--fuel"))?;
+    let limits = exec::call_limits_with_fuel(fuel);
     let workspace = workspace(global)?;
     let head = workspace.head()?;
     let map = name_map(&workspace)?;
@@ -4127,6 +4133,7 @@ fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
             &function,
             Path::new(batch),
             words.has("--stats"),
+            limits,
             out,
         );
         release((executor, selected, map, head));
@@ -4148,7 +4155,7 @@ fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
         &function,
         &parsed,
     )?;
-    let outcome = executor.run(&function, inputs, exec::call_limits())?;
+    let outcome = executor.run(&function, inputs, limits)?;
     if global.json {
         write_json(
             out,
@@ -4180,6 +4187,7 @@ fn call_batch(
     function: &EntityId,
     path: &Path,
     stats: bool,
+    limits: sley_vm::ExecutionLimits,
     out: &mut dyn Write,
 ) -> Result<i32> {
     let parameter_types = executor.parameter_types(function);
@@ -4247,7 +4255,7 @@ fn call_batch(
             args,
             &parameter_types,
         )?;
-        let outcome = executor.run(function, inputs, exec::call_limits())?;
+        let outcome = executor.run(function, inputs, limits)?;
         vm_micros += outcome.micros;
         buffer.push_str(&exec::termination_json(&outcome.termination, &selected.names).to_string());
         buffer.push('\n');
