@@ -134,6 +134,8 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             depth: 0,
             list_return: None,
             list_locals: Vec::new(),
+            dict_locals: Vec::new(),
+            allow_dict: false,
             returns_list_local: false,
         };
         let mut functions = parser.py_program()?;
@@ -153,6 +155,8 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             depth: 0,
             list_return: None,
             list_locals: Vec::new(),
+            dict_locals: Vec::new(),
+            allow_dict: false,
             returns_list_local: false,
         };
         let functions = parser.program()?;
@@ -283,6 +287,8 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         depth: 0,
         list_return: None,
         list_locals: Vec::new(),
+        dict_locals: Vec::new(),
+        allow_dict: false,
         returns_list_local: false,
     };
     let pos = parser.peek().pos;
@@ -783,6 +789,12 @@ struct Parser {
     /// whether a `return` hands one back (then its result is the list's
     /// `Map<u64,T>`; otherwise `-> list[T]` stays `Vec<T>`).
     list_locals: Vec<String>,
+    /// Python dialect: the dict locals of the function being parsed (built
+    /// by `d = {}`); their bare name is never a value.
+    dict_locals: Vec<String>,
+    /// Python dialect: a bare dict name may be parsed as a value because the
+    /// construct that called for it reads it whole (`len(d)`, `k in d`).
+    allow_dict: bool,
     returns_list_local: bool,
 }
 
@@ -1569,24 +1581,40 @@ impl Parser {
                 if negate_in {
                     self.bump();
                 }
-                let list = self.py_bitand()?;
-                let item = Node::atom(pos, Value::String("in_item_".into()));
-                let test = Node::op(pos, "eq", vec![item.clone(), left.clone()]);
-                let mut found = Node::op(
-                    pos,
-                    "fold",
-                    vec![
-                        Node::atom(pos, Value::String("any".into())),
-                        item,
-                        list.clone(),
-                        test,
-                    ],
-                );
-                if negate_in {
-                    found = Node::op(pos, "not", vec![found]);
-                }
+                let allow = std::mem::replace(&mut self.allow_dict, true);
+                let container = self.py_bitand()?;
+                self.allow_dict = allow;
+                let found = if container
+                    .is_name()
+                    .is_some_and(|n| self.dict_locals.iter().any(|d| d == n))
+                {
+                    // k in d (or k not in d): membership is a dhas.
+                    let membership = Node::op(pos, "dhas", vec![container.clone(), left]);
+                    if negate_in {
+                        Node::op(pos, "not", vec![membership])
+                    } else {
+                        membership
+                    }
+                } else {
+                    let item = Node::atom(pos, Value::String("in_item_".into()));
+                    let test = Node::op(pos, "eq", vec![item.clone(), left.clone()]);
+                    let mut found = Node::op(
+                        pos,
+                        "fold",
+                        vec![
+                            Node::atom(pos, Value::String("any".into())),
+                            item,
+                            container.clone(),
+                            test,
+                        ],
+                    );
+                    if negate_in {
+                        found = Node::op(pos, "not", vec![found]);
+                    }
+                    found
+                };
                 parts.push(found);
-                left = list;
+                left = container;
                 continue;
             }
             if self.at_word("is") {
@@ -1770,6 +1798,7 @@ impl Parser {
         ))
     }
 
+    #[allow(clippy::too_many_lines)] // postfix forms share the same left-to-right parser
     fn postfix(&mut self) -> P<Node> {
         let mut value = self.primary()?;
         loop {
@@ -1784,6 +1813,32 @@ impl Parser {
                     continue;
                 }
                 if self.at_op("(") {
+                    if self.python && self.py_dict_name(&value) {
+                        if field == "get" {
+                            self.bump();
+                            let key = self.expr()?;
+                            if self.at_op(")") {
+                                self.expect_op(")")?;
+                                return refuse(
+                                    field_pos,
+                                    "d.get(k) needs a default here: d.get(k, 0)",
+                                );
+                            }
+                            self.expect_op(",")?;
+                            let default = self.expr()?;
+                            self.expect_op(")")?;
+                            let has = Node::op(field_pos, "dhas", vec![value.clone(), key.clone()]);
+                            let read = Node::op(field_pos, "dget", vec![value, key]);
+                            value = Node::op(field_pos, "if", vec![has, read, default]).within()?;
+                            continue;
+                        }
+                        if matches!(field.as_str(), "items" | "keys" | "values") {
+                            return refuse(
+                                field_pos,
+                                py_dict_refusal(value.is_name().unwrap_or(field.as_str())),
+                            );
+                        }
+                    }
                     if self.python
                         && let Some(hint) = py_method_hint(&field)
                     {
@@ -1807,6 +1862,20 @@ impl Parser {
                 .within()?;
             } else if self.at_op("[") {
                 let pos = self.bump().pos;
+                let dict = self.python && self.py_dict_name(&value);
+                if dict {
+                    // d[k] reads one key; a missing key traps.
+                    if self.at_op(":") {
+                        return refuse(pos, "slices are not supported");
+                    }
+                    let key = self.expr()?;
+                    if self.at_op(":") {
+                        return refuse(pos, "slices are not supported");
+                    }
+                    self.expect_op("]")?;
+                    value = Node::op(pos, "dget", vec![value, key]).within()?;
+                    continue;
+                }
                 if self.python
                     && self.at_op("-")
                     && self.peek_at(1).kind == Kind::Num
@@ -1942,6 +2011,18 @@ impl Parser {
             _ => {}
         }
         self.bump();
+        if self.python && self.dict_locals.contains(&tok.text) {
+            // A dict local is read whole only by `len(d)` and `k in d`
+            // (`allow_dict`), and indexing and `.get(..)` continue in
+            // `postfix`. Everywhere else it is refused: read it in place.
+            if matches!(self.peek().kind, Kind::Op) && (self.at_op("[") || self.at_op(".")) {
+                return Ok(Node::atom(tok.pos, Value::String(tok.text)));
+            }
+            if self.allow_dict {
+                return Ok(Node::atom(tok.pos, Value::String(tok.text)));
+            }
+            return refuse(tok.pos, py_dict_refusal(&tok.text));
+        }
         if !self.python
             && self.at_op("{")
             && self.peek_at(1).kind == Kind::Name
@@ -2407,7 +2488,9 @@ impl Parser {
         if bracket {
             self.bump();
         }
+        let allow = std::mem::replace(&mut self.allow_dict, name == "len");
         let value = self.expr()?;
+        self.allow_dict = allow;
         if self.at_word("for") {
             let value = if fold_kind == "count" {
                 Node::atom(pos, Value::Bool(true))
@@ -2566,9 +2649,20 @@ pub(crate) fn is_python(text: &str) -> bool {
         })
 }
 
-/// The fix for a dict or set literal.
-const DICT_HINT: &str = "dicts and sets are not supported: count matches with \
-                         sum(1 for y in xs if y == x), distinct values with len(set(xs))";
+/// The fix for a dict or set literal that is not the empty local `d = {}`.
+const DICT_HINT: &str = "a dict is built as an empty local: d = {}, then d[k] = v, \
+                         d.get(k, 0), k in d and len(d) (never iterate or pass a dict); \
+                         sets are not supported: count matches with \
+                         sum(1 for y in xs if y == x), distinct values with d[k] = 1 and len(d)";
+
+/// The refusal for a dict local used where only a value could go: iterated,
+/// returned, passed, copied or otherwise read whole.
+fn py_dict_refusal(name: &str) -> String {
+    format!(
+        "`{name}` is a dict: dicts cannot be iterated or passed: loop over the list you \
+         counted from and read d[x]"
+    )
+}
 
 /// What to write instead of a Python list or dict method the dialect lacks.
 fn py_method_hint(method: &str) -> Option<&'static str> {
@@ -2803,7 +2897,16 @@ fn py_tokenize(text: &str) -> Result<Vec<Tok>, FamiliarError> {
                 i += len;
             }
             _ => {
-                if let Some((spelled, message)) =
+                if rest.starts_with("{}") {
+                    // `d = {}`: the one dict literal the dialect takes.
+                    tokens.push(Tok {
+                        kind: Kind::Op,
+                        text: "{}".to_owned(),
+                        pos,
+                    });
+                    i += 2;
+                    continue;
+                } else if let Some((spelled, message)) =
                     PY_FOREIGN.iter().find(|(s, _)| rest.starts_with(*s))
                 {
                     return refuse(pos, format!("`{spelled}`: {message}"));
@@ -2998,6 +3101,8 @@ fn py_bisect_helper(name: &str) -> P<Vec<Function>> {
         depth: 0,
         list_return: None,
         list_locals: Vec::new(),
+        dict_locals: Vec::new(),
+        allow_dict: false,
         returns_list_local: false,
     };
     parser.py_program()
@@ -3620,6 +3725,7 @@ impl Parser {
         };
         let outer_return = std::mem::replace(&mut self.list_return, list_return.clone());
         let outer_locals = std::mem::take(&mut self.list_locals);
+        let outer_dicts = std::mem::take(&mut self.dict_locals);
         let outer_returns = std::mem::replace(&mut self.returns_list_local, false);
         self.scopes = vec![params.iter().map(|(name, _, _)| name.clone()).collect()];
         let assigned = self.py_assigned_params(&params);
@@ -3627,6 +3733,7 @@ impl Parser {
         let returns_local = self.returns_list_local;
         self.list_return = outer_return;
         self.list_locals = outer_locals;
+        self.dict_locals = outer_dicts;
         self.returns_list_local = outer_returns;
         let mut body = body?;
         if let Some(elem) = &list_return
@@ -3999,6 +4106,9 @@ impl Parser {
                         if self.at_op("[") {
                             return self.py_list_value(&name, None, pos).map(Some);
                         }
+                        if self.at_op("{}") {
+                            return self.py_dict_value(&name, pos).map(Some);
+                        }
                         let value = self.expr()?;
                         self.py_end_of_statement()?;
                         let target = Node::atom(pos, Value::String(name.clone()));
@@ -4012,8 +4122,24 @@ impl Parser {
                     ":" => {
                         self.bump();
                         self.bump();
-                        let (ty, ty_pos) = self.py_type()?;
+                        let dict_ty = self.peek().kind == Kind::Name
+                            && matches!(self.peek().text.as_str(), "dict" | "Dict")
+                            && self.peek_at(1).text == "[";
+                        let (ty, ty_pos) = if dict_ty {
+                            self.py_dict_type()?
+                        } else {
+                            self.py_type()?
+                        };
                         self.expect_op("=")?;
+                        if self.at_op("{}") {
+                            return self.py_dict_value(&name, pos).map(Some);
+                        }
+                        if dict_ty {
+                            return refuse(
+                                self.peek().pos,
+                                "a dict value is built only as an empty local: d = {}",
+                            );
+                        }
                         if self.at_op("[") {
                             let Some(elem) =
                                 ty.strip_prefix("Vec<").and_then(|t| t.strip_suffix('>'))
@@ -4346,9 +4472,104 @@ impl Parser {
         ))
     }
 
+    /// Whether `node` names a dict local in scope.
+    fn py_dict_name(&self, node: &Node) -> bool {
+        node.is_name()
+            .is_some_and(|n| self.dict_locals.iter().any(|d| d == n))
+    }
+
+    /// `dict[K, V]` after a local's `:` (the `dict` is consumed): only int
+    /// keys and values are supported.
+    fn py_dict_type(&mut self) -> P<(String, Pos)> {
+        let pos = self.bump().pos;
+        self.expect_op("[")?;
+        let (key, _) = self.py_type()?;
+        self.expect_op(",")?;
+        let (value, _) = self.py_type()?;
+        self.expect_op("]")?;
+        if key != "i64" || value != "i64" {
+            return refuse(pos, "dict keys and values are int here");
+        }
+        Ok(("i64".to_owned(), pos))
+    }
+
+    /// `d = {}` or `d: dict[int, int] = {}` (the `{}` is consumed): a dict
+    /// local, `["dict", d, "i64", "i64"]`. Keys and values are int (i64);
+    /// from then on the name is read only in place (d[k], d.get(k, 0),
+    /// `k in d`, len(d)), never as a value.
+    fn py_dict_value(&mut self, name: &str, pos: Pos) -> P<Node> {
+        self.expect_op("{}")?;
+        if self.py_declared(name) {
+            return refuse(
+                pos,
+                format!(
+                    "`{name}` already has a value: a dict is built once, where it is first \
+                     assigned (change it with {name}[k] = v)"
+                ),
+            );
+        }
+        self.py_end_of_statement()?;
+        self.py_declare(name);
+        self.dict_locals.push(name.to_owned());
+        let word = |w: &str| Node::atom(pos, Value::String(w.to_owned()));
+        Ok(Node::list(
+            pos,
+            vec![word("dict"), word(name), word("i64"), word("i64")],
+        ))
+    }
+
     /// `xs[i] = v` and `xs[i] += v` (also `-= *= //= %=`) on a list local.
     fn py_element_assignment(&mut self) -> P<Node> {
         let pos = self.peek().pos;
+        // `d[k] = v` (also `d[k] += v`) on a dict local: put the key.
+        if self.peek().kind == Kind::Name
+            && self.dict_locals.contains(&self.peek().text)
+            && self.peek_at(1).text == "["
+        {
+            let name = self.bump();
+            self.bump();
+            let key = self.expr()?;
+            self.expect_op("]")?;
+            let tok = self.peek().clone();
+            let word = match tok.text.as_str() {
+                "=" => None,
+                "+=" => Some("add"),
+                "-=" => Some("sub"),
+                "*=" => Some("mul"),
+                "//=" => Some("floordiv"),
+                "%=" => Some("floormod"),
+                _ if tok.kind == Kind::Op && tok.text.ends_with('=') && tok.text != "==" => {
+                    return refuse(
+                        tok.pos,
+                        format!("`{}` on a dict entry is not supported", tok.text),
+                    );
+                }
+                _ => {
+                    return refuse(
+                        pos,
+                        "an expression on its own line has no effect: assign it or return it",
+                    );
+                }
+            };
+            self.bump();
+            let mut value = self.expr()?;
+            self.py_end_of_statement()?;
+            let dict = Node::atom(name.pos, Value::String(name.text.clone()));
+            if let Some(word) = word {
+                // d[k] += e: put [dget](d, k) combined with e.
+                let read = Node::op(pos, "dget", vec![dict.clone(), key.clone()]).within()?;
+                value = Node::op(tok.pos, word, vec![read, value]).within()?;
+            }
+            return Ok(Node::list(
+                pos,
+                vec![
+                    Node::atom(pos, Value::String("dput".into())),
+                    dict,
+                    key,
+                    value,
+                ],
+            ));
+        }
         let target = self.postfix()?;
         let tok = self.peek().clone();
         let word = match tok.text.as_str() {
@@ -4427,18 +4648,33 @@ impl Parser {
                 ],
             )));
         }
-        // `out.append(x)` and `print(x)`: name what to write instead.
+        // `out.append(x)` and `print(x)`: name what to write instead. On a
+        // dict local, `d.get(..)` reaches the expression check below and
+        // iterating methods are named for what they are.
         if tok.kind == Kind::Name
             && self.peek_at(1).text == "."
             && self.peek_at(2).kind == Kind::Name
             && self.peek_at(3).text == "("
             && let Some(hint) = py_method_hint(&self.peek_at(2).text)
+            && !(self.dict_locals.contains(&tok.text)
+                && matches!(
+                    self.peek_at(2).text.as_str(),
+                    "get" | "items" | "keys" | "values"
+                ))
         {
             let method = self.peek_at(2).clone();
             return refuse(
                 method.pos,
                 format!("methods are not supported (`.{}()`): {hint}", method.text),
             );
+        }
+        if tok.kind == Kind::Name
+            && self.dict_locals.contains(&tok.text)
+            && self.peek_at(1).text == "."
+            && matches!(self.peek_at(2).text.as_str(), "items" | "keys" | "values")
+            && self.peek_at(3).text == "("
+        {
+            return refuse(self.peek_at(2).pos, py_dict_refusal(&tok.text));
         }
         if tok.kind == Kind::Name && tok.text == "print" && self.peek_at(1).text == "(" {
             return refuse(
