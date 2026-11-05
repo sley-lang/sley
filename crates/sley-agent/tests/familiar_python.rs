@@ -1359,7 +1359,7 @@ fn python_card_workarounds_compile_as_written() {
     let card = sley_agent::help::topic("python-task").unwrap();
     for needle in [
         "c = sum(1 for y in xs if y == x)",
-        "lo, hi = 0, len(xs)\nand while lo < hi",
+        "bisect_left(xs, x) and bisect_right(xs, x)",
         "min(max(v, lo), hi)",
     ] {
         assert!(card.contains(needle), "{needle}");
@@ -1441,6 +1441,56 @@ def clamp_sum(xs: list[int], lo: int, hi: int) -> int:
             (json!([[1, 9, -4], 0, 5]), json!(6)),
             (json!([[], 0, 1]), json!(0)),
         ],
+    );
+}
+
+/// The card's bisect built-ins compile as written and give Python's answers:
+/// `bisect_right(xs, x)` and `bisect.bisect_left(xs, x)` are the dialect's
+/// `(xs, x)` helpers (imported or through the module), and a `lo` argument
+/// is refused at the call.
+#[test]
+fn python_bisect_builtins_match_python() {
+    let temp = workspace("python-bisect");
+    let h = accepted(
+        &temp.path,
+        "\
+from bisect import bisect_left, bisect_right
+import bisect
+
+def count_leq(xs: list[int], x: int) -> int:
+    return bisect_right(xs, x)
+
+def first_at_least(xs: list[int], x: int) -> int:
+    return bisect.bisect_left(xs, x)
+",
+    );
+    check(
+        &temp.path,
+        &h,
+        "count_leq",
+        &[
+            (json!([[], 5]), json!(0)),
+            (json!([[1, 2, 2, 3], 2]), json!(3)),
+            (json!([[1, 2, 2, 3], 0]), json!(0)),
+            (json!([[1, 2, 2, 3], 9]), json!(4)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "first_at_least",
+        &[
+            (json!([[1, 2, 2, 3], 2]), json!(1)),
+            (json!([[1, 2, 2, 3], 4]), json!(4)),
+            (json!([[5], 5]), json!(0)),
+        ],
+    );
+    refused(
+        &temp.path,
+        "def f(xs: list[int]) -> int:\n    return bisect_left(xs, 1, 0)\n",
+        "lo and hi are not supported",
+        2,
+        12,
     );
 }
 
