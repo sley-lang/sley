@@ -50,4 +50,4 @@ are at `docs/release/SLEY-2.2.0.md`, which lists remaining release verification.
   sealed and no pre-registration hash was computed.
 - Four local oracle regression tests and 2,343 exhaustive small-domain count_by_remainder cases passed; a full task-set exhaustive sweep is deferred.
 - Open work is listed as pending or deferred in
-  `docs/release/SLEY-2.2.0.md`, including T1 (#112), still pending. T6 (#113) is merged: explicit once-per-session with-card totals and legacy missing-card n/a reporting; no fresh token measurement.
+  `docs/release/SLEY-2.2.0.md`, including T1 (#112), now merged: automatic Python-shaped try input detection without --familiar, including layered follow-ups. T6 (#113) is merged: explicit once-per-session with-card totals and legacy missing-card n/a reporting; no fresh token measurement.

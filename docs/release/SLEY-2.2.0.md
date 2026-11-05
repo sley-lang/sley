@@ -89,8 +89,8 @@ session has been run, and no 2.2 wall-time figure appears in these notes.
 
 ## Pending and deferred work
 
-- **T1 (#112) is still pending; T6 (#113) is merged.**
-  T1 is not claimed as merged until its gate passes. T6 adds explicit with-card totals, once per task session, preserving historical no-card data and unavailable legacy card totals.
+- **T1 (#112) and T6 (#113) are merged.**
+  T1 automatically detects Python-shaped try input, preserving JSON and explicit familiar handling. T6 adds explicit with-card totals, once per task session, preserving historical no-card data and unavailable legacy card totals.
 - **S2 and S4:** final bounded attempts hit their time limits without a verified
   result. They are deferred/unverified — no completion claim is
   made.
@@ -111,12 +111,12 @@ installed host, as in prior releases. `ga_claimed` remains `false`.
 None of the following has been done for 2.2.0:
 
 1. Cut point: pick the cut commit after the remaining pending PRs land or do
-   not (currently T1 #112 pending).
+   not (T1 #112 and T6 #113 merged).
 2. Design-specification checks: `check_candidate_result_contract.py` and
    `check_transaction_contract.py` were not run for 2.2 (unavailable design
    spec off the maintainer host; the carried-forward waiver has not been
    re-confirmed for 2.2). Not a pass.
-3. Full test/conformance suites against the final tree.
+3. Full workspace/conformance suites against the final cut. The release-prep sley-agent suite, clippy and 9 offline token-card tests passed before final T1 integration; integrated verification is recorded in the PR/status log.
 4. Persistent-fuzz proofs re-run or explicitly carried forward as 2.1.7-era
    records.
 5. Runtime benchmark session for the release candidate, if the operator wants
