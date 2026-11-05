@@ -2229,3 +2229,160 @@ def test_out_of_range():
     assert_eq!(tests.len(), 3, "{report:#}");
     assert!(tests.iter().all(|test| test["pass"] == true), "{report:#}");
 }
+
+// ------------------------------------------------------------------ T1: `try`
+// without `--familiar` reads text whose first significant line starts like
+// the Python dialect (`def`, `import`, `from`, `class`, `@`) as familiar.
+
+/// Writes `text` under `name` in the workspace and returns its argument.
+fn written(dir: &Path, name: &str, text: &str) -> String {
+    let path = dir.join(name);
+    fs::write(&path, text).unwrap();
+    path.display().to_string()
+}
+
+/// `try` in `--json` mode without `--familiar`, tests skipped.
+fn try_implicit_json(dir: &Path, name: &str, text: &str) -> (i32, Value) {
+    let path = written(dir, name, text);
+    let (status, out) = run(dir, &["--json", "try", path.as_str(), "--no-test"]);
+    (
+        status,
+        serde_json::from_str(out.trim()).unwrap_or_else(|_| panic!("not JSON: {out}")),
+    )
+}
+
+#[test]
+fn python_try_without_familiar_matches_explicit_familiar() {
+    let text = "\
+def inc(x: int) -> int:
+    return x + 1
+
+def test_inc():
+    assert inc(1) == 2
+";
+    let explicit = try_text(&workspace("explicit-detect").path, text);
+    let implicit = try_implicit_json(&workspace("implicit-detect").path, "inc.py", text);
+    // Same text, same verdict, same report: detection only drops the switch.
+    assert_eq!(explicit.0, 0, "{:#?}", explicit.1);
+    assert_eq!(implicit.0, 0, "{:#?}", implicit.1);
+    assert_eq!(
+        report_drop_volatile(&explicit.1),
+        report_drop_volatile(&implicit.1),
+        "{explicit:#?} != {implicit:#?}"
+    );
+}
+
+/// The report without the fields that name the workspace or seed.
+fn report_drop_volatile(report: &Value) -> Value {
+    let mut copy = report.clone();
+    for field in ["workspace", "seed"] {
+        if let Some(object) = copy.as_object_mut() {
+            object.remove(field);
+        }
+    }
+    copy
+}
+
+#[test]
+fn python_follow_up_without_familiar_layers_like_explicit() {
+    for reference in ["c1", "d1"] {
+        // The first try fails its test (so a draft with text exists); the
+        // follow-up states only the new test and is layered on `reference`.
+        let mut runs = Vec::new();
+        for explicit in [true, false] {
+            let label = if explicit { "expl" } else { "impl" };
+            let temp = workspace(&format!("layered-{label}"));
+            let mut steps = Vec::new();
+            let first = written(
+                &temp.path,
+                "value.py",
+                "def value(x: int) -> int:\n    return x\n\ndef test_bad():\n    assert value(1) == 2\n",
+            );
+            let follow = written(
+                &temp.path,
+                "follow.py",
+                "\n\n\n\n\ndef test_ok():\n    assert value(1) == 1\n",
+            );
+            let mut args = vec!["try"];
+            if explicit {
+                args.push("--familiar");
+            }
+            args.push(first.as_str());
+            steps.push(run(&temp.path, &args));
+            let mut args = vec!["try", "--on", reference];
+            if explicit {
+                args.push("--familiar");
+            }
+            args.push(follow.as_str());
+            steps.push(run(&temp.path, &args));
+            runs.push(steps);
+        }
+        // Both frontend selections make the same two revisions and reports.
+        assert_eq!(runs[0], runs[1], "{reference}: {runs:#?}");
+        assert_eq!(runs[1][0].0, 1, "{reference}: {runs:#?}");
+        assert!(runs[1][0].1.contains("1 failed, 0 passed"), "{runs:#?}");
+        assert_eq!(runs[1][1].0, 1, "{reference}: {runs:#?}");
+        assert!(runs[1][1].1.contains("1 failed, 1 passed"), "{runs:#?}");
+    }
+}
+
+#[test]
+fn ordinary_json_without_familiar_still_parses_as_json() {
+    let temp = workspace("json-paths");
+    let frame = json!({"af1": 1, "fns": [{"fn": "inc", "params": [["x", "i64"]],
+        "returns": "i64", "blocks": [{"name": "entry", "ops": [], "term": ["return", "x"]}]}],
+        "tests": [{"name": "t_inc", "fn": "inc", "args": [1], "expect": 1}]});
+    let path = written(&temp.path, "frame.json", &frame.to_string());
+    let (status, out) = run(&temp.path, &["try", path.as_str()]);
+    assert_eq!(status, 0, "{out}");
+    assert_eq!(out, "c1: 1 passed (advisory) d1@r1\n");
+}
+
+#[test]
+fn text_that_is_not_python_stays_the_ordinary_json_failure() {
+    let temp = workspace("other-text");
+    // Truncated JSON and any other text: the refusal and its caret are the
+    // ones the JSON frontend always gave.
+    for text in [
+        "{\"af1\": 1, \"fns\": [{\"fn\": \"f\"",
+        "this is not a frame at all",
+    ] {
+        let path = written(&temp.path, "other.txt", text);
+        let (status, out) = run(&temp.path, &["try", path.as_str()]);
+        assert_eq!(status, 2, "{text}: {out}");
+        let mut lines = out.lines();
+        assert!(
+            lines
+                .next()
+                .unwrap()
+                .starts_with("error AGENT_FRAME_INVALID: : not JSON:"),
+            "{text}: {out}"
+        );
+    }
+    // The truncated JSON is kept as a text draft, as before.
+    let truncated = "{\"af1\": 1, \"fns\": [{\"fn\": \"f\"";
+    let (status, out) = run(&temp.path, &["draft", "d1", "--input"]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains(truncated), "{out}");
+}
+
+#[test]
+fn python_text_that_refuses_reports_familiar_positions_without_familiar() {
+    let temp = workspace("implicit-refusal");
+    let path = written(&temp.path, "broken.py", "def f(: oops\n");
+    let (status, out) = run(&temp.path, &["--json", "try", path.as_str(), "--no-test"]);
+    assert_eq!(status, 2, "{out}");
+    let report: Value =
+        serde_json::from_str(out.trim()).unwrap_or_else(|_| panic!("not JSON: {out}"));
+    assert!(
+        report["detail"]
+            .as_str()
+            .unwrap()
+            .contains("familiar text refused at line 1"),
+        "{report:#}"
+    );
+    assert!(
+        report["obligations"][0]["expected"] == "familiar syntax",
+        "{report:#}"
+    );
+}
