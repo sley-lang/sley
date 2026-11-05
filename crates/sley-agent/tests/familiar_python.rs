@@ -1288,10 +1288,21 @@ fn python_refusals_name_the_fix() {
     );
     refused(
         &temp.path,
-        "def f(x: int) -> int:\n    return len(str(x))\n",
-        "x // 10",
+        "def f(x: int) -> int:\n    return len(repr(x))\n",
+        "str(n)",
         2,
         16,
+    );
+    // Strings are values since VM slice E9: len(str(x)) counts the digits.
+    let h = accepted(
+        &temp.path,
+        "def f(x: int) -> int:\n    return len(str(x))\n",
+    );
+    check(
+        &temp.path,
+        &h,
+        "f",
+        &[(json!([1234]), json!(4)), (json!([-5]), json!(2))],
     );
 }
 
@@ -1709,4 +1720,114 @@ def count_big(xs: list[int]) -> int:
     ] {
         refused(&temp.path, text, needle, line, column);
     }
+}
+
+#[test]
+fn python_str_operations_run_on_native_text() {
+    let temp = workspace("python-str");
+    let text = "\
+def length(s: str) -> int:
+    return len(s)
+
+def at(s: str, i: int) -> str:
+    return s[i]
+
+def codes(s: str) -> int:
+    total = 0
+    for c in s:
+        total += ord(c)
+    return total
+
+def shift(s: str) -> str:
+    out = \"\"
+    for c in s:
+        if \"a\" <= c <= \"z\":
+            out += chr((ord(c) - 97 + 1) % 26 + 97)
+        else:
+            out += c
+    return out
+
+def pieces(s: str) -> str:
+    return s[1:] + s[:-1] + s[-2:] + s[1:2]
+
+def label(n: int) -> str:
+    return \"n=\" + str(n)
+
+def doubled(s: str) -> str:
+    out: list[str] = []
+    for c in s:
+        out.append(c + c)
+    return \"-\".join(out)
+
+def has_digit(s: str) -> bool:
+    return any(c in \"0123456789\" for c in s)
+
+def test_length():
+    assert length(\"\") == 0
+    assert length(\"abc\") == 3
+    assert length(\"héllo\") == 5
+
+def test_at():
+    assert at(\"abc\", 1) == \"b\"
+    assert at(\"abc\", 0) == \"a\"
+    assert at(\"abc\", 2) == \"c\"
+
+def test_codes():
+    assert codes(\"\") == 0
+    assert codes(\"ab\") == 195
+    assert codes(\"a\") == 97
+
+def test_shift():
+    assert shift(\"az!\") == \"ba!\"
+    assert shift(\"zz\") == \"aa\"
+    assert shift(\"ABC-\") == \"ABC-\"
+
+def test_pieces():
+    assert pieces(\"abc\") == \"bcabbcb\"
+    assert pieces(\"ab\") == \"baabb\"
+    assert pieces(\"x\") == \"x\"
+
+def test_label():
+    assert label(4) == \"n=4\"
+    assert label(-12) == \"n=-12\"
+    assert label(0) == \"n=0\"
+
+def test_doubled():
+    assert doubled(\"ab\") == \"aa-bb\"
+    assert doubled(\"\") == \"\"
+    assert doubled(\"z\") == \"zz\"
+
+def test_has_digit():
+    assert has_digit(\"a1\")
+    assert not has_digit(\"ab\")
+    assert not has_digit(\"\")
+";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 0, "{report:#}");
+    let tests = report["tests"].as_array().unwrap();
+    assert_eq!(tests.len(), 24, "{report:#}");
+    assert!(tests.iter().all(|test| test["pass"] == true), "{report:#}");
+}
+
+#[test]
+fn python_str_index_out_of_range_raises() {
+    let temp = workspace("python-str-index");
+    let text = "\
+import pytest
+
+def at(s: str, i: int) -> str:
+    return s[i]
+
+def test_out_of_range():
+    assert at(\"ab\", 0) == \"a\"
+    with pytest.raises(IndexError):
+        at(\"ab\", 5)
+    with pytest.raises(IndexError):
+        at(\"\", 0)
+";
+    let (status, report) = inline_tests(&temp.path, text, None);
+    assert_eq!(status, 0, "{report:#}");
+    let tests = report["tests"].as_array().unwrap();
+    assert_eq!(tests.len(), 3, "{report:#}");
+    assert!(tests.iter().all(|test| test["pass"] == true), "{report:#}");
 }

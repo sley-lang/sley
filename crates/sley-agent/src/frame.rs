@@ -1983,7 +1983,10 @@ impl Compiler<'_> {
         name: &str,
         _pointer: &str,
     ) -> Result<Option<(EntityId, sley_vm::text::TextKind)>> {
-        if let Some(id) = self.names.resolve(name).filter(|id| !self.deletes.contains(id))
+        if let Some(id) = self
+            .names
+            .resolve(name)
+            .filter(|id| !self.deletes.contains(id))
             && let Some(body) = self.program.body(&id)
             && body.kind_tag() == 15
         {

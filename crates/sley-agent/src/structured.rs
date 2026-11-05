@@ -754,13 +754,30 @@ impl<'c, 'a> Fn<'c, 'a> {
                 let a = held.remove(1);
                 let s = held.remove(0);
                 let span = self.emit_value("tuple", vec![a, n], at);
-                Ok((self.text_op("text_slice", s, span, mode, at)?, "text".into()))
+                Ok((
+                    self.text_op("text_slice", s, span, mode, at)?,
+                    "text".into(),
+                ))
             }
             "slice" => {
                 // Python's s[a:b]: i64 bounds (null for omitted), negative
                 // from the end, clamped to the text; never fails.
                 if args.len() != 3 {
-                    return fail(at, "`slice` takes (text, i64 start or null, i64 end or null)");
+                    return fail(
+                        at,
+                        "`slice` takes (text, i64 start or null, i64 end or null)",
+                    );
+                }
+                if self
+                    .static_type(&args[0], env, None)
+                    .is_some_and(|t| t != "text")
+                    || self.list_len(&args[0], env).is_some()
+                {
+                    return fail(
+                        at,
+                        "slices are not supported as values: loop over one directly \
+                         (`for x in xs[1:]`) or index with range(a, b)",
+                    );
                 }
                 let s = text_arg(self, env, 0)?;
                 let ks = self.hold(env, s, "text");
@@ -774,7 +791,12 @@ impl<'c, 'a> Fn<'c, 'a> {
                     } else if x.as_i64().is_some() {
                         json!(["max", ["add", x, kn], 0])
                     } else {
-                        json!(["if", ["lt", x, 0], ["max", ["add", x, kn], 0], ["min", x, kn]])
+                        json!([
+                            "if",
+                            ["lt", x, 0],
+                            ["max", ["add", x, kn], 0],
+                            ["min", x, kn]
+                        ])
                     }
                 };
                 let statements = vec![
@@ -799,7 +821,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                 env.remove(&start);
                 env.remove(&end);
                 let span = self.emit_value("tuple", vec![a, n], at);
-                Ok((self.text_op("text_slice", s, span, None, at)?, "text".into()))
+                Ok((
+                    self.text_op("text_slice", s, span, None, at)?,
+                    "text".into(),
+                ))
             }
             "concat" => {
                 if args.is_empty() {
@@ -812,7 +837,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                 }
                 let parts = Self::release(env, &keys);
                 let vector = self.emit_value("vec", parts, at);
-                Ok((self.text_op("text_concat", Self::unit(), vector, None, at)?, "text".into()))
+                Ok((
+                    self.text_op("text_concat", Self::unit(), vector, None, at)?,
+                    "text".into(),
+                ))
             }
             "chars" => {
                 if args.len() != 1 {
@@ -829,7 +857,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                     return fail(at, "`ord` takes 1 text");
                 }
                 let s = text_arg(self, env, 0)?;
-                Ok((self.text_op("text_ord", Self::unit(), s, mode, at)?, "u32".into()))
+                Ok((
+                    self.text_op("text_ord", Self::unit(), s, mode, at)?,
+                    "u32".into(),
+                ))
             }
             "chr" => {
                 if args.len() != 1 {
@@ -839,7 +870,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                 if t != "u32" {
                     return fail(&sub(0), format!("`chr` takes a u32 code point, not {t}"));
                 }
-                Ok((self.text_op("text_chr", Self::unit(), v, mode, at)?, "text".into()))
+                Ok((
+                    self.text_op("text_chr", Self::unit(), v, mode, at)?,
+                    "text".into(),
+                ))
             }
             "str" => {
                 if args.len() != 1 {
@@ -857,7 +891,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                 } else {
                     self.emit_value("to", vec![json!("i64"), v], at)
                 };
-                Ok((self.text_op("text_from_int", Self::unit(), v, None, at)?, "text".into()))
+                Ok((
+                    self.text_op("text_from_int", Self::unit(), v, None, at)?,
+                    "text".into(),
+                ))
             }
             "join" => {
                 // [sep, xs]: the texts of xs (a vector or a list local) with
@@ -1529,7 +1566,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                 }
                 let (v, t) = self.expr(&args[0], env, &sub(0), None)?;
                 if t == "text" {
-                    return Ok((self.text_op("text_len", Self::unit(), v, None, at)?, "u64".into()));
+                    return Ok((
+                        self.text_op("text_len", Self::unit(), v, None, at)?,
+                        "u64".into(),
+                    ));
                 }
                 if vec_elem(&t).is_none() {
                     return fail(at, "`len` needs a vector or text");
@@ -1578,7 +1618,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                     }
                     let one = Self::lit(&json!(1), "u64");
                     let span = self.emit_value("tuple", vec![i, one], at);
-                    return Ok((self.text_op("text_slice", v, span, mode, at)?, "text".into()));
+                    return Ok((
+                        self.text_op("text_slice", v, span, mode, at)?,
+                        "text".into(),
+                    ));
                 }
                 let Some(elem) = vec_elem(&t) else {
                     return fail(at, "`get` needs a vector or text");
@@ -2671,7 +2714,12 @@ impl<'c, 'a> Fn<'c, 'a> {
         {
             return map_value(&env.get(name)?.ty);
         }
-        vec_elem(&self.static_type(list, env, None)?)
+        let ty = self.static_type(list, env, None)?;
+        if ty == "text" {
+            // A text folds over its scalars (VM slice E9 `TCS1`).
+            return Some(ty);
+        }
+        vec_elem(&ty)
     }
 
     /// `["fold", kind, x, xs, e, c?]`: an accumulator loop over `xs`, lowered
@@ -3313,9 +3361,9 @@ fn builtin_hint(name: &str) -> &'static str {
             ": lists cannot be built or reordered; compare elements in nested loops, or track \
              the value you need in one pass"
         }
-        "str" | "repr" | "chr" | "ord" | "float" | "format" => {
-            ": strings and floats are not values here; work on the int (x % 10 and x // 10 \
-             give its digits)"
+        "repr" | "float" | "format" => {
+            ": floats and formatting are not supported; build text with str(n), + and \
+             sep.join(xs)"
         }
         "list" | "dict" | "set" | "tuple" | "map" | "filter" => {
             ": build no collection; use sum/any/all/len/max/min over a generator (len(set(xs)) \
