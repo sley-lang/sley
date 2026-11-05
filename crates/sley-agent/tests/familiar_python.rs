@@ -1338,8 +1338,8 @@ fn python_refusals_name_the_fix() {
     );
     refused(
         &temp.path,
-        "def f(xs: list[int]) -> int:\n    d = {}\n    return 0\n",
-        "len(set(xs))",
+        "def f(xs: list[int]) -> int:\n    d = {1: 2}\n    return 0\n",
+        "a dict is built as an empty local",
         2,
         9,
     );
@@ -1443,7 +1443,7 @@ def run_sum(xs: list[int], lo: int) -> int:
 fn python_card_workarounds_compile_as_written() {
     let card = sley_agent::help::topic("python-task").unwrap();
     for needle in [
-        "c = sum(1 for y in xs if y == x)",
+        "Dicts of int: d = {}",
         "bisect_left(xs, x) and bisect_right(xs, x)",
         "min(max(v, lo), hi)",
     ] {
@@ -1709,6 +1709,115 @@ def counts(xs: list[int], k: int) -> int:
             "holds i64, not bool",
             3,
             15,
+        ),
+    ] {
+        refused(&temp.path, text, needle, line, column);
+    }
+}
+
+/// Dict locals of int (2.2): `d = {}`, `d[k] = v` (and ` += `), reads,
+/// `d.get(k, 0)`, `k in d` / `k not in d` and `len(d)` give Python's answers;
+/// a missing key traps like Python's `KeyError`, the card's dict line compiles
+/// as written, and iterating a dict or `.get(k)` without a default is refused.
+#[test]
+#[allow(clippy::too_many_lines)] // one program per dict form, then refusals
+fn python_int_dicts_count_like_python() {
+    let card = sley_agent::help::topic("python-task").unwrap();
+    assert!(
+        card.contains(
+            "Dicts of int: d = {}, d[k] = v, d[k] += v, d[k], d.get(k, 0), k in d, len(d)"
+        )
+    );
+    let temp = workspace("python-dicts");
+    let h = accepted(
+        &temp.path,
+        "\
+def mode_value(xs: list[int]) -> int:
+    counts = {}
+    for x in xs:
+        counts[x] = counts.get(x, 0) + 1
+    best = xs[0]
+    for x in xs:
+        if counts[x] > counts[best] or (counts[x] == counts[best] and x < best):
+            best = x
+    return best
+
+def distinct(xs: list[int]) -> int:
+    seen: dict[int, int] = {}
+    for x in xs:
+        seen[x] = 1
+    return len(seen)
+
+def first_repeat(xs: list[int]) -> int:
+    d = {}
+    for x in xs:
+        if x in d:
+            return x
+        d[x] = 0
+    return -1
+
+def tally(xs: list[int]) -> int:
+    d = {}
+    for x in xs:
+        if x not in d:
+            d[x] = 0
+        d[x] += x
+    return d[xs[0]]
+
+def hop(n: int) -> int:
+    d = {}
+    for i in range(n):
+        d[i] = i + 1
+    return d[0] + d[n - 1]
+",
+    );
+    check(
+        &temp.path,
+        &h,
+        "mode_value",
+        &[
+            (json!([[3, 1, 3, 2, 1, 3]]), json!(3)),
+            (json!([[2, 1, 2, 1]]), json!(1)),
+            (json!([[5]]), json!(5)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "distinct",
+        &[(json!([[1, 1, 2]]), json!(2)), (json!([[]]), json!(0))],
+    );
+    check(
+        &temp.path,
+        &h,
+        "first_repeat",
+        &[
+            (json!([[1, 2, 3, 2, 1]]), json!(2)),
+            (json!([[1, 2]]), json!(-1)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "tally",
+        &[(json!([[4, 1, 4, 4]]), json!(12))],
+    );
+    check(&temp.path, &h, "hop", &[(json!([3]), json!(4))]);
+    // Reading a key that was never put traps, like Python's KeyError.
+    assert!(traps(&call(&temp.path, &h, "hop", &[json!(0)])));
+
+    for (text, needle, line, column) in [
+        (
+            "def f(n: int) -> int:\n    d = {}\n    for k in d:\n        d[k] = 1\n    return 0\n",
+            "cannot be iterated or passed",
+            3,
+            14,
+        ),
+        (
+            "def f(n: int) -> int:\n    d = {}\n    return d.get(1)\n",
+            "needs a default here",
+            3,
+            14,
         ),
     ] {
         refused(&temp.path, text, needle, line, column);

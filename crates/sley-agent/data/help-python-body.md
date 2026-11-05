@@ -8,7 +8,7 @@ chained comparisons, and/or (short-circuit), truthiness, x if c else y, len min 
 comprehensions, len(set(xs)), helper defs (no captured variables).
 Local lists: xs = [0] * n, [], [a, b] or [e for x in xs if c]; xs.append(v), xs[i] = v,
 xs[i] += v, xs[i], len(xs), for x in xs. A function -> list[int] returns one: return xs or return [..].
-Instead of Counter or dicts: c = sum(1 for y in xs if y == x); clamping: min(max(v, lo), hi).
+Dicts of int: d = {}, d[k] = v, d[k] += v, d[k], d.get(k, 0), k in d, len(d) (no iteration); clamping: min(max(v, lo), hi).
 bisect_left(xs, x) and bisect_right(xs, x) (from bisect, or bisect.bisect_left) on a list[int].
 Strings: len(s), s[i], for c in s, s[a:b], + and +=, ord, chr, str(n), sep.join(xs),
 c in s; a list of str is declared out: list[str] = [].

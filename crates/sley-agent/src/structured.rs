@@ -2650,12 +2650,15 @@ impl<'c, 'a> Fn<'c, 'a> {
                     if kt != key {
                         return fail(&part(2), format!("the key of `{x}` is {key}, not {kt}"));
                     }
+                    // The value may branch (for example d.get(k, default));
+                    // carry the already evaluated key through its join blocks.
+                    let kk = self.hold(env, k, &kt);
                     let (v, vt) = self.expr(&items[3], env, &part(3), Some(&value))?;
                     if vt != value {
                         return fail(&part(3), format!("the value of `{x}` is {value}, not {vt}"));
                     }
-                    let has = self.emit_value("map_has", vec![env.operand(&x), k.clone()], &here);
-                    let kk = self.hold(env, k, &kt);
+                    let has =
+                        self.emit_value("map_has", vec![env.operand(&x), env.operand(&kk)], &here);
                     let kv = self.hold(env, v, &vt);
                     let kh = self.hold(env, has, "bool");
                     // The count gains 1 only for a key the dict does not
