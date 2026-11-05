@@ -1124,25 +1124,55 @@ type TrialInput = (
 fn trial_input(
     global: &Global,
     argument: &str,
-    familiar: bool,
+    explicit: bool,
     body: Option<&body::Target>,
 ) -> Result<TrialInput> {
-    let input = if familiar {
+    let input = if explicit {
         read_familiar(argument)?
     } else {
         read_argument(argument)?
     };
     global.note("input_bytes", input.len());
-    let (mut parsed, positions) = if familiar {
+    let (mut parsed, positions, familiar) = if explicit {
         global.note("frontend", "familiar");
-        parse_familiar(&input, body.is_some())?
+        // parse_familiar yields (outcome, positions); the frontend is familiar.
+        let (outcome, positions) = parse_familiar(&input, body.is_some())?;
+        (outcome, positions, true)
     } else {
-        (parse_input(&input), None)
+        let parsed = parse_input(&input);
+        // Input that is not JSON and reads as the Python dialect (its first
+        // significant line, `familiar::is_python`) is familiar text without
+        // `--familiar` (T1); explicit `--familiar`, other JSON and other
+        // invalid text stay as before.
+        let implicit = parsed.is_err() && reads_python(&input);
+        if implicit {
+            global.note("frontend", "familiar");
+            let (outcome, positions) = parse_familiar(&input, body.is_some())?;
+            (outcome, positions, true)
+        } else {
+            (parsed, None, false)
+        }
     };
     if let (Some(target), Ok(value)) = (body, &mut parsed) {
         target.wrap(value, familiar)?;
     }
     Ok((input, parsed, positions))
+}
+
+/// Whether input that just failed to parse as JSON reads as the Python
+/// dialect of the familiar frontend (its first significant line starts with
+/// `def`, `import`, `from`, `class` or a decorator): `try` parses it as
+/// familiar text without `--familiar` (T1).
+#[cfg(feature = "familiar")]
+fn reads_python(bytes: &[u8]) -> bool {
+    std::str::from_utf8(bytes)
+        .map(crate::familiar::is_python)
+        .unwrap_or(false)
+}
+
+#[cfg(not(feature = "familiar"))]
+fn reads_python(_bytes: &[u8]) -> bool {
+    false
 }
 
 #[allow(clippy::too_many_lines)]
