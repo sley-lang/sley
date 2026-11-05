@@ -5,12 +5,14 @@ For each task and form, the loop is what an agent sends and reads:
   write the program (with one deliberate bug) and its tests -> run -> read the
   failure -> apply a str_replace fix (old+new snippet) -> run -> read the pass.
 Commands and their real outputs are recorded verbatim (transcripts/), then
-counted with tiktoken o200k_base and cl100k_base. Usage:
+counted with tiktoken o200k_base and cl100k_base. Each Sley form's one-time
+help card is measured once with the same binary (cards.py), kept in full in
+cards.json, and recorded in every loop.json row's `card` field. Usage:
   run_loop.py <sley-agent> <out-dir>
 """
 import json, os, re, shutil, subprocess, sys, pathlib
 import tiktoken
-import spec, langs
+import spec, langs, cards
 
 SLEY = os.path.abspath(sys.argv[1]); OUT = pathlib.Path(sys.argv[2]).resolve()
 # The Python that runs pytest, and the node_modules holding typescript and @types/node.
@@ -202,6 +204,8 @@ def run_lang(task, lang, kind, workdir):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    cards_for_form = cards.measure_cards(SLEY, FORMS, ENC, toks, subprocess.run)
+    (OUT / "cards.json").write_text(json.dumps(cards_for_form, indent=1))
     rows = []
     for task in spec.CASES:
         for kind in ("clean", "logic", "typo"):
@@ -210,7 +214,8 @@ def main():
                 tdir = OUT / "transcripts"; tdir.mkdir(exist_ok=True)
                 (tdir / f"{task}-{kind}-{form}.json").write_text(json.dumps(steps, indent=1))
                 row = {"task": task, "kind": kind, "form": form, "first_exit": first, "last_exit": last,
-                       "tool_calls": sum(1 for s in steps if s[1] == "command")}
+                       "tool_calls": sum(1 for s in steps if s[1] == "command"),
+                       "card": cards_for_form[form]["tokens"]}
                 for enc in ENC:
                     w = sum(toks(t)[enc] for r, l, t in steps if r == "write")
                     rd = sum(toks(t)[enc] for r, l, t in steps if r == "read")
