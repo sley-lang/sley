@@ -9,6 +9,8 @@ comprehensions, len(set(xs)), helper defs (no captured variables).
 Local lists: xs = [0] * n, [], [a, b] or [e for x in xs if c]; xs.append(v), xs[i] = v,
 xs[i] += v, xs[i], len(xs), for x in xs. A function -> list[int] returns one: return xs or return [..].
 Dicts of int: d = {}, d[k] = v, d[k] += v, d[k], d.get(k, 0), k in d, len(d) (no iteration); clamping: min(max(v, lo), hi).
+Sets of int: s = set(), s.add(x), x in s, x not in s, len(s) (s.add(x) is a statement; no iteration,
+passing or s[k]); duplicates collapse, negatives are fine.
 bisect_left(xs, x) and bisect_right(xs, x) (from bisect, or bisect.bisect_left) on a list[int].
 Strings: len(s), s[i], for c in s, s[a:b], + and +=, ord, chr, str(n), sep.join(xs),
 c in s; a list of str is declared out: list[str] = [].
