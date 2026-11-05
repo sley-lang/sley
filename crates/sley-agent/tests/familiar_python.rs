@@ -1234,6 +1234,91 @@ fn python_floor_operations_on_non_negative_values_skip_the_sign_fixup() {
     }
 }
 
+/// Guard facts (`while n > 0`, `if n >= 0`) let the floor operations skip
+/// Python's sign fixup (`fast_*`); twins whose condition hides what it proves
+/// (`slow_*`, the same fact behind `n * 1`) keep it. `neg` subtracts past
+/// zero, so its guard proves nothing about the body.
+const GUARD_PROGRAMS: &str = "\
+def fast_digits(n: int) -> int:
+    t = 0
+    while n > 0:
+        t += n % 10
+        n //= 10
+    return t
+
+def slow_digits(n: int) -> int:
+    t = 0
+    while n * 1 > 0:
+        t += n % 10
+        n //= 10
+    return t
+
+def fast_if(n: int) -> int:
+    if n >= 0:
+        return n // 7 + n % 7
+    return n // 7
+
+def slow_if(n: int) -> int:
+    if n * 1 >= 0:
+        return n // 7 + n % 7
+    return n // 7
+
+def neg(n: int) -> int:
+    while n > 0:
+        n = n - 10
+        if n % 3 == 0:
+            return n // 2
+    return n % 4
+";
+
+#[test]
+fn python_guarded_floor_operations_skip_the_sign_fixup() {
+    let temp = workspace("python-guard-nonneg");
+    let h = accepted(&temp.path, GUARD_PROGRAMS);
+    let mut cases: Vec<(&str, Vec<Value>)> = Vec::new();
+    for n in [0, 7, 1234, 99999, -5, -1234] {
+        cases.push(("digits", vec![json!(n)]));
+        cases.push(("if", vec![json!(n)]));
+    }
+    for (name, args) in &cases {
+        let fast = call_report(&temp.path, &h, &format!("fast_{name}"), args, false);
+        let slow = call(&temp.path, &h, &format!("slow_{name}"), args);
+        assert_eq!(fast["result"], slow, "{name}{args:?}");
+        let reference = call_report(&temp.path, &h, &format!("fast_{name}"), args, true);
+        assert_eq!(fast, reference, "{name}{args:?} against the reference");
+    }
+    // `n - 10` can go negative, so `n % 3`, `n // 2` and `n % 4` keep
+    // Python's floor answers (toward negative infinity).
+    check(
+        &temp.path,
+        &h,
+        "neg",
+        &[
+            (json!([5]), json!(3)),
+            (json!([12]), json!(0)),
+            (json!([25]), json!(7)),
+            (json!([0]), json!(0)),
+            (json!([-3]), json!(1)),
+        ],
+    );
+    let count = |name: &str, args: &[Value]| {
+        call_report(&temp.path, &h, name, args, false)["instructions"]
+            .as_u64()
+            .unwrap()
+    };
+    for (name, n) in [("digits", 1234), ("if", 1234)] {
+        let args = vec![json!(n)];
+        let (fast, slow) = (
+            count(&format!("fast_{name}"), &args),
+            count(&format!("slow_{name}"), &args),
+        );
+        // `n * 1` costs one instruction per test, so `fast < slow` alone
+        // would hold without the guard fact; the fixup-free twin runs less
+        // than half the instructions (digits 108 vs 275, if 7 vs 18).
+        assert!(fast * 2 < slow, "{name}: no sign fixup ({fast} vs {slow})");
+    }
+}
+
 #[test]
 fn python_refusals_name_the_fix() {
     let temp = workspace("python-fix-hints");

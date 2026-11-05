@@ -2604,15 +2604,40 @@ impl<'c, 'a> Fn<'c, 'a> {
         self.end(json!(["cond", c, yt, nt]), at);
         let empty = Vec::new();
         let mut ends = Vec::new();
+        // The condition has just proved these names >= 0; keep the fact for
+        // the `then` body only, and give it back up even on the error path.
+        let guards: Vec<String> = items
+            .get(2)
+            .and_then(Value::as_array)
+            .map(|body| {
+                guard_names(&items[1])
+                    .into_iter()
+                    .filter(|n| {
+                        !self.nonneg.contains(n) && body_keeps_nonneg(body, n, &self.nonneg)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         for (block, benv, key) in [(yes, yenv, 2), (no, nenv, 3)] {
             let body = items.get(key).map_or(Some(&empty), Value::as_array);
             let Some(body) = body else {
                 return fail(&part(key), "a branch is a statement list");
             };
+            if key == 2 {
+                for n in &guards {
+                    self.nonneg.insert(n.clone());
+                }
+            }
             self.cur = Some(block);
             let mut local = benv;
             self.depth += 1;
-            let falls = self.stmts(body, &mut local, &part(key), internal)?;
+            let falls = self.stmts(body, &mut local, &part(key), internal);
+            if key == 2 {
+                for n in &guards {
+                    self.nonneg.remove(n);
+                }
+            }
+            let falls = falls?;
             self.depth -= 1;
             if falls {
                 ends.push((self.cur.take(), local.scoped(&before)));
@@ -3175,7 +3200,21 @@ impl<'c, 'a> Fn<'c, 'a> {
             step: Vec::new(),
         });
         self.depth += 1;
-        let falls = self.stmts(body, &mut inner, &part(2), internal)?;
+        // The condition has just proved these names >= 0; keep the fact while
+        // the body is lowered and give it back up afterwards (the back edge
+        // re-enters through the condition, and the exit proves nothing).
+        let guards: Vec<String> = guard_names(&items[1])
+            .into_iter()
+            .filter(|n| !self.nonneg.contains(n) && body_keeps_nonneg(body, n, &self.nonneg))
+            .collect();
+        for n in &guards {
+            self.nonneg.insert(n.clone());
+        }
+        let falls = self.stmts(body, &mut inner, &part(2), internal);
+        for n in &guards {
+            self.nonneg.remove(n);
+        }
+        let falls = falls?;
         self.depth -= 1;
         self.loops.pop();
         self.pending_exit = pending;
@@ -3351,6 +3390,64 @@ fn nonneg_expr(e: &Value, set: &BTreeSet<String>) -> bool {
         }
         _ => false,
     }
+}
+
+/// Names that a boolean condition proves are >= 0: `["gt", n, e]` or
+/// `["ge", n, e]` for a JSON string name `n` and an integer literal `e >= 0`
+/// (a JSON number or a `{"type": T, "value": v}` literal), the mirrored
+/// `["lt", e, n]` and `["le", e, n]`, and `["and", a, b]`, which proves the
+/// union of both sides; `["truthy", c]` proves what `c` proves. Anything else (`or`, `not`, a name compared with a
+/// name, a negative bound) proves nothing.
+fn guard_names(cond: &Value) -> Vec<String> {
+    // The Python dialect wraps a condition as `["truthy", c]`.
+    if let Some(inner) = cond
+        .as_array()
+        .filter(|c| c.len() == 2 && c[0].as_str() == Some("truthy"))
+    {
+        return guard_names(&inner[1]);
+    }
+    let Some(c) = cond.as_array().filter(|c| c.len() == 3) else {
+        return Vec::new();
+    };
+    let (Some(a), Some(b)) = (c.get(1), c.get(2)) else {
+        return Vec::new();
+    };
+    let side = |name: &Value, bound: &Value| {
+        if literal_u64(bound).is_some()
+            && let Some(n) = name.as_str()
+        {
+            vec![n.to_owned()]
+        } else {
+            Vec::new()
+        }
+    };
+    match c.first().and_then(Value::as_str) {
+        Some("gt" | "ge") => side(a, b),
+        Some("lt" | "le") => side(b, a),
+        Some("and") => {
+            let mut names = guard_names(a);
+            names.extend(guard_names(b));
+            names
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Whether lowering `body` with `n` assumed non-negative is justified: every
+/// binding of `n` recorded by `collect_sites` over the body alone is some `e`
+/// with `nonneg_expr(e, set ∪ {n})`. A name the body never binds keeps the
+/// fact, because it stays the guarded value while the body runs.
+fn body_keeps_nonneg(body: &[Value], n: &str, set: &BTreeSet<String>) -> bool {
+    let mut sites: BTreeMap<String, Vec<Option<Value>>> = BTreeMap::new();
+    collect_sites(body, &mut sites);
+    let Some(sites) = sites.get(n) else {
+        return true;
+    };
+    let mut set = set.clone();
+    set.insert(n.to_owned());
+    sites
+        .iter()
+        .all(|site| site.as_ref().is_some_and(|e| nonneg_expr(e, &set)))
 }
 
 /// A non-negative integer literal (`3` or `{"type": T, "value": 3}`).
