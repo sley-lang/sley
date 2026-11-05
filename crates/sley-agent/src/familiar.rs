@@ -135,6 +135,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             list_return: None,
             list_locals: Vec::new(),
             dict_locals: Vec::new(),
+            set_locals: Vec::new(),
             allow_dict: false,
             returns_list_local: false,
         };
@@ -156,6 +157,7 @@ pub fn parse(text: &str) -> Result<Parsed, FamiliarError> {
             list_return: None,
             list_locals: Vec::new(),
             dict_locals: Vec::new(),
+            set_locals: Vec::new(),
             allow_dict: false,
             returns_list_local: false,
         };
@@ -288,6 +290,7 @@ pub fn parse_body(text: &str) -> Result<Parsed, FamiliarError> {
         list_return: None,
         list_locals: Vec::new(),
         dict_locals: Vec::new(),
+        set_locals: Vec::new(),
         allow_dict: false,
         returns_list_local: false,
     };
@@ -792,6 +795,10 @@ struct Parser {
     /// Python dialect: the dict locals of the function being parsed (built
     /// by `d = {}`); their bare name is never a value.
     dict_locals: Vec<String>,
+    /// Python dialect: the int set locals of the function being parsed
+    /// (built by `s = set()`). They store and read like dict locals
+    /// (dput/dget/dhas/len over its own) plus `s.add(x)`.
+    set_locals: Vec<String>,
     /// Python dialect: a bare dict name may be parsed as a value because the
     /// construct that called for it reads it whole (`len(d)`, `k in d`).
     allow_dict: bool,
@@ -1813,6 +1820,17 @@ impl Parser {
                     continue;
                 }
                 if self.at_op("(") {
+                    if self.python && self.py_set_name(&value) {
+                        let name = value.is_name().unwrap_or(field.as_str()).to_owned();
+                        return refuse(
+                            field_pos,
+                            if field == "add" {
+                                py_set_add_refusal(&name)
+                            } else {
+                                py_set_read_refusal(&name, &field)
+                            },
+                        );
+                    }
                     if self.python && self.py_dict_name(&value) {
                         if field == "get" {
                             self.bump();
@@ -1863,6 +1881,13 @@ impl Parser {
             } else if self.at_op("[") {
                 let pos = self.bump().pos;
                 let dict = self.python && self.py_dict_name(&value);
+                if self.python && self.py_set_name(&value) {
+                    if self.at_op(":") {
+                        return refuse(pos, "slices are not supported");
+                    }
+                    let name = value.is_name().unwrap_or_default();
+                    return refuse(pos, py_set_index_refusal(name));
+                }
                 if dict {
                     // d[k] reads one key; a missing key traps.
                     if self.at_op(":") {
@@ -1938,6 +1963,7 @@ impl Parser {
         }
     }
 
+    #[allow(clippy::too_many_lines)] // related Python collection forms share parser state
     fn primary(&mut self) -> P<Node> {
         let tok = self.peek().clone();
         match tok.kind {
@@ -2012,7 +2038,7 @@ impl Parser {
         }
         self.bump();
         if self.python && self.dict_locals.contains(&tok.text) {
-            // A dict local is read whole only by `len(d)` and `k in d`
+            // A dict or set local is read whole only by `len(d)` and `k in d`
             // (`allow_dict`), and indexing and `.get(..)` continue in
             // `postfix`. Everywhere else it is refused: read it in place.
             if matches!(self.peek().kind, Kind::Op) && (self.at_op("[") || self.at_op(".")) {
@@ -2021,7 +2047,7 @@ impl Parser {
             if self.allow_dict {
                 return Ok(Node::atom(tok.pos, Value::String(tok.text)));
             }
-            return refuse(tok.pos, py_dict_refusal(&tok.text));
+            return refuse(tok.pos, self.py_local_refusal(&tok.text));
         }
         if !self.python
             && self.at_op("{")
@@ -2377,6 +2403,7 @@ impl Parser {
                     format!("{name}(..) works only as the iterable of a for loop"),
                 );
             }
+            "set" => return refuse(pos, "a set is built only as an empty local: s = set()"),
             "gcd" => return self.py_gcd(pos).map(Some),
             "pow" => {
                 let mut args = vec![self.expr()?];
@@ -2651,9 +2678,9 @@ pub(crate) fn is_python(text: &str) -> bool {
 
 /// The fix for a dict or set literal that is not the empty local `d = {}`.
 const DICT_HINT: &str = "a dict is built as an empty local: d = {}, then d[k] = v, \
-                         d.get(k, 0), k in d and len(d) (never iterate or pass a dict); \
-                         sets are not supported: count matches with \
-                         sum(1 for y in xs if y == x), distinct values with d[k] = 1 and len(d)";
+                         d.get(k, 0), k in d and len(d); a set of int is built as an \
+                         empty local: s = set(), then s.add(x), x in s and len(s) \
+                         (never iterate or pass a dict or a set)";
 
 /// The refusal for a dict local used where only a value could go: iterated,
 /// returned, passed, copied or otherwise read whole.
@@ -2661,6 +2688,49 @@ fn py_dict_refusal(name: &str) -> String {
     format!(
         "`{name}` is a dict: dicts cannot be iterated or passed: loop over the list you \
          counted from and read d[x]"
+    )
+}
+
+/// The refusal for an int set local used where only a value could go:
+/// iterated, returned, passed, copied or otherwise read whole.
+fn py_set_refusal(name: &str) -> String {
+    format!(
+        "`{name}` is a set: sets cannot be iterated or passed: loop over the list you \
+         counted from and test x in {name}"
+    )
+}
+
+/// The refusal for `s.add(x)` used where a value is needed: it is a statement.
+fn py_set_add_refusal(name: &str) -> String {
+    format!(
+        "`.add()` does not produce a value: a set changes only by the statement \
+         {name}.add(x)"
+    )
+}
+
+/// The refusal for a set method other than `s.add(x)` used as a value.
+fn py_set_read_refusal(name: &str, method: &str) -> String {
+    format!(
+        "`.{method}()` on a set is not supported: a set reads only x in {name}, \
+         x not in {name} and len({name})"
+    )
+}
+
+/// The refusal for a set method other than `s.add(x)` used as a statement.
+fn py_set_method_refusal(name: &str, method: &str) -> String {
+    format!(".{method}(...) is not supported: a set changes only by {name}.add(x)")
+}
+
+/// The refusal for reading a set by key (`s[k]`).
+fn py_set_index_refusal(name: &str) -> String {
+    format!("a set has no reads by key: test membership with x in {name}")
+}
+
+/// The refusal for assigning a set member the dict way (`s[k] = v`).
+fn py_set_store_refusal(name: &str) -> String {
+    format!(
+        "`{name}` is a set: it stores membership only: put a member with {name}.add(x) \
+         and test membership with x in {name}"
     )
 }
 
@@ -2672,7 +2742,11 @@ fn py_method_hint(method: &str) -> Option<&'static str> {
             "a list built in the function (xs = [] or [v] * n) changes only by xs.append(v) and \
              xs[i] = v; otherwise keep a count, sum or best value in a loop"
         }
-        "get" | "items" | "keys" | "values" | "setdefault" | "update" | "add" => DICT_HINT,
+        "get" | "items" | "keys" | "values" | "setdefault" | "update" => DICT_HINT,
+        "add" => {
+            "s.add(x) adds x to a set of int (s = set()); a set changes only by \
+                  s.add(x), and reads only x in s, x not in s and len(s)"
+        }
         "count" => "count matches with sum(1 for y in xs if y == x)",
         "index" | "find" => "find a position with a loop over enumerate(xs)",
         _ => return None,
@@ -3102,6 +3176,7 @@ fn py_bisect_helper(name: &str) -> P<Vec<Function>> {
         list_return: None,
         list_locals: Vec::new(),
         dict_locals: Vec::new(),
+        set_locals: Vec::new(),
         allow_dict: false,
         returns_list_local: false,
     };
@@ -3726,6 +3801,7 @@ impl Parser {
         let outer_return = std::mem::replace(&mut self.list_return, list_return.clone());
         let outer_locals = std::mem::take(&mut self.list_locals);
         let outer_dicts = std::mem::take(&mut self.dict_locals);
+        let outer_sets = std::mem::take(&mut self.set_locals);
         let outer_returns = std::mem::replace(&mut self.returns_list_local, false);
         self.scopes = vec![params.iter().map(|(name, _, _)| name.clone()).collect()];
         let assigned = self.py_assigned_params(&params);
@@ -3734,6 +3810,7 @@ impl Parser {
         self.list_return = outer_return;
         self.list_locals = outer_locals;
         self.dict_locals = outer_dicts;
+        self.set_locals = outer_sets;
         self.returns_list_local = outer_returns;
         let mut body = body?;
         if let Some(elem) = &list_return
@@ -4109,6 +4186,12 @@ impl Parser {
                         if self.at_op("{}") {
                             return self.py_dict_value(&name, pos).map(Some);
                         }
+                        if self.at_word("set")
+                            && self.peek_at(1).text == "("
+                            && self.peek_at(2).text == ")"
+                        {
+                            return self.py_set_value(&name, pos).map(Some);
+                        }
                         let value = self.expr()?;
                         self.py_end_of_statement()?;
                         let target = Node::atom(pos, Value::String(name.clone()));
@@ -4125,12 +4208,29 @@ impl Parser {
                         let dict_ty = self.peek().kind == Kind::Name
                             && matches!(self.peek().text.as_str(), "dict" | "Dict")
                             && self.peek_at(1).text == "[";
+                        let set_ty = self.peek().kind == Kind::Name
+                            && matches!(self.peek().text.as_str(), "set" | "Set")
+                            && self.peek_at(1).text == "[";
                         let (ty, ty_pos) = if dict_ty {
                             self.py_dict_type()?
+                        } else if set_ty {
+                            self.py_set_type()?
                         } else {
                             self.py_type()?
                         };
                         self.expect_op("=")?;
+                        if set_ty {
+                            if self.at_word("set")
+                                && self.peek_at(1).text == "("
+                                && self.peek_at(2).text == ")"
+                            {
+                                return self.py_set_value(&name, pos).map(Some);
+                            }
+                            return refuse(
+                                self.peek().pos,
+                                "a set value is built only as an empty local: s = set()",
+                            );
+                        }
                         if self.at_op("{}") {
                             return self.py_dict_value(&name, pos).map(Some);
                         }
@@ -4478,6 +4578,22 @@ impl Parser {
             .is_some_and(|n| self.dict_locals.iter().any(|d| d == n))
     }
 
+    /// Whether `node` names a set local in scope.
+    fn py_set_name(&self, node: &Node) -> bool {
+        node.is_name()
+            .is_some_and(|n| self.set_locals.iter().any(|s| s == n))
+    }
+
+    /// The refusal for a dict or set local read whole where only a value
+    /// could go (not `len(..)` and not membership, which `allow_dict` serves).
+    fn py_local_refusal(&self, name: &str) -> String {
+        if self.set_locals.iter().any(|s| s == name) {
+            py_set_refusal(name)
+        } else {
+            py_dict_refusal(name)
+        }
+    }
+
     /// `dict[K, V]` after a local's `:` (the `dict` is consumed): only int
     /// keys and values are supported.
     fn py_dict_type(&mut self) -> P<(String, Pos)> {
@@ -4489,6 +4605,19 @@ impl Parser {
         self.expect_op("]")?;
         if key != "i64" || value != "i64" {
             return refuse(pos, "dict keys and values are int here");
+        }
+        Ok(("i64".to_owned(), pos))
+    }
+
+    /// `set[int]` after a local's `:` (the `set` is consumed): only int
+    /// sets are supported.
+    fn py_set_type(&mut self) -> P<(String, Pos)> {
+        let pos = self.bump().pos;
+        self.expect_op("[")?;
+        let (elem, _) = self.py_type()?;
+        self.expect_op("]")?;
+        if elem != "i64" {
+            return refuse(pos, "set members are int here");
         }
         Ok(("i64".to_owned(), pos))
     }
@@ -4518,9 +4647,42 @@ impl Parser {
         ))
     }
 
+    /// `s = set()` or `s: set[int] = set()` (the `set()` is consumed): an int
+    /// set local, stored like a dict local `["dict", s, "i64", "i64"]` where
+    /// the value `1` marks membership. From then on the name is read only in
+    /// place (s.add(x), `x in s`, `x not in s`, len(s)), never as a value.
+    fn py_set_value(&mut self, name: &str, pos: Pos) -> P<Node> {
+        self.expect_word("set")?;
+        self.expect_op("(")?;
+        self.expect_op(")")?;
+        if self.py_declared(name) {
+            return refuse(
+                pos,
+                format!(
+                    "`{name}` already has a value: a set is built once, where it is first \
+                     assigned (change it with {name}.add(x))"
+                ),
+            );
+        }
+        self.py_end_of_statement()?;
+        self.py_declare(name);
+        self.dict_locals.push(name.to_owned());
+        self.set_locals.push(name.to_owned());
+        let word = |w: &str| Node::atom(pos, Value::String(w.to_owned()));
+        Ok(Node::list(
+            pos,
+            vec![word("dict"), word(name), word("i64"), word("i64")],
+        ))
+    }
+
     /// `xs[i] = v` and `xs[i] += v` (also `-= *= //= %=`) on a list local.
+    #[allow(clippy::too_many_lines)] // related Python collection forms share parser state
     fn py_element_assignment(&mut self) -> P<Node> {
         let pos = self.peek().pos;
+        // `s[k] = v` on a set local: sets store membership only.
+        if self.peek().kind == Kind::Name && self.set_locals.contains(&self.peek().text) {
+            return refuse(pos, py_set_store_refusal(&self.peek().text));
+        }
         // `d[k] = v` (also `d[k] += v`) on a dict local: put the key.
         if self.peek().kind == Kind::Name
             && self.dict_locals.contains(&self.peek().text)
@@ -4624,8 +4786,45 @@ impl Parser {
         ))
     }
 
+    #[allow(clippy::too_many_lines)] // related Python collection forms share parser state
     fn py_expression_statement(&mut self) -> P<Option<Node>> {
         let tok = self.peek().clone();
+        // s.add(x) on a set local: store x as a member (the value 1).
+        if tok.kind == Kind::Name
+            && self.set_locals.contains(&tok.text)
+            && self.peek_at(1).text == "."
+            && self.peek_at(2).text == "add"
+            && self.peek_at(3).text == "("
+        {
+            self.bump();
+            self.bump();
+            let method = self.bump();
+            self.bump();
+            let key = self.expr()?;
+            self.expect_op(")")?;
+            self.py_end_of_statement()?;
+            return Ok(Some(Node::list(
+                method.pos,
+                vec![
+                    Node::atom(method.pos, Value::String("dput".into())),
+                    Node::atom(tok.pos, Value::String(tok.text.clone())),
+                    key,
+                    Node::atom(method.pos, Value::from(1)),
+                ],
+            )));
+        }
+        // Another set method: s.remove(x), s.discard(x), ...
+        if tok.kind == Kind::Name
+            && self.set_locals.contains(&tok.text)
+            && self.peek_at(1).text == "."
+            && self.peek_at(2).kind == Kind::Name
+            && self.peek_at(3).text == "("
+        {
+            return refuse(
+                self.peek_at(2).pos,
+                py_set_method_refusal(&tok.text, &self.peek_at(2).text),
+            );
+        }
         // xs.append(v) on a list local.
         if tok.kind == Kind::Name
             && self.peek_at(1).text == "."

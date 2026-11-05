@@ -1824,6 +1824,160 @@ def hop(n: int) -> int:
     }
 }
 
+/// Integer set locals (2.2): `s = set()` or `s: set[int] = set()` lowers to
+/// the dict local it stores as (`["dict", s, "i64", "i64"]`), `s.add(x)` puts
+/// the membership `1` (duplicates collapse, negatives are fine), and the
+/// whole-name reads are `x in s`, `x not in s` and `len(s)`. Iterating,
+/// passing, returning and other methods are refused at each set form's line.
+#[test]
+#[allow(clippy::too_many_lines)] // one program per set form, then refusals
+fn python_sets_count_like_python() {
+    let card = sley_agent::help::topic("python-task").unwrap();
+    assert!(
+        card.contains("Sets of int: s = set(), s.add(x), x in s, x not in s, len(s)"),
+        "{card:#}"
+    );
+    let temp = workspace("python-sets");
+    let h = accepted(
+        &temp.path,
+        "\
+def once(xs: list[int]) -> int:
+    s = set()
+    for x in xs:
+        s.add(x)
+    return len(s)
+
+def distinct_adds(xs: list[int]) -> int:
+    seen: set[int] = set()
+    for x in xs:
+        if x not in seen:
+            seen.add(x)
+    return len(seen)
+
+def member(xs: list[int], x: int) -> int:
+    s = set()
+    for v in xs:
+        s.add(v)
+    if x in s:
+        return 1
+    if x not in s:
+        return 0
+    return 2
+",
+    );
+    // Duplicates collapse; an empty set counts 0; negative members are fine.
+    check(
+        &temp.path,
+        &h,
+        "once",
+        &[
+            (json!([[1, 1, 2, 3, 1]]), json!(3)),
+            (json!([[]]), json!(0)),
+            (json!([[-5, -5, -1]]), json!(2)),
+        ],
+    );
+    check(
+        &temp.path,
+        &h,
+        "distinct_adds",
+        &[(json!([[4, 4, 4]]), json!(1)), (json!([[-7]]), json!(1))],
+    );
+    // Membership and its negative.
+    check(
+        &temp.path,
+        &h,
+        "member",
+        &[
+            (json!([[1, 2, 3], 2]), json!(1)),
+            (json!([[1, 2, 3], 9]), json!(0)),
+            (json!([[0, -3], -3]), json!(1)),
+            (json!([[0, -3], 3]), json!(0)),
+        ],
+    );
+
+    for (text, needle, line, column) in [
+        // Iterating a set.
+        (
+            "def f(xs: list[int]) -> int:\n    s = set()\n    for x in s:\n        s.add(x)\n    return 0\n",
+            "sets cannot be iterated or passed",
+            3,
+            14,
+        ),
+        // Passing a set to a helper.
+        (
+            "def f(n: int) -> int:\n    s = set()\n    s2 = collect(s)\n    return s2\n",
+            "sets cannot be iterated or passed",
+            3,
+            18,
+        ),
+        // Returning a set.
+        (
+            "def f(n: int) -> int:\n    s = set()\n    return s\n",
+            "sets cannot be iterated or passed",
+            3,
+            12,
+        ),
+        // Another set method.
+        (
+            "def f(xs: list[int]) -> int:\n    s = set()\n    s.add(1)\n    s.remove(1)\n    return len(s)\n",
+            "is not supported",
+            4,
+            7,
+        ),
+        // Adding from inside an expression, where a call would produce a value.
+        (
+            "def f(n: int) -> int:\n    s = set()\n    s.add(1)\n    n = s.add(2)\n    return n\n",
+            "does not produce a value",
+            4,
+            11,
+        ),
+        // Reading by index.
+        (
+            "def f(n: int) -> int:\n    s = set()\n    s.add(n)\n    return s[0]\n",
+            "has no reads by key",
+            4,
+            13,
+        ),
+        // Assigning members the dict way.
+        (
+            "def f(n: int) -> int:\n    s = set()\n    s[n] = 1\n    return len(s)\n",
+            "it stores membership only",
+            3,
+            5,
+        ),
+        // set(xs) as a value.
+        (
+            "def f(xs: list[int]) -> int:\n    s = set(xs)\n    return len(s)\n",
+            "a set is built only as an empty local: s = set()",
+            2,
+            9,
+        ),
+        // Building the same set twice.
+        (
+            "def f(n: int) -> int:\n    s = set()\n    s = set()\n    return 0\n",
+            "already has a value: a set is built once",
+            3,
+            5,
+        ),
+        // A set of something else than int.
+        (
+            "def f(n: int) -> int:\n    s: set[str] = set()\n    return len(s)\n",
+            "set members are int here",
+            2,
+            8,
+        ),
+        // A set-annotated local built another way.
+        (
+            "def f(n: int) -> int:\n    s: set[int] = {}\n    return len(s)\n",
+            "a set value is built only as an empty local: s = set()",
+            2,
+            19,
+        ),
+    ] {
+        refused(&temp.path, text, needle, line, column);
+    }
+}
+
 /// List results and comprehensions (2.2): `-> list[T]` returns a list local
 /// whole (a `Map<u64,T>` keyed `0..len`), `[e for x in xs if c]` builds
 /// one, and tests compare a list result with a Python list.
