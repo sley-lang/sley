@@ -75,6 +75,7 @@ pub mod search;
 pub(crate) mod structured;
 pub mod tables;
 pub mod types;
+pub(crate) mod text_ops;
 pub mod values;
 pub mod view;
 #[cfg(feature = "familiar")]

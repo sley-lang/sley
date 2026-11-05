@@ -739,6 +739,20 @@ pub(crate) struct Context<'a> {
     pub(crate) top: BTreeSet<String>,
 }
 
+impl Context<'_> {
+    /// The text entry an `adapter` argument names: a text operation name, or
+    /// a live import row of a text entry.
+    pub(crate) fn text_entry(&self, name: &str) -> Option<sley_vm::text::TextKind> {
+        if let Some(id) = self.names.resolve(name)
+            && let Some(body) = self.program.body(&id)
+            && body.kind_tag() == 15
+        {
+            return crate::text_ops::of_body(body);
+        }
+        crate::text_ops::by_name(name)
+    }
+}
+
 fn placeholder(index: usize) -> EntityId {
     let mut bytes = [0xa5_u8; 32];
     bytes[..8].copy_from_slice(b"afx-type");
@@ -3474,6 +3488,17 @@ impl<'c, 'a> FnExp<'c, 'a> {
                     }
                 }
             }
+            ImmediateKind::Entity if tag == 161 => {
+                if let Some(text) = immediate_text.and_then(|name| self.cx.text_entry(name)) {
+                    callee_result = Some(crate::text_ops::result_type(text));
+                    for (slot, ty) in contexts
+                        .iter_mut()
+                        .zip(crate::text_ops::operand_types(text))
+                    {
+                        *slot = Some(ty);
+                    }
+                }
+            }
             ImmediateKind::Entity if tag == 193 => {
                 immediate_type = immediate_text.and_then(|name| self.cx.global_type(name));
             }
@@ -3647,7 +3672,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
         let fixed = matches!(
             tag,
             1 | 18 | 19 | 20 | 33 | 38 | 96..=104 | 112 | 144 | 145 | 178 | 192..=194
-        );
+        ) || (tag == 161 && callee_result.is_some());
         let raw = explicit.or_else(|| {
             if !fixed && operand_types.iter().any(Option::is_none) {
                 return None;

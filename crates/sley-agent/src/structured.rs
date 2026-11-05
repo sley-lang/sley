@@ -695,6 +695,263 @@ impl<'c, 'a> Fn<'c, 'a> {
         json!({"type": ty, "value": value})
     }
 
+    fn unit() -> Value {
+        json!({"type": "unit", "value": null})
+    }
+
+    /// Invokes a text entry (VM slice E9) and unwraps its result: a refusal
+    /// goes to the handler `mode` names (a trap when none).
+    fn text_op(
+        &mut self,
+        name: &str,
+        scope: Value,
+        request: Value,
+        mode: Option<&str>,
+        at: &str,
+    ) -> R<Value> {
+        let handler = self.handler(mode, at)?;
+        Ok(self.emit_value(
+            &format!("adapter?{handler}"),
+            vec![json!(name), scope, request],
+            at,
+        ))
+    }
+
+    /// The text expressions: `substr`, `slice`, `concat`, `chars`, `ord`,
+    /// `chr`, `str`, `join` and `contains`.
+    #[allow(clippy::too_many_lines)]
+    fn text_expr(
+        &mut self,
+        base: &str,
+        mode: Option<&str>,
+        args: &[Value],
+        env: &mut Env,
+        at: &str,
+    ) -> R<(Value, String)> {
+        let sub = |k: usize| format!("{at}/{}", k + 1);
+        let text_arg = |this: &mut Self, env: &mut Env, k: usize| -> R<Value> {
+            let (v, t) = this.expr(&args[k], env, &sub(k), Some("text"))?;
+            if t != "text" {
+                return fail(&sub(k), format!("`{base}` needs text here, not {t}"));
+            }
+            Ok(v)
+        };
+        match base {
+            "substr" => {
+                // [s, start, length] in scalars; out of range fails.
+                if args.len() != 3 {
+                    return fail(at, "`substr` takes (text, u64 start, u64 length)");
+                }
+                let s = text_arg(self, env, 0)?;
+                let ks = self.hold(env, s, "text");
+                let (a, ta) = self.expr(&args[1], env, &sub(1), Some("u64"))?;
+                let ka = self.hold(env, a, &ta);
+                let (n, tn) = self.expr(&args[2], env, &sub(2), Some("u64"))?;
+                let mut held = Self::release(env, &[ks, ka]);
+                if ta != "u64" || tn != "u64" {
+                    return fail(at, "`substr` positions are u64");
+                }
+                let a = held.remove(1);
+                let s = held.remove(0);
+                let span = self.emit_value("tuple", vec![a, n], at);
+                Ok((self.text_op("text_slice", s, span, mode, at)?, "text".into()))
+            }
+            "slice" => {
+                // Python's s[a:b]: i64 bounds (null for omitted), negative
+                // from the end, clamped to the text; never fails.
+                if args.len() != 3 {
+                    return fail(at, "`slice` takes (text, i64 start or null, i64 end or null)");
+                }
+                let s = text_arg(self, env, 0)?;
+                let ks = self.hold(env, s, "text");
+                let kn = self.fresh("-n");
+                let (start, end) = (self.fresh("-start"), self.fresh("-end"));
+                let bound = |x: &Value, default: Value| -> Value {
+                    if x.is_null() {
+                        default
+                    } else if x.as_i64().is_some_and(|n| n >= 0) {
+                        json!(["min", x, kn])
+                    } else if x.as_i64().is_some() {
+                        json!(["max", ["add", x, kn], 0])
+                    } else {
+                        json!(["if", ["lt", x, 0], ["max", ["add", x, kn], 0], ["min", x, kn]])
+                    }
+                };
+                let statements = vec![
+                    json!(["let", kn, ["to", "i64", ["len", ks]]]),
+                    json!(["let", start, bound(&args[1], json!(0))]),
+                    json!(["let", end, bound(&args[2], json!(kn))]),
+                ];
+                self.stmts(&statements, env, at, true)?;
+                for (k, name) in [(1, &start), (2, &end)] {
+                    if env.get(name).is_some_and(|b| b.ty != "i64") {
+                        return fail(&sub(k), "a slice bound is an integer (i64)");
+                    }
+                }
+                let length = json!(["to", "u64", ["max", ["sub", end, start], 0]]);
+                let (a, _) = self.expr(&json!(["to", "u64", start]), env, at, Some("u64"))?;
+                let ka = self.hold(env, a, "u64");
+                let (n, _) = self.expr(&length, env, at, Some("u64"))?;
+                let mut held = Self::release(env, &[ks, ka]);
+                let a = held.remove(1);
+                let s = held.remove(0);
+                env.remove(&kn);
+                env.remove(&start);
+                env.remove(&end);
+                let span = self.emit_value("tuple", vec![a, n], at);
+                Ok((self.text_op("text_slice", s, span, None, at)?, "text".into()))
+            }
+            "concat" => {
+                if args.is_empty() {
+                    return fail(at, "`concat` takes one or more texts");
+                }
+                let mut keys = Vec::new();
+                for k in 0..args.len() {
+                    let v = text_arg(self, env, k)?;
+                    keys.push(self.hold(env, v, "text"));
+                }
+                let parts = Self::release(env, &keys);
+                let vector = self.emit_value("vec", parts, at);
+                Ok((self.text_op("text_concat", Self::unit(), vector, None, at)?, "text".into()))
+            }
+            "chars" => {
+                if args.len() != 1 {
+                    return fail(at, "`chars` takes 1 text");
+                }
+                let s = text_arg(self, env, 0)?;
+                Ok((
+                    self.text_op("text_scalars", Self::unit(), s, None, at)?,
+                    "Vec<text>".into(),
+                ))
+            }
+            "ord" => {
+                if args.len() != 1 {
+                    return fail(at, "`ord` takes 1 text");
+                }
+                let s = text_arg(self, env, 0)?;
+                Ok((self.text_op("text_ord", Self::unit(), s, mode, at)?, "u32".into()))
+            }
+            "chr" => {
+                if args.len() != 1 {
+                    return fail(at, "`chr` takes 1 u32");
+                }
+                let (v, t) = self.expr(&args[0], env, &sub(0), Some("u32"))?;
+                if t != "u32" {
+                    return fail(&sub(0), format!("`chr` takes a u32 code point, not {t}"));
+                }
+                Ok((self.text_op("text_chr", Self::unit(), v, mode, at)?, "text".into()))
+            }
+            "str" => {
+                if args.len() != 1 {
+                    return fail(at, "`str` takes 1 integer");
+                }
+                let (v, t) = self.expr(&args[0], env, &sub(0), Some("i64"))?;
+                if t == "text" {
+                    return Ok((v, t));
+                }
+                if !is_int(&t) {
+                    return fail(&sub(0), format!("`str` takes an integer, not {t}"));
+                }
+                let v = if t == "i64" {
+                    v
+                } else {
+                    self.emit_value("to", vec![json!("i64"), v], at)
+                };
+                Ok((self.text_op("text_from_int", Self::unit(), v, None, at)?, "text".into()))
+            }
+            "join" => {
+                // [sep, xs]: the texts of xs (a vector or a list local) with
+                // sep between them, appended left to right.
+                if args.len() != 2 {
+                    return fail(at, "`join` takes (separator text, texts)");
+                }
+                let sep = text_arg(self, env, 0)?;
+                let ksep = self.hold(env, sep, "text");
+                // A list local is read in place; any other operand is a vector
+                // value, held for the loop.
+                let (xs, held) = if self.list_len(&args[1], env).is_some() {
+                    (args[1].clone(), None)
+                } else {
+                    let (v, t) = self.expr(&args[1], env, &sub(1), None)?;
+                    if t != "Vec<text>" {
+                        return fail(&sub(1), format!("`join` needs texts, not {t}"));
+                    }
+                    let key = self.hold(env, v, &t);
+                    (json!(key), Some(key))
+                };
+                let (acc, i) = (self.fresh("-acc"), self.fresh("-i"));
+                let statements = vec![
+                    json!(["var", acc, "text", {"type": "text", "value": ""}]),
+                    json!(["var", i, "u64", {"type": "u64", "value": 0}]),
+                    json!([
+                        "while",
+                        ["lt", i, ["len", xs]],
+                        [
+                            ["if", ["gt", i, 0], [["set", acc, ["concat", acc, ksep]]]],
+                            ["set", acc, ["concat", acc, ["get", xs, i]]],
+                            ["set", i, ["add", i, 1]]
+                        ]
+                    ]),
+                ];
+                self.stmts(&statements, env, at, true)?;
+                let result = env.operand(&acc);
+                env.remove(&acc);
+                env.remove(&i);
+                if let Some(key) = held {
+                    Self::release(env, &[key]);
+                }
+                Self::release(env, &[ksep]);
+                Ok((result, "text".into()))
+            }
+            "contains" => {
+                // [needle, haystack]: Python's `needle in haystack`.
+                if args.len() != 2 {
+                    return fail(at, "`contains` takes (needle text, haystack text)");
+                }
+                let a = text_arg(self, env, 0)?;
+                let ka = self.hold(env, a, "text");
+                let b = text_arg(self, env, 1)?;
+                let kb = self.hold(env, b, "text");
+                let (la, lb, found, i) = (
+                    self.fresh("-la"),
+                    self.fresh("-lb"),
+                    self.fresh("-found"),
+                    self.fresh("-i"),
+                );
+                let statements = vec![
+                    json!(["let", la, ["len", ka]]),
+                    json!(["let", lb, ["len", kb]]),
+                    json!(["var", found, "bool", false]),
+                    json!(["var", i, "u64", {"type": "u64", "value": 0}]),
+                    json!([
+                        "if",
+                        ["le", la, lb],
+                        [[
+                            "while",
+                            ["le", i, ["sub", lb, la]],
+                            [
+                                [
+                                    "if",
+                                    ["eq", ["substr", kb, i, la], ka],
+                                    [["set", found, true], ["break"]]
+                                ],
+                                ["set", i, ["add", i, 1]]
+                            ]
+                        ]]
+                    ]),
+                ];
+                self.stmts(&statements, env, at, true)?;
+                let result = env.operand(&found);
+                for name in [&la, &lb, &found, &i] {
+                    env.remove(name);
+                }
+                Self::release(env, &[ka, kb]);
+                Ok((result, "bool".into()))
+            }
+            _ => fail(at, format!("unknown operation `{base}`")),
+        }
+    }
+
     /// Starts a block whose parameters carry every variable in scope.
     fn new_block(&mut self, env: &Env) -> (Block, Env) {
         let name = self.fresh("b");
@@ -827,7 +1084,10 @@ impl<'c, 'a> Fn<'c, 'a> {
                         Some("bool".into())
                     }
                     "len" => Some("u64".into()),
-                    "truthy" => Some("bool".into()),
+                    "truthy" | "contains" => Some("bool".into()),
+                    "substr" | "slice" | "concat" | "chr" | "str" | "join" => Some("text".into()),
+                    "ord" => Some("u32".into()),
+                    "chars" => Some("Vec<text>".into()),
                     "pow" | "gcd" | "powmod" => {
                         args.iter().find_map(|a| self.static_type(a, env, None))
                     }
@@ -842,7 +1102,11 @@ impl<'c, 'a> Fn<'c, 'a> {
                         {
                             return map_value(&env.get(list)?.ty);
                         }
-                        vec_elem(&self.static_type(args.first()?, env, None)?)
+                        let ty = self.static_type(args.first()?, env, None)?;
+                        if ty == "text" {
+                            return Some(ty);
+                        }
+                        vec_elem(&ty)
                     }
                     "field" => {
                         let rec = self.static_type(args.first()?, env, None)?;
@@ -981,6 +1245,14 @@ impl<'c, 'a> Fn<'c, 'a> {
                     return fail(at, format!("`{base}` takes {arity} operand(s)"));
                 }
                 let (vals, ty) = self.operands(args, env, at, hint)?;
+                if base == "add" && ty == "text" && mode.is_none() {
+                    // Text `+` appends (VM slice E9 `TCT1`).
+                    let vector = self.emit_value("vec", vals, at);
+                    return Ok((
+                        self.text_op("text_concat", Self::unit(), vector, None, at)?,
+                        ty,
+                    ));
+                }
                 if !is_int(&ty) {
                     return fail(at, format!("`{base}` needs integer operands, not {ty}"));
                 }
@@ -1256,8 +1528,11 @@ impl<'c, 'a> Fn<'c, 'a> {
                     return Ok((env.operand(&len), "u64".into()));
                 }
                 let (v, t) = self.expr(&args[0], env, &sub(0), None)?;
+                if t == "text" {
+                    return Ok((self.text_op("text_len", Self::unit(), v, None, at)?, "u64".into()));
+                }
                 if vec_elem(&t).is_none() {
-                    return fail(at, "`len` needs a vector");
+                    return fail(at, "`len` needs a vector or text");
                 }
                 Ok((self.emit_value("vec_len", vec![v], at), "u64".into()))
             }
@@ -1293,8 +1568,20 @@ impl<'c, 'a> Fn<'c, 'a> {
                     ));
                 }
                 let (v, t) = self.expr(&args[0], env, &sub(0), None)?;
+                if t == "text" {
+                    // The scalar at a u64 index, as a one-scalar text.
+                    let kv = self.hold(env, v, &t);
+                    let (i, ti) = self.expr(&args[1], env, &sub(1), Some("u64"))?;
+                    let v = Self::release(env, &[kv]).remove(0);
+                    if ti != "u64" {
+                        return fail(at, format!("a text index is u64, not {ti}"));
+                    }
+                    let one = Self::lit(&json!(1), "u64");
+                    let span = self.emit_value("tuple", vec![i, one], at);
+                    return Ok((self.text_op("text_slice", v, span, mode, at)?, "text".into()));
+                }
                 let Some(elem) = vec_elem(&t) else {
-                    return fail(at, "`get` needs a vector");
+                    return fail(at, "`get` needs a vector or text");
                 };
                 let kv = self.hold(env, v, &t);
                 let (i, ti) = if mode.is_none() {
@@ -1315,6 +1602,8 @@ impl<'c, 'a> Fn<'c, 'a> {
                     elem,
                 ))
             }
+            "substr" | "slice" | "concat" | "chars" | "ord" | "chr" | "str" | "join"
+            | "contains" => self.text_expr(base, mode, args, env, at),
             "field" => {
                 let Some(field) = args
                     .get(1)
@@ -2677,7 +2966,13 @@ impl<'c, 'a> Fn<'c, 'a> {
             (binding.operand, binding.ty, Some(held))
         } else {
             let (vec, vty) = self.expr(list, env, &format!("{at}/{}", 2 + offset), None)?;
-            (vec, vty, None)
+            if vty == "text" {
+                // A text is visited scalar by scalar.
+                let scalars = self.text_op("text_scalars", Self::unit(), vec, None, at)?;
+                (scalars, "Vec<text>".to_owned(), None)
+            } else {
+                (vec, vty, None)
+            }
         };
         let Some(elem) = (if listed.is_some() {
             map_value(&vty)
