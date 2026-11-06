@@ -1,14 +1,8 @@
-# Sley 2.2.0 release notes (DRAFT)
+# Sley 2.2.0 release notes
 
-**Status of this document: draft.** Prepared for release readiness only. No
-tag, no release build, no release archive, no artifact hash, no seal and no
-publishing step has been taken for 2.2.0. Numbers below that come from earlier
-releases are historical evidence carried forward, clearly marked; this draft
-contains no fresh 2.2 measurement claims.
+Sley 2.2.0 adds native Text operations, Python-dialect strings, bisect, integer dicts and sets, guard-derived non-negative division, automatic Python input detection and explicit with-card token accounting. `call --fuel` can lower, never raise, the existing ceiling. There is no new measured runtime or token-cost headline.
 
-Sley 2.2.0 extends what the Python dialect can say and what the VM runs
-natively. The release adds admitted native Text operations; review the linked changes for profile and validation compatibility. This draft supersedes nothing and is subject to the
-remaining release verification listed at the end.
+The executable cut is `1d976f895759e1c1aa072d0cc0e15bb6c52d4559` (#114). The release tag also contains these finalized notes and candidate evidence; those records do not change the executable sources.
 
 ## Native Text operations in the VM (#102)
 
@@ -87,10 +81,12 @@ session has been run, and no 2.2 wall-time figure appears in these notes.
 - T2 (further pass-output compaction) and T5 (further trim and the card A/B)
   are deferred; the A/B remains undone.
 
-## Pending and deferred work
+## CLI input detection and token accounting
 
-- **T1 (#112) and T6 (#113) are merged.**
-  T1 automatically detects Python-shaped try input, preserving JSON and explicit familiar handling. T6 adds explicit with-card totals, once per task session, preserving historical no-card data and unavailable legacy card totals.
+T1 (#112) automatically detects Python-shaped try input, preserving JSON and explicit familiar handling. T6 (#113) adds explicit with-card totals, once per task session, preserving historical no-card data and unavailable legacy card totals.
+
+## Deferred work
+
 - **S2 and S4:** final bounded attempts hit their time limits without a verified
   result. They are deferred/unverified — no completion claim is
   made.
@@ -106,31 +102,19 @@ then spend less) and where `call --fuel` is used (only lowering permitted).
 The native test supervisor remains source only and unqualified on an
 installed host, as in prior releases. `ga_claimed` remains `false`.
 
-## Remaining release verification (draft status, explicit)
+## Verification and operator acceptance
 
-None of the following has been done for 2.2.0:
+On 2026-11-05 the operator accepted the documented remaining verification items and deferrals for shipping 2.2.0:
 
-1. Cut point: pick the cut commit after the remaining pending PRs land or do
-   not (T1 #112 and T6 #113 merged).
-2. Design-specification checks: `check_candidate_result_contract.py` and
-   `check_transaction_contract.py` were not run for 2.2 (unavailable design
-   spec off the maintainer host; the carried-forward waiver has not been
-   re-confirmed for 2.2). Not a pass.
-3. Full workspace/conformance suites against the final cut. The release-prep sley-agent suite, clippy and 9 offline token-card tests passed before final T1 integration; integrated verification is recorded in the PR/status log.
-4. Persistent-fuzz proofs re-run or explicitly carried forward as 2.1.7-era
-   records.
-5. Runtime benchmark session for the release candidate, if the operator wants
-   one (none exists yet; the fib disclosure above is the historical record).
-6. Release build: `cargo fetch --locked`,
-   `scripts/build_release_candidate.py --require-clean`, two-clean-build
-   reproducibility check.
-7. Archive SHA-256, provenance and release seal — not computed.
-8. Measurement v2 audit steps (held-out sealing, preregistration hash,
-   four-arm run) — blocked, not done.
-9. Operator review and approval of this draft before any tag or publish.
+- The design-specification checks (`check_candidate_result_contract.py` and `check_transaction_contract.py`) use the carried-forward 2.1.2 waiver, as in 2.1.8. They are not passes. The original waiver had not been re-confirmed during draft preparation; carrying it forward for this cut was explicitly accepted on 2026-11-05. The candidate-result attempt reported `master:unavailable:.:set-SLEY2_DESIGN_SPEC`.
+- Persistent-fuzz proof records remain the 2.1.7-era records where the covered code is unchanged. No fresh persistent-fuzz proof is claimed for changed code, including the Text VM work.
+- No fresh runtime benchmark session is required for this cut. The fib disclosure above is historical, not a new 2.2 measurement.
+- Measurement-v2/four-arm API runs remain blocked and were not run. Held-out tasks were not sealed and no preregistration hash was computed. These are not release-completion claims.
 
-## Packaging
+Release-preparation verification recorded 1,099 passing sley-agent release tests, including Python 32/32, clean all-target clippy with warnings denied, and 9/9 offline token-card tests. Four local oracle regressions and 2,343 exhaustive small-domain cases passed; this is not a full oracle sweep or a claim that every workspace/conformance suite was freshly run against the final tag. `cargo fmt --all --check` passed on the executable cut.
 
-Nothing to package yet: no candidate build was made, so no archive exists and
-no hash is recorded. The packaging procedure will follow the 2.1.8 notes once
-the release candidate is actually built.
+## Candidate packaging
+
+PACKAGING_PENDING
+
+Provenance remains unsigned; cross-host reproducibility is not claimed. This is not a GA claim: `ga_claimed` remains `false`. The operator authorized tagging and publishing on 2026-11-05.
