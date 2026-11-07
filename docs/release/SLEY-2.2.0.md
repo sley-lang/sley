@@ -87,6 +87,7 @@ T1 (#112) automatically detects Python-shaped try input, preserving JSON and exp
 
 ## Deferred work
 
+- **Independent E9 review is deferred/owed for this 2.2.0 cut.** Extended profile revision 18 records: "E9 has had self-review only; an independent review is owed." No independent-review PASS or transcript is claimed.
 - **S2 and S4:** final bounded attempts hit their time limits without a verified
   result. They are deferred/unverified — no completion claim is
   made.
