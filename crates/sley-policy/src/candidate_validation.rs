@@ -4693,13 +4693,13 @@ pub(crate) mod tests {
 
     /// Entity IDs referenced by the three operations of the single-block
     /// `adapter_invoke` program.
+    #[derive(Clone, Copy)]
     struct AdapterInvokeEntities {
         block: EntityId,
         unit_constant: EntityId,
         request_constant: EntityId,
         scope_op: EntityId,
         request_op: EntityId,
-        invoke: EntityId,
         adapter: EntityId,
     }
 
@@ -4716,7 +4716,6 @@ pub(crate) mod tests {
             request_constant,
             scope_op,
             request_op,
-            invoke,
             adapter,
         } = entities;
         vec![
@@ -4840,7 +4839,6 @@ pub(crate) mod tests {
                 request_constant,
                 scope_op,
                 request_op,
-                invoke,
                 adapter,
             },
             request_type,
