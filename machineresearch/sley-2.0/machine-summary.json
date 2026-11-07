@@ -716,8 +716,7 @@
         ],
         "fixture": "crates/sley-vm/src/extended_tests.rs (e9_text lanes; conformance vectors deferred to the next release-evidence refresh)",
         "vectors": 0,
-        "tests": 4,
-        "review": "SELF_REVIEW_ONLY_INDEPENDENT_REVIEW_PENDING"
+        "tests": 4
       }
     },
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
