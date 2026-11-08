@@ -2346,6 +2346,19 @@ pub(crate) mod tests {
         constructor([byte; 32])
     }
 
+    /// A fresh candidate nonce drawn from the operating system: the same
+    /// host-supplied source the candidate path uses in production
+    /// (`sley_agent::candidate::fresh_nonce`, which reads `/dev/urandom`).
+    /// The nonce bytes come in at run time and are never embedded in code.
+    pub(crate) fn fresh_nonce() -> CandidateNonce {
+        use std::io::Read as _;
+        let mut bytes = [0_u8; 32];
+        std::fs::File::open("/dev/urandom")
+            .and_then(|mut file| file.read_exact(&mut bytes))
+            .expect("os randomness for candidate nonce");
+        CandidateNonce::from_bytes(bytes)
+    }
+
     pub(crate) struct Fixture {
         pub(crate) workspace_id: WorkspaceId,
         pub(crate) transaction_id: TransactionId,
@@ -2550,7 +2563,17 @@ pub(crate) mod tests {
             nonce_byte: u8,
             bodies: Vec<(u16, EntityBodyValue)>,
         ) -> ImportedCandidate {
-            let nonce = fixed(nonce_byte, CandidateNonce::from_bytes);
+            self.create_candidate_with_nonce(fixed(nonce_byte, CandidateNonce::from_bytes), bodies)
+        }
+
+        /// Builds a candidate whose creates all derive their identities from
+        /// the one passed-in candidate nonce, so derived IDs match both the
+        /// operations and `record.candidate_nonce` by construction.
+        pub(crate) fn create_candidate_with_nonce(
+            &self,
+            nonce: CandidateNonce,
+            bodies: Vec<(u16, EntityBodyValue)>,
+        ) -> ImportedCandidate {
             let mut operations = Vec::with_capacity(bodies.len());
             let mut preconditions = Vec::with_capacity(bodies.len());
             for (ordinal, (kind, body)) in bodies.into_iter().enumerate() {
@@ -2586,12 +2609,20 @@ pub(crate) mod tests {
         }
 
         pub(crate) fn created_id(&self, nonce_byte: u8, kind: u16, ordinal: u64) -> EntityId {
-            EntityId::derive(
-                self.workspace_id,
-                fixed(nonce_byte, CandidateNonce::from_bytes),
-                u32::from(kind),
-                ordinal,
-            )
+            self.created_id_with_nonce(fixed(nonce_byte, CandidateNonce::from_bytes), kind, ordinal)
+        }
+
+        /// The same identity derivation over an explicitly supplied nonce:
+        /// `EntityId::derive(workspace, nonce, kind, ordinal)`, matching the
+        /// production `sley_agent::candidate::created_id` shape that takes a
+        /// host nonce directly.
+        pub(crate) fn created_id_with_nonce(
+            &self,
+            nonce: CandidateNonce,
+            kind: u16,
+            ordinal: u64,
+        ) -> EntityId {
+            EntityId::derive(self.workspace_id, nonce, u32::from(kind), ordinal)
         }
 
         fn context_with<'a>(
@@ -4766,21 +4797,25 @@ pub(crate) mod tests {
 
     /// Build the candidate storing one private function whose only block
     /// performs a single `adapter_invoke` on a carried request constant.
+    ///
+    /// The caller supplies one candidate nonce; every created identity below
+    /// and the record's own nonce are derived from that same value, so they
+    /// stay consistent inside the candidate without embedding nonce bytes.
     fn adapter_invoke_program(
         fixture: &Fixture,
-        nonce: u8,
+        nonce: CandidateNonce,
         adapter_id: [u8; 32],
         request: ConstValue,
         response: TypeExpr,
     ) -> ImportedCandidate {
-        let function = fixture.created_id(nonce, 5, 0);
-        let block = fixture.created_id(nonce, 7, 1);
-        let unit_constant = fixture.created_id(nonce, 9, 2);
-        let request_constant = fixture.created_id(nonce, 9, 3);
-        let adapter = fixture.created_id(nonce, 15, 4);
-        let scope_op = fixture.created_id(nonce, 8, 5);
-        let request_op = fixture.created_id(nonce, 8, 6);
-        let invoke = fixture.created_id(nonce, 8, 7);
+        let function = fixture.created_id_with_nonce(nonce, 5, 0);
+        let block = fixture.created_id_with_nonce(nonce, 7, 1);
+        let unit_constant = fixture.created_id_with_nonce(nonce, 9, 2);
+        let request_constant = fixture.created_id_with_nonce(nonce, 9, 3);
+        let adapter = fixture.created_id_with_nonce(nonce, 15, 4);
+        let scope_op = fixture.created_id_with_nonce(nonce, 8, 5);
+        let request_op = fixture.created_id_with_nonce(nonce, 8, 6);
+        let invoke = fixture.created_id_with_nonce(nonce, 8, 7);
         let request_type = request.value_type.clone();
         let invoke_result = TypeExpr::Result {
             ok: Box::new(response.clone()),
@@ -4844,7 +4879,7 @@ pub(crate) mod tests {
             request_type,
             invoke_result,
         ));
-        fixture.create_candidate(nonce, bodies)
+        fixture.create_candidate_with_nonce(nonce, bodies)
     }
 
     /// Slice E9 (profile revision 18): a program whose only `adapter_invoke`
@@ -4861,7 +4896,12 @@ pub(crate) mod tests {
         let u64_type = TypeExpr::UInt(sley_ssmc::IntegerWidth::from_bits(64));
         let length =
             sley_check::text_rows::text_adapter_id(sley_check::text_rows::TextKind::Length);
-        let accepted = adapter_invoke_program(&fixture, 65, length, text, u64_type);
+        // Fresh host nonces: each case threads one OS-drawn nonce through
+        // every derive and its own record, with no nonce bytes embedded.
+        // The two candidates are validated against independent contexts, and
+        // no assertion compares their identities, so the outcomes do not
+        // depend on specific or distinct nonce bytes.
+        let accepted = adapter_invoke_program(&fixture, fresh_nonce(), length, text, u64_type);
         let output = validate_candidate_bytes(&fixture.context(), &accepted.stored_bytes).unwrap();
         assert!(
             output.is_valid(),
@@ -4878,7 +4918,7 @@ pub(crate) mod tests {
         let octets = TypeExpr::Vector(Box::new(TypeExpr::UInt(
             sley_ssmc::IntegerWidth::from_bits(8),
         )));
-        let foreign = adapter_invoke_program(&fixture, 66, [7; 32], bytes, octets);
+        let foreign = adapter_invoke_program(&fixture, fresh_nonce(), [7; 32], bytes, octets);
         let output = validate_candidate_bytes(&fixture.context(), &foreign.stored_bytes).unwrap();
         assert_terminal(
             &output,
