@@ -261,16 +261,16 @@
       "state": "GATED"
     },
     {
-      "criterion": "artifact name sley-2.1.7-linux-x86_64.tar.gz",
-      "evidence": "reproducibility report attests sley-2.1.7-linux-x86_64.tar.gz; packaging records sley-2.1.7-linux-x86_64.tar.gz",
+      "criterion": "artifact name sley-2.2.0-linux-x86_64.tar.gz",
+      "evidence": "reproducibility report attests sley-2.2.0-linux-x86_64.tar.gz; packaging records sley-2.2.0-linux-x86_64.tar.gz",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit f5ef71254c57cb8fdbef33bc6077287cc1cdaa43; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
+      "evidence": "attested commit bc9da8c76b298ff4b399b9c12d862e8ee89b17d5; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
       "group": "26.8 packaging",
-      "state": "EVIDENCED"
+      "state": "GATED"
     },
     {
       "criterion": "artifact runs with no source-tree access",
@@ -286,7 +286,7 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest d244967c4f2a, artifact digest a44b76e07022, 7677962 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 4add7cd3d95d, artifact digest 7a601f10ad94, 7887554 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -339,17 +339,18 @@
     "No source parser exists in the GA dependency graph",
     "no P0/P1/P2 finding remains open",
     "every section 22 threshold passes",
+    "artifact is built from the final candidate commit",
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "0f62f0e6fe179d26a227834c6a9be66546c36249922c197c24b3d00373ef7344",
   "register_digest": "bd1234ae4fd15575087da877076606f7255af3cdbc27c9d5224a99c1aeaa8b40",
-  "report_digest": "d10189c103a1e464885ba1d533569f71a56a1fa1f6b46c25c9dcd5d7258470e4",
+  "report_digest": "b2011383b8f80b6263c4700fb3f541f970ee97562705a14eb89603ad54d256e8",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,
-    "EVIDENCED": 31,
-    "GATED": 4
+    "EVIDENCED": 30,
+    "GATED": 5
   },
   "thresholds_source": "evidence/release/succession-accounting-report.json"
 }
