@@ -208,7 +208,7 @@
   "conformance_rejections": 285,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "5b24e4763f59c8dbcf24b210406fce3bd59884be13ff39cc235a24e9f0dde15f",
+  "inventory_digest": "4e7099c843a353bd1c528f07bc79de8b9dc43cd064ac34501981914d9f14f423",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -282,12 +282,17 @@
       "tests": 23
     },
     {
+      "directory": "bench/token-cost/tests",
+      "files": 1,
+      "tests": 9
+    },
+    {
       "directory": "oracle/scb1/tests",
       "files": 3,
       "tests": 133
     }
   ],
-  "python_tests": 947,
+  "python_tests": 956,
   "rust_crates": [
     {
       "crate": "sley-adapter",
@@ -296,13 +301,13 @@
     },
     {
       "crate": "sley-agent",
-      "ignored": 0,
-      "tests": 1018
+      "ignored": 2,
+      "tests": 1090
     },
     {
       "crate": "sley-check",
       "ignored": 0,
-      "tests": 87
+      "tests": 88
     },
     {
       "crate": "sley-cli",
@@ -332,7 +337,7 @@
     {
       "crate": "sley-policy",
       "ignored": 2,
-      "tests": 94
+      "tests": 95
     },
     {
       "crate": "sley-protocol",
@@ -397,11 +402,11 @@
     {
       "crate": "sley-vm",
       "ignored": 6,
-      "tests": 518
+      "tests": 522
     }
   ],
-  "rust_ignored_emitters": 44,
-  "rust_unit_tests": 3277,
+  "rust_ignored_emitters": 46,
+  "rust_unit_tests": 3355,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

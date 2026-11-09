@@ -116,6 +116,21 @@ Release-preparation verification recorded 1,099 passing sley-agent release tests
 
 ## Candidate packaging
 
-PACKAGING_PENDING
+The archive is `sley-2.2.0-linux-x86_64.tar.gz`. It contains static musl Linux x86_64 `sley`
+and `sley-agent` binaries, the offline conformance subset and the source-independent demo.
+From a clean checkout of the release commit:
+
+```sh
+cargo fetch --locked
+make release-candidate-build
+sha256sum dist/sley-2.2.0-linux-x86_64.tar.gz
+```
+
+The Linux x86_64 archive was built from
+`bc9da8c76b298ff4b399b9c12d862e8ee89b17d5`. Two clean builds on the primary host
+produced identical bytes. Cross-host reproducibility is not claimed. The archive
+SHA-256 is `7a601f10ad947716f47d8ad16c7bfc95d2109ba56674b0f5a9215e9b0fb947b1`
+(7,887,554 bytes, 17 members). `make release-candidate-verify` passes on the
+recorded candidate.
 
 Provenance remains unsigned; cross-host reproducibility is not claimed. This is not a GA claim: `ga_claimed` remains `false`. The operator authorized tagging and publishing on 2026-11-05.
